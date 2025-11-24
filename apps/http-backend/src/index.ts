@@ -4,9 +4,14 @@ import express from 'express';
 import { middleware } from './middleware.js';
 import jwt from 'jsonwebtoken';
 import { prismaClient } from '@repo/db/client';
+import cors from 'cors';
 
 const app = express();
 app.use(express.json());
+
+app.use(cors({
+  origin: '*'
+}));
 
 app.post('/signup', async (req, res) => {
   const fetchedData = CreateUserSchema.safeParse(req.body);
@@ -111,7 +116,6 @@ app.get('/chats/:roomId', async(req, res) => {
    const message = await prismaClient.chat.findMany({
      where: { roomId: roomId },
      orderBy: { id: 'desc' },
-     take: 50
    })
  
    res.json({ message });
