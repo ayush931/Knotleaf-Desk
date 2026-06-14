@@ -1,14 +1,14 @@
-import { prismaClient } from '@repo/db/client';
-import { JWT_TOKEN } from '@repo/backend-common/config';
+import { prismaClient } from "@repo/db/client";
+import { JWT_TOKEN } from "@repo/backend-common/config";
 import { WebSocketServer, WebSocket } from "ws";
-import jwt from 'jsonwebtoken';
+import jwt from "jsonwebtoken";
 
 const wss = new WebSocketServer({ port: 8080 });
 
 interface User {
-  ws: WebSocket,
-  rooms: string[],
-  userId: string
+  ws: WebSocket;
+  rooms: string[];
+  userId: string;
 }
 
 const users: User[] = [];
@@ -17,7 +17,7 @@ function checkUser(token: string): string | null {
   try {
     const decode = jwt.verify(token, JWT_TOKEN);
 
-    if (typeof decode === 'string') {
+    if (typeof decode === "string") {
       return null;
     }
 
@@ -31,12 +31,12 @@ function checkUser(token: string): string | null {
   }
 }
 
-wss.on('connection', (ws, request) => {
+wss.on("connection", (ws, request) => {
   const url = request.url;
   if (!url) return;
 
-  const queryParams = new URLSearchParams(url.split('?')[1]);
-  const token = queryParams.get('token') || '';
+  const queryParams = new URLSearchParams(url.split("?")[1]);
+  const token = queryParams.get("token") || "";
   const userId = checkUser(token);
 
   if (userId === null) {
@@ -47,27 +47,27 @@ wss.on('connection', (ws, request) => {
   users.push({
     userId,
     rooms: [],
-    ws
-  })
+    ws,
+  });
 
-  ws.on('message', async (data) => {
+  ws.on("message", async (data) => {
     const parsedData = JSON.parse(data as unknown as string);
 
-    if (parsedData.type === 'join_room') {
-      const user = users.find(x => x.ws === ws);
-      user?.rooms.push(parsedData.roomId)
+    if (parsedData.type === "join_room") {
+      const user = users.find((x) => x.ws === ws);
+      user?.rooms.push(parsedData.roomId);
     }
 
-    if (parsedData.type === 'leave_room') {
-      const user = users.find(x => x.ws === ws);
+    if (parsedData.type === "leave_room") {
+      const user = users.find((x) => x.ws === ws);
       if (!user) {
         return;
       }
 
-      user.rooms = user.rooms.filter(r => r !== parsedData.roomId);
+      user.rooms = user.rooms.filter((r) => r !== parsedData.roomId);
     }
 
-    if (parsedData.type === 'chat') {
+    if (parsedData.type === "chat") {
       const roomId = parsedData.roomId;
       const message = parsedData.message;
 
@@ -75,19 +75,21 @@ wss.on('connection', (ws, request) => {
         data: {
           roomId: Number(roomId),
           message,
-          userId
-        }
-      })
+          userId,
+        },
+      });
 
-      users.forEach(user => {
+      users.forEach((user) => {
         if (user.rooms.includes(roomId)) {
-          user.ws.send(JSON.stringify({
-            type: 'chat',
-            message: message,
-            roomId
-          }))
+          user.ws.send(
+            JSON.stringify({
+              type: "chat",
+              message: message,
+              roomId,
+            }),
+          );
         }
-      })
+      });
     }
-  })
-})
+  });
+});

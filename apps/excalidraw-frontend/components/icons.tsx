@@ -1,7 +1,5 @@
-import { LineChart } from 'lucide-react';
+import { LineChart } from "lucide-react";
 
-export function Icons () {
-  return (
-    <LineChart />
-  )
+export function Icons() {
+  return <LineChart />;
 }

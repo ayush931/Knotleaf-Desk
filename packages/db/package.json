@@ -17,8 +17,8 @@
     "@repo/typescript-config": "workspace:*"
   },
   "dependencies": {
-    "@prisma/client": "^6.19.0",
+    "@prisma/client": "6.19.3",
     "dotenv": "^17.2.3",
-    "prisma": "^6.19.0"
+    "prisma": "6.19.3"
   }
 }
