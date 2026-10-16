@@ -1,0 +1,1975 @@
+import {
+  CanvasElement,
+  ArrowElement,
+  LineElement,
+  TextElement,
+  StickyElement,
+  Tool,
+  Theme,
+  GridType,
+  Point,
+  ElementStyleProps,
+  InlineTextState,
+  AnchorPosition,
+  DEFAULT_STYLE,
+  FontFamily,
+} from "./types";
+import {
+  Bounds,
+  ACCENT,
+  computeArrowPath,
+  drawBoundsOutline,
+  drawElement,
+  drawElementAnchors,
+  drawGrid,
+  drawMarquee,
+  fontStack,
+  getElementAnchors,
+  getElementBounds,
+  measureTextBlock,
+  normalizeRect,
+  unionBounds,
+  setFont,
+  getCheckboxAtPoint,
+  wrapText,
+} from "./renderer";
+import { getIconById } from "./iconsData";
+
+type Handle =
+  | "nw"
+  | "n"
+  | "ne"
+  | "e"
+  | "se"
+  | "s"
+  | "sw"
+  | "w"
+  | "start"
+  | "end"
+  | "mid";
+
+const SNAP_GRID = 20;
+const MIN_SIZE = 4;
+const HISTORY_LIMIT = 100;
+
+const HANDLE_CURSOR: Record<Handle, string> = {
+  nw: "nwse-resize",
+  se: "nwse-resize",
+  ne: "nesw-resize",
+  sw: "nesw-resize",
+  n: "ns-resize",
+  s: "ns-resize",
+  e: "ew-resize",
+  w: "ew-resize",
+  start: "crosshair",
+  end: "crosshair",
+  mid: "move",
+};
+
+type Gesture =
+  | { kind: "pan"; last: Point }
+  | { kind: "erase"; erased: boolean }
+  | {
+      kind: "move";
+      origin: Point;
+      snapshots: Map<string, CanvasElement>;
+      moved: boolean;
+      /** Element to select alone if the pointer is released without dragging. */
+      soloId: string | null;
+    }
+  | { kind: "resize"; handle: Handle; snapshot: CanvasElement }
+  | { kind: "endpoint"; handle: Handle; snapshot: ArrowElement | LineElement }
+  | { kind: "marquee"; start: Point; base: Set<string> }
+  | { kind: "draft"; origin: Point };
+
+interface Anchor {
+  anchor: AnchorPosition;
+  x: number;
+  y: number;
+}
+
+function newId(): string {
+  return Math.random().toString(36).substring(2, 10) + Date.now().toString(36).slice(-3);
+}
+
+function distToSegment(p: Point, a: Point, b: Point): number {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const len2 = dx * dx + dy * dy;
+  if (len2 === 0) return Math.hypot(p.x - a.x, p.y - a.y);
+  const t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2));
+  return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy));
+}
+
+/** Recomputes the bounding box fields that other code reads from a line-like element. */
+function syncLineBox<T extends ArrowElement | LineElement>(el: T): T {
+  return {
+    ...el,
+    x: Math.min(el.startX, el.endX),
+    y: Math.min(el.startY, el.endY),
+    width: Math.abs(el.endX - el.startX),
+    height: Math.abs(el.endY - el.startY),
+  };
+}
+
+function translateElement(snap: CanvasElement, dx: number, dy: number, movedIds: Set<string>): CanvasElement {
+  if (snap.type === "arrow" || snap.type === "line") {
+    const moveStart = snap.type !== "arrow" || !snap.startBinding || movedIds.has(snap.startBinding.elementId);
+    const moveEnd = snap.type !== "arrow" || !snap.endBinding || movedIds.has(snap.endBinding.elementId);
+    const next = {
+      ...snap,
+      startX: snap.startX + (moveStart ? dx : 0),
+      startY: snap.startY + (moveStart ? dy : 0),
+      endX: snap.endX + (moveEnd ? dx : 0),
+      endY: snap.endY + (moveEnd ? dy : 0),
+    } as ArrowElement | LineElement;
+    return syncLineBox(next);
+  }
+  if (snap.type === "pencil") {
+    const points = snap.points.map((p) => ({ x: p.x + dx, y: p.y + dy }));
+    return { ...snap, points, x: snap.x + dx, y: snap.y + dy };
+  }
+  return { ...snap, x: snap.x + dx, y: snap.y + dy };
+}
+
+/** Moves arrow endpoints onto the current ports of any bound element that changed. */
+function resolveBindings(list: CanvasElement[], changed: Set<string>): CanvasElement[] {
+  if (changed.size === 0) return list;
+  const byId = new Map(list.map((el) => [el.id, el]));
+  const portOf = (elementId: string, anchor: AnchorPosition): Point | null => {
+    const target = byId.get(elementId);
+    if (!target) return null;
+    const port = getElementAnchors(target).find((a) => a.anchor === anchor);
+    return port ? { x: port.x, y: port.y } : null;
+  };
+  return list.map((el) => {
+    if (el.type !== "arrow") return el;
+    let next: ArrowElement = el;
+    let touched = false;
+    if (next.startBinding && changed.has(next.startBinding.elementId)) {
+      const p = portOf(next.startBinding.elementId, next.startBinding.anchor);
+      if (p) {
+        next = { ...next, startX: p.x, startY: p.y };
+        touched = true;
+      }
+    }
+    if (next.endBinding && changed.has(next.endBinding.elementId)) {
+      const p = portOf(next.endBinding.elementId, next.endBinding.anchor);
+      if (p) {
+        next = { ...next, endX: p.x, endY: p.y };
+        touched = true;
+      }
+    }
+    return touched ? syncLineBox({ ...next, bendOffset: undefined }) : el;
+  });
+}
+
+/** Drops bindings that point at elements which no longer exist. */
+function pruneBindings(list: CanvasElement[]): CanvasElement[] {
+  const ids = new Set(list.map((el) => el.id));
+  return list.map((el) => {
+    if (el.type !== "arrow") return el;
+    const startGone = !!el.startBinding && !ids.has(el.startBinding.elementId);
+    const endGone = !!el.endBinding && !ids.has(el.endBinding.elementId);
+    if (!startGone && !endGone) return el;
+    return {
+      ...el,
+      startBinding: startGone ? undefined : el.startBinding,
+      endBinding: endGone ? undefined : el.endBinding,
+    };
+  });
+}
+
+export class CanvasEngine {
+  private canvas: HTMLCanvasElement;
+  private ctx: CanvasRenderingContext2D;
+  private dpr = 1;
+  private cssWidth = 0;
+  private cssHeight = 0;
+  private destroyed = false;
+
+  private elements: CanvasElement[] = [];
+  private collaborators: { name: string; color: string; cursor?: Point }[] = [];
+  public collaborativeUndo?: () => void;
+  public collaborativeRedo?: () => void;
+  public onCursorChange?: (point: Point) => void;
+  private selectedIds = new Set<string>();
+  private tool: Tool = "select";
+  private theme: Theme = "dark";
+  private gridType: GridType = "dot";
+  private snapToGrid = false;
+  private editingId: string | null = null;
+
+  // Viewport
+  private zoom = 1;
+  private pan: Point = { x: 0, y: 0 };
+
+  // Interaction
+  private gesture: Gesture | null = null;
+  private draft: CanvasElement | null = null;
+  private marqueeRect: Bounds | null = null;
+  private hoveredAnchors: Anchor[] = [];
+  private snapTarget: { anchor: AnchorPosition } | null = null;
+  private spaceDown = false;
+  private shiftDown = false;
+
+  // Animation & render scheduling
+  private flowOffset = 0;
+  private animFrameId: number | null = null;
+  private renderQueued = false;
+
+  // History & clipboard
+  private undoStack: string[] = [];
+  private redoStack: string[] = [];
+  private clipboard: CanvasElement[] = [];
+  private pasteCount = 0;
+
+  /** Style applied to newly created elements. */
+  public currentStyle: ElementStyleProps = { ...DEFAULT_STYLE };
+
+  // Callbacks
+  public onChange?: (elements: CanvasElement[]) => void;
+  public onSelectionChange?: (selected: CanvasElement[]) => void;
+  public onOpenIconPicker?: () => void;
+  public onStartInlineText?: (state: InlineTextState) => void;
+  public onZoomChange?: (zoom: number) => void;
+  public onToolChange?: (tool: Tool) => void;
+  public onHistoryChange?: (canUndo: boolean, canRedo: boolean) => void;
+
+  constructor(
+    canvas: HTMLCanvasElement,
+    initialElements: CanvasElement[] = [],
+    initialTheme: Theme = "dark",
+    initialGrid: GridType = "dot"
+  ) {
+    this.canvas = canvas;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("Canvas 2D context is not available");
+    this.ctx = ctx;
+    this.elements = [...initialElements];
+    this.theme = initialTheme;
+    this.gridType = initialGrid;
+    this.undoStack = [JSON.stringify(this.elements)];
+
+    this.attachEventListeners();
+    this.resize(canvas.clientWidth, canvas.clientHeight);
+
+    // Canvas text can't trigger font loading the way DOM text does, so ask for it explicitly.
+    if (typeof document !== "undefined" && document.fonts) {
+      const families: FontFamily[] = ["sans", "hand", "mono"];
+      Promise.all(families.map((f) => document.fonts.load(`16px ${fontStack(f)}`)))
+        .catch(() => undefined)
+        .finally(() => this.requestRender());
+    }
+  }
+
+  // --- Configuration -----------------------------------------------------------
+
+  public setTool(tool: Tool) {
+    this.tool = tool;
+    if (tool !== "select") {
+      this.selectedIds.clear();
+      this.emitSelection();
+    }
+    this.updateCursor();
+    this.emitTool();
+    this.requestRender();
+  }
+
+  public getTool(): Tool {
+    return this.tool;
+  }
+
+  public setTheme(theme: Theme) {
+    this.theme = theme;
+    this.requestRender();
+  }
+
+  public setGridType(grid: GridType) {
+    this.gridType = grid;
+    this.requestRender();
+  }
+
+  public setSnapToGrid(snap: boolean) {
+    this.snapToGrid = snap;
+  }
+
+  /** Sizes the canvas to its CSS box, backed by device pixels so it stays sharp on HiDPI screens. */
+  public resize(width: number, height: number) {
+    this.dpr = (typeof window !== "undefined" && window.devicePixelRatio) || 1;
+    this.cssWidth = Math.max(1, Math.floor(width));
+    this.cssHeight = Math.max(1, Math.floor(height));
+    this.canvas.width = Math.round(this.cssWidth * this.dpr);
+    this.canvas.height = Math.round(this.cssHeight * this.dpr);
+    this.canvas.style.width = `${this.cssWidth}px`;
+    this.canvas.style.height = `${this.cssHeight}px`;
+    this.render();
+  }
+
+  // --- Viewport -----------------------------------------------------------------
+
+  public setZoom(zoom: number, center?: Point) {
+    const next = Math.max(0.1, Math.min(zoom, 4));
+    const c = center ?? { x: this.cssWidth / 2, y: this.cssHeight / 2 };
+    const ratio = next / this.zoom;
+    this.pan = {
+      x: c.x - (c.x - this.pan.x) * ratio,
+      y: c.y - (c.y - this.pan.y) * ratio,
+    };
+    this.zoom = next;
+    this.onZoomChange?.(this.zoom);
+    this.requestRender();
+  }
+
+  public getZoom(): number {
+    return this.zoom;
+  }
+
+  public zoomIn() {
+    this.setZoom(this.zoom * 1.2);
+  }
+
+  public zoomOut() {
+    this.setZoom(this.zoom / 1.2);
+  }
+
+  public resetZoom() {
+    this.zoom = 1;
+    this.pan = { x: 0, y: 0 };
+    this.onZoomChange?.(this.zoom);
+    this.requestRender();
+  }
+
+  public fitToContent() {
+    const bounds = unionBounds(this.elements.map(el => getElementBounds(el, this.elements)));
+    if (!bounds) {
+      this.resetZoom();
+      return;
+    }
+    const padding = 80;
+    const contentW = Math.max(1, bounds.maxX - bounds.minX);
+    const contentH = Math.max(1, bounds.maxY - bounds.minY);
+    const fit = Math.min(
+      (this.cssWidth - padding * 2) / contentW,
+      (this.cssHeight - padding * 2) / contentH,
+      1.5
+    );
+    this.zoom = Math.max(0.1, Math.min(4, fit));
+    this.pan = {
+      x: this.cssWidth / 2 - ((bounds.minX + bounds.maxX) / 2) * this.zoom,
+      y: this.cssHeight / 2 - ((bounds.minY + bounds.maxY) / 2) * this.zoom,
+    };
+    this.onZoomChange?.(this.zoom);
+    this.requestRender();
+  }
+
+  public screenToCanvas(sx: number, sy: number): Point {
+    return { x: (sx - this.pan.x) / this.zoom, y: (sy - this.pan.y) / this.zoom };
+  }
+
+  public canvasToScreen(cx: number, cy: number): Point {
+    return { x: cx * this.zoom + this.pan.x, y: cy * this.zoom + this.pan.y };
+  }
+
+  // --- Elements & selection ------------------------------------------------------
+
+  /**
+   * Replaces the board content. `recordHistory` true is a user edit (undoable and
+   * persisted). False is a board load, which clears the undo history.
+   */
+  public setElements(elements: CanvasElement[], recordHistory = true) {
+    this.elements = [...elements];
+    this.selectedIds = new Set([...this.selectedIds].filter((id) => elements.some((e) => e.id === id)));
+    if (recordHistory) {
+      this.commit();
+    } else {
+      this.undoStack = [JSON.stringify(this.elements)];
+      this.redoStack = [];
+      this.emitHistory();
+      this.emitSelection();
+      this.requestRender();
+    }
+  }
+
+  public applyRemoteElements(elements: CanvasElement[]) {
+    this.elements = [...elements];
+    this.selectedIds = new Set([...this.selectedIds].filter(id => elements.some(e => e.id === id)));
+    this.emitSelection(); this.requestRender();
+  }
+  public setCollaborators(people: { name: string; color: string; cursor?: Point }[]) { this.collaborators = people; this.requestRender(); }
+
+  public getElements(): CanvasElement[] {
+    return this.elements;
+  }
+
+  public getSelectedElements(): CanvasElement[] {
+    if (this.selectedIds.size === 0) return [];
+    return this.elements.filter((el) => this.selectedIds.has(el.id));
+  }
+
+  public getSelectedElement(): CanvasElement | null {
+    const selected = this.getSelectedElements();
+    return selected.length === 1 ? selected[0] : null;
+  }
+
+  public selectAll() {
+    this.selectedIds = new Set(this.elements.map((el) => el.id));
+    this.emitSelection();
+    this.requestRender();
+  }
+
+  /** Applies style or property changes to every selected element. */
+  public updateSelectedElement(props: Partial<CanvasElement>) {
+    const ids = this.selectedIds;
+    if (ids.size === 0) return;
+    this.elements = this.elements.map((el) => {
+      if (!ids.has(el.id)) return el;
+      const next = { ...el, ...props } as CanvasElement;
+      return next.type === "text" ? this.remeasureText(next) : next.type === "sticky" ? this.fitSticky(next) : next;
+    });
+    this.elements = resolveBindings(this.elements, new Set(ids));
+    this.commit();
+  }
+
+  /** Connect selected shapes in selection order without requiring a drag gesture. */
+  public connectSelected() {
+    const selected = [...this.selectedIds].map(id => this.elements.find(e => e.id === id))
+      .filter((e): e is CanvasElement => !!e && !["arrow", "line", "pencil", "frame"].includes(e.type));
+    if (selected.length < 2) return;
+    const arrows: ArrowElement[] = [];
+    for (let i = 1; i < selected.length; i++) {
+      const source = selected[i - 1], target = selected[i];
+      const dx = target.x + target.width / 2 - source.x - source.width / 2;
+      const dy = target.y + target.height / 2 - source.y - source.height / 2;
+      const startAnchor: AnchorPosition = Math.abs(dx) >= Math.abs(dy) ? (dx >= 0 ? "right" : "left") : (dy >= 0 ? "bottom" : "top");
+      const opposite: Record<AnchorPosition, AnchorPosition> = { top: "bottom", bottom: "top", left: "right", right: "left" };
+      const endAnchor = opposite[startAnchor];
+      const start = getElementAnchors(source).find(p => p.anchor === startAnchor)!;
+      const end = getElementAnchors(target).find(p => p.anchor === endAnchor)!;
+      const arrow = this.createDraft(start, "arrow") as ArrowElement;
+      arrows.push(syncLineBox({ ...arrow, endX: end.x, endY: end.y,
+        startBinding: { elementId: source.id, anchor: startAnchor }, endBinding: { elementId: target.id, anchor: endAnchor } }));
+    }
+    this.elements = [...this.elements, ...arrows];
+    this.commit();
+  }
+
+  public arrangeSelected(mode: "left" | "top" | "horizontal") {
+    const shapes = this.getSelectedElements().filter(e => !["arrow", "line", "pencil"].includes(e.type));
+    if (shapes.length < 2) return;
+    const movedIds = new Set(shapes.map(e => e.id));
+    const changes = new Map<string, CanvasElement>();
+    if (mode === "horizontal") {
+      if (shapes.length < 3) return;
+      const sorted = [...shapes].sort((a, b) => a.x - b.x);
+      const first = sorted[0], last = sorted[sorted.length - 1];
+      const totalWidth = sorted.reduce((n, e) => n + e.width, 0);
+      const gap = (last.x + last.width - first.x - totalWidth) / (sorted.length - 1);
+      let x = first.x;
+      for (const el of sorted) { changes.set(el.id, translateElement(el, x - el.x, 0, movedIds)); x += el.width + gap; }
+    } else {
+      const coordinate = Math.min(...shapes.map(e => mode === "left" ? e.x : e.y));
+      for (const el of shapes) changes.set(el.id, translateElement(el, mode === "left" ? coordinate - el.x : 0, mode === "top" ? coordinate - el.y : 0, movedIds));
+    }
+    this.elements = resolveBindings(this.elements.map(e => changes.get(e.id) ?? e), movedIds);
+    this.commit();
+  }
+
+  private fitSticky(el: StickyElement): StickyElement {
+    const width = Math.max(100, el.width);
+    setFont(this.ctx, el.fontSize || 15, el.fontFamily || "sans", 500);
+    const height = Math.max(80, el.height, wrapText(this.ctx, el.text, width - 24).length * (el.fontSize || 15) * 1.35 + 28);
+    return { ...el, width, height };
+  }
+
+  private remeasureText(el: TextElement): TextElement {
+    const size = measureTextBlock(this.ctx, el.text, el.fontSize, el.fontFamily);
+    return { ...el, width: size.width, height: size.height };
+  }
+
+  /** Steps the font size of selected text (Ctrl+Shift+. / Ctrl+Shift+,). */
+  public changeFontSize(delta: number) {
+    const clamp = (v: number) => Math.max(8, Math.min(96, Math.round(v)));
+    const ids = new Set(this.getSelectedElements().filter((e) => e.type === "text" || e.type === "sticky").map((e) => e.id));
+    if (ids.size === 0) {
+      this.currentStyle.fontSize = clamp(this.currentStyle.fontSize + delta);
+      this.requestRender();
+      return;
+    }
+    this.elements = this.elements.map((el) => {
+      if (!ids.has(el.id)) return el;
+      if (el.type === "text") return this.remeasureText({ ...el, fontSize: clamp(el.fontSize + delta) });
+      if (el.type === "sticky") return this.fitSticky({ ...el, fontSize: clamp(el.fontSize + delta) });
+      return el;
+    });
+    this.commit();
+  }
+
+  /** Adds an icon imported from the internet. Its SVG is stored on the element so it works offline. */
+  public addOnlineIcon(name: string, id: string, svgMarkup: string, viewBox: string) {
+    const center = this.screenToCanvas(this.cssWidth / 2, this.cssHeight / 2);
+    const el: CanvasElement = {
+      id: newId(),
+      type: "icon",
+      iconId: `online:${id}`,
+      iconName: name,
+      category: "online",
+      iconColor: this.theme === "dark" ? "#E2E8F0" : "#1E293B",
+      badgeBg: this.theme === "dark" ? "rgba(30, 41, 59, 0.7)" : "rgba(248, 250, 252, 0.95)",
+      svgMarkup,
+      viewBox,
+      label: name,
+      x: center.x - 45,
+      y: center.y - 45,
+      width: 90,
+      height: 90,
+      stroke: "#CBD5E1",
+      strokeWidth: 1.5,
+      strokeStyle: "solid",
+      fill: "transparent",
+      fillStyle: "none",
+      roundness: "rounded",
+      opacity: 1,
+      zIndex: this.elements.length,
+    };
+    this.elements = [...this.elements, el];
+    this.selectedIds = new Set([el.id]);
+    this.tool = "select";
+    this.emitTool();
+    this.commit();
+  }
+
+  /** Reverses the selected arrows while preserving the start/end cap styles. */
+  public swapSelectedArrows() {
+    const ids = this.selectedIds;
+    this.elements = this.elements.map((el) => {
+      if (el.type !== "arrow" || !ids.has(el.id)) return el;
+      return syncLineBox({
+        ...el,
+        startX: el.endX,
+        startY: el.endY,
+        endX: el.startX,
+        endY: el.startY,
+        bendOffset: undefined,
+        startBinding: el.endBinding,
+        endBinding: el.startBinding,
+        arrowHeadStart: el.arrowHeadStart ?? "none",
+        arrowHeadEnd: el.arrowHeadEnd ?? "arrow",
+      });
+    });
+    this.commit();
+  }
+
+  public addIconElement(iconId: string) {
+    const def = getIconById(iconId);
+    if (!def) return;
+    const center = this.screenToCanvas(this.cssWidth / 2, this.cssHeight / 2);
+    const el: CanvasElement = {
+      id: newId(),
+      type: "icon",
+      iconId: def.id,
+      iconName: def.name,
+      category: def.category,
+      iconColor: def.color,
+      badgeBg: def.badgeBg,
+      x: center.x - 45,
+      y: center.y - 45,
+      width: 90,
+      height: 90,
+      stroke: def.color,
+      strokeWidth: 1.5,
+      strokeStyle: "solid",
+      fill: "transparent",
+      fillStyle: "none",
+      roundness: "rounded",
+      opacity: 1,
+      zIndex: this.elements.length,
+    };
+    this.elements = [...this.elements, el];
+    this.selectedIds = new Set([el.id]);
+    this.tool = "select";
+    this.emitTool();
+    this.commit();
+  }
+
+  public deleteSelected() {
+    if (this.selectedIds.size === 0) return;
+    const ids = this.selectedIds;
+    this.elements = pruneBindings(this.elements.filter((el) => !ids.has(el.id)));
+    this.selectedIds.clear();
+    this.commit();
+  }
+
+  public duplicateSelected() {
+    const selected = this.getSelectedElements();
+    if (selected.length === 0) return;
+    const copies = this.cloneElements(selected, 24);
+    this.elements = [...this.elements, ...copies];
+    this.selectedIds = new Set(copies.map((c) => c.id));
+    this.commit();
+  }
+
+  public copySelection() {
+    this.clipboard = JSON.parse(JSON.stringify(this.getSelectedElements()));
+    this.pasteCount = 0;
+  }
+
+  public cutSelection() {
+    this.copySelection();
+    this.deleteSelected();
+  }
+
+  public paste() {
+    if (this.clipboard.length === 0) return;
+    this.pasteCount++;
+    const copies = this.cloneElements(this.clipboard, 24 * this.pasteCount);
+    this.elements = [...this.elements, ...copies];
+    this.selectedIds = new Set(copies.map((c) => c.id));
+    this.commit();
+  }
+
+  public bringToFront() {
+    const ids = this.selectedIds;
+    if (ids.size === 0) return;
+    this.elements = [
+      ...this.elements.filter((el) => !ids.has(el.id)),
+      ...this.elements.filter((el) => ids.has(el.id)),
+    ];
+    this.commit();
+  }
+
+  public sendToBack() {
+    const ids = this.selectedIds;
+    if (ids.size === 0) return;
+    this.elements = [
+      ...this.elements.filter((el) => ids.has(el.id)),
+      ...this.elements.filter((el) => !ids.has(el.id)),
+    ];
+    this.commit();
+  }
+
+  /** Clones elements with fresh ids. Arrows keep bindings only to clones that were also copied. */
+  private cloneElements(source: CanvasElement[], offset: number): CanvasElement[] {
+    const idMap = new Map<string, string>();
+    source.forEach((el) => idMap.set(el.id, newId()));
+    return source.map((el) => {
+      const copy = JSON.parse(JSON.stringify(el)) as CanvasElement;
+      copy.id = idMap.get(el.id)!;
+      copy.zIndex = this.elements.length;
+      if (copy.type === "arrow" || copy.type === "line") {
+        copy.startX += offset;
+        copy.startY += offset;
+        copy.endX += offset;
+        copy.endY += offset;
+        if (copy.type === "arrow") {
+          const rebind = (b?: { elementId: string; anchor: AnchorPosition }) =>
+            b && idMap.has(b.elementId) ? { elementId: idMap.get(b.elementId)!, anchor: b.anchor } : undefined;
+          copy.startBinding = rebind(copy.startBinding);
+          copy.endBinding = rebind(copy.endBinding);
+        }
+        return syncLineBox(copy);
+      }
+      if (copy.type === "pencil") {
+        copy.points = copy.points.map((p) => ({ x: p.x + offset, y: p.y + offset }));
+      }
+      copy.x += offset;
+      copy.y += offset;
+      return copy;
+    });
+  }
+
+  // --- Inline text --------------------------------------------------------------
+
+  public commitInlineText(info: InlineTextState) {
+    const text = info.text;
+    const trimmed = text.trim();
+    this.editingId = null;
+
+    if (info.kind === "new-text") {
+      if (trimmed) {
+        const el = this.makeTextElement(text, info.canvasX, info.canvasY, info.fontSize, info.fontFamily, info.color, info.align);
+        this.elements = [...this.elements, el];
+        this.selectedIds = new Set([el.id]);
+        this.tool = "select";
+        this.emitTool();
+      }
+    } else if (info.elementId) {
+      const id = info.elementId;
+      const next: CanvasElement[] = [];
+      for (const el of this.elements) {
+        if (el.id !== id) {
+          next.push(el);
+          continue;
+        }
+        if (info.kind === "text" && el.type === "text") {
+          if (!trimmed) continue;
+          next.push(
+            this.remeasureText({
+              ...el,
+              text,
+              fontSize: info.fontSize,
+              fontFamily: info.fontFamily,
+              textAlign: info.align,
+              stroke: info.color,
+            })
+          );
+        } else if (info.kind === "sticky" && el.type === "sticky") {
+          next.push(this.fitSticky({ ...el, text, fontSize: info.fontSize, fontFamily: info.fontFamily, textAlign: info.align, stroke: info.color }));
+        } else if (info.kind === "frame-title" && el.type === "frame") {
+          next.push({ ...el, title: trimmed || "Frame" });
+        } else if (info.kind === "label") {
+          next.push({ ...el, label: trimmed || undefined } as CanvasElement);
+        } else {
+          next.push(el);
+        }
+      }
+      this.elements = resolveBindings(pruneBindings(next), new Set([id]));
+      this.selectedIds = new Set([...this.selectedIds].filter((sid) => this.elements.some((e) => e.id === sid)));
+      this.selectedIds.add(id);
+    }
+    this.commit();
+  }
+
+  public cancelInlineText() {
+    const id = this.editingId;
+    this.editingId = null;
+    if (id) {
+      // Discard a text or sticky that was just created and never filled in.
+      const el = this.elements.find((e) => e.id === id);
+      if (el && el.type === "text" && !el.text.trim()) {
+        this.elements = this.elements.filter((e) => e.id !== id);
+        this.selectedIds.delete(id);
+        this.commit();
+        return;
+      }
+    }
+    this.requestRender();
+  }
+
+  private makeTextElement(
+    text: string,
+    x: number,
+    y: number,
+    fontSize: number,
+    fontFamily: FontFamily,
+    color: string,
+    align: TextElement["textAlign"],
+    isDocCard: boolean = false
+  ): TextElement {
+    const size = measureTextBlock(this.ctx, text, fontSize, fontFamily);
+    return {
+      id: newId(),
+      type: "text",
+      x,
+      y,
+      width: size.width,
+      height: size.height,
+      text,
+      fontSize,
+      fontFamily,
+      textAlign: align,
+      stroke: color || "#FFFFFF",
+      strokeWidth: 1,
+      strokeStyle: "solid",
+      fill: isDocCard ? "#18181B" : "transparent",
+      fillStyle: isDocCard ? "solid" : "none",
+      roundness: isDocCard ? "rounded" : "sharp",
+      opacity: 1,
+      zIndex: this.elements.length,
+      isDocCard,
+      title: isDocCard ? "Document Note" : undefined,
+    };
+  }
+
+  /** Opens the in-place editor for the element under a double-click. */
+  private openEditorFor(el: CanvasElement) {
+    let state: InlineTextState | null = null;
+    switch (el.type) {
+      case "text": {
+        const p = this.canvasToScreen(el.x, el.y);
+        state = {
+          kind: "text", elementId: el.id, canvasX: el.x, canvasY: el.y,
+          screenX: p.x, screenY: p.y,
+          screenWidth: Math.max(80, el.width * this.zoom + 24),
+          text: el.text, fontSize: el.fontSize, fontFamily: el.fontFamily,
+          color: el.stroke, align: el.textAlign,
+        };
+        break;
+      }
+      case "sticky": {
+        const p = this.canvasToScreen(el.x + 12, el.y + 12);
+        state = {
+          kind: "sticky", elementId: el.id, canvasX: el.x, canvasY: el.y,
+          screenX: p.x, screenY: p.y,
+          screenWidth: (el.width - 24) * this.zoom,
+          screenHeight: (el.height - 24) * this.zoom,
+          text: el.text, fontSize: el.fontSize, fontFamily: el.fontFamily || "sans",
+          color: el.stroke || "#1E293B", align: el.textAlign || "left",
+        };
+        break;
+      }
+      case "frame": {
+        const p = this.canvasToScreen(el.x + 12, el.y - 11);
+        state = {
+          kind: "frame-title", elementId: el.id, canvasX: el.x, canvasY: el.y,
+          screenX: p.x, screenY: p.y, screenWidth: 180,
+          text: el.title, fontSize: 12, fontFamily: "sans",
+          color: el.stroke, align: "left",
+        };
+        break;
+      }
+      case "arrow": {
+        const label = computeArrowPath(el, this.elements).labelPt;
+        const p = this.canvasToScreen(label.x, label.y);
+        state = {
+          kind: "label", elementId: el.id, canvasX: label.x, canvasY: label.y,
+          screenX: p.x - 80, screenY: p.y - 12, screenWidth: 160,
+          text: el.label ?? "", fontSize: 12, fontFamily: "sans",
+          color: el.stroke, align: "center",
+        };
+        break;
+      }
+      case "icon": {
+        const p = this.canvasToScreen(el.x + 8, el.y + el.height - 30);
+        state = {
+          kind: "label", elementId: el.id, canvasX: el.x, canvasY: el.y,
+          screenX: p.x, screenY: p.y, screenWidth: (el.width - 16) * this.zoom,
+          text: el.label ?? "", fontSize: 12, fontFamily: "sans",
+          color: this.theme === "dark" ? "#F1F5F9" : "#0F172A", align: "center",
+        };
+        break;
+      }
+      case "rectangle":
+      case "diamond":
+      case "circle": {
+        const p = this.canvasToScreen(el.x, el.y);
+        state = {
+          kind: "label", elementId: el.id, canvasX: el.x, canvasY: el.y,
+          screenX: p.x, screenY: p.y,
+          screenWidth: el.width * this.zoom, screenHeight: el.height * this.zoom,
+          text: el.label ?? "", fontSize: 14, fontFamily: "sans",
+          color: el.stroke, align: "center",
+        };
+        break;
+      }
+      default:
+        return;
+    }
+    this.editingId = el.id;
+    this.selectedIds = new Set([el.id]);
+    this.emitSelection();
+    this.onStartInlineText?.(state);
+    this.requestRender();
+  }
+
+  // --- Rendering -------------------------------------------------------------------
+
+  /** Immediate draw. Prefer requestRender() from event handlers. */
+  public render() {
+    this.draw();
+  }
+
+  private requestRender() {
+    if (this.renderQueued || this.destroyed) return;
+    this.renderQueued = true;
+    requestAnimationFrame(() => {
+      this.renderQueued = false;
+      this.draw();
+    });
+  }
+
+  private draw() {
+    if (this.destroyed) return;
+    const ctx = this.ctx;
+    const w = this.cssWidth;
+    const h = this.cssHeight;
+
+    ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    ctx.fillStyle = "#121212";
+    ctx.fillRect(0, 0, w, h);
+    drawGrid(ctx, w, h, this.pan, this.zoom, this.gridType);
+
+    ctx.save();
+    ctx.translate(this.pan.x, this.pan.y);
+    ctx.scale(this.zoom, this.zoom);
+
+    const selected = this.getSelectedElements();
+    const single = selected.length === 1 ? selected[0] : null;
+
+    for (const el of this.elements) {
+      if (el.id === this.editingId) {
+        // Text and sticky content is being typed into the overlay, so skip it.
+        // Shapes keep their outline and only lose the label being edited.
+        if (el.type === "text") continue;
+        if (el.type === "sticky") { drawElement(ctx, { ...el, text: "" }, { theme: this.theme, scene: this.elements }); continue; }
+        drawElement(ctx, { ...el, label: undefined, ...(el.type === "frame" ? { title: "" } : {}) } as CanvasElement, {
+          theme: this.theme,
+          scene: this.elements,
+          zoom: this.zoom,
+        });
+        continue;
+      }
+      drawElement(ctx, el, {
+        theme: this.theme,
+          scene: this.elements,
+        flowOffset: this.flowOffset,
+        selected: single?.id === el.id,
+        zoom: this.zoom,
+      });
+    }
+
+    if (selected.length > 1) {
+      for (const el of selected) drawBoundsOutline(ctx, getElementBounds(el, this.elements), this.zoom, 3 / this.zoom);
+      const group = unionBounds(selected.map(el => getElementBounds(el, this.elements)));
+      if (group) drawBoundsOutline(ctx, group, this.zoom, 10 / this.zoom);
+    }
+
+    if (this.draft) {
+      drawElement(ctx, this.draft, { theme: this.theme, zoom: this.zoom, scene: this.elements });
+    }
+
+    if (single?.type === "arrow" && !this.gesture) {
+      for (const binding of [single.startBinding, single.endBinding]) {
+        const target = binding && this.elements.find(e => e.id === binding.elementId);
+        if (target && binding) drawElementAnchors(ctx, getElementAnchors(target), binding.anchor, this.zoom);
+      }
+    }
+    if (single && this.tool === "select" && !this.gesture && single.type !== "frame") {
+      drawElementAnchors(ctx, getElementAnchors(single), null, this.zoom);
+    }
+
+    if (this.hoveredAnchors.length > 0) {
+      drawElementAnchors(ctx, this.hoveredAnchors, this.snapTarget?.anchor, this.zoom);
+    }
+
+    if (this.marqueeRect) {
+      drawMarquee(ctx, this.marqueeRect, this.zoom);
+    }
+
+    for (const person of this.collaborators) {
+      if (!person.cursor) continue;
+      const { x, y } = person.cursor;
+      ctx.save(); ctx.translate(x, y); ctx.scale(1 / this.zoom, 1 / this.zoom);
+      ctx.fillStyle = person.color; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(4, 17); ctx.lineTo(9, 11); ctx.lineTo(17, 9); ctx.closePath(); ctx.fill();
+      setFont(ctx, 11, "sans", 600); ctx.textAlign = "left"; ctx.textBaseline = "top";
+      ctx.fillRect(10, 18, ctx.measureText(person.name).width + 12, 22); ctx.fillStyle = "#121212"; ctx.fillText(person.name, 16, 23); ctx.restore();
+    }
+    ctx.restore();
+    this.syncAnimation();
+  }
+
+  private syncAnimation() {
+    const hasFlow = this.elements.some((el) => el.type === "arrow" && el.animated);
+    if (hasFlow && this.animFrameId === null) {
+      this.animFrameId = requestAnimationFrame(this.tickAnimation);
+    } else if (!hasFlow && this.animFrameId !== null) {
+      cancelAnimationFrame(this.animFrameId);
+      this.animFrameId = null;
+    }
+  }
+
+  private tickAnimation = () => {
+    this.animFrameId = null;
+    this.flowOffset = (this.flowOffset + 0.6) % 28;
+    this.draw();
+  };
+
+  // --- Geometry & hit testing ----------------------------------------------------------
+
+  private snapPoint(pt: Point): Point {
+    if (!this.snapToGrid) return pt;
+    return {
+      x: Math.round(pt.x / SNAP_GRID) * SNAP_GRID,
+      y: Math.round(pt.y / SNAP_GRID) * SNAP_GRID,
+    };
+  }
+
+  /** Nearest port on a non-connector element within snapping distance of pt. */
+  private findNearestAnchor(pt: Point, excludeId?: string): { elementId: string; anchor: AnchorPosition; x: number; y: number; all: Anchor[] } | null {
+    const reach = 24 / this.zoom;
+    let best: { elementId: string; anchor: AnchorPosition; x: number; y: number; all: Anchor[] } | null = null;
+    let bestDist = reach;
+    for (const el of this.elements) {
+      if (el.id === excludeId || el.type === "frame") continue;
+      const anchors = getElementAnchors(el);
+      for (const a of anchors) {
+        const d = Math.hypot(pt.x - a.x, pt.y - a.y);
+        if (d < bestDist) {
+          bestDist = d;
+          best = { elementId: el.id, anchor: a.anchor, x: a.x, y: a.y, all: anchors };
+        }
+      }
+    }
+    return best;
+  }
+
+  private hitTest(pt: Point): CanvasElement | null {
+    const tol = 7 / this.zoom;
+    for (let i = this.elements.length - 1; i >= 0; i--) {
+      const el = this.elements[i];
+      if (this.hitElement(el, pt, tol)) return el;
+    }
+    return null;
+  }
+
+  private hitElement(el: CanvasElement, pt: Point, tol: number): boolean {
+    switch (el.type) {
+      case "arrow": {
+        const info = computeArrowPath(el, this.elements);
+        if (el.label) {
+          const lw = (el.label.length * 7 + 16) / this.zoom / 2;
+          const lh = 12 / this.zoom;
+          if (Math.abs(pt.x - info.labelPt.x) <= lw && Math.abs(pt.y - info.labelPt.y) <= lh) return true;
+        }
+        if (info.routing === "curved" && info.cpx !== undefined && info.cpy !== undefined) {
+          let prev: Point = { x: el.startX, y: el.startY };
+          for (let t = 0.05; t <= 1.0001; t += 0.05) {
+            const cur = {
+              x: (1 - t) * (1 - t) * el.startX + 2 * (1 - t) * t * info.cpx + t * t * el.endX,
+              y: (1 - t) * (1 - t) * el.startY + 2 * (1 - t) * t * info.cpy + t * t * el.endY,
+            };
+            if (distToSegment(pt, prev, cur) <= tol) return true;
+            prev = cur;
+          }
+          return false;
+        }
+        for (let i = 0; i < info.points.length - 1; i++) {
+          if (distToSegment(pt, info.points[i], info.points[i + 1]) <= tol) return true;
+        }
+        return false;
+      }
+      case "line":
+        return distToSegment(pt, { x: el.startX, y: el.startY }, { x: el.endX, y: el.endY }) <= tol;
+      case "pencil": {
+        const pts = el.points;
+        if (pts.length === 1) return Math.hypot(pt.x - pts[0].x, pt.y - pts[0].y) <= tol;
+        for (let i = 0; i < pts.length - 1; i++) {
+          if (distToSegment(pt, pts[i], pts[i + 1]) <= tol) return true;
+        }
+        return false;
+      }
+      case "circle": {
+        const r = normalizeRect(el);
+        const rx = r.w / 2;
+        const ry = r.h / 2;
+        if (rx <= 0 || ry <= 0) return false;
+        const cx = r.x + rx;
+        const cy = r.y + ry;
+        const nx = (pt.x - cx) / (rx + tol);
+        const ny = (pt.y - cy) / (ry + tol);
+        return nx * nx + ny * ny <= 1;
+      }
+      case "diamond": {
+        const r = normalizeRect(el);
+        const rx = r.w / 2;
+        const ry = r.h / 2;
+        if (rx <= 0 || ry <= 0) return false;
+        const cx = r.x + rx;
+        const cy = r.y + ry;
+        return Math.abs(pt.x - cx) / (rx + tol) + Math.abs(pt.y - cy) / (ry + tol) <= 1;
+      }
+      case "frame": {
+        // Frames only respond on their border or title tag, so elements inside stay clickable.
+        const r = normalizeRect(el);
+        const inside = pt.x >= r.x - tol && pt.x <= r.x + r.w + tol && pt.y >= r.y - tol && pt.y <= r.y + r.h + tol;
+        const deep = pt.x > r.x + tol && pt.x < r.x + r.w - tol && pt.y > r.y + tol && pt.y < r.y + r.h - tol;
+        const tagW = (el.title.length * 7 + 16) / this.zoom;
+        const onTag = pt.x >= r.x + 12 && pt.x <= r.x + 12 + tagW && Math.abs(pt.y - r.y) <= 12 / this.zoom;
+        return (inside && !deep) || onTag;
+      }
+      default: {
+        const r = normalizeRect(el);
+        return pt.x >= r.x - tol && pt.x <= r.x + r.w + tol && pt.y >= r.y - tol && pt.y <= r.y + r.h + tol;
+      }
+    }
+  }
+
+  /** Resize / endpoint handle under pt, for the single selected element. */
+  private handleAt(el: CanvasElement, pt: Point): Handle | null {
+    const tol = 9 / this.zoom;
+    const near = (x: number, y: number) => Math.hypot(pt.x - x, pt.y - y) <= tol;
+
+    if (el.type === "arrow") {
+      if (near(el.startX, el.startY)) return "start";
+      if (near(el.endX, el.endY)) return "end";
+      const mid = computeArrowPath(el, this.elements).midPt;
+      if (near(mid.x, mid.y)) return "mid";
+      return null;
+    }
+    if (el.type === "line") {
+      if (near(el.startX, el.startY)) return "start";
+      if (near(el.endX, el.endY)) return "end";
+      return null;
+    }
+    if (el.type === "pencil") return null;
+
+    const b = getElementBounds(el);
+    const pad = 5 / this.zoom;
+    const x0 = b.minX - pad, x1 = b.maxX + pad, y0 = b.minY - pad, y1 = b.maxY + pad;
+    const mx = (x0 + x1) / 2, my = (y0 + y1) / 2;
+    const handles: [Handle, number, number][] = [
+      ["nw", x0, y0], ["n", mx, y0], ["ne", x1, y0], ["e", x1, my],
+      ["se", x1, y1], ["s", mx, y1], ["sw", x0, y1], ["w", x0, my],
+    ];
+    for (const [h, hx, hy] of handles) {
+      if (near(hx, hy)) return h;
+    }
+    return null;
+  }
+
+  // --- Pointer events ----------------------------------------------------------------
+
+  private screenPoint(e: MouseEvent): Point {
+    const rect = this.canvas.getBoundingClientRect();
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+  }
+
+  private onPointerDown = (e: PointerEvent) => {
+    if (e.button === 2) return;
+    this.canvas.setPointerCapture?.(e.pointerId);
+    this.shiftDown = e.shiftKey;
+    const sp = this.screenPoint(e);
+    const pt = this.screenToCanvas(sp.x, sp.y);
+
+    if (e.button === 1 || this.spaceDown || this.tool === "hand") {
+      this.gesture = { kind: "pan", last: sp };
+      this.updateCursor();
+      return;
+    }
+
+    if (this.tool === "eraser") {
+      this.gesture = { kind: "erase", erased: false };
+      this.eraseAt(pt);
+      return;
+    }
+
+    if (this.tool === "select" && this.hoveredAnchors.length && !e.shiftKey) {
+      const snap = this.findNearestAnchor(pt);
+      if (snap && Math.hypot(pt.x - snap.x, pt.y - snap.y) < 10 / this.zoom) {
+        const arrow = this.createDraft({ x: snap.x, y: snap.y }, "arrow") as ArrowElement;
+        this.draft = { ...arrow, startBinding: { elementId: snap.elementId, anchor: snap.anchor } };
+        this.gesture = { kind: "draft", origin: this.snapPoint(pt) };
+        this.requestRender();
+        return;
+      }
+    }
+    if (this.tool === "select") {
+      const selected = this.getSelectedElements();
+      if (selected.length === 1) {
+        const handle = this.handleAt(selected[0], pt);
+        if (handle) {
+          this.gesture = handle === "start" || handle === "end" || handle === "mid"
+            ? { kind: "endpoint", handle, snapshot: selected[0] as ArrowElement | LineElement }
+            : { kind: "resize", handle, snapshot: selected[0] };
+          return;
+        }
+      }
+
+      const hit = this.hitTest(pt);
+      if (hit) {
+        if (hit.type === "text") {
+          const cb = getCheckboxAtPoint(hit, pt);
+          if (cb) {
+            this.elements = this.elements.map((el) => (el.id === hit.id ? { ...el, text: cb.newText } : el));
+            this.selectedIds = new Set([hit.id]);
+            this.commit();
+            return;
+          }
+        }
+
+        if (e.shiftKey) {
+          if (this.selectedIds.has(hit.id)) {
+            this.selectedIds.delete(hit.id);
+            this.emitSelection();
+            this.requestRender();
+            return;
+          }
+          this.selectedIds.add(hit.id);
+        } else if (!this.selectedIds.has(hit.id)) {
+          this.selectedIds = new Set([hit.id]);
+        }
+        const soloId = !e.shiftKey && this.selectedIds.size > 1 ? hit.id : null;
+        const snapshots = new Map<string, CanvasElement>();
+        for (const el of this.getSelectedElements()) snapshots.set(el.id, el);
+        this.gesture = { kind: "move", origin: pt, snapshots, moved: false, soloId };
+        this.emitSelection();
+        this.requestRender();
+        return;
+      }
+
+      if (!e.shiftKey) this.selectedIds.clear();
+      this.gesture = { kind: "marquee", start: pt, base: new Set(this.selectedIds) };
+      this.emitSelection();
+      this.requestRender();
+      return;
+    }
+
+    if (this.tool === "text") {
+      this.tool = "select";
+      this.emitTool();
+      this.updateCursor();
+      this.onStartInlineText?.({
+        kind: "new-text",
+        canvasX: pt.x,
+        canvasY: pt.y,
+        screenX: sp.x,
+        screenY: sp.y,
+        text: "",
+        fontSize: this.currentStyle.fontSize,
+        fontFamily: this.currentStyle.fontFamily,
+        color: this.currentStyle.stroke || "#FFFFFF",
+        align: this.currentStyle.textAlign,
+      });
+      this.requestRender();
+      return;
+    }
+
+    if (this.tool === "doc") {
+      this.tool = "select";
+      this.emitTool();
+      this.updateCursor();
+      const docText = `# Document Notes\n\n• Key Objective & Deliverables\n○ Secondary requirements\n▪ Implementation scope\n◆ High priority milestone\n– Cadence: Weekly sprints\n→ Action item for team\n1. Initial architecture spec\n2. Testing & verification\n[ ] Design review\n[x] Workspace setup`;
+      const docEl = this.makeTextElement(docText, pt.x, pt.y, 15, "sans", "#FFFFFF", "left", true);
+      this.elements = [...this.elements, docEl];
+      this.selectedIds = new Set([docEl.id]);
+      this.commit();
+      this.openEditorFor(docEl);
+      return;
+    }
+
+    if (this.tool === "sticky") {
+      const start = this.snapPoint(pt);
+      const sticky: StickyElement = {
+        id: newId(),
+        type: "sticky",
+        x: start.x,
+        y: start.y,
+        width: 180,
+        height: 140,
+        text: "",
+        color: "#FEF08A",
+        fontSize: 15,
+        stroke: "#1E293B",
+        strokeWidth: 1,
+        strokeStyle: "solid",
+        fill: "#FEF08A",
+        fillStyle: "solid",
+        roundness: "rounded",
+        opacity: 1,
+        zIndex: this.elements.length,
+      };
+      this.elements = [...this.elements, sticky];
+      this.selectedIds = new Set([sticky.id]);
+      this.tool = "select";
+      this.emitTool();
+      this.commit();
+      this.openEditorFor(sticky);
+      return;
+    }
+
+    this.gesture = { kind: "draft", origin: this.snapPoint(pt) };
+    this.draft = this.createDraft(pt);
+    if (this.draft.type === "arrow") {
+      const snap = this.findNearestAnchor(pt);
+      if (snap) {
+        this.draft = { ...this.draft, startX: snap.x, startY: snap.y, startBinding: { elementId: snap.elementId, anchor: snap.anchor } } as ArrowElement;
+        this.hoveredAnchors = snap.all;
+        this.snapTarget = { anchor: snap.anchor };
+      }
+    }
+    this.requestRender();
+  };
+
+  private onPointerMove = (e: PointerEvent) => {
+    this.shiftDown = e.shiftKey;
+    const sp = this.screenPoint(e);
+    const pt = this.screenToCanvas(sp.x, sp.y);
+    const g = this.gesture;
+    this.onCursorChange?.(pt);
+
+    if (!g) {
+      this.updateHoverCursor(pt);
+      return;
+    }
+
+    switch (g.kind) {
+      case "pan":
+        this.pan = { x: this.pan.x + sp.x - g.last.x, y: this.pan.y + sp.y - g.last.y };
+        g.last = sp;
+        break;
+      case "erase":
+        this.eraseAt(pt);
+        break;
+      case "move":
+        this.moveSelection(pt);
+        break;
+      case "resize":
+        this.resizeSelection(pt);
+        break;
+      case "endpoint":
+        this.moveEndpoint(pt);
+        break;
+      case "marquee":
+        this.updateMarquee(pt);
+        break;
+      case "draft":
+        this.updateDraft(pt);
+        break;
+    }
+    this.requestRender();
+  };
+
+  private onPointerUp = () => {
+    const g = this.gesture;
+    if (!g) return;
+    this.gesture = null;
+    this.snapTarget = null;
+    this.hoveredAnchors = [];
+
+    switch (g.kind) {
+      case "move":
+        if (g.moved) {
+          this.commit();
+        } else if (g.soloId) {
+          this.selectedIds = new Set([g.soloId]);
+          this.emitSelection();
+        }
+        break;
+      case "resize":
+      case "endpoint":
+        this.commit();
+        break;
+      case "erase":
+        if (g.erased) this.commit();
+        break;
+      case "marquee":
+        this.marqueeRect = null;
+        this.emitSelection();
+        break;
+      case "draft":
+        this.finishDraft();
+        break;
+      case "pan":
+        break;
+    }
+    this.updateCursor();
+    this.requestRender();
+  };
+
+  private onDoubleClick = (e: MouseEvent) => {
+    const sp = this.screenPoint(e);
+    const pt = this.screenToCanvas(sp.x, sp.y);
+    const hit = this.hitTest(pt);
+    if (hit) this.openEditorFor(hit);
+  };
+
+  private onWheel = (e: WheelEvent) => {
+    e.preventDefault();
+    const sp = this.screenPoint(e);
+    if (e.ctrlKey || e.metaKey) {
+      // Trackpad pinch or ctrl+wheel zooms around the pointer.
+      this.setZoom(this.zoom * Math.exp(-e.deltaY * 0.0025), sp);
+      return;
+    }
+    if (e.shiftKey && e.deltaX === 0) {
+      this.pan = { x: this.pan.x - e.deltaY, y: this.pan.y };
+    } else {
+      this.pan = { x: this.pan.x - e.deltaX, y: this.pan.y - e.deltaY };
+    }
+    this.requestRender();
+  };
+
+  // --- Gesture helpers -----------------------------------------------------------------
+
+  private createDraft(pt: Point, tool: Tool = this.tool): CanvasElement {
+    const id = newId();
+    const style = this.currentStyle;
+    const base = {
+      id,
+      x: pt.x,
+      y: pt.y,
+      width: 0,
+      height: 0,
+      stroke: style.stroke,
+      strokeWidth: style.strokeWidth,
+      strokeStyle: style.strokeStyle,
+      fill: style.fill,
+      fillStyle: style.fill === "transparent" ? ("none" as const) : ("solid" as const),
+      roundness: style.roundness,
+      opacity: style.opacity,
+      zIndex: this.elements.length,
+    };
+    const start = this.snapPoint(pt);
+    switch (tool) {
+      case "rectangle":
+        return { ...base, type: "rectangle", x: start.x, y: start.y };
+      case "diamond":
+        return { ...base, type: "diamond", x: start.x, y: start.y };
+      case "circle":
+        return { ...base, type: "circle", x: start.x, y: start.y };
+      case "frame":
+        return { ...base, type: "frame", x: start.x, y: start.y, title: "Frame", fill: "transparent", fillStyle: "none" };
+      case "arrow":
+        return {
+          ...base,
+          type: "arrow",
+          startX: pt.x,
+          startY: pt.y,
+          endX: pt.x,
+          endY: pt.y,
+          routing: style.arrowRouting || "elbow",
+          arrowHeadStart: style.arrowHeadStart || "none",
+          arrowHeadEnd: style.arrowHeadEnd || "arrow",
+          animated: style.arrowAnimated || false,
+        } as ArrowElement;
+      case "line":
+        return { ...base, type: "line", startX: start.x, startY: start.y, endX: start.x, endY: start.y } as LineElement;
+      case "pencil":
+      default:
+        return { ...base, type: "pencil", points: [pt] };
+    }
+  }
+
+  private updateDraft(pt: Point) {
+    const d = this.draft;
+    if (!d) return;
+    const origin = d.type === "arrow" || d.type === "line"
+      ? { x: d.startX, y: d.startY }
+      : this.gesture?.kind === "draft" ? this.gesture.origin : { x: d.x, y: d.y };
+    let target = this.snapPoint(pt);
+
+    if (d.type === "pencil") {
+      this.draft = { ...d, points: [...d.points, pt] };
+      return;
+    }
+
+    if (d.type === "arrow" || d.type === "line") {
+      if (d.type === "line" && this.shiftDown) target = this.constrainAngle(origin, target);
+      if (d.type === "arrow") {
+        const snap = this.findNearestAnchor(pt, d.id);
+        if (snap) {
+          this.hoveredAnchors = snap.all;
+          this.snapTarget = { anchor: snap.anchor };
+          this.draft = { ...d, endX: snap.x, endY: snap.y, endBinding: { elementId: snap.elementId, anchor: snap.anchor } } as ArrowElement;
+          return;
+        }
+        this.hoveredAnchors = [];
+        this.snapTarget = null;
+        const end = this.shiftDown ? this.constrainAngle(origin, pt) : pt;
+        this.draft = { ...d, endX: end.x, endY: end.y, endBinding: undefined } as ArrowElement;
+        return;
+      }
+      this.draft = { ...d, endX: target.x, endY: target.y } as LineElement;
+      return;
+    }
+
+    // Shapes: drag from origin to pointer, optionally forcing a square / circle.
+    let dx = target.x - origin.x;
+    let dy = target.y - origin.y;
+    if (this.shiftDown) {
+      const side = Math.max(Math.abs(dx), Math.abs(dy));
+      dx = Math.sign(dx || 1) * side;
+      dy = Math.sign(dy || 1) * side;
+    }
+    const x = dx >= 0 ? origin.x : origin.x + dx;
+    const y = dy >= 0 ? origin.y : origin.y + dy;
+    this.draft = { ...d, x, y, width: Math.abs(dx), height: Math.abs(dy) } as CanvasElement;
+  }
+
+  private constrainAngle(origin: Point, pt: Point): Point {
+    const dx = pt.x - origin.x;
+    const dy = pt.y - origin.y;
+    const dist = Math.hypot(dx, dy);
+    const step = Math.PI / 4;
+    const angle = Math.round(Math.atan2(dy, dx) / step) * step;
+    return { x: origin.x + Math.cos(angle) * dist, y: origin.y + Math.sin(angle) * dist };
+  }
+
+  private finishDraft() {
+    const d = this.draft;
+    this.draft = null;
+    if (!d) return;
+
+    let keep: boolean;
+    let finalEl: CanvasElement = d;
+    if (d.type === "pencil") {
+      keep = d.points.length >= 2;
+      const b = getElementBounds(d);
+      finalEl = { ...d, x: b.minX, y: b.minY, width: b.maxX - b.minX, height: b.maxY - b.minY };
+    } else if (d.type === "arrow" || d.type === "line") {
+      keep = Math.hypot(d.endX - d.startX, d.endY - d.startY) > MIN_SIZE;
+      if (keep) finalEl = syncLineBox(d);
+    } else {
+      keep = d.width > MIN_SIZE && d.height > MIN_SIZE;
+    }
+
+    if (keep) {
+      this.elements = [...this.elements, finalEl];
+      this.selectedIds = new Set([finalEl.id]);
+      this.tool = "select";
+      this.emitTool();
+    }
+    this.commit();
+  }
+
+  private moveSelection(pt: Point) {
+    const g = this.gesture;
+    if (!g || g.kind !== "move") return;
+    const rawDx = pt.x - g.origin.x;
+    const rawDy = pt.y - g.origin.y;
+    const dx = this.snapToGrid ? Math.round(rawDx / SNAP_GRID) * SNAP_GRID : rawDx;
+    const dy = this.snapToGrid ? Math.round(rawDy / SNAP_GRID) * SNAP_GRID : rawDy;
+    if (dx === 0 && dy === 0 && !g.moved) return;
+    g.moved = true;
+
+    const movedIds = new Set(g.snapshots.keys());
+    const moved = this.elements.map((el) => {
+      const snap = g.snapshots.get(el.id);
+      return snap ? translateElement(snap, dx, dy, movedIds) : el;
+    });
+    this.elements = resolveBindings(moved, movedIds);
+  }
+
+  private resizeSelection(pt: Point) {
+    const g = this.gesture;
+    if (!g || g.kind !== "resize") return;
+    const p = this.snapPoint(pt);
+    const r = normalizeRect(g.snapshot);
+    let x0 = r.x;
+    let y0 = r.y;
+    let x1 = r.x + r.w;
+    let y1 = r.y + r.h;
+    if (g.handle.includes("w")) x0 = Math.min(p.x, x1 - MIN_SIZE);
+    if (g.handle.includes("e")) x1 = Math.max(p.x, x0 + MIN_SIZE);
+    if (g.handle.includes("n")) y0 = Math.min(p.y, y1 - MIN_SIZE);
+    if (g.handle.includes("s")) y1 = Math.max(p.y, y0 + MIN_SIZE);
+
+    const id = g.snapshot.id;
+    const resized = this.elements.map((el) =>
+      el.id === id ? (el.type === "sticky" ? this.fitSticky({ ...el, x: x0, y: y0, width: x1 - x0, height: y1 - y0 }) : { ...el, x: x0, y: y0, width: x1 - x0, height: y1 - y0 } as CanvasElement) : el
+    );
+    this.elements = resolveBindings(resized, new Set([id]));
+  }
+
+  private moveEndpoint(pt: Point) {
+    const g = this.gesture;
+    if (!g || g.kind !== "endpoint") return;
+    const el = g.snapshot;
+    const id = el.id;
+
+    if (g.handle === "mid") {
+      if (el.type !== "arrow") return;
+      const routing = el.routing || el.elbow || "straight";
+      let bendOffset = el.bendOffset;
+      if (routing === "curved") {
+        const mx = (el.startX + el.endX) / 2;
+        const my = (el.startY + el.endY) / 2;
+        const dx = el.endX - el.startX;
+        const dy = el.endY - el.startY;
+        const dist = Math.hypot(dx, dy) || 1;
+        bendOffset = (pt.x - mx) * (-dy / dist) + (pt.y - my) * (dx / dist);
+      } else if (routing === "elbow") {
+        const horizontal = Math.abs(el.endX - el.startX) >= Math.abs(el.endY - el.startY);
+        bendOffset = horizontal ? pt.x - el.startX : pt.y - el.startY;
+      }
+      this.elements = this.elements.map((e) => (e.id === id ? ({ ...e, bendOffset } as CanvasElement) : e));
+      return;
+    }
+
+    const isStart = g.handle === "start";
+    const snap = el.type === "arrow" ? this.findNearestAnchor(pt, id) : null;
+    let x: number;
+    let y: number;
+    let binding: { elementId: string; anchor: AnchorPosition } | undefined;
+    if (snap) {
+      x = snap.x;
+      y = snap.y;
+      binding = { elementId: snap.elementId, anchor: snap.anchor };
+      this.hoveredAnchors = snap.all;
+      this.snapTarget = { anchor: snap.anchor };
+    } else {
+      const p = this.snapPoint(pt);
+      x = p.x;
+      y = p.y;
+      this.hoveredAnchors = [];
+      this.snapTarget = null;
+    }
+
+    this.elements = this.elements.map((e) => {
+      if (e.id !== id) return e;
+      if (e.type === "arrow") {
+        const next = isStart
+          ? { ...e, startX: x, startY: y, startBinding: binding }
+          : { ...e, endX: x, endY: y, endBinding: binding };
+        return syncLineBox(next as ArrowElement);
+      }
+      if (e.type === "line") {
+        return syncLineBox(isStart ? { ...e, startX: x, startY: y } : { ...e, endX: x, endY: y });
+      }
+      return e;
+    });
+  }
+
+  private updateMarquee(pt: Point) {
+    const g = this.gesture;
+    if (!g || g.kind !== "marquee") return;
+    const rect: Bounds = {
+      minX: Math.min(g.start.x, pt.x),
+      minY: Math.min(g.start.y, pt.y),
+      maxX: Math.max(g.start.x, pt.x),
+      maxY: Math.max(g.start.y, pt.y),
+    };
+    this.marqueeRect = rect;
+    const next = new Set(g.base);
+    for (const el of this.elements) {
+      const b = getElementBounds(el);
+      const hit = b.maxX >= rect.minX && b.minX <= rect.maxX && b.maxY >= rect.minY && b.minY <= rect.maxY;
+      if (hit) next.add(el.id);
+    }
+    this.selectedIds = next;
+    this.emitSelection();
+  }
+
+  private eraseAt(pt: Point) {
+    const g = this.gesture;
+    const target = this.hitTest(pt);
+    if (!target) return;
+    this.elements = pruneBindings(this.elements.filter((el) => el.id !== target.id));
+    this.selectedIds.delete(target.id);
+    if (g && g.kind === "erase") g.erased = true;
+    this.emitSelection();
+    this.requestRender();
+  }
+
+  // --- Cursor ----------------------------------------------------------------------
+
+  private updateHoverCursor(pt: Point) {
+    if (this.tool === "select" || this.tool === "arrow") {
+      const snap = this.findNearestAnchor(pt);
+      const hit = this.hitTest(pt);
+      this.hoveredAnchors = snap?.all ?? (hit && hit.type !== "frame" ? getElementAnchors(hit) : []);
+      this.snapTarget = snap ? { anchor: snap.anchor } : null;
+      this.requestRender();
+      if (snap && Math.hypot(pt.x - snap.x, pt.y - snap.y) < 10 / this.zoom) {
+        this.canvas.style.cursor = "crosshair";
+        return;
+      }
+    } else { this.hoveredAnchors = []; this.snapTarget = null; }
+    if (this.spaceDown || this.tool !== "select") {
+      this.updateCursor();
+      return;
+    }
+    const selected = this.getSelectedElements();
+    if (selected.length === 1) {
+      const handle = this.handleAt(selected[0], pt);
+      if (handle) {
+        this.canvas.style.cursor = HANDLE_CURSOR[handle];
+        return;
+      }
+    }
+    const hit = this.hitTest(pt);
+    this.canvas.style.cursor = hit ? "move" : "default";
+  }
+
+  private updateCursor() {
+    if (this.gesture?.kind === "pan" || this.spaceDown) {
+      this.canvas.style.cursor = this.gesture?.kind === "pan" ? "grabbing" : "grab";
+      return;
+    }
+    switch (this.tool) {
+      case "select":
+        this.canvas.style.cursor = "default";
+        break;
+      case "hand":
+        this.canvas.style.cursor = "grab";
+        break;
+      case "eraser":
+        this.canvas.style.cursor = "cell";
+        break;
+      case "text":
+        this.canvas.style.cursor = "text";
+        break;
+      default:
+        this.canvas.style.cursor = "crosshair";
+    }
+  }
+
+  // --- Keyboard ---------------------------------------------------------------------
+
+  private isTypingTarget(target: EventTarget | null): boolean {
+    if (!(target instanceof HTMLElement)) return false;
+    const tag = target.tagName;
+    return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || target.isContentEditable;
+  }
+
+  private onKeyDown = (e: KeyboardEvent) => {
+    if (e.isComposing || (e.target instanceof HTMLElement && e.target.getAttribute("role") === "separator") || this.isTypingTarget(e.target) || document.querySelector("dialog[open]")) return;
+    this.shiftDown = e.shiftKey;
+    const mod = e.ctrlKey || e.metaKey;
+    const key = e.key.toLowerCase();
+
+    if (e.code === "Space" && !e.repeat) {
+      this.spaceDown = true;
+      this.updateCursor();
+      e.preventDefault();
+      return;
+    }
+
+    if (mod) {
+      switch (key) {
+        case "z":
+          e.preventDefault();
+          if (e.shiftKey) this.redo();
+          else this.undo();
+          return;
+        case "y":
+          e.preventDefault();
+          this.redo();
+          return;
+        case "a":
+          e.preventDefault();
+          this.selectAll();
+          return;
+        case "d":
+          e.preventDefault();
+          this.duplicateSelected();
+          return;
+        case "c":
+          e.preventDefault();
+          this.copySelection();
+          return;
+        case "x":
+          e.preventDefault();
+          this.cutSelection();
+          return;
+        case "v":
+          e.preventDefault();
+          this.paste();
+          return;
+        case "=":
+        case "+":
+          e.preventDefault();
+          this.zoomIn();
+          return;
+        case "-":
+          e.preventDefault();
+          this.zoomOut();
+          return;
+        case "0":
+          e.preventDefault();
+          this.resetZoom();
+          return;
+        case ">":
+        case ".":
+          e.preventDefault();
+          this.changeFontSize(2);
+          return;
+        case "<":
+        case ",":
+          e.preventDefault();
+          this.changeFontSize(-2);
+          return;
+        case "]":
+          e.preventDefault();
+          this.bringToFront();
+          return;
+        case "[":
+          e.preventDefault();
+          this.sendToBack();
+          return;
+      }
+      return;
+    }
+
+    switch (e.key) {
+      case "Delete":
+      case "Backspace":
+        if (this.selectedIds.size > 0) {
+          e.preventDefault();
+          this.deleteSelected();
+        }
+        return;
+      case "Escape":
+        this.gesture = null;
+        this.draft = null;
+        this.marqueeRect = null;
+        this.selectedIds.clear();
+        this.emitSelection();
+        this.setTool("select");
+        return;
+      case "ArrowUp":
+      case "ArrowDown":
+      case "ArrowLeft":
+      case "ArrowRight":
+        if (this.selectedIds.size > 0) {
+          e.preventDefault();
+          const step = e.shiftKey ? 10 : 1;
+          const dx = e.key === "ArrowLeft" ? -step : e.key === "ArrowRight" ? step : 0;
+          const dy = e.key === "ArrowUp" ? -step : e.key === "ArrowDown" ? step : 0;
+          const ids = this.selectedIds;
+          const moved = this.elements.map((el) => (ids.has(el.id) ? translateElement(el, dx, dy, ids) : el));
+          this.elements = resolveBindings(moved, ids);
+          this.commit();
+        }
+        return;
+      case "1":
+        if (e.shiftKey) this.fitToContent();
+        return;
+    }
+
+    if (e.altKey) return;
+    switch (key) {
+      case "v":
+        this.setTool("select");
+        break;
+      case "h":
+        this.setTool("hand");
+        break;
+      case "r":
+        this.setTool("rectangle");
+        break;
+      case "d":
+        this.setTool("diamond");
+        break;
+      case "o":
+        this.setTool("circle");
+        break;
+      case "a":
+        this.setTool("arrow");
+        break;
+      case "l":
+        this.setTool("line");
+        break;
+      case "p":
+        this.setTool("pencil");
+        break;
+      case "t":
+        this.setTool("text");
+        break;
+      case "s":
+        this.setTool("sticky");
+        break;
+      case "f":
+        this.setTool("frame");
+        break;
+      case "e":
+        this.setTool("eraser");
+        break;
+      case "i":
+        this.onOpenIconPicker?.();
+        break;
+      case "+":
+      case "=":
+        this.zoomIn();
+        break;
+      case "-":
+        this.zoomOut();
+        break;
+    }
+  };
+
+  private onKeyUp = (e: KeyboardEvent) => {
+    this.shiftDown = e.shiftKey;
+    if (e.code === "Space") {
+      this.spaceDown = false;
+      this.updateCursor();
+    }
+  };
+
+  // --- History ------------------------------------------------------------------------
+
+  /** Records the current elements as an undo step. Returns true if they changed. */
+  private pushHistory(): boolean {
+    const snapshot = JSON.stringify(this.elements);
+    if (this.undoStack[this.undoStack.length - 1] === snapshot) return false;
+    this.undoStack.push(snapshot);
+    if (this.undoStack.length > HISTORY_LIMIT) this.undoStack.shift();
+    this.redoStack = [];
+    return true;
+  }
+
+  /** Finishes a user edit: records history, persists, and refreshes the UI. */
+  private commit() {
+    const changed = this.pushHistory();
+    if (changed) this.onChange?.(this.elements);
+    this.emitSelection();
+    this.emitHistory();
+    this.requestRender();
+  }
+
+  public undo() {
+    if (this.collaborativeUndo) { this.collaborativeUndo(); return; }
+    if (this.undoStack.length <= 1) return;
+    this.redoStack.push(this.undoStack.pop()!);
+    this.restoreSnapshot(this.undoStack[this.undoStack.length - 1]);
+  }
+
+  public redo() {
+    if (this.collaborativeRedo) { this.collaborativeRedo(); return; }
+    const next = this.redoStack.pop();
+    if (next === undefined) return;
+    this.undoStack.push(next);
+    this.restoreSnapshot(next);
+  }
+
+  private restoreSnapshot(snapshot: string) {
+    this.elements = JSON.parse(snapshot) as CanvasElement[];
+    this.selectedIds = new Set([...this.selectedIds].filter((id) => this.elements.some((e) => e.id === id)));
+    this.onChange?.(this.elements);
+    this.emitSelection();
+    this.emitHistory();
+    this.requestRender();
+  }
+
+  public canUndo(): boolean {
+    return this.undoStack.length > 1;
+  }
+
+  public canRedo(): boolean {
+    return this.redoStack.length > 0;
+  }
+
+  // --- Emitters -------------------------------------------------------------------
+
+  private emitSelection() {
+    this.onSelectionChange?.(this.getSelectedElements());
+  }
+
+  private emitTool() {
+    this.onToolChange?.(this.tool);
+  }
+
+  private emitHistory() {
+    this.onHistoryChange?.(this.canUndo(), this.canRedo());
+  }
+
+  // --- Lifecycle ----------------------------------------------------------------------
+
+  private attachEventListeners() {
+    this.canvas.addEventListener("pointerdown", this.onPointerDown);
+    this.canvas.addEventListener("pointermove", this.onPointerMove);
+    this.canvas.addEventListener("pointerup", this.onPointerUp);
+    this.canvas.addEventListener("pointercancel", this.onPointerUp);
+    this.canvas.addEventListener("dblclick", this.onDoubleClick);
+    this.canvas.addEventListener("wheel", this.onWheel, { passive: false });
+    window.addEventListener("keydown", this.onKeyDown);
+    window.addEventListener("keyup", this.onKeyUp);
+  }
+
+  public destroy() {
+    this.destroyed = true;
+    if (this.animFrameId !== null) cancelAnimationFrame(this.animFrameId);
+    this.animFrameId = null;
+    this.canvas.removeEventListener("pointerdown", this.onPointerDown);
+    this.canvas.removeEventListener("pointermove", this.onPointerMove);
+    this.canvas.removeEventListener("pointerup", this.onPointerUp);
+    this.canvas.removeEventListener("pointercancel", this.onPointerUp);
+    this.canvas.removeEventListener("dblclick", this.onDoubleClick);
+    this.canvas.removeEventListener("wheel", this.onWheel);
+    window.removeEventListener("keydown", this.onKeyDown);
+    window.removeEventListener("keyup", this.onKeyUp);
+  }
+}
+
+// Re-exported so callers that build labels or viewport text can use the same font helper.
+export { setFont, ACCENT };

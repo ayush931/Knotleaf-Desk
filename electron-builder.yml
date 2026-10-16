@@ -1,0 +1,37 @@
+appId: io.whiteboard.desktop
+productName: Whiteboard
+copyright: Copyright © 2026 Whiteboard contributors
+directories:
+  output: release
+  app: desktop
+files:
+  - main.cjs
+  - package.json
+  - "!node_modules/**/*"
+extraResources:
+  - from: desktop-dist
+    to: web
+  - from: public/icons/icon-512.png
+    to: icon.png
+asar: true
+npmRebuild: false
+linux:
+  target:
+    - AppImage
+    - deb
+  category: Office
+  icon: public/icons/icon-512.png
+mac:
+  target:
+    - dmg
+    - zip
+  category: public.app-category.productivity
+  icon: public/icons/icon-512.png
+win:
+  target:
+    - nsis
+  icon: public/icons/icon-512.png
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true

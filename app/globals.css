@@ -1,0 +1,116 @@
+@import "tailwindcss";
+
+/* Dark mode follows the `dark` class on <html>, which the app toggles, not the OS setting. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme inline {
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-fira), ui-monospace, monospace;
+}
+
+@layer base {
+  html,
+  body {
+    height: 100%;
+    overscroll-behavior: none;
+  }
+  body {
+    overflow: hidden;
+    background: #121212;
+    color: #f4f4f5;
+    font-family: var(--font-sans);
+  }
+  html.dark body {
+    background: #121212;
+    color: #f4f4f5;
+  }
+  button:focus-visible,
+  [role="toolbar"] button:focus-visible {
+    outline: 2px solid #3b82f6;
+    outline-offset: 2px;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.15s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-in,
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.3);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.5);
+}
+
+:root {
+  --scrollbar-thumb: #52525b;
+  --scrollbar-track: #18181b;
+  --scrollbar-hover: #71717a;
+  --scrollbar-active: #a1a1aa;
+}
+* { scrollbar-width: thin; scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track); }
+::-webkit-scrollbar-track { background: var(--scrollbar-track); }
+::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); }
+::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-hover); }
+::-webkit-scrollbar-thumb:active { background: var(--scrollbar-active); }
+button:not(:disabled), select { cursor: pointer; }
+button:disabled { cursor: default; }
+input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid #3b82f6; outline-offset: 2px; }
+dialog::backdrop { background: rgb(0 0 0 / 55%); backdrop-filter: blur(3px); }
+.workspace-drawer:not([open]) { display: none; }
+.board-notes > div { height: 100%; min-height: 0; }
+@media (max-width: 640px) {
+  .header-actions > button[title="Browse Diagram Templates"] { display: none; }
+  .header-actions > div > button span { display: none; }
+}
+@media (forced-colors: active) {
+  * { scrollbar-color: auto; }
+}
+.note-tool { padding: 6px; border-radius: 6px; color: #a1a1aa; }
+.note-tool:hover { background: #27272a; color: #f4f4f5; }
+.note-preview { font-size: 14px; line-height: 1.8; }
+.note-preview h1 { font-size: 1.8em; font-weight: 650; margin: 0.5em 0; }
+.note-preview h2 { font-size: 1.4em; font-weight: 600; margin: 1em 0 0.5em; }
+.note-preview h3, .note-preview h4 { font-weight: 600; margin: 1em 0 0.5em; }
+.note-preview p, .note-preview ul, .note-preview ol { margin: 0.75em 0; }
+.note-preview ul { list-style: disc; padding-left: 1.5em; }
+.note-preview ol { list-style: decimal; padding-left: 1.5em; }
+.note-preview ul.contains-task-list { list-style: none; padding-left: 0; }
+.note-preview a { color: #60a5fa; text-decoration: underline; overflow-wrap: anywhere; }
+.note-preview blockquote { border-left: 3px solid #3b82f6; padding-left: 1em; color: #a1a1aa; }
+.note-preview code { background: #27272a; border-radius: 4px; padding: 2px 4px; font-family: var(--font-mono); font-size: 0.9em; }
+.note-preview pre { background: #121212; border: 1px solid #27272a; border-radius: 8px; padding: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.note-preview pre code { background: transparent; padding: 0; }
+.note-preview table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 12px; }
+.note-preview td, .note-preview th { border: 1px solid #3f3f46; padding: 6px 8px; overflow-wrap: anywhere; }
+.note-preview th { background: #27272a; text-align: left; }
+.note-preview hr { border-color: #3f3f46; margin: 1.5em 0; }
+.note-preview img { max-width: 100%; height: auto; border-radius: 6px; }

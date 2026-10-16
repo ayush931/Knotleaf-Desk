@@ -1,0 +1,11 @@
+{
+  "profile": "product-admin",
+  "sourceRoots": ["app", "components", "draw", "lib"],
+  "locale": "en",
+  "canonicalMap": "UX-CONTRACT.md",
+  "requiredCapabilities": ["Select/Listbox", "Scrollbar", "CRUD"],
+  "ownership": { "Select/Listbox": "native" },
+  "commands": { "typecheck": "bun run typecheck", "lint": "bun run lint", "test": "bun run test", "build": "bun run build" },
+  "requiredCommands": ["typecheck", "lint", "test", "build"],
+  "evidence": { "crudFullFlow": "tests/storage.test.mjs", "failurePaths": "tests/storage.test.mjs" }
+}

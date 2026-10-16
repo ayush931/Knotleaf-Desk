@@ -1,5 +1,3 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-
 # Dependencies
 node_modules
 .pnp
@@ -15,18 +13,11 @@ node_modules
 # Testing
 coverage
 
-# Turbo
-.turbo
-
-# Vercel
-.vercel
-
-# Build Outputs
+# Next.js Build Outputs
 .next/
 out/
 build
 dist
-
 
 # Debug
 npm-debug.log*
@@ -36,3 +27,12 @@ yarn-error.log*
 # Misc
 .DS_Store
 *.pem
+
+# Desktop artifacts and generated reports
+desktop-dist/
+release/
+premium-audit.json
+*.tsbuildinfo
+
+# Private collaboration rooms
+.collab-data/

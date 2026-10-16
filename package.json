@@ -1,20 +1,51 @@
 {
-  "name": "excalidraw",
+  "name": "whiteboard",
+  "version": "0.1.0",
   "private": true,
   "scripts": {
-    "build": "turbo run build",
-    "dev": "turbo run dev",
-    "lint": "turbo run lint",
-    "format": "prettier --write \"**/*.{ts,tsx,md}\"",
-    "check-types": "turbo run check-types"
+    "dev": "node server/web.mjs --dev",
+    "build": "next build",
+    "start": "node server/web.mjs",
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test",
+    "desktop:dev": "electron desktop/main.cjs --dev",
+    "desktop:prepare": "bun run build && node scripts/prepare-desktop.mjs",
+    "desktop:start": "electron desktop/main.cjs",
+    "desktop:pack": "bun run desktop:prepare && electron-builder --dir",
+    "desktop:build": "bun run desktop:prepare && electron-builder --publish never",
+    "collab:server": "node server/collaboration.mjs"
+  },
+  "dependencies": {
+    "@y/websocket-server": "0.1.0",
+    "lucide-react": "^0.554.0",
+    "next": "16.0.1",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
+    "ws": "^8.22.0",
+    "y-websocket": "^3.1.0",
+    "yjs": "^13.6.33"
   },
   "devDependencies": {
-    "prettier": "^3.6.2",
-    "turbo": "^2.5.8",
-    "typescript": "5.9.2"
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@types/ws": "^8.18.2",
+    "electron": "^44.8.0",
+    "electron-builder": "^26.15.3",
+    "eslint": "^9",
+    "eslint-config-next": "16.0.1",
+    "tailwindcss": "^4",
+    "typescript": "^5"
   },
-  "packageManager": "pnpm@9.0.0",
-  "engines": {
-    "node": ">=18"
-  }
+  "description": "An open-source, local-first whiteboard and Markdown notebook for web and desktop.",
+  "license": "MIT",
+  "author": "Whiteboard contributors",
+  "main": "desktop/main.cjs",
+  "trustedDependencies": [
+    "electron"
+  ]
 }

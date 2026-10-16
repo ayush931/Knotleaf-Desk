@@ -1,0 +1,241 @@
+export type Tool =
+  | "select"
+  | "hand"
+  | "rectangle"
+  | "diamond"
+  | "circle"
+  | "arrow"
+  | "line"
+  | "pencil"
+  | "text"
+  | "doc"
+  | "sticky"
+  | "frame"
+  | "eraser";
+
+export type BulletVariant =
+  | "disc"
+  | "circle"
+  | "square"
+  | "diamond"
+  | "dash"
+  | "arrow"
+  | "number"
+  | "todo";
+
+export type StrokeStyle = "solid" | "dashed" | "dotted" | "rough";
+export type FillStyle = "solid" | "semi" | "none";
+export type Roundness = "sharp" | "rounded";
+export type FontFamily = "hand" | "sans" | "mono";
+export type TextAlign = "left" | "center" | "right";
+export type ViewMode = "canvas" | "split" | "notes";
+export type GridType = "dot" | "grid" | "none";
+export type Theme = "dark";
+
+/** What the in-place text editor is editing. */
+export type InlineTextKind = "new-text" | "text" | "sticky" | "label" | "frame-title";
+
+export interface InlineTextState {
+  kind: InlineTextKind;
+  elementId?: string;
+  /** Canvas-space position used when creating a new text element. */
+  canvasX: number;
+  canvasY: number;
+  /** Position of the editor inside the canvas container, in CSS pixels. */
+  screenX: number;
+  screenY: number;
+  /** Optional editor size in CSS pixels (zoom applied). */
+  screenWidth?: number;
+  screenHeight?: number;
+  text: string;
+  fontSize: number;
+  fontFamily: FontFamily;
+  color: string;
+  align: TextAlign;
+}
+
+export interface Point {
+  x: number;
+  y: number;
+}
+
+export interface BaseElement {
+  id: string;
+  type: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  stroke: string;
+  strokeWidth: number;
+  strokeStyle: StrokeStyle;
+  fill: string;
+  fillStyle: FillStyle;
+  roundness: Roundness;
+  opacity: number;
+  zIndex: number;
+  /** Centered label drawn inside shapes and used for arrow / icon captions. */
+  label?: string;
+  isLocked?: boolean;
+}
+
+export interface RectangleElement extends BaseElement {
+  type: "rectangle";
+}
+
+export interface DiamondElement extends BaseElement {
+  type: "diamond";
+}
+
+export interface CircleElement extends BaseElement {
+  type: "circle";
+}
+
+export type ArrowRouting = "straight" | "elbow" | "curved";
+export type ArrowHead = "none" | "arrow" | "dot" | "diamond" | "bar";
+export type AnchorPosition = "top" | "bottom" | "left" | "right";
+
+export interface ElementBinding {
+  elementId: string;
+  anchor: AnchorPosition;
+}
+
+export interface ArrowElement extends BaseElement {
+  type: "arrow";
+  startX: number;
+  startY: number;
+  endX: number;
+  endY: number;
+  routing?: ArrowRouting;
+  /** Legacy alias of `routing`, still read so older saved boards keep their shape. */
+  elbow?: ArrowRouting;
+  arrowHeadStart?: ArrowHead | boolean;
+  arrowHeadEnd?: ArrowHead | boolean;
+  animated?: boolean;
+  startBinding?: ElementBinding;
+  endBinding?: ElementBinding;
+  bendOffset?: number;
+}
+
+export interface LineElement extends BaseElement {
+  type: "line";
+  startX: number;
+  startY: number;
+  endX: number;
+  endY: number;
+}
+
+export interface PencilElement extends BaseElement {
+  type: "pencil";
+  points: Point[];
+}
+
+export interface TextElement extends BaseElement {
+  type: "text";
+  text: string;
+  fontSize: number;
+  fontFamily: FontFamily;
+  textAlign: TextAlign;
+  isDocCard?: boolean;
+  title?: string;
+}
+
+export interface StickyElement extends BaseElement {
+  fontFamily?: FontFamily;
+  textAlign?: TextAlign;
+  type: "sticky";
+  text: string;
+  color: string;
+  fontSize: number;
+}
+
+export interface IconElement extends BaseElement {
+  type: "icon";
+  iconId: string;
+  iconName: string;
+  category: string;
+  iconColor?: string;
+  badgeBg?: string;
+  /** Inline SVG for icons imported from the internet, so they render offline. */
+  svgMarkup?: string;
+  viewBox?: string;
+}
+
+export interface FrameElement extends BaseElement {
+  type: "frame";
+  title: string;
+}
+
+export type CanvasElement =
+  | RectangleElement
+  | DiamondElement
+  | CircleElement
+  | ArrowElement
+  | LineElement
+  | PencilElement
+  | TextElement
+  | StickyElement
+  | IconElement
+  | FrameElement;
+
+export interface Workspace { id: string; name: string; createdAt: number }
+
+export interface Board {
+  workspaceId?: string;
+  id: string;
+  title: string;
+  elements: CanvasElement[];
+  markdownNotes: string;
+  createdAt: number;
+  updatedAt: number;
+  theme: Theme;
+  viewMode: ViewMode;
+  gridType: GridType;
+  snapToGrid: boolean;
+  zoom: number;
+  panOffset: Point;
+}
+
+export interface BoardSummary {
+  workspaceId?: string;
+  id: string;
+  title: string;
+  createdAt: number;
+  updatedAt: number;
+  elementCount: number;
+}
+
+export interface ElementStyleProps {
+  stroke: string;
+  strokeWidth: number;
+  strokeStyle: StrokeStyle;
+  fill: string;
+  fillStyle: FillStyle;
+  roundness: Roundness;
+  opacity: number;
+  fontSize: number;
+  fontFamily: FontFamily;
+  textAlign: TextAlign;
+  arrowRouting?: ArrowRouting;
+  arrowHeadStart?: ArrowHead;
+  arrowHeadEnd?: ArrowHead;
+  arrowAnimated?: boolean;
+}
+
+/** Default style applied to new elements and shown when nothing is selected. */
+export const DEFAULT_STYLE: ElementStyleProps = {
+  stroke: "#FFFFFF",
+  strokeWidth: 2,
+  strokeStyle: "solid",
+  fill: "transparent",
+  fillStyle: "none",
+  roundness: "rounded",
+  opacity: 1,
+  fontSize: 16,
+  fontFamily: "sans",
+  textAlign: "left",
+  arrowRouting: "elbow",
+  arrowHeadStart: "none",
+  arrowHeadEnd: "arrow",
+  arrowAnimated: false,
+};

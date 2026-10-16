@@ -1,0 +1,8 @@
+{
+  "name": "whiteboard-desktop",
+  "version": "0.1.0",
+  "main": "main.cjs",
+  "description": "An open-source, local-first whiteboard and Markdown notebook for web and desktop.",
+  "author": "Whiteboard contributors",
+  "license": "MIT"
+}
