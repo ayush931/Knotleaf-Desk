@@ -35,7 +35,14 @@ export type Theme = "dark";
 /** What the in-place text editor is editing. */
 export type InlineTextKind = "new-text" | "text" | "sticky" | "label" | "frame-title";
 
-export interface InlineTextState {
+export interface TextFormatting {
+  bold?: boolean;
+  italic?: boolean;
+  underline?: boolean;
+  strikethrough?: boolean;
+}
+
+export interface InlineTextState extends TextFormatting {
   kind: InlineTextKind;
   elementId?: string;
   /** Canvas-space position used when creating a new text element. */
@@ -130,7 +137,7 @@ export interface PencilElement extends BaseElement {
   points: Point[];
 }
 
-export interface TextElement extends BaseElement {
+export interface TextElement extends BaseElement, TextFormatting {
   type: "text";
   text: string;
   fontSize: number;
@@ -140,7 +147,7 @@ export interface TextElement extends BaseElement {
   title?: string;
 }
 
-export interface StickyElement extends BaseElement {
+export interface StickyElement extends BaseElement, TextFormatting {
   fontFamily?: FontFamily;
   textAlign?: TextAlign;
   type: "sticky";
@@ -205,7 +212,7 @@ export interface BoardSummary {
   elementCount: number;
 }
 
-export interface ElementStyleProps {
+export interface ElementStyleProps extends TextFormatting {
   stroke: string;
   strokeWidth: number;
   strokeStyle: StrokeStyle;

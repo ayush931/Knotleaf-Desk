@@ -5,6 +5,7 @@ const STORAGE_KEYS = {
   BOARDS_INDEX: "excali_eraser_boards_index",
   BOARD_PREFIX: "excali_eraser_board_",
   ACTIVE_ID: "excali_eraser_active_board_id",
+  PERSONAL_ID: "excali_eraser_personal_board_id",
 };
 
 export function getAllBoards(): BoardSummary[] {
@@ -74,7 +75,7 @@ export function saveBoard(board: Board): boolean {
       index.unshift(summary);
     }
     const indexed = saveBoardsIndex(index);
-    localStorage.setItem(STORAGE_KEYS.ACTIVE_ID, board.id);
+    setActiveBoardId(board.id);
     return indexed;
   } catch (err) {
     console.error("Failed to save board to localStorage", err);
@@ -168,6 +169,7 @@ export function getActiveBoardId(): string | null {
 export function setActiveBoardId(id: string): void {
   if (typeof window === "undefined") return;
   localStorage.setItem(STORAGE_KEYS.ACTIVE_ID, id);
+  if (!isRoomBoardId(id)) localStorage.setItem(STORAGE_KEYS.PERSONAL_ID, id);
 }
 
 export function getOrCreateDefaultBoard(): Board {
@@ -254,4 +256,16 @@ export function isValidElement(value: unknown): value is CanvasElement {
   if (el.type === "frame") return typeof el.title === "string";
   if (el.type === "icon") return typeof el.iconId === "string";
   return true;
+}
+
+function isRoomBoardId(id: string): boolean {
+  return /^[a-f\d]{8}-[a-f\d]{4}-4[a-f\d]{3}-[89ab][a-f\d]{3}-[a-f\d]{12}$/i.test(id);
+}
+/** Return to personal work without deleting the room or its cached local copy. */
+export function getOrCreatePersonalBoard(): Board {
+  const lastId = typeof window !== "undefined" ? localStorage.getItem(STORAGE_KEYS.PERSONAL_ID) : null;
+  const last = lastId && !isRoomBoardId(lastId) ? getBoard(lastId) : null;
+  const board = last || getAllBoards().filter(summary => !isRoomBoardId(summary.id)).sort((a, b) => b.updatedAt - a.updatedAt).map(summary => getBoard(summary.id)).find((candidate): candidate is Board => candidate !== null) || createBoard();
+  setActiveBoardId(board.id);
+  return board;
 }

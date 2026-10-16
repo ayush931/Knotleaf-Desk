@@ -13,6 +13,7 @@ import {
   AnchorPosition,
   DEFAULT_STYLE,
   FontFamily,
+  TextFormatting,
 } from "./types";
 import {
   Bounds,
@@ -26,6 +27,7 @@ import {
   fontStack,
   getElementAnchors,
   getElementBounds,
+  getResizeHandles,
   measureTextBlock,
   normalizeRect,
   unionBounds,
@@ -77,7 +79,7 @@ type Gesture =
       /** Element to select alone if the pointer is released without dragging. */
       soloId: string | null;
     }
-  | { kind: "resize"; handle: Handle; snapshot: CanvasElement }
+  | { kind: "resize"; handle: Handle; origin: Point; snapshot: CanvasElement }
   | { kind: "endpoint"; handle: Handle; snapshot: ArrowElement | LineElement }
   | { kind: "marquee"; start: Point; base: Set<string> }
   | { kind: "draft"; origin: Point };
@@ -189,6 +191,7 @@ export class CanvasEngine {
   private destroyed = false;
 
   private elements: CanvasElement[] = [];
+  private committedElements: CanvasElement[] = [];
   private collaborators: { name: string; color: string; cursor?: Point }[] = [];
   public collaborativeUndo?: () => void;
   public collaborativeRedo?: () => void;
@@ -206,6 +209,7 @@ export class CanvasEngine {
 
   // Interaction
   private gesture: Gesture | null = null;
+  private activePointerId: number | null = null;
   private draft: CanvasElement | null = null;
   private marqueeRect: Bounds | null = null;
   private hoveredAnchors: Anchor[] = [];
@@ -247,6 +251,7 @@ export class CanvasEngine {
     if (!ctx) throw new Error("Canvas 2D context is not available");
     this.ctx = ctx;
     this.elements = [...initialElements];
+    this.committedElements = [...initialElements];
     this.theme = initialTheme;
     this.gridType = initialGrid;
     this.undoStack = [JSON.stringify(this.elements)];
@@ -266,6 +271,7 @@ export class CanvasEngine {
   // --- Configuration -----------------------------------------------------------
 
   public setTool(tool: Tool) {
+    if (this.gesture) this.cancelGesture();
     this.tool = tool;
     if (tool !== "select") {
       this.selectedIds.clear();
@@ -383,6 +389,7 @@ export class CanvasEngine {
     if (recordHistory) {
       this.commit();
     } else {
+      this.committedElements = [...this.elements];
       this.undoStack = [JSON.stringify(this.elements)];
       this.redoStack = [];
       this.emitHistory();
@@ -392,8 +399,23 @@ export class CanvasEngine {
   }
 
   public applyRemoteElements(elements: CanvasElement[]) {
-    this.elements = [...elements];
-    this.selectedIds = new Set([...this.selectedIds].filter(id => elements.some(e => e.id === id)));
+    // Preserve unfinished local gestures (especially erasing) while accepting
+    // remote additions/deletions. Replacing the scene here used to undo an erase
+    // before pointer-up could publish it.
+    const previous = new Map(this.committedElements.map(el => [el.id, el]));
+    const local = new Map(this.elements.map(el => [el.id, el]));
+    const merged = new Map(elements.map(el => [el.id, el]));
+    const changed = new Set<string>();
+    for (const id of previous.keys()) if (!local.has(id)) { merged.delete(id); changed.add(id); }
+    for (const el of this.elements) {
+      const old = previous.get(el.id);
+      if (JSON.stringify(old) === JSON.stringify(el)) continue;
+      if (old && !merged.has(el.id)) continue;
+      merged.set(el.id, el); changed.add(el.id);
+    }
+    this.committedElements = [...elements];
+    this.elements = resolveBindings(pruneBindings([...merged.values()]), changed);
+    this.selectedIds = new Set([...this.selectedIds].filter(id => merged.has(id)));
     this.emitSelection(); this.requestRender();
   }
   public setCollaborators(people: { name: string; color: string; cursor?: Point }[]) { this.collaborators = people; this.requestRender(); }
@@ -475,15 +497,24 @@ export class CanvasEngine {
     this.commit();
   }
 
+  public toggleTextFormatting(key: keyof TextFormatting) {
+    const selected = this.getSelectedElements().filter(el => el.type === "text" || el.type === "sticky");
+    if (!selected.length) { this.currentStyle[key] = !this.currentStyle[key]; return; }
+    const enabled = !selected.every(el => !!el[key]);
+    const ids = new Set(selected.map(el => el.id));
+    this.elements = this.elements.map(el => ids.has(el.id) ? el.type === "text" ? this.remeasureText({ ...el, [key]: enabled }) : el.type === "sticky" ? this.fitSticky({ ...el, [key]: enabled }) : el : el);
+    this.elements = resolveBindings(this.elements, ids); this.commit();
+  }
+
   private fitSticky(el: StickyElement): StickyElement {
     const width = Math.max(100, el.width);
-    setFont(this.ctx, el.fontSize || 15, el.fontFamily || "sans", 500);
+    setFont(this.ctx, el.fontSize || 15, el.fontFamily || "sans", el.bold ? 700 : 400, el.italic);
     const height = Math.max(80, el.height, wrapText(this.ctx, el.text, width - 24).length * (el.fontSize || 15) * 1.35 + 28);
     return { ...el, width, height };
   }
 
   private remeasureText(el: TextElement): TextElement {
-    const size = measureTextBlock(this.ctx, el.text, el.fontSize, el.fontFamily);
+    const size = measureTextBlock(this.ctx, el.text, el.fontSize, el.fontFamily, el);
     return { ...el, width: size.width, height: size.height };
   }
 
@@ -518,11 +549,10 @@ export class CanvasEngine {
       badgeBg: this.theme === "dark" ? "rgba(30, 41, 59, 0.7)" : "rgba(248, 250, 252, 0.95)",
       svgMarkup,
       viewBox,
-      label: name,
-      x: center.x - 45,
-      y: center.y - 45,
-      width: 90,
-      height: 90,
+      x: center.x - 24,
+      y: center.y - 24,
+      width: 48,
+      height: 48,
       stroke: "#CBD5E1",
       strokeWidth: 1.5,
       strokeStyle: "solid",
@@ -572,10 +602,10 @@ export class CanvasEngine {
       category: def.category,
       iconColor: def.color,
       badgeBg: def.badgeBg,
-      x: center.x - 45,
-      y: center.y - 45,
-      width: 90,
-      height: 90,
+      x: center.x - 24,
+      y: center.y - 24,
+      width: 48,
+      height: 48,
       stroke: def.color,
       strokeWidth: 1.5,
       strokeStyle: "solid",
@@ -634,7 +664,7 @@ export class CanvasEngine {
     this.elements = [
       ...this.elements.filter((el) => !ids.has(el.id)),
       ...this.elements.filter((el) => ids.has(el.id)),
-    ];
+    ].map((el, zIndex) => ({ ...el, zIndex }));
     this.commit();
   }
 
@@ -644,7 +674,7 @@ export class CanvasEngine {
     this.elements = [
       ...this.elements.filter((el) => ids.has(el.id)),
       ...this.elements.filter((el) => !ids.has(el.id)),
-    ];
+    ].map((el, zIndex) => ({ ...el, zIndex }));
     this.commit();
   }
 
@@ -687,7 +717,7 @@ export class CanvasEngine {
 
     if (info.kind === "new-text") {
       if (trimmed) {
-        const el = this.makeTextElement(text, info.canvasX, info.canvasY, info.fontSize, info.fontFamily, info.color, info.align);
+        const el = this.makeTextElement(text, info.canvasX, info.canvasY, info.fontSize, info.fontFamily, info.color, info.align, false, info);
         this.elements = [...this.elements, el];
         this.selectedIds = new Set([el.id]);
         this.tool = "select";
@@ -711,10 +741,11 @@ export class CanvasEngine {
               fontFamily: info.fontFamily,
               textAlign: info.align,
               stroke: info.color,
+              bold: !!info.bold, italic: !!info.italic, underline: !!info.underline, strikethrough: !!info.strikethrough,
             })
           );
         } else if (info.kind === "sticky" && el.type === "sticky") {
-          next.push(this.fitSticky({ ...el, text, fontSize: info.fontSize, fontFamily: info.fontFamily, textAlign: info.align, stroke: info.color }));
+          next.push(this.fitSticky({ ...el, text, fontSize: info.fontSize, fontFamily: info.fontFamily, textAlign: info.align, stroke: info.color, bold: !!info.bold, italic: !!info.italic, underline: !!info.underline, strikethrough: !!info.strikethrough }));
         } else if (info.kind === "frame-title" && el.type === "frame") {
           next.push({ ...el, title: trimmed || "Frame" });
         } else if (info.kind === "label") {
@@ -754,9 +785,10 @@ export class CanvasEngine {
     fontFamily: FontFamily,
     color: string,
     align: TextElement["textAlign"],
-    isDocCard: boolean = false
+    isDocCard: boolean = false,
+    formatting: TextFormatting = {}
   ): TextElement {
-    const size = measureTextBlock(this.ctx, text, fontSize, fontFamily);
+    const size = measureTextBlock(this.ctx, text, fontSize, fontFamily, formatting);
     return {
       id: newId(),
       type: "text",
@@ -767,6 +799,7 @@ export class CanvasEngine {
       text,
       fontSize,
       fontFamily,
+      bold: !!formatting.bold, italic: !!formatting.italic, underline: !!formatting.underline, strikethrough: !!formatting.strikethrough,
       textAlign: align,
       stroke: color || "#FFFFFF",
       strokeWidth: 1,
@@ -791,6 +824,7 @@ export class CanvasEngine {
           kind: "text", elementId: el.id, canvasX: el.x, canvasY: el.y,
           screenX: p.x, screenY: p.y,
           screenWidth: Math.max(80, el.width * this.zoom + 24),
+          bold: el.bold, italic: el.italic, underline: el.underline, strikethrough: el.strikethrough,
           text: el.text, fontSize: el.fontSize, fontFamily: el.fontFamily,
           color: el.stroke, align: el.textAlign,
         };
@@ -803,6 +837,7 @@ export class CanvasEngine {
           screenX: p.x, screenY: p.y,
           screenWidth: (el.width - 24) * this.zoom,
           screenHeight: (el.height - 24) * this.zoom,
+          bold: el.bold, italic: el.italic, underline: el.underline, strikethrough: el.strikethrough,
           text: el.text, fontSize: el.fontSize, fontFamily: el.fontFamily || "sans",
           color: el.stroke || "#1E293B", align: el.textAlign || "left",
         };
@@ -826,16 +861,6 @@ export class CanvasEngine {
           screenX: p.x - 80, screenY: p.y - 12, screenWidth: 160,
           text: el.label ?? "", fontSize: 12, fontFamily: "sans",
           color: el.stroke, align: "center",
-        };
-        break;
-      }
-      case "icon": {
-        const p = this.canvasToScreen(el.x + 8, el.y + el.height - 30);
-        state = {
-          kind: "label", elementId: el.id, canvasX: el.x, canvasY: el.y,
-          screenX: p.x, screenY: p.y, screenWidth: (el.width - 16) * this.zoom,
-          text: el.label ?? "", fontSize: 12, fontFamily: "sans",
-          color: this.theme === "dark" ? "#F1F5F9" : "#0F172A", align: "center",
         };
         break;
       }
@@ -868,6 +893,8 @@ export class CanvasEngine {
   public render() {
     this.draw();
   }
+
+  private onResourceLoad = () => this.requestRender();
 
   private requestRender() {
     if (this.renderQueued || this.destroyed) return;
@@ -914,6 +941,7 @@ export class CanvasEngine {
           scene: this.elements,
         flowOffset: this.flowOffset,
         selected: single?.id === el.id,
+        onResourceLoad: this.onResourceLoad,
         zoom: this.zoom,
       });
     }
@@ -928,14 +956,8 @@ export class CanvasEngine {
       drawElement(ctx, this.draft, { theme: this.theme, zoom: this.zoom, scene: this.elements });
     }
 
-    if (single?.type === "arrow" && !this.gesture) {
-      for (const binding of [single.startBinding, single.endBinding]) {
-        const target = binding && this.elements.find(e => e.id === binding.elementId);
-        if (target && binding) drawElementAnchors(ctx, getElementAnchors(target), binding.anchor, this.zoom);
-      }
-    }
-    if (single && this.tool === "select" && !this.gesture && single.type !== "frame") {
-      drawElementAnchors(ctx, getElementAnchors(single), null, this.zoom);
+    if (single && this.tool === "select" && !this.gesture && !this.editingId) {
+      drawElementAnchors(ctx, getElementAnchors(single), this.snapTarget?.anchor, this.zoom);
     }
 
     if (this.hoveredAnchors.length > 0) {
@@ -985,12 +1007,12 @@ export class CanvasEngine {
   }
 
   /** Nearest port on a non-connector element within snapping distance of pt. */
-  private findNearestAnchor(pt: Point, excludeId?: string): { elementId: string; anchor: AnchorPosition; x: number; y: number; all: Anchor[] } | null {
+  private findNearestAnchor(pt: Point, excludeId?: string, onlyId?: string): { elementId: string; anchor: AnchorPosition; x: number; y: number; all: Anchor[] } | null {
     const reach = 24 / this.zoom;
     let best: { elementId: string; anchor: AnchorPosition; x: number; y: number; all: Anchor[] } | null = null;
     let bestDist = reach;
     for (const el of this.elements) {
-      if (el.id === excludeId || el.type === "frame") continue;
+      if (el.id === excludeId || el.type === "frame" || (onlyId && el.id !== onlyId)) continue;
       const anchors = getElementAnchors(el);
       for (const a of anchors) {
         const d = Math.hypot(pt.x - a.x, pt.y - a.y);
@@ -1101,18 +1123,27 @@ export class CanvasEngine {
       if (near(el.endX, el.endY)) return "end";
       return null;
     }
-    if (el.type === "pencil") return null;
 
-    const b = getElementBounds(el);
+    const bounds = getElementBounds(el);
+    const handles = getResizeHandles(bounds, this.zoom, el.type === "frame");
+    for (const { handle, x, y } of handles) {
+      if (near(x, y)) return handle;
+    }
+
+    // The outline is draggable for one-axis resizing. Leave the circular
+    // connector hit areas free so the same gesture cannot start both actions.
+    if (el.type !== "frame" && getElementAnchors(el).some(port => Math.hypot(pt.x - port.x, pt.y - port.y) < 10 / this.zoom)) return null;
     const pad = 5 / this.zoom;
-    const x0 = b.minX - pad, x1 = b.maxX + pad, y0 = b.minY - pad, y1 = b.maxY + pad;
-    const mx = (x0 + x1) / 2, my = (y0 + y1) / 2;
-    const handles: [Handle, number, number][] = [
-      ["nw", x0, y0], ["n", mx, y0], ["ne", x1, y0], ["e", x1, my],
-      ["se", x1, y1], ["s", mx, y1], ["sw", x0, y1], ["w", x0, my],
-    ];
-    for (const [h, hx, hy] of handles) {
-      if (near(hx, hy)) return h;
+    const edgeTolerance = 6 / this.zoom;
+    const x0 = bounds.minX - pad, x1 = bounds.maxX + pad;
+    const y0 = bounds.minY - pad, y1 = bounds.maxY + pad;
+    if (pt.x >= x0 && pt.x <= x1) {
+      if (Math.abs(pt.y - y0) <= edgeTolerance) return "n";
+      if (Math.abs(pt.y - y1) <= edgeTolerance) return "s";
+    }
+    if (pt.y >= y0 && pt.y <= y1) {
+      if (Math.abs(pt.x - x0) <= edgeTolerance) return "w";
+      if (Math.abs(pt.x - x1) <= edgeTolerance) return "e";
     }
     return null;
   }
@@ -1125,8 +1156,16 @@ export class CanvasEngine {
   }
 
   private onPointerDown = (e: PointerEvent) => {
-    if (e.button === 2) return;
-    this.canvas.setPointerCapture?.(e.pointerId);
+    if (e.button === 2 || e.isPrimary === false || this.gesture) return;
+    this.activePointerId = e.pointerId;
+    const opensEditor = e.button === 0 && !this.spaceDown && ["text", "doc", "sticky"].includes(this.tool);
+    if (opensEditor) {
+      // The editor takes focus during this event. A compatibility mousedown on
+      // the canvas would blur it and immediately commit/discard an empty draft.
+      e.preventDefault();
+    } else {
+      this.canvas.setPointerCapture?.(e.pointerId);
+    }
     this.shiftDown = e.shiftKey;
     const sp = this.screenPoint(e);
     const pt = this.screenToCanvas(sp.x, sp.y);
@@ -1143,8 +1182,12 @@ export class CanvasEngine {
       return;
     }
 
-    if (this.tool === "select" && this.hoveredAnchors.length && !e.shiftKey) {
-      const snap = this.findNearestAnchor(pt);
+    const selected = this.getSelectedElements();
+    const selectedHandle = selected.length === 1 ? this.handleAt(selected[0], pt) : null;
+    // In Select, only the selected element exposes connection controls.
+    // Hovering an unrelated shape must not turn an ordinary move into an arrow.
+    if (this.tool === "select" && selected.length === 1 && !e.shiftKey && !selectedHandle) {
+      const snap = this.findNearestAnchor(pt, undefined, selected[0].id);
       if (snap && Math.hypot(pt.x - snap.x, pt.y - snap.y) < 10 / this.zoom) {
         const arrow = this.createDraft({ x: snap.x, y: snap.y }, "arrow") as ArrowElement;
         this.draft = { ...arrow, startBinding: { elementId: snap.elementId, anchor: snap.anchor } };
@@ -1154,13 +1197,13 @@ export class CanvasEngine {
       }
     }
     if (this.tool === "select") {
-      const selected = this.getSelectedElements();
       if (selected.length === 1) {
-        const handle = this.handleAt(selected[0], pt);
+        const handle = selectedHandle;
         if (handle) {
           this.gesture = handle === "start" || handle === "end" || handle === "mid"
             ? { kind: "endpoint", handle, snapshot: selected[0] as ArrowElement | LineElement }
-            : { kind: "resize", handle, snapshot: selected[0] };
+            : { kind: "resize", handle, origin: pt, snapshot: selected[0] };
+          this.canvas.style.cursor = HANDLE_CURSOR[handle];
           return;
         }
       }
@@ -1205,6 +1248,8 @@ export class CanvasEngine {
     }
 
     if (this.tool === "text") {
+      this.selectedIds.clear();
+      this.emitSelection();
       this.tool = "select";
       this.emitTool();
       this.updateCursor();
@@ -1217,6 +1262,7 @@ export class CanvasEngine {
         text: "",
         fontSize: this.currentStyle.fontSize,
         fontFamily: this.currentStyle.fontFamily,
+        bold: this.currentStyle.bold, italic: this.currentStyle.italic, underline: this.currentStyle.underline, strikethrough: this.currentStyle.strikethrough,
         color: this.currentStyle.stroke || "#FFFFFF",
         align: this.currentStyle.textAlign,
       });
@@ -1281,6 +1327,7 @@ export class CanvasEngine {
   };
 
   private onPointerMove = (e: PointerEvent) => {
+    if (e.isPrimary === false || (this.activePointerId !== null && e.pointerId !== this.activePointerId)) return;
     this.shiftDown = e.shiftKey;
     const sp = this.screenPoint(e);
     const pt = this.screenToCanvas(sp.x, sp.y);
@@ -1319,10 +1366,47 @@ export class CanvasEngine {
     this.requestRender();
   };
 
-  private onPointerUp = () => {
-    const g = this.gesture;
-    if (!g) return;
+  private releasePointer() {
+    const id = this.activePointerId;
+    this.activePointerId = null;
+    if (id !== null && this.canvas.hasPointerCapture?.(id)) this.canvas.releasePointerCapture(id);
+  }
+
+  private cancelGesture = () => {
+    if (this.gesture) {
+      // This baseline includes remote updates received during the drag.
+      this.elements = pruneBindings([...this.committedElements]);
+      this.selectedIds = new Set([...this.selectedIds].filter(id => this.elements.some(el => el.id === id)));
+    }
     this.gesture = null;
+    this.draft = null;
+    this.marqueeRect = null;
+    this.hoveredAnchors = [];
+    this.snapTarget = null;
+    this.releasePointer();
+    this.emitSelection(); this.updateCursor(); this.requestRender();
+  };
+
+  private onPointerCancel = (e: PointerEvent) => {
+    if (e.pointerId === this.activePointerId) this.cancelGesture();
+  };
+
+  private onLostPointerCapture = (e: PointerEvent) => {
+    if (e.pointerId === this.activePointerId) this.cancelGesture();
+  };
+
+  private onWindowBlur = () => {
+    this.spaceDown = false;
+    this.shiftDown = false;
+    this.cancelGesture();
+  };
+
+  private onPointerUp = (e?: PointerEvent) => {
+    if (e && this.activePointerId !== null && e.pointerId !== this.activePointerId) return;
+    const g = this.gesture;
+    this.gesture = null;
+    this.releasePointer();
+    if (!g) return;
     this.snapTarget = null;
     this.hoveredAnchors = [];
 
@@ -1533,21 +1617,32 @@ export class CanvasEngine {
   private resizeSelection(pt: Point) {
     const g = this.gesture;
     if (!g || g.kind !== "resize") return;
-    const p = this.snapPoint(pt);
-    const r = normalizeRect(g.snapshot);
-    let x0 = r.x;
-    let y0 = r.y;
-    let x1 = r.x + r.w;
-    let y1 = r.y + r.h;
-    if (g.handle.includes("w")) x0 = Math.min(p.x, x1 - MIN_SIZE);
-    if (g.handle.includes("e")) x1 = Math.max(p.x, x0 + MIN_SIZE);
-    if (g.handle.includes("n")) y0 = Math.min(p.y, y1 - MIN_SIZE);
-    if (g.handle.includes("s")) y1 = Math.max(p.y, y0 + MIN_SIZE);
+    const snapshot = g.snapshot;
+    const bounds = getElementBounds(snapshot);
+    const r = snapshot.type === "pencil" ? { x: bounds.minX, y: bounds.minY, w: bounds.maxX - bounds.minX, h: bounds.maxY - bounds.minY } : normalizeRect(snapshot);
+    const dx = pt.x - g.origin.x, dy = pt.y - g.origin.y;
+    let x0 = r.x, y0 = r.y, x1 = r.x + r.w, y1 = r.y + r.h;
+    if (g.handle.includes("w")) x0 = Math.min(this.snapPoint({ x: r.x + dx, y: r.y }).x, x1 - MIN_SIZE);
+    if (g.handle.includes("e")) x1 = Math.max(this.snapPoint({ x: r.x + r.w + dx, y: r.y }).x, x0 + MIN_SIZE);
+    if (g.handle.includes("n")) y0 = Math.min(this.snapPoint({ x: r.x, y: r.y + dy }).y, y1 - MIN_SIZE);
+    if (g.handle.includes("s")) y1 = Math.max(this.snapPoint({ x: r.x, y: r.y + r.h + dy }).y, y0 + MIN_SIZE);
 
-    const id = g.snapshot.id;
-    const resized = this.elements.map((el) =>
-      el.id === id ? (el.type === "sticky" ? this.fitSticky({ ...el, x: x0, y: y0, width: x1 - x0, height: y1 - y0 }) : { ...el, x: x0, y: y0, width: x1 - x0, height: y1 - y0 } as CanvasElement) : el
-    );
+    const id = snapshot.id;
+    const resized = this.elements.map(el => {
+      if (el.id !== id) return el;
+      if (dx === 0 && dy === 0) return snapshot;
+      const rect = { x: x0, y: y0, width: x1 - x0, height: y1 - y0 };
+      if (snapshot.type === "pencil") return { ...snapshot, ...rect, points: snapshot.points.map(p => ({ x: x0 + (p.x - r.x) * rect.width / Math.max(r.w, 1), y: y0 + (p.y - r.y) * rect.height / Math.max(r.h, 1) })) };
+      if (snapshot.type === "text") {
+        const horizontal = g.handle.includes("w") || g.handle.includes("e");
+        const vertical = g.handle.includes("n") || g.handle.includes("s");
+        const scale = horizontal && vertical ? Math.max(rect.width / Math.max(r.w, 1), rect.height / Math.max(r.h, 1)) : horizontal ? rect.width / Math.max(r.w, 1) : rect.height / Math.max(r.h, 1);
+        const text = this.remeasureText({ ...snapshot, fontSize: Math.max(8, Math.min(512, snapshot.fontSize * scale)) });
+        return { ...text, x: g.handle.includes("w") ? r.x + r.w - text.width : r.x, y: g.handle.includes("n") ? r.y + r.h - text.height : r.y };
+      }
+      if (snapshot.type === "sticky") return this.fitSticky({ ...snapshot, ...rect });
+      return { ...snapshot, ...rect };
+    });
     this.elements = resolveBindings(resized, new Set([id]));
   }
 
@@ -1644,31 +1739,26 @@ export class CanvasEngine {
   // --- Cursor ----------------------------------------------------------------------
 
   private updateHoverCursor(pt: Point) {
-    if (this.tool === "select" || this.tool === "arrow") {
-      const snap = this.findNearestAnchor(pt);
-      const hit = this.hitTest(pt);
-      this.hoveredAnchors = snap?.all ?? (hit && hit.type !== "frame" ? getElementAnchors(hit) : []);
-      this.snapTarget = snap ? { anchor: snap.anchor } : null;
-      this.requestRender();
-      if (snap && Math.hypot(pt.x - snap.x, pt.y - snap.y) < 10 / this.zoom) {
-        this.canvas.style.cursor = "crosshair";
-        return;
-      }
-    } else { this.hoveredAnchors = []; this.snapTarget = null; }
-    if (this.spaceDown || this.tool !== "select") {
-      this.updateCursor();
-      return;
+    this.hoveredAnchors = [];
+    this.snapTarget = null;
+    if (this.spaceDown || this.tool === "hand") {
+      this.updateCursor(); this.requestRender(); return;
     }
     const selected = this.getSelectedElements();
-    if (selected.length === 1) {
-      const handle = this.handleAt(selected[0], pt);
-      if (handle) {
-        this.canvas.style.cursor = HANDLE_CURSOR[handle];
-        return;
-      }
-    }
-    const hit = this.hitTest(pt);
-    this.canvas.style.cursor = hit ? "move" : "default";
+    const handle = this.tool === "select" && selected.length === 1 ? this.handleAt(selected[0], pt) : null;
+    if (handle) {
+      this.canvas.style.cursor = HANDLE_CURSOR[handle];
+    } else if (this.tool === "arrow") {
+      const snap = this.findNearestAnchor(pt);
+      this.hoveredAnchors = snap?.all ?? [];
+      this.snapTarget = snap ? { anchor: snap.anchor } : null;
+      this.updateCursor();
+    } else if (this.tool === "select") {
+      const snap = selected.length === 1 ? this.findNearestAnchor(pt, undefined, selected[0].id) : null;
+      this.snapTarget = snap && Math.hypot(pt.x - snap.x, pt.y - snap.y) < 10 / this.zoom ? { anchor: snap.anchor } : null;
+      this.canvas.style.cursor = this.snapTarget ? "crosshair" : this.hitTest(pt) ? "move" : "default";
+    } else this.updateCursor();
+    this.requestRender();
   }
 
   private updateCursor() {
@@ -1717,6 +1807,11 @@ export class CanvasEngine {
 
     if (mod) {
       switch (key) {
+        case "b": case "i": case "u":
+          e.preventDefault(); this.toggleTextFormatting(key === "b" ? "bold" : key === "i" ? "italic" : "underline"); return;
+        case "x":
+          if (e.shiftKey) { e.preventDefault(); this.toggleTextFormatting("strikethrough"); return; }
+          e.preventDefault(); this.cutSelection(); return;
         case "z":
           e.preventDefault();
           if (e.shiftKey) this.redo();
@@ -1737,10 +1832,6 @@ export class CanvasEngine {
         case "c":
           e.preventDefault();
           this.copySelection();
-          return;
-        case "x":
-          e.preventDefault();
-          this.cutSelection();
           return;
         case "v":
           e.preventDefault();
@@ -1790,9 +1881,7 @@ export class CanvasEngine {
         }
         return;
       case "Escape":
-        this.gesture = null;
-        this.draft = null;
-        this.marqueeRect = null;
+        this.cancelGesture();
         this.selectedIds.clear();
         this.emitSelection();
         this.setTool("select");
@@ -1890,6 +1979,7 @@ export class CanvasEngine {
 
   /** Finishes a user edit: records history, persists, and refreshes the UI. */
   private commit() {
+    this.committedElements = [...this.elements];
     const changed = this.pushHistory();
     if (changed) this.onChange?.(this.elements);
     this.emitSelection();
@@ -1898,6 +1988,7 @@ export class CanvasEngine {
   }
 
   public undo() {
+    if (this.gesture) this.cancelGesture();
     if (this.collaborativeUndo) { this.collaborativeUndo(); return; }
     if (this.undoStack.length <= 1) return;
     this.redoStack.push(this.undoStack.pop()!);
@@ -1905,6 +1996,7 @@ export class CanvasEngine {
   }
 
   public redo() {
+    if (this.gesture) this.cancelGesture();
     if (this.collaborativeRedo) { this.collaborativeRedo(); return; }
     const next = this.redoStack.pop();
     if (next === undefined) return;
@@ -1914,6 +2006,7 @@ export class CanvasEngine {
 
   private restoreSnapshot(snapshot: string) {
     this.elements = JSON.parse(snapshot) as CanvasElement[];
+    this.committedElements = [...this.elements];
     this.selectedIds = new Set([...this.selectedIds].filter((id) => this.elements.some((e) => e.id === id)));
     this.onChange?.(this.elements);
     this.emitSelection();
@@ -1949,7 +2042,9 @@ export class CanvasEngine {
     this.canvas.addEventListener("pointerdown", this.onPointerDown);
     this.canvas.addEventListener("pointermove", this.onPointerMove);
     this.canvas.addEventListener("pointerup", this.onPointerUp);
-    this.canvas.addEventListener("pointercancel", this.onPointerUp);
+    this.canvas.addEventListener("pointercancel", this.onPointerCancel);
+    this.canvas.addEventListener("lostpointercapture", this.onLostPointerCapture);
+    window.addEventListener("blur", this.onWindowBlur);
     this.canvas.addEventListener("dblclick", this.onDoubleClick);
     this.canvas.addEventListener("wheel", this.onWheel, { passive: false });
     window.addEventListener("keydown", this.onKeyDown);
@@ -1958,12 +2053,16 @@ export class CanvasEngine {
 
   public destroy() {
     this.destroyed = true;
+    this.gesture = null;
+    this.releasePointer();
     if (this.animFrameId !== null) cancelAnimationFrame(this.animFrameId);
     this.animFrameId = null;
     this.canvas.removeEventListener("pointerdown", this.onPointerDown);
     this.canvas.removeEventListener("pointermove", this.onPointerMove);
     this.canvas.removeEventListener("pointerup", this.onPointerUp);
-    this.canvas.removeEventListener("pointercancel", this.onPointerUp);
+    this.canvas.removeEventListener("pointercancel", this.onPointerCancel);
+    this.canvas.removeEventListener("lostpointercapture", this.onLostPointerCapture);
+    window.removeEventListener("blur", this.onWindowBlur);
     this.canvas.removeEventListener("dblclick", this.onDoubleClick);
     this.canvas.removeEventListener("wheel", this.onWheel);
     window.removeEventListener("keydown", this.onKeyDown);

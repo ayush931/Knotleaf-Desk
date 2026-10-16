@@ -33,3 +33,18 @@ test('storage failure is reported instead of returning a false saved status', ()
 test('malformed imported elements are rejected before reaching the canvas', () => {
   expect(importBoardFromJson(JSON.stringify({ elements: [{ id: 'broken', type: 'arrow' }] }))).toBeNull(); expect(getAllBoards()).toHaveLength(0);
 });
+
+test('leaving a room returns to the last personal board without deleting room data', async () => {
+  const { getOrCreatePersonalBoard } = await import('../lib/storage.ts');
+  const personal = createBoard('My own notes'); personal.markdownNotes = 'Keep personal notes'; saveBoard(personal);
+  const room = createBoard('Shared board', undefined, 'personal', crypto.randomUUID()); room.markdownNotes = 'Keep shared notes'; saveBoard(room);
+  const returned = getOrCreatePersonalBoard();
+  expect(returned.id).toBe(personal.id); expect(returned.markdownNotes).toBe('Keep personal notes'); expect(getBoard(room.id).markdownNotes).toBe('Keep shared notes');
+});
+
+test('leaving a room creates a personal board when the browser only has room copies', async () => {
+  const { getOrCreatePersonalBoard } = await import('../lib/storage.ts');
+  const room = createBoard('Shared board', undefined, 'personal', crypto.randomUUID());
+  const personal = getOrCreatePersonalBoard();
+  expect(personal.id).not.toBe(room.id); expect(personal.elements).toHaveLength(0); expect(getBoard(room.id)).not.toBeNull();
+});

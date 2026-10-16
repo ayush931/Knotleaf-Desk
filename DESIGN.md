@@ -54,7 +54,7 @@ Inter for controls, Fira Code for Markdown source and coordinates, Caveat for ha
 Borders and tonal surfaces establish hierarchy. Shadows are reserved for floating tools, menus and drawers. Modal backdrops darken the workspace. Avoid shadows on document content.
 
 ## Shapes
-8px controls, 12px floating panels. Lucide icons use consistent strokes. The blue/white node mark is shared by header, favicon, PWA and desktop packages.
+8px controls, 12px floating panels. Lucide icons use consistent strokes. The blue/white node mark is shared by header and website favicon.
 
 ## Components
 Native buttons for actions. Active view buttons expose aria-pressed. Workspace and export quality selects deliberately use platform-owned native popups. Native dialog owns modal focus, Escape and background inertness. Inline board-deletion confirmation stays inside the workspace dialog and states the consequence. Enabled buttons have hover/pointer/focus states; disabled actions are muted. No browser confirm/alert flows.
@@ -68,3 +68,9 @@ Motion is brief functional feedback. Reduced-motion styles disable decorative an
 - Do reuse the shared renderer for vector export.
 - Don't claim cloud collaboration or successful saving without evidence.
 - Don't hide necessary content scrollbars; eliminate horizontal overflow through wrapping.
+
+Selection controls use four square corner resize handles and one circular attachment port per side. Side-center resize squares are omitted on connectable elements to avoid duplicate controls. The selection outline supports side resizing beside the connector dots, with directional resize cursors. Frames also keep their edge squares because they do not expose connectors.
+
+The single-selection outline is solid and quiet. Connection points belong to the selected element in Select mode; other elements reveal them only as Arrow-tool targets. Bound arrow endpoints use the existing blue accent. Port layers are painted once, and selection controls stay hidden while typing.
+
+Canvas icons are standalone glyphs on transparent backgrounds, with no captions or badge cards. The appearance panel is 240px wide, follows measured toolbar height, and groups secondary options into native details. Drawing-tool shortcut hints remain visible beneath their glyphs. Workspace rows use quiet surfaces and disclose move controls only when needed.

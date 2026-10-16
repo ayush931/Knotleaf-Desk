@@ -1,8 +1,7 @@
 .git
 .next
 node_modules
-release
-desktop-dist
+server-dist
 .collab-data
 .env
 .env.*

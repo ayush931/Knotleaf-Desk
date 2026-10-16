@@ -51,6 +51,8 @@ const GROUPS: { title: string; items: [string, string][] }[] = [
       ["Click Checkbox", "Toggle checklist directly on canvas"],
       ["Enter", "Continue list / checklist bullet"],
       ["Tab / Shift+Tab", "Indent / outdent list item"],
+      ["Ctrl/Cmd+B / I / U", "Bold / italic / underline text"],
+      ["Ctrl/Cmd+Shift+X", "Strikethrough text"],
       ["Ctrl+Shift+> / <", "Increase / decrease font size"],
       ["Ctrl+Enter or Esc", "Finish editing"],
     ],

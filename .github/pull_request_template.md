@@ -5,4 +5,4 @@ What problem does this fix, and what is the resulting behavior?
 Commands run and relevant screenshots or manual checks.
 
 ## Data / compatibility
-Any storage migration, import/export change, or desktop-specific behavior?
+Any storage migration, import/export change, or website deployment behavior?

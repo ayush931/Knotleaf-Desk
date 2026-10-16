@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter, Caveat, Fira_Code } from "next/font/google";
 import "./globals.css";
 
-// Fonts are bundled at build time, so the app works fully offline once installed.
+// Bundle fonts with the website instead of fetching them while editing.
 const inter = Inter({ variable: "--font-inter", subsets: ["latin"], display: "swap" });
 const caveat = Caveat({ variable: "--font-caveat", subsets: ["latin"], display: "swap" });
 const firaCode = Fira_Code({ variable: "--font-fira", subsets: ["latin"], display: "swap" });
@@ -12,17 +12,9 @@ export const metadata: Metadata = {
     default: "Whiteboard",
     template: "%s · Whiteboard",
   },
-  description: "A fast whiteboard for diagrams, architecture, and notes. Works offline and installs as an app.",
-  applicationName: "Whiteboard",
-  manifest: "/manifest.webmanifest",
-  appleWebApp: {
-    capable: true,
-    title: "Whiteboard",
-    statusBarStyle: "default",
-  },
+  description: "A fast whiteboard for diagrams, architecture, and notes. Create diagrams and Markdown notes in your browser.",
   icons: {
     icon: [{ url: "/icons/mark.svg", type: "image/svg+xml" }, { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" }],
-    apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180" }],
   },
 };
 

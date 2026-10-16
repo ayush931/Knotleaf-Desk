@@ -12,7 +12,7 @@ about: Report a reproducible problem
 
 **Environment**
 - App version or commit:
-- OS and browser / desktop build:
+- OS and browser:
 
 **Screenshots or a minimal board JSON**
 Remove any private content before attaching a board.

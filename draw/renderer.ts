@@ -9,8 +9,10 @@ import {
   ArrowHead,
   AnchorPosition,
   FontFamily,
+  TextFormatting,
 } from "./types";
 import { getIconById } from "./iconsData";
+import { getIconImage } from "./iconSvg";
 
 export const ACCENT = "#3B82F6";
 export const LINE_HEIGHT = 1.35;
@@ -28,6 +30,7 @@ export interface DrawOptions {
   selected?: boolean;
   flowOffset?: number;
   zoom?: number;
+  onResourceLoad?: () => void;
 }
 
 // --- Fonts -----------------------------------------------------------------
@@ -65,9 +68,10 @@ export function setFont(
   ctx: CanvasRenderingContext2D,
   size: number,
   family: FontFamily,
-  weight: number | string = 400
+  weight: number | string = 400,
+  italic = false
 ) {
-  ctx.font = `${weight} ${size}px ${fontStack(family)}`;
+  ctx.font = `${italic ? "italic " : ""}${weight} ${size}px ${fontStack(family)}`;
 }
 
 // --- Geometry ----------------------------------------------------------------
@@ -134,8 +138,9 @@ function pointsBounds(pts: Point[]): Bounds {
 }
 
 export function getElementAnchors(el: CanvasElement): { anchor: AnchorPosition; x: number; y: number }[] {
-  if (el.type === "arrow" || el.type === "line" || el.type === "pencil") return [];
-  const r = normalizeRect(el);
+  if (el.type === "arrow" || el.type === "line" || el.type === "pencil" || el.type === "frame") return [];
+  const bounds = getElementBounds(el);
+  const r = { x: bounds.minX, y: bounds.minY, w: bounds.maxX - bounds.minX, h: bounds.maxY - bounds.minY };
   return [
     { anchor: "top", x: r.x + r.w / 2, y: r.y },
     { anchor: "right", x: r.x + r.w, y: r.y + r.h / 2 },
@@ -225,7 +230,8 @@ export function layoutDocument(
   ctx: CanvasRenderingContext2D | null,
   text: string,
   baseFontSize: number,
-  family: FontFamily
+  family: FontFamily,
+  formatting: TextFormatting = {}
 ): DocumentLayout {
   const rawLines = text.split("\n");
   const lines: DocLine[] = [];
@@ -242,8 +248,8 @@ export function layoutDocument(
     let content = raw.slice(leadingSpaces);
     let prefix = "";
     let fontSize = baseFontSize;
-    let fontWeight: number | string = 400;
-    let isItalic = false;
+    let fontWeight: number | string = formatting.bold ? 700 : 400;
+    let isItalic = !!formatting.italic;
     let isStrikethrough = false;
     let lineHeight = baseFontSize * LINE_HEIGHT;
 
@@ -325,7 +331,7 @@ export function layoutDocument(
 
     let measuredContentWidth = content.length * fontSize * 0.6;
     if (ctx) {
-      setFont(ctx, fontSize, family, fontWeight);
+      setFont(ctx, fontSize, family, fontWeight, isItalic);
       measuredContentWidth = ctx.measureText(content).width;
     }
 
@@ -364,9 +370,10 @@ export function measureTextBlock(
   ctx: CanvasRenderingContext2D,
   text: string,
   fontSize: number,
-  family: FontFamily
+  family: FontFamily,
+  formatting: TextFormatting = {}
 ): { width: number; height: number } {
-  const layout = layoutDocument(ctx, text, fontSize, family);
+  const layout = layoutDocument(ctx, text, fontSize, family, formatting);
   return { width: Math.ceil(layout.totalWidth), height: Math.ceil(layout.totalHeight) };
 }
 
@@ -452,7 +459,7 @@ export function drawElement(ctx: CanvasRenderingContext2D, el: CanvasElement, op
       drawSticky(ctx, el);
       break;
     case "icon":
-      drawIcon(ctx, el, theme);
+      drawIcon(ctx, el, opts.onResourceLoad);
       break;
     case "frame":
       drawFrame(ctx, el);
@@ -976,12 +983,26 @@ function drawPencil(ctx: CanvasRenderingContext2D, el: CanvasElement) {
   ctx.stroke();
 }
 
+
+function drawStyledText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, size: number, formatting: TextFormatting) {
+  ctx.fillText(text, x, y);
+  if (!text || (!formatting.underline && !formatting.strikethrough)) return;
+  const width = ctx.measureText(text).width;
+  const left = ctx.textAlign === "center" ? x - width / 2 : ctx.textAlign === "right" ? x - width : x;
+  ctx.save(); ctx.strokeStyle = ctx.fillStyle; ctx.lineWidth = Math.max(1, size / 16); ctx.setLineDash([]);
+  for (const offset of [formatting.underline ? size * 1.05 : null, formatting.strikethrough ? size * 0.55 : null]) {
+    if (offset === null) continue;
+    ctx.beginPath(); ctx.moveTo(left, y + offset); ctx.lineTo(left + width, y + offset); ctx.stroke();
+  }
+  ctx.restore();
+}
+
 function drawText(ctx: CanvasRenderingContext2D, el: CanvasElement) {
   if (el.type !== "text") return;
   const { x, y, text, fontSize, fontFamily, textAlign, stroke, fill } = el;
   const isDocCard = el.isDocCard || (fill && fill !== "transparent");
 
-  const layout = layoutDocument(ctx, text, fontSize, fontFamily);
+  const layout = layoutDocument(ctx, text, fontSize, fontFamily, el);
 
   // If this element is a Document Card or has a background fill, render a sleek card container
   if (isDocCard) {
@@ -1019,7 +1040,7 @@ function drawText(ctx: CanvasRenderingContext2D, el: CanvasElement) {
 
   for (const line of layout.lines) {
     const ly = y + line.yOffset;
-    setFont(ctx, line.fontSize, fontFamily, line.fontWeight);
+    setFont(ctx, line.fontSize, fontFamily, line.fontWeight, line.isItalic);
     const color = stroke || "#FFFFFF";
     ctx.fillStyle = color;
 
@@ -1040,8 +1061,8 @@ function drawText(ctx: CanvasRenderingContext2D, el: CanvasElement) {
       ctx.fillStyle = "#3B82F6";
       ctx.fillRect(x, ly, 3, line.lineHeight - 2);
       ctx.fillStyle = "rgba(244, 244, 245, 0.85)";
-      ctx.font = `italic ${line.fontSize}px ${fontStack(fontFamily)}`;
-      ctx.fillText(line.content, x + 14, ly + 1);
+      setFont(ctx, line.fontSize, fontFamily, line.fontWeight, true);
+      drawStyledText(ctx, line.content, x + 14, ly + 1, line.fontSize, el);
       ctx.restore();
       continue;
     }
@@ -1083,7 +1104,7 @@ function drawText(ctx: CanvasRenderingContext2D, el: CanvasElement) {
       if (line.type === "todo-checked") {
         ctx.save();
         ctx.fillStyle = "rgba(244, 244, 245, 0.55)";
-        ctx.fillText(line.content, textX, ly);
+        drawStyledText(ctx, line.content, textX, ly, line.fontSize, el);
         const tw = ctx.measureText(line.content).width;
         ctx.strokeStyle = "rgba(244, 244, 245, 0.45)";
         ctx.lineWidth = 1.2;
@@ -1093,7 +1114,7 @@ function drawText(ctx: CanvasRenderingContext2D, el: CanvasElement) {
         ctx.stroke();
         ctx.restore();
       } else {
-        ctx.fillText(line.content, textX, ly);
+        drawStyledText(ctx, line.content, textX, ly, line.fontSize, el);
       }
       continue;
     }
@@ -1154,14 +1175,14 @@ function drawText(ctx: CanvasRenderingContext2D, el: CanvasElement) {
       ctx.restore();
 
       const textX = indentX + 22;
-      ctx.fillText(line.content, textX, ly);
+      drawStyledText(ctx, line.content, textX, ly, line.fontSize, el);
       continue;
     }
 
     // Normal line or Heading
     const anchorX = textAlign === "center" ? x + el.width / 2 : textAlign === "right" ? x + el.width : x + line.indentLevel * 18;
     ctx.textAlign = textAlign || "left";
-    ctx.fillText(line.content, anchorX, ly);
+    drawStyledText(ctx, line.content, anchorX, ly, line.fontSize, el);
   }
 
   ctx.restore();
@@ -1172,7 +1193,7 @@ export function getCheckboxAtPoint(
   pt: Point
 ): { lineIndex: number; newChecked: boolean; newText: string } | null {
   if (el.type !== "text") return null;
-  const layout = layoutDocument(null, el.text, el.fontSize, el.fontFamily);
+  const layout = layoutDocument(null, el.text, el.fontSize, el.fontFamily, el);
   const tol = 6;
   const rawLines = el.text.split("\n");
 
@@ -1227,7 +1248,7 @@ function drawSticky(ctx: CanvasRenderingContext2D, el: CanvasElement) {
 
   ctx.save();
   const size = fontSize || 14;
-  setFont(ctx, size, el.fontFamily || "sans", 500);
+  setFont(ctx, size, el.fontFamily || "sans", el.bold ? 700 : 400, el.italic);
   ctx.fillStyle = el.stroke || "#1E293B";
   ctx.textBaseline = "top";
   ctx.textAlign = el.textAlign || "left";
@@ -1235,7 +1256,7 @@ function drawSticky(ctx: CanvasRenderingContext2D, el: CanvasElement) {
   const lineHeight = size * LINE_HEIGHT;
   lines.forEach((line, i) => {
     const ly = y + 12 + i * lineHeight;
-    if (ly + lineHeight <= y + height) ctx.fillText(line, el.textAlign === "center" ? x + width / 2 : el.textAlign === "right" ? x + width - 12 : x + 12, ly);
+    if (ly + lineHeight <= y + height) drawStyledText(ctx, line, el.textAlign === "center" ? x + width / 2 : el.textAlign === "right" ? x + width - 12 : x + 12, ly, size, el);
   });
   ctx.restore();
 }
@@ -1346,31 +1367,26 @@ function parseViewBox(vb?: string): { minX: number; minY: number; size: number }
   return { minX: 0, minY: 0, size: 24 };
 }
 
-function drawIcon(ctx: CanvasRenderingContext2D, el: CanvasElement, theme: Theme) {
+function drawIcon(ctx: CanvasRenderingContext2D, el: CanvasElement, onResourceLoad?: () => void) {
   if (el.type !== "icon") return;
   const { x, y, width, height, iconId } = el;
   const iconDef = getIconById(iconId);
   const color = el.iconColor || (iconDef ? iconDef.color : "#3B82F6");
 
-  // Badge card
-  ctx.save();
-  ctx.fillStyle = el.badgeBg || (theme === "dark" ? "rgba(30, 41, 59, 0.7)" : "rgba(248, 250, 252, 0.95)");
-  ctx.strokeStyle = el.stroke || color;
-  ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  if (ctx.roundRect) ctx.roundRect(x, y, width, height, 12);
-  else ctx.rect(x, y, width, height);
-  ctx.fill();
-  ctx.stroke();
-
   // Icon glyph: embedded markup (online icons) takes precedence over the bundled set.
   const markup = el.svgMarkup ?? iconDef?.svgPath;
-  if (markup) {
+  if (el.svgMarkup) {
+    try {
+      const image = getIconImage(el.svgMarkup, el.viewBox || "0 0 24 24", color, onResourceLoad);
+      const size = Math.max(1, Math.min(width, height));
+      if (image.ready) ctx.drawImage(image.image, x + (width - size) / 2, y + (height - size) / 2, size, size);
+    } catch { /* Malformed imported artwork must not stop the rest of the board rendering. */ }
+  } else if (markup) {
     const vb = parseViewBox(el.viewBox ?? iconDef?.viewBox);
-    const size = Math.min(width * 0.45, 40);
+    const size = Math.max(1, Math.min(width, height));
     const scale = size / vb.size;
     const ox = x + (width - size) / 2;
-    const oy = y + 14;
+    const oy = y + (height - size) / 2;
     ctx.save();
     ctx.translate(ox, oy);
     ctx.scale(scale, scale);
@@ -1391,14 +1407,7 @@ function drawIcon(ctx: CanvasRenderingContext2D, el: CanvasElement, theme: Theme
     ctx.restore();
   }
 
-  // Caption
-  const caption = el.label || (iconDef ? iconDef.name : "Icon");
-  setFont(ctx, 12, "sans", 600);
-  ctx.fillStyle = theme === "dark" ? "#F1F5F9" : "#0F172A";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "bottom";
-  ctx.fillText(fitText(ctx, caption, width - 14), x + width / 2, y + height - 10);
-  ctx.restore();
+
 }
 
 // --- Frames -------------------------------------------------------------------
@@ -1451,16 +1460,18 @@ export function drawSelection(ctx: CanvasRenderingContext2D, el: CanvasElement, 
   if (el.type === "arrow" || el.type === "line") {
     const r = 5 / z;
     const endpoints = [
-      { x: el.startX, y: el.startY },
-      { x: el.endX, y: el.endY },
+      { x: el.startX, y: el.startY, bound: el.type === "arrow" && !!el.startBinding },
+      { x: el.endX, y: el.endY, bound: el.type === "arrow" && !!el.endBinding },
     ];
     for (const p of endpoints) {
+      ctx.fillStyle = p.bound ? ACCENT : "#FFFFFF";
       ctx.beginPath();
       ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
     }
     if (el.type === "arrow") {
+      ctx.fillStyle = "#FFFFFF";
       const mid = computeArrowPath(el, scene).midPt;
       const d = 4.5 / z;
       ctx.beginPath();
@@ -1475,32 +1486,43 @@ export function drawSelection(ctx: CanvasRenderingContext2D, el: CanvasElement, 
   } else {
     const b = getElementBounds(el);
     const pad = 5 / z;
-    drawBoundsOutline(ctx, b, z, pad);
-    drawResizeHandles(ctx, b, z);
+    drawBoundsOutline(ctx, b, z, pad, false);
+    drawResizeHandles(ctx, b, z, el.type === "frame");
   }
   ctx.restore();
 }
 
-export function drawBoundsOutline(ctx: CanvasRenderingContext2D, b: Bounds, zoom: number, pad = 0) {
+export function drawBoundsOutline(ctx: CanvasRenderingContext2D, b: Bounds, zoom: number, pad = 0, dashed = true) {
   ctx.save();
   ctx.strokeStyle = ACCENT;
   ctx.lineWidth = 1.2 / zoom;
-  ctx.setLineDash([5 / zoom, 4 / zoom]);
+  ctx.setLineDash(dashed ? [5 / zoom, 4 / zoom] : []);
   ctx.strokeRect(b.minX - pad, b.minY - pad, b.maxX - b.minX + pad * 2, b.maxY - b.minY + pad * 2);
   ctx.restore();
 }
 
-export function drawResizeHandles(ctx: CanvasRenderingContext2D, b: Bounds, zoom: number) {
-  const s = 8 / zoom;
+export type ResizeHandle = "nw" | "ne" | "se" | "sw" | "n" | "e" | "s" | "w";
+
+/** Shared positions for painting and hit testing. Side centers belong to connectors. */
+export function getResizeHandles(b: Bounds, zoom: number, includeSides = false): { handle: ResizeHandle; x: number; y: number }[] {
   const pad = 5 / zoom;
   const x0 = b.minX - pad, x1 = b.maxX + pad;
   const y0 = b.minY - pad, y1 = b.maxY + pad;
-  const mx = (x0 + x1) / 2;
-  const my = (y0 + y1) / 2;
-  const pts = [
-    { x: x0, y: y0 }, { x: mx, y: y0 }, { x: x1, y: y0 }, { x: x1, y: my },
-    { x: x1, y: y1 }, { x: mx, y: y1 }, { x: x0, y: y1 }, { x: x0, y: my },
+  const corners: { handle: ResizeHandle; x: number; y: number }[] = [
+    { handle: "nw", x: x0, y: y0 }, { handle: "ne", x: x1, y: y0 },
+    { handle: "se", x: x1, y: y1 }, { handle: "sw", x: x0, y: y1 },
   ];
+  // Frames have no connector ports, so their edge resize handles remain useful.
+  if (includeSides) corners.push(
+    { handle: "n", x: (x0 + x1) / 2, y: y0 }, { handle: "e", x: x1, y: (y0 + y1) / 2 },
+    { handle: "s", x: (x0 + x1) / 2, y: y1 }, { handle: "w", x: x0, y: (y0 + y1) / 2 },
+  );
+  return corners;
+}
+
+export function drawResizeHandles(ctx: CanvasRenderingContext2D, b: Bounds, zoom: number, includeSides = false) {
+  const s = 8 / zoom;
+  const pts = getResizeHandles(b, zoom, includeSides);
   ctx.save();
   ctx.setLineDash([]);
   ctx.fillStyle = "#FFFFFF";

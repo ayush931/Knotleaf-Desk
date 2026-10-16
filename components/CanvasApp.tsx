@@ -13,5 +13,5 @@ const Canvas = dynamic(() => import("./Canvas").then((m) => m.Canvas), {
 });
 
 export function CanvasApp({ roomId }: { roomId?: string }) {
-  return <Canvas initialRoomId={roomId} />;
+  return <Canvas key={roomId || "personal"} initialRoomId={roomId} />;
 }

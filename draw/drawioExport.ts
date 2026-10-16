@@ -25,7 +25,7 @@ export function boardToDrawio(board: Board, elements: CanvasElement[] = board.el
     }
     const shape = el.type === "circle" ? "ellipse;" : el.type === "diamond" ? "rhombus;" : el.type === "text" ? "text;strokeColor=none;fillColor=none;align=left;" : el.type === "sticky" ? "shape=note;" : `rounded=${el.roundness === "rounded" ? 1 : 0};`;
     const value = el.type === "text" || el.type === "sticky" ? el.text : el.type === "frame" ? el.title : el.type === "icon" ? el.label || el.iconName : el.label || "";
-    return `<mxCell id="${xml(el.id)}" value="${xml(value)}" style="${xml(style + shape)}" vertex="1" parent="1"><mxGeometry x="${r.x}" y="${r.y}" width="${Math.max(r.w, 1)}" height="${Math.max(r.h, 1)}" as="geometry"/></mxCell>`;
+    return `<mxCell id="${xml(el.id)}" value="${xml(value)}" style="${xml(style + shape + ((el.type === "text" || el.type === "sticky") ? `fontStyle=${(el.bold ? 1 : 0) | (el.italic ? 2 : 0) | (el.underline ? 4 : 0) | (el.strikethrough ? 8 : 0)};fontSize=${el.fontSize};fontColor=${el.stroke};align=${el.textAlign || "left"};` : ""))}" vertex="1" parent="1"><mxGeometry x="${r.x}" y="${r.y}" width="${Math.max(r.w, 1)}" height="${Math.max(r.h, 1)}" as="geometry"/></mxCell>`;
   });
   return `<?xml version="1.0" encoding="UTF-8"?><mxfile host="Whiteboard"><diagram name="${xml(board.title)}"><mxGraphModel background="#121212"><root><mxCell id="0"/><mxCell id="1" parent="0"/>${cells.join("")}</root></mxGraphModel></diagram></mxfile>`;
 }

@@ -2,8 +2,11 @@ import { spawn } from 'node:child_process';
 import * as Y from 'yjs';
 import { WebsocketProvider } from 'y-websocket';
 import WebSocket from 'ws';
+import os from 'node:os';
+import path from 'node:path';
+class TestSocket extends WebSocket { constructor(url, protocols) { super(url, protocols, { origin: 'http://127.0.0.1:47839' }); } }
 const port = 47839;
-const child = spawn(process.execPath, ['server/web.mjs', '--port', String(port), '--hostname', '127.0.0.1'], { cwd: process.env.SMOKE_STAGED ? 'desktop-dist' : process.cwd(), env: { ...process.env, ...(process.env.SMOKE_STAGED ? { WHITEBOARD_STANDALONE: '1' } : {}), COLLAB_DATA_DIR: '/tmp/whiteboard-smoke-rooms' }, stdio: ['ignore', 'pipe', 'pipe'] });
+const child = spawn(process.execPath, ['server/web.mjs', '--port', String(port), '--hostname', '127.0.0.1'], { cwd: process.env.SMOKE_STAGED ? 'server-dist' : process.cwd(), env: { ...process.env, ...(process.env.SMOKE_STAGED ? { WHITEBOARD_STANDALONE: '1' } : {}), COLLAB_DATA_DIR: path.join(os.tmpdir(), 'whiteboard-smoke-rooms'), COLLAB_ORIGINS: `http://127.0.0.1:${port}` }, stdio: ['ignore', 'pipe', 'pipe'] });
 let logs = ''; child.stdout.on('data', data => { logs += data; }); child.stderr.on('data', data => { logs += data; });
 const until = async predicate => { const deadline = Date.now() + 20000; while (!(await predicate())) { if (child.exitCode !== null || Date.now() > deadline) throw new Error(logs || 'Server smoke test timed out'); await new Promise(resolve => setTimeout(resolve, 100)); } };
 let a, b;
@@ -13,8 +16,8 @@ try {
   const room = crypto.randomUUID();
   const route = await fetch(`http://127.0.0.1:${port}/canvas/${room}`); if (!route.ok) throw new Error('Shared room route did not load');
   const first = new Y.Doc(), second = new Y.Doc();
-  a = new WebsocketProvider(`ws://127.0.0.1:${port}/collaboration`, room, first, { WebSocketPolyfill: WebSocket, disableBc: true });
-  b = new WebsocketProvider(`ws://127.0.0.1:${port}/collaboration`, room, second, { WebSocketPolyfill: WebSocket, disableBc: true });
+  a = new WebsocketProvider(`ws://127.0.0.1:${port}/collaboration`, room, first, { WebSocketPolyfill: TestSocket, disableBc: true });
+  b = new WebsocketProvider(`ws://127.0.0.1:${port}/collaboration`, room, second, { WebSocketPolyfill: TestSocket, disableBc: true });
   await until(() => a.synced && b.synced);
   first.getText('notes').insert(0, 'Same-origin sharing works');
   await until(() => second.getText('notes').toString() === 'Same-origin sharing works');

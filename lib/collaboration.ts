@@ -24,7 +24,10 @@ export class RoomSession {
   readonly undo = new Y.UndoManager([this.elements, this.notes], { trackedOrigins: new Set([this]), captureTimeout: 300 });
   readonly provider: WebsocketProvider;
   synced = false;
+  private destroyed = false;
   private queued: Board | undefined;
+  private lastScene = new Map<string, CanvasElement>();
+  private knownElementIds = new Set<string>();
   onRemote?: (elements: CanvasElement[], notes: string, title: string) => void;
   onStatus?: (status: string) => void;
   onPresence?: (people: Collaborator[]) => void;
@@ -68,15 +71,36 @@ export class RoomSession {
   update(board: Board) {
     if (!this.synced) { this.queued = board; return; }
     this.doc.transact(() => {
-      const ids = new Set(board.elements.map(el => el.id));
-      this.elements.forEach((_, id) => { if (!ids.has(id)) this.elements.delete(id); });
-      for (const el of board.elements) if (JSON.stringify(this.elements.get(el.id)) !== JSON.stringify(el)) this.elements.set(el.id, structuredClone(el));
+      // Publish only this client's edits, never replace the room with a full snapshot.
+      // An unchanged stale shape must not resurrect a peer's deletion, and a missing
+      // unseen shape must not erase a peer's concurrent addition.
+      const local = new Map(board.elements.map(el => [el.id, el]));
+      for (const id of this.lastScene.keys()) if (!local.has(id)) this.elements.delete(id);
+      for (const el of board.elements) {
+        const previous = this.lastScene.get(el.id);
+        if (JSON.stringify(previous) === JSON.stringify(el)) continue;
+        if ((previous || this.knownElementIds.has(el.id)) && !this.elements.has(el.id)) continue; // Remote deletion wins over a stale edit.
+        this.elements.set(el.id, structuredClone(el));
+      }
       updateSharedText(this.notes, board.markdownNotes || "");
       if (this.meta.get("title") !== board.title) this.meta.set("title", board.title);
     }, this);
+    this.emitRemote();
   }
-  private emitRemote() { this.onRemote?.([...this.elements.values()].filter(isValidElement).sort((a, b) => a.zIndex - b.zIndex), this.notes.toString(), this.meta.get("title") || "Shared whiteboard"); }
+  private emitRemote() {
+    const elements = [...this.elements.values()].filter(isValidElement).sort((a, b) => a.zIndex - b.zIndex || a.id.localeCompare(b.id));
+    for (const el of elements) this.knownElementIds.add(el.id);
+    this.lastScene = new Map(elements.map(el => [el.id, structuredClone(el)]));
+    this.onRemote?.(elements, this.notes.toString(), this.meta.get("title") || "Shared whiteboard");
+  }
+
   cursor(point: Point | null) { this.provider.awareness.setLocalStateField("cursor", point); }
   setName(name: string) { const user = this.provider.awareness.getLocalState()?.user; this.provider.awareness.setLocalStateField("user", { ...user, name: name.trim().slice(0, 40) || "Guest" }); }
-  destroy() { this.provider.destroy(); this.undo.destroy(); this.doc.destroy(); }
+  destroy() {
+    if (this.destroyed) return;
+    this.destroyed = true;
+    this.provider.awareness.setLocalState(null);
+    this.onRemote = undefined; this.onStatus = undefined; this.onPresence = undefined; this.onHistory = undefined;
+    this.provider.destroy(); this.undo.destroy(); this.doc.destroy();
+  }
 }

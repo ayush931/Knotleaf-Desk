@@ -1,6 +1,6 @@
 "use client";
 
-import React, { memo } from "react";
+import React, { memo, useLayoutEffect, useRef } from "react";
 import { Tool, Theme } from "@/draw/types";
 import {
   MousePointer2,
@@ -30,6 +30,7 @@ interface TopToolbarProps {
   canRedo: boolean;
   onOpenIconPicker: () => void;
   theme: Theme;
+  onHeightChange?: (height: number) => void;
 }
 
 const TOOLS: { id: Tool; label: string; key: string; icon: React.ReactNode }[] = [
@@ -56,20 +57,30 @@ export const TopToolbar = memo(function TopToolbar({
   canUndo,
   canRedo,
   onOpenIconPicker,
+  onHeightChange,
 }: TopToolbarProps) {
+  const toolbar = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const element = toolbar.current;
+    if (!element || !onHeightChange) return;
+    const update = () => onHeightChange(element.getBoundingClientRect().height);
+    update();
+    const observer = new ResizeObserver(update); observer.observe(element);
+    return () => observer.disconnect();
+  }, [onHeightChange]);
   const iconBtn = `p-2 rounded-lg flex items-center justify-center transition disabled:opacity-35 disabled:pointer-events-none text-neutral-400 hover:bg-neutral-800 hover:text-white`;
 
   return (
-    <div className="absolute top-1.5 left-1/2 -translate-x-1/2 z-30 w-max max-w-[calc(100%-0.75rem)]">
+    <div ref={toolbar} className="absolute top-1.5 left-1/2 -translate-x-1/2 z-30 w-max max-w-[calc(100%-0.75rem)]">
       <div
         role="toolbar"
         aria-label="Drawing tools"
         className="flex items-center gap-0.5 p-1 rounded-xl border shadow-lg backdrop-blur-xl flex-wrap justify-center bg-[#18181b]/95 border-[#27272a] shadow-black/50"
       >
-        <button onClick={onUndo} disabled={!canUndo} title="Undo (Ctrl+Z)" aria-label="Undo" className={iconBtn}>
+        <button onClick={onUndo} disabled={!canUndo} title="Undo (Ctrl/Cmd+Z)" aria-label="Undo" className={iconBtn}>
           <Undo2 className="w-4 h-4" />
         </button>
-        <button onClick={onRedo} disabled={!canRedo} title="Redo (Ctrl+Shift+Z)" aria-label="Redo" className={iconBtn}>
+        <button onClick={onRedo} disabled={!canRedo} title="Redo (Ctrl/Cmd+Shift+Z)" aria-label="Redo" className={iconBtn}>
           <Redo2 className="w-4 h-4" />
         </button>
         <span className="h-5 w-px mx-1 bg-[#27272a]" />
@@ -81,15 +92,17 @@ export const TopToolbar = memo(function TopToolbar({
               key={t.id}
               onClick={() => setSelectedTool(t.id)}
               title={`${t.label} (${t.key})`}
-              aria-label={t.label}
+              aria-label={`${t.label} (${t.key})`}
+              aria-keyshortcuts={t.key.toLowerCase()}
               aria-pressed={active}
-              className={`p-2 rounded-lg flex items-center justify-center transition cursor-pointer ${
+              className={`relative h-10 w-9 rounded-lg flex items-center justify-center pb-2 transition cursor-pointer ${
                 active
                   ? "bg-blue-600 text-white shadow-sm"
                   : "text-neutral-400 hover:bg-neutral-800 hover:text-white"
               }`}
             >
               {t.icon}
+              <kbd aria-hidden="true" className={`absolute bottom-0.5 right-1 text-[8px] font-medium leading-none ${active ? "text-blue-100" : "text-neutral-500"}`}>{t.key}</kbd>
             </button>
           );
         })}
@@ -98,11 +111,11 @@ export const TopToolbar = memo(function TopToolbar({
         <button
           onClick={onOpenIconPicker}
           title="Insert icon (I)"
-          aria-label="Insert icon"
+          aria-label="Insert icon (I)" aria-keyshortcuts="i"
           className="px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 text-xs font-semibold bg-purple-500/10 text-purple-600 dark:text-purple-400 hover:bg-purple-500/20 transition"
         >
           <Shapes className="w-4 h-4" />
-          <span className="hidden md:inline">Icons</span>
+          <span className="hidden md:inline">Icons</span><kbd aria-hidden="true" className="text-[9px] text-purple-300">I</kbd>
         </button>
       </div>
     </div>

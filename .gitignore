@@ -28,9 +28,8 @@ yarn-error.log*
 .DS_Store
 *.pem
 
-# Desktop artifacts and generated reports
-desktop-dist/
-release/
+# Generated server bundle and reports
+server-dist/
 premium-audit.json
 *.tsbuildinfo
 

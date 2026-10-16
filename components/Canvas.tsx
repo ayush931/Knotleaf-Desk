@@ -1,9 +1,11 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { RoomSession, type Collaborator } from "@/lib/collaboration";
 import { CollaborationPanel } from "./CollaborationPanel";
 import { CanvasEngine } from "@/draw/CanvasEngine";
+import { setFont } from "@/draw/renderer";
 import {
   Tool,
   ViewMode,
@@ -21,6 +23,7 @@ import {
   createWorkspace,
   moveBoardToWorkspace,
   getOrCreateDefaultBoard,
+  getOrCreatePersonalBoard,
   getBoard,
   saveBoard,
   getAllBoards,
@@ -46,15 +49,11 @@ import { ZoomBar } from "./ZoomBar";
 import { PresentationMode } from "./PresentationMode";
 import { ShortcutsModal } from "./ShortcutsModal";
 
-interface BeforeInstallPromptEvent extends Event {
-  prompt: () => Promise<void>;
-  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
-}
-
 const isEditableTarget = (t: EventTarget | null) =>
   t instanceof HTMLElement && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable);
 
 export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
+  const router = useRouter();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<CanvasEngine | null>(null);
@@ -94,6 +93,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
 
   const [boardsList, setBoardsList] = useState<BoardSummary[]>(() => getAllBoards());
   const [selectedTool, setSelectedTool] = useState<Tool>("select");
+  const [toolbarHeight, setToolbarHeight] = useState(44);
   const [selectedElements, setSelectedElements] = useState<CanvasElement[]>([]);
   const [zoom, setZoom] = useState(1);
   const theme: Theme = "dark";
@@ -107,7 +107,6 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
   const [isTemplatesOpen, setIsTemplatesOpen] = useState(false);
   const [isPresentationOpen, setIsPresentationOpen] = useState(false);
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
-  const [installEvent, setInstallEvent] = useState<BeforeInstallPromptEvent | null>(null);
 
   const [saveError, setSaveError] = useState(false);
   const [inlineText, setInlineText] = useState<InlineTextState | null>(null);
@@ -148,22 +147,15 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
     document.documentElement.style.colorScheme = theme;
   }, [theme]);
 
-  // Install prompt (Chrome / Edge / Android) and service worker registration.
+  // Retire caches from the previous installable version without touching boards.
   useEffect(() => {
-    const onBeforeInstall = (e: Event) => {
-      e.preventDefault();
-      setInstallEvent(e as BeforeInstallPromptEvent);
-    };
-    const onInstalled = () => setInstallEvent(null);
-    window.addEventListener("beforeinstallprompt", onBeforeInstall);
-    window.addEventListener("appinstalled", onInstalled);
-    if ("serviceWorker" in navigator && process.env.NODE_ENV === "production") {
-      navigator.serviceWorker.register("/sw.js").catch(() => undefined);
+    if ("serviceWorker" in navigator) {
+      const retiredWorker = new URL("/sw.js", window.location.origin).href;
+      navigator.serviceWorker.getRegistrations().then(registrations => Promise.all(
+        registrations.filter(registration => [registration.active, registration.waiting, registration.installing].some(worker => worker?.scriptURL === retiredWorker)).map(registration => registration.unregister())
+      )).catch(() => undefined);
     }
-    return () => {
-      window.removeEventListener("beforeinstallprompt", onBeforeInstall);
-      window.removeEventListener("appinstalled", onInstalled);
-    };
+    if ("caches" in window) caches.keys().then(keys => Promise.all(keys.filter(key => /^whiteboard-v\d+$/.test(key)).map(key => caches.delete(key)))).catch(() => undefined);
   }, []);
 
   // Create the engine once, and keep the canvas sized to its container (layout and DPR changes).
@@ -254,9 +246,22 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  const handleLeaveRoom = () => {
+    sessionRef.current?.destroy();
+    sessionRef.current = null;
+    const engine = engineRef.current;
+    if (engine) {
+      engine.onCursorChange = undefined;
+      engine.collaborativeUndo = undefined; engine.collaborativeRedo = undefined;
+      engine.setCollaborators([]);
+    }
+    getOrCreatePersonalBoard();
+    router.push("/");
+  };
+
   // Board actions
   const handleSelectBoard = (id: string) => {
-    if (initialRoomId && id !== initialRoomId) { setActiveBoardId(id); window.location.assign("/"); return; }
+    if (initialRoomId && id !== initialRoomId) { setActiveBoardId(id); router.push("/"); return; }
     const loaded = getBoard(id);
     if (!loaded) return;
     boardRef.current = loaded;
@@ -353,13 +358,6 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
     persist({ ...boardRef.current, snapToGrid: next });
   };
 
-  const handleInstall = async () => {
-    if (!installEvent) return;
-    await installEvent.prompt();
-    const choice = await installEvent.userChoice;
-    if (choice.outcome === "accepted") setInstallEvent(null);
-  };
-
   // Export
   const exportElements = (selection: boolean) => selection ? engineRef.current?.getSelectedElements() || [] : engineRef.current?.getElements() || [];
   const handleExportPng = (selection: boolean, transparent: boolean, scale: number) => exportToPng(exportElements(selection), theme, transparent, scale, boardRef.current.elements);
@@ -430,11 +428,48 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
   };
 
   useEffect(() => {
-    if (inlineText && inlineTextareaRef.current) {
-      inlineTextareaRef.current.focus();
-      if (inlineText.text) inlineTextareaRef.current.select();
-    }
+    if (!inlineText) return;
+    // Wait until the pointer's default focus sequence has finished before
+    // moving focus from the canvas/toolbar to the newly mounted textarea.
+    const frame = requestAnimationFrame(() => {
+      const editor = inlineTextareaRef.current;
+      if (!editor) return;
+      editor.focus({ preventScroll: true });
+      if (inlineText.text) editor.select();
+    });
+    return () => cancelAnimationFrame(frame);
   }, [inlineText?.elementId, inlineText?.kind, inlineText?.canvasX, inlineText?.canvasY]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const updateInlineStyle = (style: Partial<ElementStyleProps>) => {
+    setInlineText(previous => previous ? {
+      ...previous,
+      ...(style.fontSize !== undefined ? { fontSize: style.fontSize } : {}),
+      ...(style.fontFamily !== undefined ? { fontFamily: style.fontFamily } : {}),
+      ...(style.textAlign !== undefined ? { align: style.textAlign } : {}),
+      ...(style.stroke !== undefined ? { color: style.stroke } : {}),
+      ...Object.fromEntries((["bold", "italic", "underline", "strikethrough"] as const).filter(key => style[key] !== undefined).map(key => [key, style[key]])),
+    } : null);
+  };
+  const isInlineTextual = !!inlineText && ["new-text", "text", "sticky"].includes(inlineText.kind);
+  const textOptionsVisible = selectedTool === "text" || isInlineTextual;
+  useEffect(() => {
+    const editor = inlineTextareaRef.current;
+    if (!editor || !inlineText) return;
+    if (inlineText.kind === "text" || inlineText.kind === "new-text") {
+      const context = canvasRef.current?.getContext("2d");
+      if (context) {
+        context.save();
+        setFont(context, inlineText.fontSize, inlineText.fontFamily, inlineText.bold ? 700 : 400, inlineText.italic);
+        const width = Math.max(inlineText.fontSize * 2, ...inlineText.text.split("\n").map(line => context.measureText(line).width)) + 12;
+        editor.style.width = `${Math.ceil(width) * zoom}px`;
+        context.restore();
+      }
+    }
+    editor.style.height = "auto";
+    const available = Math.max(80, (containerRef.current?.clientHeight || 600) - inlineText.screenY - 12);
+    editor.style.height = `${Math.min(available, Math.max(editor.scrollHeight, inlineText.screenHeight || 0))}px`;
+    editor.style.overflowY = editor.scrollHeight > available ? "auto" : "hidden";
+  }, [inlineText?.text, inlineText?.fontSize, inlineText?.fontFamily, inlineText?.bold, inlineText?.italic, inlineText?.screenHeight, inlineText?.screenY, zoom]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const inlineTextAlign = inlineText?.align ?? "left";
   const inlineFamily =
@@ -446,7 +481,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
     >
       {!isPresentationOpen && (
         <BoardHeader
-          collaboration={<CollaborationPanel roomId={initialRoomId} status={roomStatus} people={people} onName={name => sessionRef.current?.setName(name)} onJoin={id => window.location.assign(`/canvas/${id}`)} onCreate={() => { const id = crypto.randomUUID(); saveBoard({ ...boardRef.current, id, title: `${boardRef.current.title} · shared`, createdAt: Date.now() }); window.location.assign(`/canvas/${id}`); }} />}
+          collaboration={<CollaborationPanel roomId={initialRoomId} onLeave={handleLeaveRoom} status={roomStatus} people={people} onName={name => sessionRef.current?.setName(name)} onJoin={id => router.push(`/canvas/${id}`)} onCreate={() => { const id = crypto.randomUUID(); saveBoard({ ...boardRef.current, id, title: `${boardRef.current.title} · shared`, createdAt: Date.now() }); router.push(`/canvas/${id}`); }} />}
           title={board.title}
           saveError={saveError}
           onRetrySave={() => persist(boardRef.current)}
@@ -468,8 +503,6 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
           onExportMarkdown={handleExportMarkdown}
           onCopyClipboard={handleCopyClipboard}
           onTogglePresentation={() => setIsPresentationOpen(true)}
-          canInstall={installEvent !== null}
-          onInstall={handleInstall}
           onShowShortcuts={() => setIsShortcutsOpen(true)}
         />
       )}
@@ -491,8 +524,8 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
 
             {inlineText && (
               <>
-                {/* Floating Document Formatting Toolbar */}
-                <div
+                {/* Document-specific list tools; ordinary canvas text stays unobstructed. */}
+                {selectedElement?.type === "text" && selectedElement.isDocCard && <div
                   onMouseDown={(e) => e.preventDefault()} // Prevent textarea blur
                   style={{
                     position: "absolute",
@@ -590,10 +623,10 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
                   >
                     Rule
                   </button>
-                </div>
+                </div>}
 
                 <textarea
-                  className="resize-none"
+                  className="resize-none select-text"
                   ref={inlineTextareaRef}
                   value={inlineText.text}
                   aria-label="Edit text"
@@ -602,6 +635,14 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
                   onKeyDown={(e) => {
                     if (e.nativeEvent.isComposing) return;
                     const mod = e.ctrlKey || e.metaKey;
+                    const key = e.key.toLowerCase();
+                    const format = key === "b" ? "bold" : key === "i" ? "italic" : key === "u" ? "underline" : key === "x" && e.shiftKey ? "strikethrough" : null;
+                    if (mod && format && isInlineTextual) {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setInlineText(previous => previous ? { ...previous, [format]: !previous[format] } : null);
+                      return;
+                    }
                     if (e.key === "Escape" || (e.key === "Enter" && mod)) {
                       e.preventDefault();
                       commitInline();
@@ -709,7 +750,8 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
                       }
                     }
                   }}
-                  placeholder="Type notes or doc…"
+                  placeholder={inlineText.kind === "sticky" ? "Write a sticky note…" : "Type here…"}
+                  wrap={inlineText.kind === "sticky" ? "soft" : "off"}
                   spellCheck={false}
                   style={{
                     position: "absolute",
@@ -717,20 +759,23 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
                     top: `${inlineText.screenY}px`,
                     width: `${inlineText.screenWidth ?? Math.max(160, Math.max(...inlineText.text.split("\n").map((l) => l.length), 6) * inlineText.fontSize * zoom * 0.62 + 32)}px`,
                     minHeight: inlineText.screenHeight ? `${inlineText.screenHeight}px` : `${inlineText.fontSize * zoom * 1.5 + 16}px`,
-                    fontSize: `${Math.max(10, inlineText.fontSize * zoom)}px`,
+                    fontSize: `${inlineText.fontSize * zoom}px`,
                     lineHeight: 1.35,
                     fontFamily: inlineFamily,
+                    fontWeight: inlineText.bold ? 700 : 400,
+                    fontStyle: inlineText.italic ? "italic" : "normal",
+                    textDecoration: [inlineText.underline && "underline", inlineText.strikethrough && "line-through"].filter(Boolean).join(" ") || "none",
                     textAlign: inlineTextAlign,
                     color: inlineText.color || "#FFFFFF",
                     zIndex: 35,
-                    background: inlineText.kind === "sticky" ? selectedElement?.type === "sticky" ? selectedElement.color : "#FEF08A" : "rgba(24, 24, 27, 0.96)",
-                    border: "1.5px solid #8B5CF6",
-                    borderRadius: "8px",
-                    padding: "6px 10px",
+                    background: inlineText.kind === "sticky" ? selectedElement?.type === "sticky" ? selectedElement.color : "#FEF08A" : "transparent",
+                    border: "none",
+                    borderRadius: 0,
+                    padding: 0,
                     outline: "none",
                     resize: "none",
                     overflow: "hidden",
-                    boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+                    boxShadow: "none",
                   }}
                 />
               </>
@@ -738,8 +783,9 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
 
             {!isPresentationOpen && (
               <TopToolbar
+                onHeightChange={setToolbarHeight}
                 selectedTool={selectedTool}
-                setSelectedTool={(tool) => setSelectedTool(tool)}
+                setSelectedTool={tool => { engineRef.current?.setTool(tool); setSelectedTool(tool); }}
                 onUndo={() => engineRef.current?.undo()}
                 onRedo={() => engineRef.current?.redo()}
                 canUndo={canUndo}
@@ -751,20 +797,34 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
 
             {!isPresentationOpen && (
               <PropertiesPanel
-                selectedElement={selectedElement}
+                topOffset={toolbarHeight + 12}
+                selectedTool={selectedTool}
+                isTextEditing={textOptionsVisible}
+                preserveTextFocus={isInlineTextual}
+                selectedElement={isInlineTextual && selectedElement && (selectedElement.type === "text" || selectedElement.type === "sticky") ? { ...selectedElement, fontSize: inlineText!.fontSize, fontFamily: inlineText!.fontFamily, textAlign: inlineText!.align, stroke: inlineText!.color, bold: inlineText!.bold, italic: inlineText!.italic, underline: inlineText!.underline, strikethrough: inlineText!.strikethrough, text: inlineText!.text } : selectedTool === "text" ? null : selectedElement}
                 selectionCount={selectedElements.length}
-                currentStyle={currentStyle}
+                currentStyle={isInlineTextual ? { ...currentStyle, fontSize: inlineText!.fontSize, fontFamily: inlineText!.fontFamily, textAlign: inlineText!.align, stroke: inlineText!.color, bold: inlineText!.bold, italic: inlineText!.italic, underline: inlineText!.underline, strikethrough: inlineText!.strikethrough } : currentStyle}
                 onUpdateStyle={(st) => {
+                  if (isInlineTextual) updateInlineStyle(st);
                   setCurrentStyle((prev) => ({ ...prev, ...st }));
                   if (engineRef.current) engineRef.current.currentStyle = { ...engineRef.current.currentStyle, ...st };
                 }}
-                onUpdateElement={(props) => engineRef.current?.updateSelectedElement(props)}
+                onUpdateElement={(props) => {
+                  if (isInlineTextual && "text" in props && typeof props.text === "string") setInlineText(previous => previous ? { ...previous, text: props.text! } : null);
+                  if (inlineText?.kind !== "new-text" && selectedTool !== "text") engineRef.current?.updateSelectedElement(props);
+                }}
                 onDuplicate={() => engineRef.current?.duplicateSelected()}
                 onDelete={() => engineRef.current?.deleteSelected()}
                 onBringToFront={() => engineRef.current?.bringToFront()}
                 onSendToBack={() => engineRef.current?.sendToBack()}
                 onSwapArrow={() => engineRef.current?.swapSelectedArrows()}
-                onChangeFontSize={(d) => engineRef.current?.changeFontSize(d)}
+                onChangeFontSize={delta => {
+                  if (isInlineTextual) adjustInlineFontSize(delta);
+                  else {
+                    engineRef.current?.changeFontSize(delta);
+                    if (engineRef.current) setCurrentStyle({ ...engineRef.current.currentStyle });
+                  }
+                }}
                 theme={theme}
               />
             )}
@@ -790,7 +850,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
         </div>
       </main>
 
-      {initialRoomId && !roomReady && <div role="status" className="fixed left-1/2 top-20 z-40 w-[min(400px,90vw)] -translate-x-1/2 rounded-xl border border-amber-500/30 bg-neutral-900 p-4 text-center text-sm text-neutral-300"><p>Connecting to your room…</p><p className="mt-2 text-xs text-neutral-500">Start the collaboration server or check your connection. Drawing unlocks after the room syncs.</p><button onClick={() => window.location.assign("/")} className="mt-3 inline-block text-xs text-blue-400 underline">Return to personal boards</button></div>}
+      {initialRoomId && !roomReady && <div role="status" className="fixed left-1/2 top-20 z-40 w-[min(400px,90vw)] -translate-x-1/2 rounded-xl border border-amber-500/30 bg-neutral-900 p-4 text-center text-sm text-neutral-300"><p>Connecting to your room…</p><p className="mt-2 text-xs text-neutral-500">Start the collaboration server or check your connection. Drawing unlocks after the room syncs.</p><button onClick={handleLeaveRoom} className="mt-3 inline-block text-xs text-blue-400 underline">Leave room</button></div>}
       <PresentationMode isActive={isPresentationOpen} onExit={() => setIsPresentationOpen(false)} title={board.title} theme={theme} />
 
       <IconPickerModal

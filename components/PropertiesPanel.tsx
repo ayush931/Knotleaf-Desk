@@ -3,7 +3,6 @@
 import React, { useState } from "react";
 import {
   CanvasElement,
-  ArrowElement,
   StrokeStyle,
   FillStyle,
   Roundness,
@@ -12,6 +11,7 @@ import {
   ArrowRouting,
   ArrowHead,
   BulletVariant,
+  Tool,
 } from "@/draw/types";
 import {
   Layers,
@@ -32,6 +32,10 @@ import {
 
 interface PropertiesPanelProps {
   selectedElement: CanvasElement | null;
+  selectedTool?: Tool;
+  topOffset?: number;
+  isTextEditing?: boolean;
+  preserveTextFocus?: boolean;
   selectionCount: number;
   onSwapArrow: () => void;
   onChangeFontSize: (delta: number) => void;
@@ -73,6 +77,10 @@ const FILL_COLORS = [
 
 export function PropertiesPanel({
   selectedElement,
+  selectedTool = "select",
+  topOffset = 56,
+  isTextEditing = false,
+  preserveTextFocus = false,
   selectionCount,
   onSwapArrow,
   onChangeFontSize,
@@ -84,7 +92,13 @@ export function PropertiesPanel({
   onBringToFront,
   onSendToBack,
 }: PropertiesPanelProps) {
-  const [isCollapsed, setIsCollapsed] = useState(true);
+  const [isCollapsed, setIsCollapsed] = useState(!isTextEditing);
+  const [lastTextEditing, setLastTextEditing] = useState(isTextEditing);
+  if (isTextEditing !== lastTextEditing) {
+    setLastTextEditing(isTextEditing);
+    if (isTextEditing) setIsCollapsed(false);
+  }
+
 
   // Re-open the panel when a new element is selected (adjusted during render, not in an effect).
   const selectedId = selectedElement?.id ?? null;
@@ -94,10 +108,11 @@ export function PropertiesPanel({
     if (selectedId) setIsCollapsed(false);
   }
 
-  const isArrow = selectedElement?.type === "arrow";
-  const arrowEl = isArrow ? (selectedElement as ArrowElement) : null;
+  const isArrow = selectedElement?.type === "arrow" || (!selectedElement && selectedTool === "arrow");
+  const isIcon = selectedElement?.type === "icon";
+  const arrowEl = selectedElement?.type === "arrow" ? selectedElement : null;
 
-  const activeStroke = selectedElement ? selectedElement.stroke : currentStyle.stroke;
+  const activeStroke = selectedElement?.type === "icon" ? selectedElement.iconColor || "#E2E8F0" : selectedElement ? selectedElement.stroke : currentStyle.stroke;
   const activeFill = selectedElement ? selectedElement.fill : currentStyle.fill;
   const activeStrokeWidth = selectedElement ? selectedElement.strokeWidth : currentStyle.strokeWidth;
   const activeStrokeStyle = selectedElement ? selectedElement.strokeStyle : currentStyle.strokeStyle;
@@ -114,7 +129,7 @@ export function PropertiesPanel({
 
   const handleStrokeColor = (c: string) => {
     if (selectedElement) {
-      onUpdateElement({ stroke: c });
+      onUpdateElement(isIcon ? { iconColor: c } : { stroke: c });
     }
     onUpdateStyle({ stroke: c });
   };
@@ -188,7 +203,7 @@ export function PropertiesPanel({
     if (arrowEl) onSwapArrow();
   };
 
-  const isTextual = !selectedElement || selectedElement.type === "text" || selectedElement.type === "sticky";
+  const isTextual = isTextEditing || selectedElement?.type === "text" || selectedElement?.type === "sticky" || (!selectedElement && ["text", "doc", "sticky"].includes(selectedTool));
   const textEl = selectedElement && (selectedElement.type === "text" || selectedElement.type === "sticky") ? selectedElement : null;
   const activeFontSize = textEl ? textEl.fontSize : currentStyle.fontSize;
   const activeFamily = textEl ? textEl.fontFamily || "sans" : currentStyle.fontFamily;
@@ -250,8 +265,9 @@ export function PropertiesPanel({
     return (
       <button
         onClick={() => setIsCollapsed(false)}
-        title="Open Styling Panel"
-        className="absolute left-2 top-14 z-30 p-2 rounded-xl border border-neutral-800 bg-[#18181b]/95 shadow-xl text-neutral-300 hover:text-white backdrop-blur-md transition-all cursor-pointer"
+        style={{ top: topOffset }}
+        title="Open appearance settings" aria-label="Open appearance settings"
+        className="absolute left-2 z-30 p-2 rounded-xl border border-neutral-800 bg-[#18181b]/95 shadow-xl text-neutral-300 hover:text-white backdrop-blur-md transition-all cursor-pointer"
       >
         <Palette className="w-4 h-4" />
       </button>
@@ -260,26 +276,29 @@ export function PropertiesPanel({
 
   return (
     <div
-      className="absolute left-2 top-14 z-30 w-52 rounded-xl border border-neutral-800 bg-[#18181b]/95 text-neutral-200 shadow-lg p-3 space-y-3 backdrop-blur-xl select-none transition-all max-h-[calc(100%-7rem)] overflow-y-auto"
+      style={{ top: topOffset, maxHeight: `calc(100% - ${topOffset + 48}px)` }}
+      role="region" aria-label="Appearance settings"
+      onMouseDown={event => { if (preserveTextFocus && event.target instanceof HTMLElement && event.target.closest("button, summary")) event.preventDefault(); }}
+      className="absolute left-2 z-30 w-60 max-w-[calc(100%-1rem)] rounded-xl border border-neutral-800 bg-[#18181b]/95 text-neutral-200 shadow-lg p-3 space-y-4 backdrop-blur-xl select-none overflow-y-auto"
     >
       <div className="flex items-center justify-between pb-1.5 border-b border-neutral-800">
         <span className="text-[11px] font-semibold tracking-wider uppercase text-neutral-400 flex items-center gap-1.5">
           <Layers className="w-3.5 h-3.5 text-blue-500" />
-          {selectionCount > 1 ? `${selectionCount} selected` : selectedElement ? selectedElement.type : "Styling"}
+          {selectionCount > 1 ? `${selectionCount} selected` : isTextEditing ? "Text options" : selectedElement ? selectedElement.type : "Styling"}
         </span>
         <div className="flex items-center gap-1">
           {selectedElement && (
             <>
               <button
                 onClick={onDuplicate}
-                title="Duplicate (Ctrl+D)"
+                title="Duplicate (Ctrl/Cmd+D)" aria-label="Duplicate selection"
                 className="p-1 rounded hover:bg-neutral-800 text-neutral-400 hover:text-white transition"
               >
                 <Copy className="w-3 h-3" />
               </button>
               <button
                 onClick={onDelete}
-                title="Delete (Del)"
+                title="Delete (Del)" aria-label="Delete selection"
                 className="p-1 rounded hover:bg-rose-500/20 text-neutral-400 hover:text-rose-400 transition"
               >
                 <Trash2 className="w-3 h-3" />
@@ -288,7 +307,7 @@ export function PropertiesPanel({
           )}
           <button
             onClick={() => setIsCollapsed(true)}
-            title="Collapse Panel"
+            title="Collapse appearance settings" aria-label="Collapse appearance settings"
             className="p-1 rounded hover:bg-neutral-800 text-neutral-400 hover:text-white transition"
           >
             <ChevronLeft className="w-3.5 h-3.5" />
@@ -300,6 +319,14 @@ export function PropertiesPanel({
       {isTextual && (
         <div className="space-y-2">
           <label className="text-[10px] font-medium text-neutral-400 uppercase tracking-wider block mb-1">Text</label>
+          <div className="grid grid-cols-4 gap-1" role="group" aria-label="Text formatting">
+            {([ ["bold", "B", "Bold", "B"], ["italic", "I", "Italic", "I"], ["underline", "U", "Underline", "U"], ["strikethrough", "S", "Strikethrough", "Shift+X"] ] as const).map(([key, label, name, shortcut]) => {
+              const active = !!(textEl || currentStyle)[key];
+              return <button key={key} aria-label={name} aria-pressed={active} title={`${name} (Ctrl/Cmd+${shortcut})`}
+                className={`h-7 rounded-md text-xs ${active ? "bg-purple-600 text-white" : "bg-neutral-800 text-neutral-300 hover:bg-neutral-700"} ${key === "bold" ? "font-bold" : key === "italic" ? "italic" : key === "underline" ? "underline" : "line-through"}`}
+                onClick={() => { onUpdateElement({ [key]: !active }); onUpdateStyle({ [key]: !active }); }}>{label}</button>;
+            })}
+          </div>
           <div className="flex items-center gap-1">
             <button onClick={() => onChangeFontSize(-2)} title="Smaller (Ctrl+Shift+<)" aria-label="Decrease font size" className="w-7 h-7 rounded-md bg-neutral-800 hover:bg-neutral-700 text-sm">−</button>
             <span className="flex-1 text-center text-xs font-mono tabular-nums">{Math.round(activeFontSize)}px</span>
@@ -344,7 +371,7 @@ export function PropertiesPanel({
 
           {/* Doc Card Mode Toggle */}
           {textEl && textEl.type === "text" && (
-            <div className="pt-2 border-t border-neutral-800/80 space-y-1.5">
+            <details className="border-t border-neutral-800 pt-2 text-xs"><summary className="cursor-pointer py-1 text-neutral-400">Document card</summary><div className="mt-2 space-y-2">
               <div className="flex items-center justify-between">
                 <label className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider flex items-center gap-1">
                   <FileText className="w-3 h-3 text-purple-400" />
@@ -369,18 +396,19 @@ export function PropertiesPanel({
               {textEl.isDocCard && (
                 <input
                   type="text"
+                  aria-label="Document card title"
                   placeholder="Card Title (e.g. Spec, Notes)..."
                   value={textEl.title || ""}
                   onChange={(e) => onUpdateElement({ title: e.target.value })}
                   className="w-full text-[11px] py-1 px-2 rounded-lg bg-neutral-800 border border-neutral-700 text-neutral-100 placeholder:text-neutral-500 outline-none focus:border-purple-500 transition"
                 />
               )}
-            </div>
+            </div></details>
           )}
 
           {/* Bullets & Lists Variant Selector */}
           {textEl && textEl.type === "text" && (
-            <div className="pt-2 border-t border-neutral-800/80 space-y-1">
+            <details className="border-t border-neutral-800 pt-2 text-xs"><summary className="cursor-pointer py-1 text-neutral-400">Lists</summary><div className="mt-2 space-y-2">
               <label className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider block">
                 Bullets & Lists
               </label>
@@ -449,7 +477,7 @@ export function PropertiesPanel({
               >
                 Clear List Bullets
               </button>
-            </div>
+            </div></details>
           )}
         </div>
       )}
@@ -457,14 +485,15 @@ export function PropertiesPanel({
       {/* Stroke Color */}
       <div>
         <label className="text-[10px] font-medium text-neutral-400 uppercase tracking-wider block mb-1">
-          Stroke Color
+          {isIcon ? "Icon color" : isTextual ? "Text color" : "Stroke color"}
         </label>
         <div className="flex flex-wrap gap-1.5">
           {STROKE_COLORS.map((color) => (
             <button
               key={color}
+              aria-label={`Color ${color}`} title={color} aria-pressed={activeStroke === color}
               onClick={() => handleStrokeColor(color)}
-              className={`w-4.5 h-4.5 rounded-full border transition-transform ${
+              className={`w-5 h-5 rounded-md border transition-transform ${
                 activeStroke === color
                   ? "scale-115 ring-2 ring-blue-500 ring-offset-1 ring-offset-neutral-900 border-white"
                   : "border-neutral-300 dark:border-neutral-700 hover:scale-105"
@@ -476,7 +505,7 @@ export function PropertiesPanel({
       </div>
 
       {/* Fill Color (hidden for arrows) */}
-      {!isArrow && (
+      {!isArrow && !isIcon && (!isTextual || selectedElement?.type === "sticky" || (selectedElement?.type === "text" && selectedElement.isDocCard)) && (
         <div>
           <label className="text-[10px] font-medium text-neutral-400 uppercase tracking-wider block mb-1">
             Background Fill
@@ -487,7 +516,7 @@ export function PropertiesPanel({
                 key={i}
                 aria-label={`Fill ${color}`}
                 onClick={() => handleFillColor(color)}
-                className={`w-4.5 h-4.5 rounded-full border transition-transform ${
+                className={`w-5 h-5 rounded-md border transition-transform ${
                   activeFill === color
                     ? "scale-115 ring-2 ring-blue-500 ring-offset-1 ring-offset-neutral-900 border-white"
                     : "border-neutral-300 dark:border-neutral-700 hover:scale-105"
@@ -503,6 +532,7 @@ export function PropertiesPanel({
         </div>
       )}
 
+      {!isIcon && !isTextual && <details className="border-t border-neutral-800 pt-2 text-xs"><summary className="cursor-pointer py-1 text-neutral-400">Line & corners</summary><div className="mt-3 space-y-3">
       {/* Stroke Style: Clean (Eraser) vs Sketchy (Excalidraw) vs Dashed */}
       <div>
         <label className="text-[10px] font-medium text-neutral-400 uppercase tracking-wider block mb-1">
@@ -603,6 +633,8 @@ export function PropertiesPanel({
         )}
       </div>
 
+      </div></details>}
+
       {/* Arrow Specific Styling (Eraser.io Pro Features) */}
       {isArrow && (
         <div className="pt-2 border-t border-neutral-200/60 dark:border-neutral-800 space-y-2">
@@ -654,6 +686,7 @@ export function PropertiesPanel({
                 Start Cap
               </label>
               <select
+                aria-label="Arrow start cap"
                 value={activeHeadStart}
                 onChange={(e) => handleHeadStart(e.target.value as ArrowHead)}
                 className="w-full text-[11px] py-1 px-1.5 rounded-lg bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-200 outline-none"
@@ -670,6 +703,7 @@ export function PropertiesPanel({
                 End Cap
               </label>
               <select
+                aria-label="Arrow end cap"
                 value={activeHeadEnd}
                 onChange={(e) => handleHeadEnd(e.target.value as ArrowHead)}
                 className="w-full text-[11px] py-1 px-1.5 rounded-lg bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-200 outline-none"
@@ -722,6 +756,7 @@ export function PropertiesPanel({
             </label>
             <input
               type="text"
+              aria-label="Arrow label"
               value={arrowEl?.label || ""}
               onChange={(e) => handleArrowLabel(e.target.value)}
               placeholder="e.g. HTTP, Events..."
@@ -742,6 +777,7 @@ export function PropertiesPanel({
           min="0.2"
           max="1"
           step="0.05"
+          aria-label="Opacity"
           value={activeOpacity ?? 1}
           onChange={(e) => handleOpacity(parseFloat(e.target.value))}
           className="w-full h-1 bg-neutral-200 dark:bg-neutral-700 rounded-lg appearance-none cursor-pointer accent-blue-500"

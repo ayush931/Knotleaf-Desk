@@ -1,10 +1,12 @@
 import { CanvasElement, Theme, Board } from "./types";
 import { drawElement, getElementBounds, unionBounds } from "./renderer";
+import { getIconImage } from "./iconSvg";
 
 const PADDING = 40;
 
 /** Renders the elements into an offscreen canvas at the given scale. */
-function renderToCanvas(elements: CanvasElement[], theme: Theme, scale: number, transparent: boolean, scene: CanvasElement[] = elements) {
+async function renderToCanvas(elements: CanvasElement[], theme: Theme, scale: number, transparent: boolean, scene: CanvasElement[] = elements) {
+  await Promise.all(elements.filter(el => el.type === "icon" && el.svgMarkup).map(el => el.type === "icon" ? getIconImage(el.svgMarkup!, el.viewBox || "0 0 24 24", el.iconColor || "#3B82F6").loaded : undefined));
   const bounds = unionBounds(elements.map(el => getElementBounds(el, scene)));
   if (!bounds) return null;
   const w = Math.ceil((bounds.maxX - bounds.minX + PADDING * 2) * scale);
@@ -35,20 +37,20 @@ function download(href: string, filename: string) {
   a.click();
 }
 
-export function exportToPng(
+export async function exportToPng(
   elements: CanvasElement[],
   theme: Theme,
   transparent: boolean = false,
   scale: number = 2,
   scene: CanvasElement[] = elements
-): void {
-  const canvas = renderToCanvas(elements, theme, scale, transparent, scene);
+): Promise<void> {
+  const canvas = await renderToCanvas(elements, theme, scale, transparent, scene);
   if (!canvas) return;
   download(canvas.toDataURL("image/png"), `whiteboard-${Date.now()}.png`);
 }
 
 export async function copyPngToClipboard(elements: CanvasElement[], theme: Theme): Promise<boolean> {
-  const canvas = renderToCanvas(elements, theme, 2, false);
+  const canvas = await renderToCanvas(elements, theme, 2, false);
   if (!canvas) return false;
   return new Promise((resolve) => {
     canvas.toBlob(async (blob) => {

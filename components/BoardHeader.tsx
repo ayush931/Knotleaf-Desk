@@ -35,13 +35,11 @@ interface BoardHeaderProps {
   selectionCount: number;
   onExportSvg: (selection: boolean, transparent: boolean) => void;
   onExportDrawio: (selection: boolean) => void;
-  onExportPng: (selection: boolean, transparent: boolean, scale: number) => void;
+  onExportPng: (selection: boolean, transparent: boolean, scale: number) => void | Promise<void>;
   onExportJson: () => void;
   onExportMarkdown: () => void;
   onCopyClipboard: () => Promise<boolean>;
   onTogglePresentation: () => void;
-  canInstall: boolean;
-  onInstall: () => void;
   onShowShortcuts: () => void;
 }
 
@@ -68,8 +66,6 @@ export function BoardHeader({
   onExportMarkdown,
   onCopyClipboard,
   onTogglePresentation,
-  canInstall,
-  onInstall,
   onShowShortcuts,
 }: BoardHeaderProps) {
   const [exportSelection, setExportSelection] = useState(false);
@@ -81,6 +77,8 @@ export function BoardHeader({
   const [localTitle, setLocalTitle] = useState(title);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [copiedSuccess, setCopiedSuccess] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState("");
   const exportMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -106,7 +104,7 @@ export function BoardHeader({
   };
 
   const handleCopyImage = async () => {
-    const success = await onCopyClipboard();
+    const success = await onCopyClipboard().catch(() => false);
     setCopyError(!success);
     setCopiedSuccess(success);
     setTimeout(() => setCopiedSuccess(false), 2000);
@@ -132,7 +130,7 @@ export function BoardHeader({
         </button>
 
         <div className="flex items-center gap-2">
-          {/* The app mark is shared with the installed app and favicon. */}
+          {/* The app mark is shared with the website favicon. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/icons/mark.svg" alt="" width={26} height={26} className="hidden sm:block shrink-0" />
 
@@ -229,17 +227,6 @@ export function BoardHeader({
           <Play className="w-3.5 h-3.5" />
         </button>
 
-        {canInstall && (
-          <button
-            onClick={onInstall}
-            title="Install Whiteboard as an app"
-            className="px-2.5 py-1 rounded-lg border border-blue-500/40 bg-blue-500/10 text-blue-600 dark:text-blue-400 text-xs font-semibold flex items-center gap-1 hover:bg-blue-500/20 transition cursor-pointer"
-          >
-            <Download className="w-3.5 h-3.5" />
-            <span className="hidden md:inline">Install app</span>
-          </button>
-        )}
-
         <button
           onClick={onShowShortcuts}
           title="Keyboard shortcuts (?)"
@@ -267,17 +254,21 @@ export function BoardHeader({
                 <label className="flex items-center gap-2"><input type="checkbox" checked={transparent} onChange={e => setTransparent(e.target.checked)} />Transparent background</label>
                 <label className="flex items-center justify-between gap-2">PNG quality<select aria-label="PNG quality" value={exportScale} onChange={e => setExportScale(Number(e.target.value))} className="rounded border border-neutral-700 bg-neutral-900 px-2 py-1"><option value={1}>1x</option><option value={2}>2x</option><option value={3}>3x</option></select></label>
               </div>
+              {exportError && <p role="alert" className="px-2 py-2 text-xs text-rose-400">{exportError}</p>}
               <button onClick={() => { onExportSvg(exportSelection && selectionCount > 0, transparent); setShowExportMenu(false); }} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs hover:bg-neutral-800"><FileCode className="h-3.5 w-3.5 text-blue-400" />Export SVG · vector</button>
               <button onClick={() => { onExportDrawio(exportSelection && selectionCount > 0); setShowExportMenu(false); }} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs hover:bg-neutral-800"><FileCode className="h-3.5 w-3.5 text-amber-400" />Export draw.io · editable</button>
               <button
-                onClick={() => {
-                  onExportPng(exportSelection && selectionCount > 0, transparent, exportScale);
-                  setShowExportMenu(false);
+                disabled={exporting}
+                onClick={async () => {
+                  setExporting(true); setExportError("");
+                  try { await onExportPng(exportSelection && selectionCount > 0, transparent, exportScale); setShowExportMenu(false); }
+                  catch { setExportError("Could not render the image. Retry or export SVG instead."); }
+                  finally { setExporting(false); }
                 }}
                 className="w-full px-2.5 py-1.5 text-xs rounded-lg flex items-center gap-2 hover:bg-neutral-800 text-left transition cursor-pointer"
               >
                 <Download className="w-3.5 h-3.5 text-blue-500" />
-                <span>Export PNG ({exportScale}x)</span>
+                <span>{exporting ? "Preparing icons…" : `Export PNG (${exportScale}x)`}</span>
               </button>
 
               <button

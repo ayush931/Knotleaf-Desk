@@ -1,6 +1,7 @@
 import type { Board, CanvasElement } from "./types";
 import { drawElement, getElementBounds, unionBounds } from "./renderer";
 import { getIconById } from "./iconsData";
+import { normalizeIconSvg } from "./iconSvg";
 
 const esc = (value: unknown) => String(value).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" }[c]!));
 interface Paint {
@@ -77,16 +78,8 @@ class SvgContext {
   }
 }
 
-function safeIcon(markup: string) {
-  // Match the canvas icon renderer's supported vector subset. No scripts, external references or HTML.
-  const doc = new DOMParser().parseFromString(`<svg xmlns="http://www.w3.org/2000/svg">${markup}</svg>`, "image/svg+xml");
-  const tags = new Set(["path", "circle", "ellipse", "rect", "line", "polyline", "polygon", "g"]);
-  const attributes = new Set(["d", "cx", "cy", "r", "rx", "ry", "x", "y", "width", "height", "x1", "y1", "x2", "y2", "points", "fill", "stroke", "stroke-width", "stroke-linecap", "stroke-linejoin", "fill-rule", "transform", "opacity"]);
-  for (const node of [...doc.documentElement.querySelectorAll("*")].reverse()) {
-    if (!tags.has(node.tagName)) { node.remove(); continue; }
-    for (const attr of [...node.attributes]) if (!attributes.has(attr.name) || /url\s*\(/i.test(attr.value)) node.removeAttribute(attr.name);
-  }
-  return doc.documentElement.innerHTML;
+function safeIcon(markup: string, namespace: string) {
+  try { return normalizeIconSvg(markup, undefined, namespace).svgMarkup; } catch { return ""; }
 }
 
 export function boardToSvg(elements: CanvasElement[], transparent = false, scene: CanvasElement[] = elements): string | null {
@@ -99,13 +92,13 @@ export function boardToSvg(elements: CanvasElement[], transparent = false, scene
     set(target, key, value) { if (key in target.state) Reflect.set(target.state, key, value); return true; },
   }) as unknown as CanvasRenderingContext2D;
   for (const el of elements) {
-    // Record icon card and caption through the shared renderer; embed the glyph as SVG.
+    // Embed icon glyphs as self-contained SVG; icons have no card or caption.
     drawElement(ctx, el.type === "icon" ? { ...el, svgMarkup: "" } : el, { theme: "dark", scene });
     if (el.type === "icon") {
       const icon = getIconById(el.iconId), markup = el.svgMarkup ?? icon?.svgPath;
       if (markup) {
-        const size = Math.min(el.width * 0.45, 40);
-        recorder.output.push(`<svg x="${el.x + (el.width - size) / 2}" y="${el.y + 14}" width="${size}" height="${size}" viewBox="${esc(el.viewBox ?? icon?.viewBox ?? "0 0 24 24")}" color="${esc(el.iconColor ?? icon?.color ?? "#3b82f6")}" opacity="${el.opacity}">${safeIcon(markup)}</svg>`);
+        const size = Math.max(1, Math.min(el.width, el.height));
+        recorder.output.push(`<svg x="${el.x + (el.width - size) / 2}" y="${el.y + (el.height - size) / 2}" width="${size}" height="${size}" viewBox="${esc(el.viewBox ?? icon?.viewBox ?? "0 0 24 24")}" color="${esc(el.iconColor ?? icon?.color ?? "#3b82f6")}" opacity="${el.opacity}">${safeIcon(markup, `icon-${el.id}`)}</svg>`);
       }
     }
   }

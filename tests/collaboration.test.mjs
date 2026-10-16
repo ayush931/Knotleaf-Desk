@@ -60,5 +60,31 @@ test('application room sessions seed once, preserve attachments, reconnect edits
     await until(() => second.markdownNotes === 'Hello everyone offline');
     a.undo.undo(); await until(() => second.markdownNotes !== 'Hello everyone offline');
     expect(second.markdownNotes).toBe('Hello');
+    await until(() => b.provider.awareness.getStates().has(a.doc.clientID));
+    const leavingId = a.doc.clientID; a.destroy(); a.destroy();
+    await until(() => !b.provider.awareness.getStates().has(leavingId));
+    expect(b.elements.has(shape.id)).toBe(true); expect(b.notes.toString()).toBe('Hello');
+  } finally { a.destroy(); b.destroy(); await service.close(); await rm(directory, { recursive: true, force: true }); }
+}, 10000);
+
+test('adding from a stale scene cannot resurrect a shape deleted by a collaborator', async () => {
+  const { RoomSession } = await import('../lib/collaboration.ts');
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'whiteboard-delete-'));
+  const service = createCollaborationServer({ port: 0, directory }); const address = await service.listen();
+  const base = { stroke: '#fff', strokeWidth: 2, strokeStyle: 'solid', fill: 'transparent', fillStyle: 'none', roundness: 'rounded', opacity: 1, zIndex: 0 };
+  const original = { ...base, id: 'original', type: 'rectangle', x: 10, y: 20, width: 120, height: 80 };
+  const added = { ...original, id: 'added', x: 300 };
+  const board = { id: crypto.randomUUID(), title: 'Team board', elements: [original], markdownNotes: '' };
+  const url = `ws://127.0.0.1:${address.port}`;
+  const a = new RoomSession(url, board.id, board), b = new RoomSession(url, board.id);
+  try {
+    a.connect(); await until(() => a.synced); b.connect(); await until(() => b.synced && b.elements.has(original.id));
+    b.update({ ...board, elements: [] }); await until(() => !a.elements.has(original.id));
+    a.update({ ...board, elements: [original, added] });
+    await until(() => b.elements.has(added.id));
+    expect([...a.elements.keys()]).toEqual(['added']); expect([...b.elements.keys()]).toEqual(['added']);
+    // Metadata/note changes must not bring the stale shape back either.
+    a.update({ ...board, elements: [original, added], markdownNotes: 'Keep this deletion' });
+    await until(() => b.notes.toString() === 'Keep this deletion'); expect(b.elements.has(original.id)).toBe(false);
   } finally { a.destroy(); b.destroy(); await service.close(); await rm(directory, { recursive: true, force: true }); }
 }, 10000);
