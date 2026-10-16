@@ -19,6 +19,8 @@ An open-source, local-first whiteboard and Markdown notebook. Draw diagrams, con
 
 ## Run locally
 
+Copy `.env.example` to `.env` for local settings (the working copy already includes local defaults).
+
 Install [Node.js 24](https://nodejs.org/) and [Bun 1.4.3 or newer](https://bun.sh/).
 
 ```sh
@@ -35,6 +37,8 @@ bun test
 bun run build
 bun start
 ```
+
+The project uses patched Next.js 16.4.2 and React 19.3.1. Keep them updated; do not bypass deployment security blocks.
 
 Next.js downloads Inter, Caveat and Fira Code during the build; build machines need internet access. They are bundled in the result. Online icon search also needs internet; core drawing and notes do not.
 
@@ -67,6 +71,16 @@ Desktop uses the stable address `http://127.0.0.1:47831`, bound only to loopback
 
 Linux needs a graphical desktop and Electron's system libraries. AppImage may require FUSE; consult your distribution's guidance or use the `.deb` build. macOS/Windows production signing requires maintainer-owned certificates. Current pipeline builds are unsigned; successful packaging is not a substitute for installation testing on each OS.
 
+## Hosting and Vercel
+
+A full deployment needs a persistent Node server for shared rooms. The included [Dockerfile](Dockerfile) and [render.yaml](render.yaml) run the integrated app and WebSocket hub together. Mount durable storage at `/data/rooms`, and forward WebSocket upgrades to `/collaboration/`. Personal boards stay in each user's browser; room data is held on the host's persistent disk. The Render example uses a paid service/disk because rooms need durable hosting; you can use your own machine or any compatible Node/Docker host instead.
+
+Vercel's standard Next.js deployment builds the `app/` routes; it does **not** execute this repository's custom `server/web.mjs`. Thus the included in-memory/disk room hub is not running there. Deploy the room service on a persistent host and configure **NEXT_PUBLIC_COLLAB_URL=wss://your-room-host** in Vercel's project environment, then rebuild/redeploy. The client needs that public value at build time. A standalone room host accepts room paths at its root; the integrated Docker app uses `wss://your-app-host/collaboration`.
+
+The app's health route detects missing room configuration and explains how to enable sharing, instead of creating a room that can never connect. Vercel can host the personal board/notes frontend independently. Never point a deployed site at `ws://localhost` and expect other users to reach your computer.
+
+For the security block reported by Vercel, the dependency and Bun lockfile have been upgraded. Redeploy the updated commit with `bun install --frozen-lockfile` and `bun run build`; the installed version must match package.json. No project has been deployed from this local session.
+
 ## Automatic app builds and releases
 
 `.github/workflows/ci.yml` runs typecheck, lint, regression tests and the web build on pushes and pull requests.
@@ -97,26 +111,25 @@ Canvas undo/redo covers diagram edits. Notes use normal textarea editing history
 
 Use **Share → Create room from this board** to create a shared copy, then copy the invite link. Other people open the link to join the same canvas and notes. Set your display name in the room panel. Presence and cursors are ephemeral. Yjs merges concurrent Markdown edits and changes to different shapes; simultaneous edits to the same shape resolve to one shared element value. Room undo uses Yjs and targets your own changes.
 
-`bun dev` starts both the web app and room server. For production, run `bun start` and `bun run collab:server` as separate supervised services. The room server defaults to loopback port **3002**, with documents persisted in **.collab-data/**. Back up that directory to preserve room history; browser JSON exports also preserve the current board. Graceful shutdown flushes documents. Persistence is debounced, so a process crash can lose the latest fraction of a second of server changes; reconnecting clients retain their CRDT state in memory.
+`bun dev` and `bun start` automatically start the web app and room server together on the same port. Use these commands rather than calling `next dev` / `next start` directly. WebSocket traffic uses **/collaboration/** on the same origin; room health is available at **/api/collaboration-health**. Documents persist in **.collab-data/**. An optional standalone `bun run collab:server` listens on port 3002 for deployments that deliberately separate the services. Back up that directory to preserve room history; browser JSON exports also preserve the current board. Graceful shutdown flushes documents. Persistence is debounced, so a process crash can lose the latest fraction of a second of server changes; reconnecting clients retain their CRDT state in memory.
 
 For LAN use, run both services on a reachable interface, then invite using the server's LAN hostname/IP:
 
 ```sh
-COLLAB_HOST=0.0.0.0 bun run collab:server
-# In another terminal, after building:
+# After building; exposes both the board and its room service:
 bun start --hostname 0.0.0.0
 ```
 
-For HTTPS hosting, expose a **WSS** endpoint through a reverse proxy and set the client URL before building. WebSocket upgrades must be forwarded. Example environment configuration is in `.env.example`:
+For HTTPS hosting, forward **/collaboration/** WebSocket upgrades through your reverse proxy to the app. The client automatically uses WSS on HTTPS pages. No separate public port or URL is needed. Set `NEXT_PUBLIC_COLLAB_URL` before building only if you deliberately use a separate room host. Example environment configuration is in `.env.example`:
 
 ```sh
 NEXT_PUBLIC_COLLAB_URL=wss://rooms.example.com bun run build
-COLLAB_ORIGINS=https://board.example.com bun run collab:server
+COLLAB_ORIGINS=https://board.example.com bun start
 ```
 
-Server options: `COLLAB_HOST`, `COLLAB_PORT`, `COLLAB_DATA_DIR`, and comma-separated `COLLAB_ORIGINS`. The origin allowlist is optional for local development and recommended for deployment. Room IDs are random UUIDs and act as **edit capabilities**: anyone possessing the invite link can read/edit that room. There are no account roles, authentication, moderation, quotas or revocation controls. Host behind your own authentication/access gateway for private teams; this server is intended for personal/trusted collaboration rather than an unrestricted public multi-tenant service.
+App server options: `PORT`, `WEB_HOST`, `COLLAB_DATA_DIR`, and comma-separated `COLLAB_ORIGINS`. `COLLAB_HOST` / `COLLAB_PORT` apply only to the optional standalone room service. The origin allowlist is optional for local development and recommended for deployment. Room IDs are random UUIDs and act as **edit capabilities**: anyone possessing the invite link can read/edit that room. There are no account roles, authentication, moderation, quotas or revocation controls. Host behind your own authentication/access gateway for private teams; this server is intended for personal/trusted collaboration rather than an unrestricted public multi-tenant service.
 
-Desktop packages also bundle a local room server at **127.0.0.1:47832**, storing room files under Electron's user-data directory. Localhost invitations work on the same computer. To collaborate across devices, use a reachable self-hosted web deployment, or build the desktop client with `NEXT_PUBLIC_COLLAB_URL` pointing at your hosted WSS server. Use the hosted web origin when sharing links with other devices.
+Desktop packages bundle the same integrated room server at **127.0.0.1:47831/collaboration**, storing room files under Electron's user-data directory. Localhost invitations work on the same computer. To collaborate across devices, use a reachable self-hosted web deployment, or build the desktop client with `NEXT_PUBLIC_COLLAB_URL` pointing at your hosted WSS server. Use the hosted web origin when sharing links with other devices.
 
 The room initially waits for a server sync before enabling edits, preventing a stale local board from overwriting shared content. After connecting once, temporary disconnects preserve in-memory edits and synchronize on reconnect; do not close a disconnected tab before it reconnects or before exporting a JSON backup.
 

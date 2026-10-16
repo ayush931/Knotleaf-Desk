@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: whiteboard
+    runtime: docker
+    plan: starter
+    healthCheckPath: /api/collaboration-health
+    envVars:
+      - key: COLLAB_DATA_DIR
+        value: /data/rooms
+      - key: COLLAB_ORIGINS
+        sync: false
+    disk:
+      name: room-data
+      mountPath: /data/rooms
+      sizeGB: 1

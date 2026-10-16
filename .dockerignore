@@ -1,0 +1,9 @@
+.git
+.next
+node_modules
+release
+desktop-dist
+.collab-data
+.env
+.env.*
+*.log

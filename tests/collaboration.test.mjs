@@ -36,3 +36,29 @@ test('two real WebSocket clients sync shapes, notes, presence and persisted room
     expect(restored.getMap('elements').has('shape-b')).toBe(true); expect(restored.getMap('elements').has('shape-a')).toBe(false); expect(restored.getText('notes').toString()).toBe('Room notes'); restored.destroy();
   } finally { a.destroy(); b.destroy(); first.destroy(); second.destroy(); await service.close(); await rm(directory, { recursive: true, force: true }); }
 }, 10000);
+
+test('application room sessions seed once, preserve attachments, reconnect edits and undo locally', async () => {
+  const { RoomSession } = await import('../lib/collaboration.ts');
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'whiteboard-session-'));
+  const service = createCollaborationServer({ port: 0, directory }); const address = await service.listen();
+  const room = crypto.randomUUID(), url = `ws://127.0.0.1:${address.port}`;
+  const base = { stroke: '#fff', strokeWidth: 2, strokeStyle: 'solid', fill: 'transparent', fillStyle: 'none', roundness: 'rounded', opacity: 1, zIndex: 0 };
+  const shape = { ...base, id: 'shape', type: 'rectangle', x: 10, y: 20, width: 120, height: 80 };
+  const board = { id: room, title: 'Team board', elements: [shape], markdownNotes: 'Hello' };
+  const a = new RoomSession(url, room, board); let first, second;
+  a.onRemote = (elements, markdownNotes, title) => { first = { ...board, elements, markdownNotes, title }; };
+  const b = new RoomSession(url, room, { ...board, title: 'Stale local board', elements: [], markdownNotes: 'Do not overwrite shared notes' });
+  b.onRemote = (elements, markdownNotes, title) => { second = { ...board, elements, markdownNotes, title }; };
+  try {
+    a.connect(); await until(() => a.synced && first);
+    b.connect(); await until(() => b.synced && second);
+    expect(second.title).toBe('Team board'); expect(second.markdownNotes).toBe('Hello'); expect(second.elements).toHaveLength(1);
+    a.update({ ...first, elements: [{ ...shape, x: 150 }], markdownNotes: 'Hello everyone' });
+    await until(() => second.elements[0].x === 150 && second.markdownNotes === 'Hello everyone');
+    a.provider.disconnect(); a.update({ ...first, elements: [{ ...shape, x: 150 }], markdownNotes: 'Hello everyone offline' });
+    expect(a.notes.toString()).toBe('Hello everyone offline'); a.provider.connect();
+    await until(() => second.markdownNotes === 'Hello everyone offline');
+    a.undo.undo(); await until(() => second.markdownNotes !== 'Hello everyone offline');
+    expect(second.markdownNotes).toBe('Hello');
+  } finally { a.destroy(); b.destroy(); await service.close(); await rm(directory, { recursive: true, force: true }); }
+}, 10000);
