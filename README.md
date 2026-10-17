@@ -6,7 +6,7 @@ An open-source, local-first whiteboard and Markdown notebook. Draw diagrams, con
 
 ## Features
 
-- **Attached connectors:** magnetic top/right/bottom/left ports, visible connection placeholders, straight/curved/elbow routing, editable labels, endpoint caps and animated flow. Elbow paths respect both attachment directions and avoid their connected shapes. Move or resize shapes and the endpoints follow their exact ports. Dragging an arrow body preserves attachments; drag an endpoint to reconnect or detach it.
+- **Attached connectors:** magnetic top/right/bottom/left ports, visible connection placeholders, straight/curved/elbow routing, editable labels, endpoint caps and animated flow. Select a straight arrow and drag its center diamond to bend it, or enter a signed Bend (px) value in Appearance settings. Choose Straight to reset. Elbow paths respect both attachment directions and avoid their connected shapes. Move or resize shapes and the endpoints follow their exact ports, preserving custom curves. Dragging an arrow body preserves attachments; drag an endpoint to reconnect or detach it.
 - **Connect without dragging:** select shapes in sequence with Shift, then choose **Connect selected**. Multi-selection also offers Align left, Align top and Space evenly.
 - **Smart guides:** temporary red edge/center alignment lines, nearby gap measurements and equal-spacing indicators while dragging. Hold Alt to bypass magnetic alignment. Guides never appear in exports or saved projects.
 - **Canvas text:** double-click empty space or inside a shape to write at the pointer, or choose Text (T) then click. Text written inside shapes follows their movement and resizing; double-clicking existing text places the caret near the clicked character. Text appears directly on the canvas with a transparent, borderless editor. Font, size, color, alignment and formatting controls update the active editor; Ctrl/Cmd+Enter finishes editing.
@@ -25,7 +25,7 @@ An open-source, local-first whiteboard and Markdown notebook. Draw diagrams, con
 
 ## Run locally
 
-Copy `.env.example` to `.env` for local settings (the working copy already includes local defaults).
+No hosted service or database credentials are needed for local use. If you need environment settings, copy `.env.example` to `.env` only when that file does not already exist.
 
 Install [Node.js 24](https://nodejs.org/) and [Bun 1.4.3 or newer](https://bun.sh/).
 
@@ -34,14 +34,14 @@ bun install
 bun dev
 ```
 
-Open `http://localhost:3000`. If that port is occupied, Next.js prints the available port.
+Open `http://localhost:3000`. `bun dev` uses the included local room server and stores room documents in `.collab-data/`, even if `.env` contains production URLs or database credentials. Personal boards and room backups stay in browser localStorage. Use `bun dev --port 3001` if port 3000 is occupied.
 
 ```sh
 bun run typecheck
 bun run lint
 bun test
 bun run build
-bun start
+bun run start:local
 ```
 
 The project uses patched Next.js 16.4.2 and React 19.3.1. Keep them updated; do not bypass deployment security blocks.
@@ -76,16 +76,16 @@ Canvas undo/redo covers diagram edits. Notes use normal textarea editing history
 
 Use **Share → Create room from this board** to create a shared copy, then copy the invite link. Other people open the link to join the same canvas and notes. Set your display name in the room panel. Presence and cursors are ephemeral. Yjs merges concurrent Markdown and code edits and changes to different shapes; simultaneous edits to the same shape resolve to one shared element value. Room undo uses Yjs and targets your own changes. Use **Leave room** in the header or collaboration panel to disconnect and return to your last personal board. Other participants keep their session, and the room’s local backup remains saved. Concurrent additions do not cancel an unfinished eraser deletion; stale snapshots do not recreate deleted shapes.
 
-`bun dev` and `bun start` automatically start the web app and room server together on the same port. Use these commands rather than calling `next dev` / `next start` directly. WebSocket traffic uses **/collaboration/** on the same origin; room health is available at **/api/collaboration-health**. Without `DATABASE_URL`, documents persist in **.collab-data/**. With it configured, PostgreSQL is authoritative and the same directory holds secondary recovery files. An optional standalone `bun run collab:server` listens on port 3002 for deployments that deliberately separate the services. Back up that directory to preserve room history; browser JSON exports also preserve the current board. Graceful shutdown flushes documents. Persistence is debounced, so a process crash can lose the latest fraction of a second of server changes; reconnecting clients retain their CRDT state in memory.
+`bun dev`, `bun run start:local` and `bun start` start the web app and room server together on the same port. The first two explicitly use local disk storage without changing your `.env`; `bun start` and `bun run dev:hosted` use the configured database when present. Use these commands rather than calling `next dev` / `next start` directly. WebSocket traffic uses **/collaboration/** on the same origin; room health is available at **/api/collaboration-health**. Without `DATABASE_URL`, documents persist in **.collab-data/**. With it configured, PostgreSQL is authoritative and the same directory holds secondary recovery files. An optional standalone `bun run collab:server` listens on port 3002 for deployments that deliberately separate the services. Back up that directory to preserve room history; browser JSON exports also preserve the current board. Graceful shutdown flushes documents. Persistence is debounced, so a process crash can lose the latest fraction of a second of server changes; reconnecting clients retain their CRDT state in memory.
 
 For LAN use, run both services on a reachable interface, then invite using the server's LAN hostname/IP:
 
 ```sh
 # After building; exposes both the board and its room service:
-bun start --hostname 0.0.0.0
+bun run start:local --hostname YOUR_LAN_IP
 ```
 
-For HTTPS hosting, forward **/collaboration/** WebSocket upgrades through your reverse proxy to the app. The client automatically uses WSS on HTTPS pages. No separate public port or URL is needed. Set `NEXT_PUBLIC_COLLAB_URL` before building only if you deliberately use a separate room host. Example environment configuration is in `.env.example`:
+For HTTPS hosting, forward **/collaboration/** WebSocket upgrades through your reverse proxy to the app. The client automatically uses WSS on HTTPS pages. No separate public port or URL is needed. Serverless frontends use `NEXT_PUBLIC_COLLAB_URL` for a separate room host. Clients resolve the room endpoint at runtime from `/api/collaboration-health`, so a production build can also run locally. Invite links use the current website origin. Example environment configuration is in `.env.example`:
 
 ```sh
 NEXT_PUBLIC_COLLAB_URL=wss://rooms.example.com bun run build

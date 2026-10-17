@@ -24,7 +24,7 @@ Install: `bun install --frozen-lockfile`. Build: `bun run build`.
 
 This frontend does not need `DATABASE_URL`, a database password or `TURN_SHARED_SECRET`. `/api/rooms` forwards creation to Render, which saves the initial board in Neon before returning the invite. The classroom derives `/classroom/ROOM_ID` on the Render host. This repository uses its custom Node WebSocket hub on Render; adopting Vercel's WebSocket APIs would require a different hub adapter and shared live-state architecture.
 
-`NEXT_PUBLIC_*` settings are embedded at build time. Production and preview deployments have separate environment scopes. If students use a preview domain, add its exact origin to Render's allowlist or use a separate preview hub.
+Room clients obtain their WebSocket endpoint at runtime from `/api/collaboration-health`. The serverless API permits up to 55 seconds for room-host startup, within its 60-second function duration; a room is returned only after storage succeeds. Other `NEXT_PUBLIC_*` settings may be embedded at build time. Production and preview deployments have separate environment scopes. If students use a preview domain, add its exact origin to Render's allowlist or use a separate preview hub.
 
 ## 2. Render — excalidraw-tl7h.onrender.com
 
@@ -94,15 +94,23 @@ Calls use a small-group mesh, default 8 participants and a maximum of 12. Settin
 
 ## 6. Run without local Docker
 
-Your local `.env` points to the hosted websites and Neon. Preserve `DATABASE_URL`; do not overwrite your working `.env` with the empty example. To run the frontend locally:
+Local drawing, notes and room creation do not require Render, Neon or an internet connection to a room service. Preserve your existing `.env` and credentials.
 
 ```sh
 bun install --frozen-lockfile
-bun run db:check
 bun dev
 ```
 
-Open `http://localhost:3000`. With the hosted room URL, local sharing calls Render; add `http://localhost:3000,http://127.0.0.1:3000` to Render's `COLLAB_ORIGINS` if you need it. These development origins are already in the local `.env`, not the production Blueprint allowlist. To test the local Node hub against Neon, temporarily leave `NEXT_PUBLIC_COLLAB_URL` and `NEXT_PUBLIC_APP_URL` empty and restart. No local database process is necessary.
+Open `http://localhost:3000` in two tabs, create a room from Share and open its invite in the second tab. `bun dev` explicitly runs in local mode: the room API, canvas WebSocket and classroom signaling use this same local server; room documents persist in `.collab-data/`. Personal boards and room backups use browser localStorage. No changes to Render's origin allowlist or database settings are needed. Restarting the local server preserves its rooms. Local mode binds to loopback by default; use `--hostname YOUR_LAN_IP` for LAN access and open the site at that address.
+
+To use an existing production build locally:
+
+```sh
+bun run build
+bun run start:local
+```
+
+Runtime room configuration makes this work even when the build used hosted URLs. Local mode ignores hosted database/URL settings in memory without modifying `.env`. For testing the integrated Node hub against the configured database, use `bun run dev:hosted`; `bun start` also preserves configured production storage. Browser data and server room files are separate; clearing browser data does not delete rooms persisted on the local server.
 
 ## 7. Classroom and recording verification
 

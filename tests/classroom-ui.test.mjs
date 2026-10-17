@@ -40,7 +40,7 @@ test('call invite is visible before joining, copyable, and selectable when clipb
  Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async text=>{copied=text;}}});
  try{
   await render({roomId},'classroom=1');const link=panel().querySelector('[aria-label="Classroom invite link"]');
-  expect(link.value).toBe(`${(process.env.NEXT_PUBLIC_APP_URL||'https://desk.example').replace(/\/$/,'')}/canvas/${roomId}?classroom=1`);
+  expect(link.value).toBe(`https://desk.example/canvas/${roomId}?classroom=1`);
   await act(async()=>button('Copy').click());expect(copied).toBe(link.value);expect(panel().textContent).toContain('Invite link copied');
   navigator.clipboard.writeText=async()=>{throw new Error('Blocked');};await act(async()=>button('Copy').click());expect(document.activeElement).toBe(link);expect(link.selectionEnd).toBe(link.value.length);expect(panel().textContent).toContain('Select and copy');
  }finally{if(original)Object.defineProperty(navigator,'clipboard',original);else delete navigator.clipboard;}

@@ -4,6 +4,8 @@ import { Heading1, List, CheckSquare, Quote, Check } from "lucide-react";
 import { useRouter } from "next/navigation";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { RoomSession, type Collaborator } from "@/lib/collaboration";
+import { getRoomServerUrl } from "@/lib/roomConnection";
+import { createRoomFromBoard } from "@/lib/roomCreation";
 import { Classroom } from "./Classroom";
 import { CollaborationPanel } from "./CollaborationPanel";
 import { CanvasEngine } from "@/draw/CanvasEngine";
@@ -27,6 +29,7 @@ import {
   getOrCreateDefaultBoard,
   getOrCreatePersonalBoard,
   getBoard,
+  isRoomBoardId,
   saveBoard,
   getAllBoards,
   createBoard,
@@ -77,6 +80,9 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
   const sessionRef = useRef<RoomSession | null>(null);
   const [roomStatus, setRoomStatus] = useState("connecting");
   const [roomReady, setRoomReady] = useState(!initialRoomId);
+  const [roomError, setRoomError] = useState("");
+  const [roomAttempt, setRoomAttempt] = useState(0);
+  const creatingRoomRef = useRef<Promise<void> | null>(null);
   const [people, setPeople] = useState<Collaborator[]>([]);
   const [workspaces, setWorkspaces] = useState(getWorkspaces);
   const [workspaceId, setWorkspaceId] = useState(board.workspaceId || "personal");
@@ -209,26 +215,39 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
 
   useEffect(() => {
     if (!initialRoomId) return;
-    const url = process.env.NEXT_PUBLIC_COLLAB_URL || `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}/collaboration`;
-    const session = new RoomSession(url, initialRoomId, boardRef.current);
-    sessionRef.current = session;
-    session.onStatus = setRoomStatus;
-    session.onRemote = (elements, markdownNotes, title) => {
-      const next = { ...boardRef.current, elements, markdownNotes, title };
-      boardRef.current = next; setBoard(next); setSaveError(!saveBoard(next));
-      engineRef.current?.applyRemoteElements(elements); setRoomReady(true); refreshBoardsList();
-    };
-    session.onPresence = people => { setPeople(people); engineRef.current?.setCollaborators(people); };
-    session.onHistory = (undo, redo) => { setCanUndo(undo); setCanRedo(redo); };
+    const controller = new AbortController();
+    let session: RoomSession | undefined;
     const engine = engineRef.current;
-    let lastCursor = 0;
-    if (engine) {
-      engine.collaborativeUndo = () => session.undo.undo(); engine.collaborativeRedo = () => session.undo.redo();
-      engine.onCursorChange = point => { if (Date.now() - lastCursor > 50) { lastCursor = Date.now(); session.cursor(point); } };
-    }
-    session.connect();
-    return () => { session.destroy(); sessionRef.current = null; if (engine) { engine.collaborativeUndo = undefined; engine.collaborativeRedo = undefined; engine.onCursorChange = undefined; } };
-  }, [initialRoomId, refreshBoardsList]);
+    const timer = setTimeout(() => setRoomError("The room has not synced yet. Check your connection or retry. Your saved local copy is preserved."), 25000);
+    void getRoomServerUrl(controller.signal).then(url => {
+      if (controller.signal.aborted) return;
+      session = new RoomSession(url, initialRoomId, boardRef.current);
+      sessionRef.current = session;
+      session.onStatus = setRoomStatus;
+      session.onRemote = (elements, markdownNotes, title) => {
+        clearTimeout(timer); setRoomError("");
+        const next = { ...boardRef.current, elements, markdownNotes, title };
+        boardRef.current = next; setBoard(next); setSaveError(!saveBoard(next));
+        engine?.applyRemoteElements(elements); setRoomReady(true); refreshBoardsList();
+      };
+      session.onPresence = people => { setPeople(people); engine?.setCollaborators(people); };
+      session.onHistory = (undo, redo) => { setCanUndo(undo); setCanRedo(redo); };
+      let lastCursor = 0;
+      if (engine) {
+        engine.collaborativeUndo = () => session?.undo.undo(); engine.collaborativeRedo = () => session?.undo.redo();
+        engine.onCursorChange = point => { if (Date.now() - lastCursor > 50) { lastCursor = Date.now(); session?.cursor(point); } };
+      }
+      session.connect();
+    }).catch(error => {
+      if (controller.signal.aborted) return;
+      clearTimeout(timer); setRoomStatus("disconnected");
+      setRoomError(error instanceof Error ? error.message : "Could not connect to the room server.");
+    });
+    return () => {
+      controller.abort(); clearTimeout(timer); session?.destroy(); sessionRef.current = null;
+      if (engine) { engine.collaborativeUndo = undefined; engine.collaborativeRedo = undefined; engine.onCursorChange = undefined; }
+    };
+  }, [initialRoomId, refreshBoardsList, roomAttempt]);
 
   // Keep engine settings in sync with React state.
   useEffect(() => {
@@ -301,6 +320,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
 
   // Board actions
   const handleSelectBoard = (id: string) => {
+    if (isRoomBoardId(id) && id !== initialRoomId) { router.push(`/canvas/${id}`); return; }
     if (initialRoomId && id !== initialRoomId) { sessionRef.current?.destroy(); sessionRef.current = null; setActiveBoardId(id); router.push("/"); return; }
     const loaded = getBoard(id);
     if (!loaded) return;
@@ -513,12 +533,16 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
   }, [inlineText?.text, inlineText?.fontSize, inlineText?.fontFamily, inlineText?.bold, inlineText?.italic, inlineText?.screenHeight, inlineText?.screenY, zoom]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const inlineTextAlign = inlineText?.align ?? "left";
-  const createSharedRoom = async (openClassroom = false) => {
-    const response = await fetch("/api/rooms", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(boardRef.current) });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error || "Could not save the room.");
-    saveBoard({ ...boardRef.current, id: data.id, title: data.title, createdAt: Date.now() });
-    router.push(`/canvas/${data.id}${openClassroom ? "?classroom=1" : ""}`);
+  const createSharedRoom = (openClassroom = false): Promise<void> => {
+    if (creatingRoomRef.current) return creatingRoomRef.current;
+    const operation = (async () => {
+      const { id, savedLocally } = await createRoomFromBoard(structuredClone(boardRef.current));
+      setSaveError(!savedLocally);
+      router.push(`/canvas/${id}${openClassroom ? "?classroom=1" : ""}`);
+    })();
+    creatingRoomRef.current = operation;
+    void operation.finally(() => { creatingRoomRef.current = null; }).catch(() => undefined);
+    return operation;
   };
 
   const inlineFamily =
@@ -813,7 +837,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
         </div>
       </main>
 
-      {initialRoomId && !roomReady && <div role="status" className="fixed left-1/2 top-20 z-40 w-[min(400px,90vw)] -translate-x-1/2 rounded-xl border border-amber-500/30 bg-neutral-900 p-4 text-center text-sm text-neutral-300"><p>Connecting to your room…</p><p className="mt-2 text-xs text-neutral-500">Start the collaboration server or check your connection. Drawing unlocks after the room syncs.</p><button onClick={handleLeaveRoom} className="mt-3 inline-block text-xs text-blue-400 underline">Leave room</button></div>}
+      {initialRoomId && !roomReady && <div role="status" className="fixed left-1/2 top-20 z-40 w-[min(400px,90vw)] -translate-x-1/2 rounded-xl border border-amber-500/30 bg-neutral-900 p-4 text-center text-sm text-neutral-300"><p>{roomError || "Connecting to your room…"}</p><p className="mt-2 text-xs text-neutral-500">Start the collaboration server or check your connection. Drawing unlocks after the room syncs.</p><div className="mt-3 flex justify-center gap-4">{roomError && <button onClick={() => { setRoomError(""); setRoomStatus("connecting"); setRoomAttempt(attempt => attempt + 1); }} className="text-xs text-blue-400 underline">Retry connection</button>}<button onClick={handleLeaveRoom} className="text-xs text-blue-400 underline">Leave room</button></div></div>}
       <PresentationMode isActive={isPresentationOpen} onExit={endPresentation} title={board.title} theme={theme} frames={frames} index={presentationIndex} onIndex={setPresentationIndex} />
       <BoardTools open={boardToolsOpen} onClose={() => setBoardToolsOpen(false)} board={board} selection={librarySelection} historyError={historyError} onHistorySaved={() => setHistoryError("")} onOpenCopy={(source, title) => { const copy = importBoardFile(JSON.stringify({ ...source, title })); if (!copy) throw new Error("Could not create a board. Check available browser storage."); copy.title = title; if (!saveBoard(copy)) throw new Error("Could not save the new board."); moveBoardToWorkspace(copy.id, workspaceId); handleSelectBoard(copy.id); }} onFind={(id, index, length) => {
         if (index !== undefined) {

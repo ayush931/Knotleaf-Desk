@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom';
 import { useSearchParams } from 'next/navigation';
 import { Video, X, Mic, MonitorUp, PhoneOff, Copy } from 'lucide-react';
 import { ClassroomSession, classroomSocketUrl, type ClassState } from '@/lib/classroom';
+import { getRoomServerUrl, roomInviteUrl } from '@/lib/roomConnection';
 import { ClassroomAudioSource } from './ClassroomAudioSource';
 import { LocalRecorder } from './LocalRecorder';
 function MediaVideo({stream,label}:{stream:MediaStream|null;label:string}){
@@ -21,26 +22,29 @@ export function Classroom({roomId,onCreateRoom}:{roomId?:string;onCreateRoom?:()
   const minimize=()=>{setOpen(false);requestAnimationFrame(()=>trigger.current?.focus());};
   const [open,setOpen]=useState(()=>!!roomId&&search.get('classroom')==='1'),[name,setName]=useState(''),[state,setState]=useState<ClassState|null>(null),[error,setError]=useState(''),[busy,setBusy]=useState(''),[chat,setChat]=useState('');
   const client=useRef<ClassroomSession|null>(null),input=useRef<HTMLInputElement>(null);
-  useEffect(()=>()=>{if(client.current){client.current.onState=undefined;client.current.onError=undefined;client.current.close();}},[]);
+  const joinAbort=useRef<AbortController|null>(null);
+  useEffect(()=>()=>{joinAbort.current?.abort();if(client.current){client.current.onState=undefined;client.current.onError=undefined;client.current.close();}},[]);
   useEffect(()=>{if(open&&state?.status!=='connected'){const frame=requestAnimationFrame(()=>input.current?.focus());return()=>cancelAnimationFrame(frame);}},[open,state?.status]);
-  const join=()=>{
+  const join=async()=>{
+    if(busy)return;
     if(!name.trim()){setError('Enter your name first.');input.current?.focus();return;}
     if(!roomId)return;
     if(typeof RTCPeerConnection==='undefined'||!navigator.mediaDevices){setError('Calls need a current browser over HTTPS (or localhost).');return;}
     client.current?.close();setError('');setBusy('join');
+    const controller=new AbortController();joinAbort.current?.abort();joinAbort.current=controller;
     try {
-      const base=process.env.NEXT_PUBLIC_COLLAB_URL || window.location.origin;
+      const base=await getRoomServerUrl(controller.signal);
+      if(controller.signal.aborted)return;
       const session=new ClassroomSession(classroomSocketUrl(base,roomId),name.trim());client.current=session;
       session.onState=next=>{setState(next);if(next.status!=='joining')setBusy('');};session.onError=message=>{setError(message);setBusy('');};
-    } catch { setBusy('');setError('The call server URL is invalid. Check the room server setting and reload.'); }
+    } catch(error) { if(controller.signal.aborted)return;setBusy('');setError(error instanceof Error?error.message:'Could not connect to the call server. Retry.'); }
   };
-  const leave=()=>{if(client.current){client.current.onState=undefined;client.current.onError=undefined;client.current.close();client.current=null;}setState(null);setBusy('');setError('');};
+  const leave=()=>{joinAbort.current?.abort();if(client.current){client.current.onState=undefined;client.current.onError=undefined;client.current.close();client.current=null;}setState(null);setBusy('');setError('');};
   const act=async(action:string)=>{if(busy)return;setBusy(action);setError('');try{if(action==='screen')await client.current?.toggleScreen();else await client.current?.toggle(action as 'mic'|'camera');}catch(error){setError(error instanceof Error?error.message:'Media could not start. Check browser permissions and retry.');}finally{setBusy('');}};
   const createRoom=async()=>{if(!onCreateRoom||busy)return;setBusy('create');setError('');try{await onCreateRoom();}catch(error){setError(error instanceof Error?error.message:'Could not create a room. Retry from Share.');}finally{setBusy('');}};
   useEffect(()=>{if(!open)return;const escape=(event:KeyboardEvent)=>{if(event.key==='Escape'&&!event.defaultPrevented){setOpen(false);trigger.current?.focus();}};window.addEventListener('keydown',escape);return()=>window.removeEventListener('keydown',escape);},[open]);
   const [copyStatus,setCopyStatus]=useState({link:'',message:''}),inviteInput=useRef<HTMLInputElement>(null);
-  const inviteBase=(process.env.NEXT_PUBLIC_APP_URL||(typeof window!=='undefined'?window.location.origin:'')).replace(/\/$/,'');
-  const inviteLink=roomId?`${inviteBase}/canvas/${encodeURIComponent(roomId)}?classroom=1`:'';
+  const inviteLink=roomId&&typeof window!=='undefined'?roomInviteUrl(roomId,true):'';
   const copyInvite=async()=>{try{await navigator.clipboard.writeText(inviteLink);setCopyStatus({link:inviteLink,message:'Invite link copied'});}catch{inviteInput.current?.focus();inviteInput.current?.select();setCopyStatus({link:inviteLink,message:'Select and copy the link above.'});}};
   const selectMicrophone=async(id:string)=>{if(busy)return;setBusy('source');setError('');try{await client.current?.selectMicrophone(id);}catch(error){setError(error instanceof Error?error.message:'Could not switch microphone. Your current source is unchanged.');}finally{setBusy('');}};
   const connected=state?.status==='connected';

@@ -2,7 +2,8 @@ import * as Y from 'yjs';
 import { randomUUID } from 'node:crypto';
 import { isValidElement } from '../lib/elementValidation.mjs';
 export async function createStoredRoom(store, board, base) {
-  if (!board || typeof board.title !== 'string' || typeof board.markdownNotes !== 'string' || !Array.isArray(board.elements) || !board.elements.every(isValidElement)) throw new Error('Invalid board content');
+  if (!board || typeof board.title !== 'string' || (board.markdownNotes !== undefined && typeof board.markdownNotes !== 'string') || !Array.isArray(board.elements) || !board.elements.every(isValidElement)) throw new Error('Invalid board content');
+  board = { ...board, markdownNotes: board.markdownNotes ?? '' };
   const id = randomUUID(), title = `${board.title.slice(0,185)} · shared`, doc = new Y.Doc();
   try {
     doc.getMap('meta').set('initialized','true'); doc.getMap('meta').set('title',title);
@@ -25,7 +26,7 @@ export function handleRoomHttp(request, response, { store, origins, appUrl }) {
       let size=0; const chunks=[];
       for await (const chunk of request) { size+=chunk.length; if (size>6_000_000) { reply(413,{error:'Board is too large to share.'}); return; } chunks.push(chunk); }
       let board; try { board=JSON.parse(Buffer.concat(chunks).toString()); } catch { reply(400,{error:'Invalid board content.'}); return; }
-      if (!board || typeof board.title!=='string' || typeof board.markdownNotes!=='string' || !Array.isArray(board.elements) || !board.elements.every(isValidElement)) { reply(400,{error:'Invalid board content.'}); return; }
+      if (!board || typeof board.title!=='string' || (board.markdownNotes!==undefined && typeof board.markdownNotes!=='string') || !Array.isArray(board.elements) || !board.elements.every(isValidElement)) { reply(400,{error:'Invalid board content.'}); return; }
       reply(201,await createStoredRoom(store,board,appUrl || origin));
     } catch { reply(503,{error:'Room could not be saved. Check the room server storage and retry.'}); }
   })();

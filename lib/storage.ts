@@ -43,6 +43,7 @@ export function getBoard(id: string): Board | null {
     if (board) {
       board.theme = "dark";
       board.viewMode ||= "canvas";
+      board.markdownNotes ??= "";
     }
     return board;
   } catch (err) {
@@ -167,41 +168,20 @@ export function duplicateBoard(id: string): Board | null {
 
 export function getActiveBoardId(): string | null {
   if (typeof window === "undefined") return null;
-  return localStorage.getItem(STORAGE_KEYS.ACTIVE_ID);
+  try { return localStorage.getItem(STORAGE_KEYS.ACTIVE_ID); } catch { return null; }
 }
 
 export function setActiveBoardId(id: string): void {
   if (typeof window === "undefined") return;
-  localStorage.setItem(STORAGE_KEYS.ACTIVE_ID, id);
-  if (!isRoomBoardId(id)) localStorage.setItem(STORAGE_KEYS.PERSONAL_ID, id);
+  try {
+    localStorage.setItem(STORAGE_KEYS.ACTIVE_ID, id);
+    if (!isRoomBoardId(id)) localStorage.setItem(STORAGE_KEYS.PERSONAL_ID, id);
+  } catch { /* Saving the board reports storage failures; navigation remains usable. */ }
 }
 
 export function getOrCreateDefaultBoard(): Board {
-  const activeId = getActiveBoardId();
-  if (activeId) {
-    const board = getBoard(activeId);
-    if (board) {
-      return board;
-    }
-  }
-
-  const all = getAllBoards();
-  if (all.length > 0) {
-    const first = getBoard(all[0].id);
-    if (first) {
-      setActiveBoardId(first.id);
-      return first;
-    }
-  }
-
-  // Create clean blank whiteboard (nothing in default, only clean white space)
-  const initial = createBoard("Untitled board");
-  initial.elements = [];
-  initial.markdownNotes = "";
-  initial.theme = "dark";
-  initial.viewMode = "canvas";
-  saveBoard(initial);
-  return initial;
+  // A cached shared room must reopen via its room route, never as a personal board.
+  return getOrCreatePersonalBoard();
 }
 
 export function exportBoardToJson(board: Board): string {
@@ -255,12 +235,13 @@ export function moveBoardToWorkspace(id: string, workspaceId: string) {
 
 
 
-function isRoomBoardId(id: string): boolean {
+export function isRoomBoardId(id: string): boolean {
   return /^[a-f\d]{8}-[a-f\d]{4}-4[a-f\d]{3}-[89ab][a-f\d]{3}-[a-f\d]{12}$/i.test(id);
 }
 /** Return to personal work without deleting the room or its cached local copy. */
 export function getOrCreatePersonalBoard(): Board {
-  const lastId = typeof window !== "undefined" ? localStorage.getItem(STORAGE_KEYS.PERSONAL_ID) : null;
+  let lastId: string | null = null;
+  try { if (typeof window !== "undefined") lastId = localStorage.getItem(STORAGE_KEYS.PERSONAL_ID); } catch { /* Browser storage can be unavailable. */ }
   const last = lastId && !isRoomBoardId(lastId) ? getBoard(lastId) : null;
   const board = last || getAllBoards().filter(summary => !isRoomBoardId(summary.id)).sort((a, b) => b.updatedAt - a.updatedAt).map(summary => getBoard(summary.id)).find((candidate): candidate is Board => candidate !== null) || createBoard();
   setActiveBoardId(board.id);

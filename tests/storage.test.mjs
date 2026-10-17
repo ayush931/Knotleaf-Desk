@@ -49,6 +49,26 @@ test('leaving a room creates a personal board when the browser only has room cop
   expect(personal.id).not.toBe(room.id); expect(personal.elements).toHaveLength(0); expect(getBoard(room.id)).not.toBeNull();
 });
 
+test('personal startup never edits a cached shared room as an unsynchronized personal board', () => {
+  const personal = createBoard('Personal');
+  const room = createBoard('Shared', undefined, 'personal', crypto.randomUUID());
+  expect(getOrCreateDefaultBoard().id).toBe(personal.id);
+  expect(getBoard(room.id).title).toBe('Shared');
+});
+
+test('legacy boards missing notes are normalized for room creation', () => {
+  const board = createBoard('Legacy');
+  delete board.markdownNotes; saveBoard(board);
+  expect(getBoard(board.id).markdownNotes).toBe('');
+});
+
+test('personal drawing can start even if browser storage is blocked', () => {
+  const read = localStorage.getItem, write = localStorage.setItem;
+  localStorage.getItem = localStorage.setItem = () => { throw new Error('Storage is blocked'); };
+  try { expect(getOrCreateDefaultBoard().elements).toEqual([]); }
+  finally { localStorage.getItem = read; localStorage.setItem = write; }
+});
+
 test('portable project round trip preserves notes, styling, icons and bound connector IDs', async () => {
   const { serializeProject } = await import('../lib/projectFile.ts');
   const board = createBoard('Portable project');

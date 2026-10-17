@@ -3,9 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "node server/web.mjs --dev",
+    "dev": "node server/web.mjs --dev --local",
+    "dev:hosted": "node server/web.mjs --dev",
     "build": "next build",
     "start": "node server/web.mjs",
+    "start:local": "node server/web.mjs --local",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test": "bun test",

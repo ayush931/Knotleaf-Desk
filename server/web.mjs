@@ -6,17 +6,28 @@ import { createCollaborationServer } from './collaboration.mjs';
 
 if (fs.existsSync('.env') && process.loadEnvFile) process.loadEnvFile('.env');
 const dev = process.argv.includes('--dev');
+const local = process.argv.includes('--local');
+const dataFlag = process.argv.indexOf('--data-dir');
+if (local) {
+  // Keep hosted credentials intact on disk while making local use independent.
+  process.env.DATABASE_URL = '';
+  process.env.NEXT_PUBLIC_COLLAB_URL = '';
+  process.env.NEXT_PUBLIC_APP_URL = '';
+  process.env.COLLAB_ORIGINS = '';
+  process.env.COLLAB_DATA_DIR = path.resolve(dataFlag >= 0 ? process.argv[dataFlag + 1] : '.collab-data');
+}
 const portFlag = process.argv.indexOf('--port');
 const hostFlag = process.argv.indexOf('--hostname');
 const port = Number(portFlag >= 0 ? process.argv[portFlag + 1] : process.env.PORT || 3000);
-const hostname = hostFlag >= 0 ? process.argv[hostFlag + 1] : process.env.WEB_HOST || '0.0.0.0';
+const hostname = hostFlag >= 0 ? process.argv[hostFlag + 1] : local ? '127.0.0.1' : process.env.WEB_HOST || '0.0.0.0';
+if (local) process.env.COLLAB_ORIGINS = [...new Set(['localhost', '127.0.0.1', '[::1]', ...(hostname !== '0.0.0.0' && hostname !== '::' ? [hostname] : [])])].map(host => `http://${host}:${port}`).join(',');
 const conf = process.env.WHITEBOARD_STANDALONE === '1' ? JSON.parse(fs.readFileSync(path.resolve('.next/required-server-files.json'), 'utf8')).config : undefined;
 const web = next({ dev, hostname, port, ...(conf ? { conf } : {}) });
 await web.prepare();
 const handler = web.getRequestHandler();
 const server = http.createServer((request, response) => {
   if (collaboration.handleHttp(request,response)) return;
-  if (request.url === '/api/collaboration-health') { response.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); response.end(JSON.stringify({ collaboration: true })); return; }
+  if (request.url === '/api/collaboration-health') { response.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); response.end(JSON.stringify({ collaboration: true, websocketUrl: '/collaboration', storage: process.env.DATABASE_URL ? 'database' : 'local' })); return; }
   handler(request, response).catch(error => { console.error(error); if (!response.headersSent) response.writeHead(500); response.end('Unable to load Whiteboard'); });
 });
 const collaboration = createCollaborationServer({ httpServer: server, pathPrefix: '/collaboration/', directory: process.env.COLLAB_DATA_DIR || path.resolve('.collab-data'), origins: (process.env.COLLAB_ORIGINS || '').split(',').filter(Boolean) });
