@@ -1,5 +1,6 @@
 "use client";
 
+import { Heading1, List, CheckSquare, Quote, Check } from "lucide-react";
 import { useRouter } from "next/navigation";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { RoomSession, type Collaborator } from "@/lib/collaboration";
@@ -135,7 +136,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
     setSaveError(!saveBoard(next));
     setBoard(next);
     sessionRef.current?.update(next);
-  }, []);
+  }, [setBoard, setHistoryError]);
 
   const refreshBoardsList = useCallback(() => setBoardsList(getAllBoards()), []);
 
@@ -427,7 +428,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
     const start = textarea.selectionStart;
     const val = textarea.value;
 
-    const lineStart = val.lastIndexOf("\n", start - 1) + 1;
+    const lineStart = start === 0 ? 0 : val.lastIndexOf("\n", start - 1) + 1;
     let lineEnd = val.indexOf("\n", start);
     if (lineEnd === -1) lineEnd = val.length;
 
@@ -579,103 +580,12 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
               <>
                 {/* Document-specific list tools; ordinary canvas text stays unobstructed. */}
                 {selectedElement?.type === "text" && selectedElement.isDocCard && <div
-                  onMouseDown={(e) => e.preventDefault()} // Prevent textarea blur
-                  style={{
-                    position: "absolute",
-                    left: `${Math.max(16, inlineText.screenX)}px`,
-                    top: `${Math.max(10, inlineText.screenY - 38)}px`,
-                    zIndex: 40,
-                  }}
-                  className="flex items-center gap-1 px-2 py-1 rounded-xl bg-[#18181b]/95 border border-[#27272a] shadow-2xl backdrop-blur-md select-none text-[11px]"
-                >
-                  <span className="text-[10px] uppercase font-bold text-neutral-400 mr-0.5">
-                    Doc:
-                  </span>
-                  <button
-                    onClick={() => handleInsertPrefix("•")}
-                    title="Disc bullet (• item)"
-                    className="px-1.5 py-0.5 rounded hover:bg-neutral-800 text-neutral-200 font-bold transition cursor-pointer"
-                  >
-                    • Disc
-                  </button>
-                  <button
-                    onClick={() => handleInsertPrefix("○")}
-                    title="Circle bullet (○ item)"
-                    className="px-1.5 py-0.5 rounded hover:bg-neutral-800 text-neutral-200 font-bold transition cursor-pointer"
-                  >
-                    ○ Circ
-                  </button>
-                  <button
-                    onClick={() => handleInsertPrefix("▪")}
-                    title="Square bullet (▪ item)"
-                    className="px-1.5 py-0.5 rounded hover:bg-neutral-800 text-neutral-200 font-bold transition cursor-pointer"
-                  >
-                    ▪ Sq
-                  </button>
-                  <button
-                    onClick={() => handleInsertPrefix("◆")}
-                    title="Diamond bullet (◆ item)"
-                    className="px-1.5 py-0.5 rounded hover:bg-neutral-800 text-neutral-200 font-bold transition cursor-pointer"
-                  >
-                    ◆ Diam
-                  </button>
-                  <button
-                    onClick={() => handleInsertPrefix("–")}
-                    title="Dash bullet (– item)"
-                    className="px-1.5 py-0.5 rounded hover:bg-neutral-800 text-neutral-200 font-bold transition cursor-pointer"
-                  >
-                    – Dash
-                  </button>
-                  <button
-                    onClick={() => handleInsertPrefix("→")}
-                    title="Arrow bullet (→ item)"
-                    className="px-1.5 py-0.5 rounded hover:bg-neutral-800 text-neutral-200 font-bold transition cursor-pointer"
-                  >
-                    → Arrow
-                  </button>
-                  <button
-                    onClick={() => handleInsertPrefix("1.")}
-                    title="Numbered list (1. item)"
-                    className="px-1.5 py-0.5 rounded hover:bg-neutral-800 text-neutral-200 font-medium transition cursor-pointer"
-                  >
-                    1. Num
-                  </button>
-                  <button
-                    onClick={() => handleInsertPrefix("[ ]")}
-                    title="Task checkbox ([ ] item)"
-                    className="px-1.5 py-0.5 rounded hover:bg-neutral-800 text-neutral-200 font-medium transition cursor-pointer"
-                  >
-                    ☑ Task
-                  </button>
-                  <div className="w-px h-3.5 bg-neutral-700 mx-0.5" />
-                  <button
-                    onClick={() => handleInsertPrefix("#")}
-                    title="Heading 1 (# text)"
-                    className="px-1.5 py-0.5 rounded hover:bg-neutral-800 text-blue-400 font-bold transition cursor-pointer"
-                  >
-                    H1
-                  </button>
-                  <button
-                    onClick={() => handleInsertPrefix("##")}
-                    title="Heading 2 (## text)"
-                    className="px-1.5 py-0.5 rounded hover:bg-neutral-800 text-blue-400 font-bold transition cursor-pointer"
-                  >
-                    H2
-                  </button>
-                  <button
-                    onClick={() => handleInsertPrefix(">")}
-                    title="Blockquote (> text)"
-                    className="px-1.5 py-0.5 rounded hover:bg-neutral-800 text-purple-400 font-medium transition cursor-pointer"
-                  >
-                    Quote
-                  </button>
-                  <button
-                    onClick={() => handleInsertPrefix("---")}
-                    title="Divider line (---)"
-                    className="px-1.5 py-0.5 rounded hover:bg-neutral-800 text-amber-400 font-medium transition cursor-pointer"
-                  >
-                    Rule
-                  </button>
+                  role="toolbar" aria-label="Document formatting"
+                  onMouseDown={e=>e.preventDefault()}
+                  style={{position:"absolute",left:`clamp(8px, ${inlineText.screenX}px, calc(100% - 184px))`,top:Math.max(8,inlineText.screenY-40),zIndex:40}}
+                  className="flex items-center gap-1 rounded-lg border border-neutral-700 bg-neutral-900 px-1 py-1 text-xs shadow-lg">
+                  {[{label:"Heading",icon:Heading1,prefix:"#"},{label:"Bullet list",icon:List,prefix:"•"},{label:"Checklist",icon:CheckSquare,prefix:"[ ]"},{label:"Quote",icon:Quote,prefix:">"}].map(tool=><button type="button" key={tool.label} aria-label={tool.label} title={tool.label} className="note-tool" onClick={()=>handleInsertPrefix(tool.prefix)}><tool.icon className="h-4 w-4"/></button>)}
+                  <button type="button" aria-label="Finish document editing" title="Finish · Ctrl/Cmd+Enter" className="note-tool text-blue-400" onClick={commitInline}><Check className="h-4 w-4"/></button>
                 </div>}
 
                 <textarea
@@ -720,7 +630,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
                     // Handle Tab and Shift+Tab for list indentation
                     if (e.key === "Tab") {
                       e.preventDefault();
-                      const lineStart = val.lastIndexOf("\n", start - 1) + 1;
+                      const lineStart = start === 0 ? 0 : val.lastIndexOf("\n", start - 1) + 1;
                       const currentLine = val.slice(lineStart, end);
                       if (e.shiftKey) {
                         // Outdent (remove up to 2 leading spaces)
@@ -744,7 +654,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
 
                     // Handle Enter on bullet / list / checklist lines
                     if (e.key === "Enter" && !e.shiftKey && !mod) {
-                      const lineStart = val.lastIndexOf("\n", start - 1) + 1;
+                      const lineStart = start === 0 ? 0 : val.lastIndexOf("\n", start - 1) + 1;
                       const currentLine = val.slice(lineStart, start);
 
                       // 1. Check for empty bullet item: clear bullet on Enter
@@ -803,7 +713,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
                       }
                     }
                   }}
-                  placeholder={inlineText.kind === "sticky" ? "Write a sticky note…" : "Type here…"}
+                  placeholder={inlineText.kind === "sticky" ? "Write a sticky note…" : selectedElement?.type === "text" && selectedElement.isDocCard ? "Write your document notes…" : "Type here…"}
                   wrap={inlineText.kind === "sticky" ? "soft" : "off"}
                   spellCheck={false}
                   style={{

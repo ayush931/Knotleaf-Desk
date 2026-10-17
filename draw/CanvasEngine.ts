@@ -562,7 +562,7 @@ export class CanvasEngine {
       return { ...el, width: Math.max(280, ...expandCodeTabs(el.text).split("\n").map(line => this.ctx.measureText(line).width)) + 24, height: Math.max(100, el.text.split("\n").length * el.fontSize * 1.5 + 36) };
     }
     const size = measureTextBlock(this.ctx, el.text, el.fontSize, el.fontFamily, el);
-    return { ...el, width: size.width, height: size.height };
+    return { ...el, width: el.isDocCard ? Math.max(240,size.width) : size.width, height: el.isDocCard ? Math.max(100,size.height) : size.height };
   }
 
   public finishCode() { this.editingId = null; this.requestRender(); }
@@ -806,7 +806,7 @@ export class CanvasEngine {
           continue;
         }
         if (info.kind === "text" && el.type === "text") {
-          if (!trimmed) continue;
+          if (!trimmed && !el.isDocCard) continue;
           next.push(
             this.remeasureText({
               ...el,
@@ -1027,7 +1027,7 @@ export class CanvasEngine {
       if (el.id === this.editingId) {
         // Text and sticky content is being typed into the overlay, so skip it.
         // Shapes keep their outline and only lose the label being edited.
-        if (el.type === "text") continue;
+        if (el.type === "text") { if(el.isDocCard&&!el.isCodeCard)drawElement(ctx,{...el,text:"",title:undefined},{theme:this.theme,scene:this.elements});continue; }
         if (el.type === "sticky") { drawElement(ctx, { ...el, text: "" }, { theme: this.theme, scene: this.elements }); continue; }
         drawElement(ctx, { ...el, label: undefined, ...(el.type === "frame" ? { title: "" } : {}) } as CanvasElement, {
           theme: this.theme,
@@ -1383,8 +1383,7 @@ export class CanvasEngine {
       this.tool = "select";
       this.emitTool();
       this.updateCursor();
-      const docText = `# Document Notes\n\n• Key Objective & Deliverables\n○ Secondary requirements\n▪ Implementation scope\n◆ High priority milestone\n– Cadence: Weekly sprints\n→ Action item for team\n1. Initial architecture spec\n2. Testing & verification\n[ ] Design review\n[x] Workspace setup`;
-      const docEl = this.makeTextElement(docText, pt.x, pt.y, 15, "sans", "#FFFFFF", "left", true);
+      const docEl = this.remeasureText(this.makeTextElement("", pt.x, pt.y, 15, "sans", "#FFFFFF", "left", true));
       this.elements = [...this.elements, docEl];
       this.selectedIds = new Set([docEl.id]);
       this.commit();

@@ -541,3 +541,14 @@ test('code tool creates an inline card at the click, supports live edits, blank 
   engine.undo(); expect(engine.getElements()[0].text).toContain('def hello');
   engine.destroy();
 });
+test('document tool creates an empty note at the pointer without demo content',()=>{
+ const {engine,listeners,point}=setup([]);
+ engine.setTool('doc');listeners.pointerdown(point(350,250));
+ const doc=engine.getElements()[0];expect(doc.isDocCard).toBe(true);expect(doc.text).toBe('');expect(doc.x).toBe(350);expect(doc.y).toBe(250);expect(doc.width).toBeGreaterThanOrEqual(240);expect(doc.height).toBeGreaterThanOrEqual(100);
+ engine.commitInlineText({kind:'text',elementId:doc.id,text:'',fontSize:15,fontFamily:'sans',color:'#fff',align:'left',canvasX:350,canvasY:250});expect(engine.getElements()).toHaveLength(1);engine.destroy();
+});
+test('document title cannot overlap the first line and list text resets inherited center alignment',()=>{
+ const calls=[];const ctx=new Proxy({textAlign:'center',measureText:t=>({width:t.length*7}),fillText(text,x,y){calls.push({text,x,y,align:this.textAlign});}}, {get:(o,k)=>k in o?o[k]:()=>{}});
+ const doc={...base,id:'doc',type:'text',isDocCard:true,title:'Document Note',fill:'#18181B',x:100,y:100,width:240,height:100,fontSize:15,fontFamily:'sans',textAlign:'center',text:'Heading\n- list\n> quote'};
+ drawElement(ctx,doc,{theme:'dark'});expect(calls.some(c=>c.text==='DOCUMENT NOTE')).toBe(false);expect(calls.find(c=>c.text==='list').align).toBe('left');expect(calls.find(c=>c.text==='quote').align).toBe('left');
+});

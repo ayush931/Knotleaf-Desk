@@ -1026,7 +1026,7 @@ function drawText(ctx: CanvasRenderingContext2D, el: CanvasElement) {
     ctx.shadowBlur = 18;
     ctx.shadowOffsetY = 4;
     ctx.fillStyle = fill && fill !== "transparent" ? fill : "#18181B";
-    ctx.strokeStyle = el.stroke || "#27272A";
+    ctx.strokeStyle = "#3f3f46";
     ctx.lineWidth = el.strokeWidth || 1;
     ctx.beginPath();
     if (ctx.roundRect) ctx.roundRect(cardX, cardY, cardW, cardH, 12);
@@ -1035,12 +1035,6 @@ function drawText(ctx: CanvasRenderingContext2D, el: CanvasElement) {
     ctx.shadowColor = "transparent";
     ctx.stroke();
 
-    // Document header pill
-    if (el.title) {
-      setFont(ctx, 11, "sans", 600);
-      ctx.fillStyle = "#A1A1AA";
-      ctx.fillText(el.title.toUpperCase(), x, y - 6);
-    }
     ctx.restore();
   }
 
@@ -1049,6 +1043,7 @@ function drawText(ctx: CanvasRenderingContext2D, el: CanvasElement) {
   ctx.textBaseline = "top";
 
   for (const line of layout.lines) {
+    ctx.textAlign = "left";
     const ly = y + line.yOffset;
     setFont(ctx, line.fontSize, fontFamily, line.fontWeight, line.isItalic);
     const color = stroke || "#FFFFFF";
