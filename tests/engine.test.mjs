@@ -26,6 +26,64 @@ function setup(elements = [source, target, arrow]) {
   const drag = (x, y, nx, ny) => { listeners.pointerdown(point(x, y)); listeners.pointermove(point(nx, ny)); listeners.pointerup(point(nx, ny)); };
   return { engine, listeners, point, drag, captures };
 }
+test('straight arrows draw directly and preserve properties through routing changes', () => {
+  const { engine, drag } = setup([source, target]);
+  engine.currentStyle = { ...engine.currentStyle, arrowRouting: 'straight', arrowHeadStart: 'dot', arrowHeadEnd: 'diamond', arrowAnimated: true };
+  engine.setTool('arrow');
+  drag(220, 140, 500, 340);
+  let created = engine.getElements().find(el => el.type === 'arrow');
+  expect(created).toMatchObject({ routing: 'straight', startBinding: arrow.startBinding, endBinding: arrow.endBinding, arrowHeadStart: 'dot', arrowHeadEnd: 'diamond', animated: true });
+  expect(computeArrowPath(created, engine.getElements()).points).toEqual([{ x: 220, y: 140 }, { x: 500, y: 340 }]);
+  engine.selectAll();
+  for (const routing of ['curved', 'elbow', 'straight']) {
+    engine.updateSelectedElement({ routing, elbow: routing, label: 'Request' });
+    created = engine.getElements().find(el => el.type === 'arrow');
+    expect(computeArrowPath(created, engine.getElements()).routing).toBe(routing);
+    expect(created).toMatchObject({ label: 'Request', startBinding: arrow.startBinding, endBinding: arrow.endBinding, arrowHeadStart: 'dot', arrowHeadEnd: 'diamond', animated: true });
+  }
+  engine.destroy();
+});
+describe('manual arrow bending', () => {
+  const straight = { ...arrow, startX: 100, startY: 200, endX: 500, endY: 200, x: 100, y: 200, width: 400, height: 0, routing: 'straight', startBinding: undefined, endBinding: undefined, label: 'Flow', arrowHeadEnd: 'diamond', animated: true };
+  test('dragging the center bends either way, follows the pointer and supports undo/redo', () => {
+    const { engine, drag } = setup([straight]);
+    engine.selectAll();
+    drag(300, 200, 300, 280);
+    let bent = engine.getElements()[0];
+    expect(bent).toMatchObject({ routing: 'curved', bendOffset: 160, label: 'Flow', arrowHeadEnd: 'diamond', animated: true });
+    expect(computeArrowPath(bent).midPt).toEqual({ x: 300, y: 280 });
+    engine.undo(); expect(engine.getElements()[0].routing).toBe('straight');
+    engine.redo(); expect(computeArrowPath(engine.getElements()[0]).midPt.y).toBe(280);
+    drag(300, 280, 300, 140);
+    expect(computeArrowPath(engine.getElements()[0]).midPt).toEqual({ x: 300, y: 140 });
+    engine.updateSelectedElement({ routing: 'straight', elbow: 'straight', bendOffset: undefined });
+    expect(computeArrowPath(engine.getElements()[0]).midPt).toEqual({ x: 300, y: 200 });
+    engine.destroy();
+  });
+  test('cancelling a bend restores the straight arrow', () => {
+    const { engine, listeners, point } = setup([straight]);
+    engine.selectAll(); listeners.pointerdown(point(300, 200)); listeners.pointermove(point(300, 280));
+    listeners.pointercancel(point(300, 280));
+    expect(engine.getElements()[0]).toEqual(straight);
+    engine.destroy();
+  });
+  test('a custom bend and bindings survive moving an attached shape', () => {
+    const linked = { ...arrow, routing: 'straight' };
+    const { engine, drag } = setup([source, target, linked]);
+    drag(360, 240, 360, 240); // Select the arrow before dragging its center handle.
+    const mid = computeArrowPath(linked).midPt;
+    drag(mid.x, mid.y, mid.x - 40, mid.y + 56);
+    const bent = engine.getElements().find(el => el.id === 'arrow');
+    expect(bent.routing).toBe('curved');
+    expect(bent.startBinding).toEqual(arrow.startBinding); expect(bent.endBinding).toEqual(arrow.endBinding);
+    drag(150, 130, 180, 160);
+    const moved = engine.getElements().find(el => el.id === 'arrow');
+    expect(moved.bendOffset).toBe(bent.bendOffset);
+    expect([moved.startX, moved.startY]).toEqual([250, 170]);
+    expect(computeArrowPath(moved).routing).toBe('curved');
+    engine.destroy();
+  });
+});
 describe('attachment lifecycle', () => {
   test('moving a shape keeps its connector endpoint on the exact port, including undo/redo', () => {
     const { engine, drag } = setup();

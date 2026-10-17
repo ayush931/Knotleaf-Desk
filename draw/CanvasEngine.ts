@@ -181,7 +181,7 @@ function resolveBindings(list: CanvasElement[], changed: Set<string>): CanvasEle
         touched = true;
       }
     }
-    return touched ? syncLineBox({ ...next, bendOffset: undefined }) : el;
+    return touched ? syncLineBox({ ...next, bendOffset: (next.routing || next.elbow) === "curved" ? next.bendOffset : undefined }) : el;
   });
 }
 
@@ -1795,18 +1795,21 @@ export class CanvasEngine {
       if (el.type !== "arrow") return;
       const routing = el.routing || el.elbow || "straight";
       let bendOffset = el.bendOffset;
-      if (routing === "curved") {
+      if (routing === "curved" || routing === "straight") {
         const mx = (el.startX + el.endX) / 2;
         const my = (el.startY + el.endY) / 2;
         const dx = el.endX - el.startX;
         const dy = el.endY - el.startY;
         const dist = Math.hypot(dx, dy) || 1;
-        bendOffset = (pt.x - mx) * (-dy / dist) + (pt.y - my) * (dx / dist);
+        // The quadratic midpoint sits halfway between the chord and control point.
+        // Double the pointer displacement so the visible handle follows the drag.
+        bendOffset = 2 * ((pt.x - mx) * (-dy / dist) + (pt.y - my) * (dx / dist));
       } else if (routing === "elbow") {
         const horizontal = Math.abs(el.endX - el.startX) >= Math.abs(el.endY - el.startY);
         bendOffset = horizontal ? pt.x - el.startX : pt.y - el.startY;
       }
-      this.elements = this.elements.map((e) => (e.id === id ? ({ ...e, bendOffset } as CanvasElement) : e));
+      const nextRouting = routing === "straight" ? "curved" : routing;
+      this.elements = this.elements.map((e) => (e.id === id ? ({ ...e, routing: nextRouting, elbow: nextRouting, bendOffset } as CanvasElement) : e));
       return;
     }
 

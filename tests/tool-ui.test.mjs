@@ -6,6 +6,24 @@ import { TopToolbar } from '../components/TopToolbar.tsx';
 import { DEFAULT_STYLE } from '../draw/types.ts';
 const noop = () => {};
 const props = { selectedElement: null, selectedTool: 'select', selectionCount: 1, currentStyle: DEFAULT_STYLE, onSwapArrow: noop, onChangeFontSize: noop, onUpdateStyle: noop, onUpdateElement: noop, onDuplicate: noop, onDelete: noop, onBringToFront: noop, onSendToBack: noop, theme: 'dark' };
+test('choosing Arrow immediately exposes all routing modes', () => {
+  const html = renderToStaticMarkup(React.createElement(PropertiesPanel, { ...props, selectedTool: 'arrow' }));
+  expect(html).toContain('aria-label="Arrow routing"');
+  for (const label of ['Straight', 'Elbow', 'Curved']) expect(html).toContain(label);
+  expect(html).toMatch(/aria-pressed="true"[^>]*>(?:(?!<\/button>).)*Elbow/s);
+});
+test('legacy arrows without routing show Straight even when new arrows default to Elbow', () => {
+  const html = renderToStaticMarkup(React.createElement(PropertiesPanel, { ...props, selectedElement: { ...DEFAULT_STYLE, id: 'legacy', type: 'arrow' } }));
+  expect(html).toMatch(/aria-pressed="true"[^>]*>(?:(?!<\/button>).)*Straight/s);
+});
+test('selected straight and curved arrows expose a keyboard bend control', () => {
+  for (const [routing, bendOffset, value] of [['straight', undefined, 0], ['curved', -100, -50]]) {
+    const html = renderToStaticMarkup(React.createElement(PropertiesPanel, { ...props, selectedElement: { ...DEFAULT_STYLE, id: 'bend', type: 'arrow', startX: 100, startY: 100, endX: 500, endY: 100, routing, bendOffset } }));
+    expect(html).toContain('Drag the center diamond');
+    expect(html).toMatch(new RegExp(`aria-label="Arrow bend in pixels"[^>]*value="${value}"`));
+    expect(html).toContain('Choose Straight to reset');
+  }
+});
 test('icon inspector omits irrelevant background, line and text controls', () => {
   const html = renderToStaticMarkup(React.createElement(PropertiesPanel, { ...props, selectedElement: { id: 'icon', type: 'icon', iconColor: '#fff', ...DEFAULT_STYLE }, topOffset: 96 }));
   expect(html).toContain('Icon color'); expect(html).toContain('Opacity'); expect(html).toContain('top:96px');

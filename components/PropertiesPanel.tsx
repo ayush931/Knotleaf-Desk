@@ -92,7 +92,12 @@ export function PropertiesPanel({
   onBringToFront,
   onSendToBack,
 }: PropertiesPanelProps) {
-  const [isCollapsed, setIsCollapsed] = useState(!isTextEditing);
+  const [isCollapsed, setIsCollapsed] = useState(!isTextEditing && selectedTool !== "arrow");
+  const [lastSelectedTool, setLastSelectedTool] = useState(selectedTool);
+  if (selectedTool !== lastSelectedTool) {
+    setLastSelectedTool(selectedTool);
+    if (selectedTool === "arrow") setIsCollapsed(false);
+  }
   const [lastTextEditing, setLastTextEditing] = useState(isTextEditing);
   if (isTextEditing !== lastTextEditing) {
     setLastTextEditing(isTextEditing);
@@ -120,7 +125,7 @@ export function PropertiesPanel({
   const activeOpacity = selectedElement ? selectedElement.opacity : currentStyle.opacity;
 
   const activeRouting: ArrowRouting =
-    arrowEl?.routing || arrowEl?.elbow || currentStyle.arrowRouting || "elbow";
+    arrowEl ? arrowEl.routing || arrowEl.elbow || "straight" : currentStyle.arrowRouting || "elbow";
   const activeHeadStart: ArrowHead =
     (arrowEl?.arrowHeadStart as ArrowHead) || currentStyle.arrowHeadStart || "none";
   const activeHeadEnd: ArrowHead =
@@ -172,7 +177,7 @@ export function PropertiesPanel({
 
   const handleRouting = (routing: ArrowRouting) => {
     if (selectedElement && isArrow) {
-      onUpdateElement({ routing, elbow: routing });
+      onUpdateElement({ routing, elbow: routing, bendOffset: undefined });
     }
     onUpdateStyle({ arrowRouting: routing });
   };
@@ -642,8 +647,9 @@ export function PropertiesPanel({
             <label className="text-[10px] font-semibold text-blue-500 uppercase tracking-wider block mb-1">
               Arrow Routing
             </label>
-            <div className="grid grid-cols-3 gap-1 p-0.5 rounded-lg bg-neutral-100 dark:bg-neutral-800 text-[10px] text-center">
+            <div role="group" aria-label="Arrow routing" className="grid grid-cols-3 gap-1 p-0.5 rounded-lg bg-neutral-100 dark:bg-neutral-800 text-[10px] text-center">
               <button
+                aria-pressed={activeRouting === "straight"}
                 onClick={() => handleRouting("straight")}
                 className={`py-1 rounded font-medium flex items-center justify-center gap-1 transition ${
                   activeRouting === "straight"
@@ -655,6 +661,7 @@ export function PropertiesPanel({
                 Straight
               </button>
               <button
+                aria-pressed={activeRouting === "elbow"}
                 onClick={() => handleRouting("elbow")}
                 className={`py-1 rounded font-medium flex items-center justify-center gap-1 transition ${
                   activeRouting === "elbow"
@@ -666,6 +673,7 @@ export function PropertiesPanel({
                 Elbow
               </button>
               <button
+                aria-pressed={activeRouting === "curved"}
                 onClick={() => handleRouting("curved")}
                 className={`py-1 rounded font-medium flex items-center justify-center gap-1 transition ${
                   activeRouting === "curved"
@@ -677,6 +685,28 @@ export function PropertiesPanel({
                 Curved
               </button>
             </div>
+            {arrowEl && activeRouting !== "elbow" && (
+              <div className="mt-2 space-y-1">
+                <p className="text-[10px] text-neutral-400">Drag the center diamond to bend the arrow.</p>
+                <label className="flex items-center justify-between gap-2 text-[10px] text-neutral-400">
+                  Bend (px)
+                  <input
+                    type="number"
+                    aria-label="Arrow bend in pixels"
+                    step="1"
+                    value={activeRouting === "curved" ? Math.round((arrowEl.bendOffset ?? Math.max(22, Math.min(65, Math.hypot(arrowEl.endX - arrowEl.startX, arrowEl.endY - arrowEl.startY) * 0.22))) / 2) : 0}
+                    onChange={event => {
+                      const bend = event.currentTarget.valueAsNumber;
+                      if (!Number.isFinite(bend)) return;
+                      const routing = bend === 0 ? "straight" : "curved";
+                      onUpdateElement({ routing, elbow: routing, bendOffset: bend * 2 });
+                    }}
+                    className="w-20 rounded border border-neutral-700 bg-neutral-900 px-2 py-1 text-neutral-200 focus-visible:outline-2 focus-visible:outline-blue-500"
+                  />
+                </label>
+                <p className="text-[10px] text-neutral-500">Use positive or negative values to bend either way. Choose Straight to reset.</p>
+              </div>
+            )}
           </div>
 
           {/* Start and End Head Caps */}
