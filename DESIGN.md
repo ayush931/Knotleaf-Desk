@@ -1,6 +1,6 @@
 ---
 version: alpha
-name: Whiteboard
+name: Knotleaf Desk
 description: A local-first diagramming desk and Markdown notebook.
 colors:
   background: '#121212'
@@ -29,7 +29,7 @@ components:
   canvas: {}
 ---
 
-# Whiteboard Design System
+# Knotleaf Desk Design System
 
 ## Overview
 
@@ -37,7 +37,7 @@ components:
 An engineering drawing desk: quiet charcoal chrome, a spacious canvas, and bright blue attachment ports that make diagram structure visible.
 
 ### Product context and register
-Personal diagrams and project notes, primarily used on desktop with keyboard and pointer. English interface; no market-specific business rules. This is a product tool, not a marketing page. Repository README and current user instructions supply the product context. Preserve the existing dark identity. The connected-node mark is the expressive signature; controls remain familiar. Avoid decorative gradients, giant toolbars, and ornamental cards.
+Personal diagrams and project notes, primarily used on desktop with keyboard and pointer. English interface; no market-specific business rules. This is a product tool, not a marketing page. Repository README and current user instructions supply the product context. Preserve the existing dark identity. The branching K and leaf mark is the expressive signature; controls remain familiar. Avoid decorative gradients, giant toolbars, and ornamental cards.
 
 Runtime sources are canonical: `app/globals.css` owns global styles and scrollbar tokens; `app/layout.tsx` owns font variables; shared components own utility-class geometry; `draw/renderer.ts` owns canvas visuals and blue ports. This document records these implemented values, rather than generating a separate theme.
 
@@ -54,7 +54,7 @@ Inter for controls, Fira Code for Markdown source and coordinates, Caveat for ha
 Borders and tonal surfaces establish hierarchy. Shadows are reserved for floating tools, menus and drawers. Modal backdrops darken the workspace. Avoid shadows on document content.
 
 ## Shapes
-8px controls, 12px floating panels. Lucide icons use consistent strokes. The blue/white node mark is shared by header and website favicon.
+8px controls, 12px floating panels. Lucide icons use consistent strokes. The blue/white Knotleaf mark is shared by header and website favicon.
 
 ## Components
 Native buttons for actions. Active view buttons expose aria-pressed. Workspace and export quality selects deliberately use platform-owned native popups. Native dialog owns modal focus, Escape and background inertness. Inline board-deletion confirmation stays inside the workspace dialog and states the consequence. Enabled buttons have hover/pointer/focus states; disabled actions are muted. No browser confirm/alert flows.
@@ -74,3 +74,13 @@ Selection controls use four square corner resize handles and one circular attach
 The single-selection outline is solid and quiet. Connection points belong to the selected element in Select mode; other elements reveal them only as Arrow-tool targets. Bound arrow endpoints use the existing blue accent. Port layers are painted once, and selection controls stay hidden while typing.
 
 Canvas icons are standalone glyphs on transparent backgrounds, with no captions or badge cards. The appearance panel is 240px wide, follows measured toolbar height, and groups secondary options into native details. Drawing-tool shortcut hints remain visible beneath their glyphs. Workspace rows use quiet surfaces and disclose move controls only when needed.
+
+Knotleaf Desk combines the knot of connected diagrams with the leaf of a notebook. The export panel has one format selector and one content selector, with explicit editable/share-only guidance. The .knotleaf format is versioned JSON. Opening a backup always creates a new local board in the chosen workspace.
+
+Smart guides use soft red #f87171 during manipulation only: dashed alignments, solid gap rulers, pixel labels and equal-spacing markers. Their strokes and labels stay constant in screen pixels across zoom. They do not appear on idle boards or in exports.
+
+Board tools uses a single search/history/template dialog, keeping new capabilities out of the drawing chrome. Presentation controls sit in a compact bottom bar with a native frame picker and clear exit action. Snapshot/template rows share restrained borders, explicit actions and local-storage scope descriptions.
+
+Code cards edit directly in the canvas, using the same position/zoom as their saved glyphs. The shared code-source CSS contract owns identical font, line height, tabs, ligatures and padding for the highlight and caret layers. Highlighting is restrained: muted mauve keywords, sage strings and gray comments; other syntax uses the normal text colour. No modal code editor. Classroom is a minimizable side panel so teaching and drawing can continue together; the Classroom component owns compact mic/camera/screen-share/leave controls, a participant grid and collapsed chat. Recording controls explain local save and audio capture limitations.
+
+Classroom's nonmodal fixed panel is portaled to document.body. It must not inherit the blurred header's fixed-position containing block or stacking context. The trigger exposes expanded/controls semantics; minimizing/Escape restores trigger focus. Personal boards offer Create room & open classroom; the resulting room URL opens the panel and focuses the name field.

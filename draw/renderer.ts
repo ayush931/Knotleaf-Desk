@@ -1,3 +1,4 @@
+import { expandCodeTabs, highlightCode } from "@/lib/code";
 import { routeConnector } from "./connectorRouting";
 import {
   CanvasElement,
@@ -999,6 +1000,15 @@ function drawStyledText(ctx: CanvasRenderingContext2D, text: string, x: number, 
 
 function drawText(ctx: CanvasRenderingContext2D, el: CanvasElement) {
   if (el.type !== "text") return;
+  if (el.isCodeCard) {
+    const result = highlightCode(expandCodeTabs(el.text), el.codeLanguage);
+    ctx.save(); ctx.fillStyle = "#10151e"; ctx.strokeStyle = "#334155"; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.roundRect(el.x - 16, el.y - 16, el.width + 32, el.height + 32, 10); ctx.fill(); ctx.stroke();
+    ctx.textBaseline = "top"; setFont(ctx, 11, "mono"); ctx.fillStyle = "#94a3b8"; ctx.fillText(result.language, el.x, el.y);
+    setFont(ctx, el.fontSize, "mono");
+    result.lines.forEach((line, row) => { let x = el.x; for (const token of line) { ctx.fillStyle = token.color; ctx.fillText(token.text, x, el.y + 28 + el.fontSize * 0.25 + row * el.fontSize * 1.5); x += ctx.measureText(token.text).width; } });
+    ctx.restore(); return;
+  }
   const { x, y, text, fontSize, fontFamily, textAlign, stroke, fill } = el;
   const isDocCard = el.isDocCard || (fill && fill !== "transparent");
 

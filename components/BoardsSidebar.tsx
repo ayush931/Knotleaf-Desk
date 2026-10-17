@@ -8,7 +8,7 @@ interface Props {
   isOpen: boolean; onClose: () => void; boards: BoardSummary[]; activeBoardId: string;
   onSelectBoard: (id: string) => void; onCreateBoard: (title?: string) => void;
   onDuplicateBoard: (id: string) => void; onDeleteBoard: (id: string) => void;
-  onImportJson: (json: string) => void; theme: Theme;
+  onImportJson: (json: string, filename?: string) => void; theme: Theme;
   workspaces: Workspace[]; workspaceId: string; onChangeWorkspace: (id: string) => void;
   onCreateWorkspace: (name: string) => void; onMoveBoard: (id: string, workspaceId: string) => void;
 }
@@ -33,7 +33,7 @@ export function BoardsSidebar(p: Props) {
     <dialog ref={dialog} onCancel={p.onClose} onClose={p.onClose} aria-labelledby="workspace-title" className="workspace-drawer m-0 h-dvh max-h-dvh w-[340px] max-w-[92vw] border-0 border-r border-neutral-800 bg-[#18181b] p-0 text-neutral-100 shadow-2xl" onClick={e => { if (e.target === dialog.current && e.clientX > (dialog.current?.getBoundingClientRect().right ?? 340)) p.onClose(); }}>
       <div className="flex h-full flex-col">
         <div className="flex items-center justify-between border-b border-neutral-800 px-4 py-3">
-          <div className="flex items-center gap-2"><Layers className="h-4 w-4 text-blue-400" /><h2 id="workspace-title" className="text-sm font-semibold">Workspaces</h2></div>
+          <div className="flex items-center gap-2"><Layers className="h-4 w-4 text-blue-400" /><h2 id="workspace-title" className="text-sm font-semibold">Knotleaf Desk</h2></div>
           <button onClick={p.onClose} aria-label="Close workspaces" className={actionClass}><X className="h-4 w-4" /></button>
         </div>
         <div className="space-y-3 border-b border-neutral-800 p-4">
@@ -73,8 +73,8 @@ export function BoardsSidebar(p: Props) {
         </div>
         <div className="space-y-3 border-t border-neutral-800 p-4">
           {error && <p role="alert" className="text-xs text-rose-400">{error}</p>}
-          <input ref={file} type="file" accept=".json" className="hidden" onChange={async e => { const selected = e.target.files?.[0]; e.target.value = ""; if (!selected) return; try { setError(""); p.onImportJson(await selected.text()); } catch { setError("Could not read this file. Choose a board JSON backup."); } }} />
-          <button onClick={() => file.current?.click()} className="flex w-full items-center justify-center gap-2 rounded-lg border border-neutral-700 py-2 text-xs text-neutral-300 hover:bg-neutral-800"><Upload className="h-3.5 w-3.5" />Import board (.json)</button>
+          <input ref={file} type="file" accept=".knotleaf,.json,.md,.markdown" className="hidden" onChange={async e => { const selected = e.target.files?.[0]; e.target.value = ""; if (!selected) return; try { setError(""); if (selected.size > 50_000_000) throw new Error("This file exceeds the 50 MB import limit."); p.onImportJson(await selected.text(), selected.name); } catch (error) { setError(error instanceof Error ? error.message : "Could not open this file. Choose a Knotleaf, JSON, or Markdown file."); } }} />
+          <button onClick={() => file.current?.click()} className="flex w-full items-center justify-center gap-2 rounded-lg border border-neutral-700 py-2 text-xs text-neutral-300 hover:bg-neutral-800"><Upload className="h-3.5 w-3.5" />Open project or notes</button>
           <p className="text-center text-[11px] text-neutral-500">Local workspaces · saved on this device</p>
         </div>
       </div>

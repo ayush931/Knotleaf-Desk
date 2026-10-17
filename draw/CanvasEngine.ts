@@ -1,3 +1,4 @@
+import { expandCodeTabs } from "@/lib/code";
 import {
   CanvasElement,
   ArrowElement,
@@ -35,6 +36,7 @@ import {
   getCheckboxAtPoint,
   wrapText,
 } from "./renderer";
+import { smartGuides, drawSmartGuides, type Guide } from "./smartGuides";
 import { getIconById } from "./iconsData";
 
 type Handle =
@@ -137,7 +139,24 @@ function translateElement(snap: CanvasElement, dx: number, dy: number, movedIds:
 /** Moves arrow endpoints onto the current ports of any bound element that changed. */
 function resolveBindings(list: CanvasElement[], changed: Set<string>): CanvasElement[] {
   if (changed.size === 0) return list;
-  const byId = new Map(list.map((el) => [el.id, el]));
+  changed = new Set(changed);
+  let byId = new Map(list.map((el) => [el.id, el]));
+  list = list.map(el => {
+    if (el.type !== "text" || !el.containerId || !el.containerOffset) return el;
+    const parent = byId.get(el.containerId);
+    if (!parent) { const detached = { ...el }; delete detached.containerId; delete detached.containerOffset; return detached; }
+    const box = normalizeRect(parent);
+    if (changed.has(parent.id) && !changed.has(el.id)) {
+      changed.add(el.id);
+      return { ...el, x: box.x + el.containerOffset.x * box.w, y: box.y + el.containerOffset.y * box.h };
+    }
+    if (changed.has(el.id)) {
+      if (el.x < box.x || el.x > box.x + box.w || el.y < box.y || el.y > box.y + box.h) { const detached = { ...el }; delete detached.containerId; delete detached.containerOffset; return detached; }
+      return { ...el, containerOffset: { x: (el.x - box.x) / Math.max(1, box.w), y: (el.y - box.y) / Math.max(1, box.h) } };
+    }
+    return el;
+  });
+  byId = new Map(list.map(el => [el.id, el]));
   const portOf = (elementId: string, anchor: AnchorPosition): Point | null => {
     const target = byId.get(elementId);
     if (!target) return null;
@@ -170,6 +189,7 @@ function resolveBindings(list: CanvasElement[], changed: Set<string>): CanvasEle
 function pruneBindings(list: CanvasElement[]): CanvasElement[] {
   const ids = new Set(list.map((el) => el.id));
   return list.map((el) => {
+    if (el.type === "text" && el.containerId && !ids.has(el.containerId)) { const detached = { ...el }; delete detached.containerId; delete detached.containerOffset; return detached; }
     if (el.type !== "arrow") return el;
     const startGone = !!el.startBinding && !ids.has(el.startBinding.elementId);
     const endGone = !!el.endBinding && !ids.has(el.endBinding.elementId);
@@ -189,6 +209,7 @@ export class CanvasEngine {
   private cssWidth = 0;
   private cssHeight = 0;
   private destroyed = false;
+  private readOnly = false;
 
   private elements: CanvasElement[] = [];
   private committedElements: CanvasElement[] = [];
@@ -216,6 +237,8 @@ export class CanvasEngine {
   private snapTarget: { anchor: AnchorPosition } | null = null;
   private spaceDown = false;
   private shiftDown = false;
+  private altDown = false;
+  private guides: Guide[] = [];
 
   // Animation & render scheduling
   private flowOffset = 0;
@@ -235,6 +258,8 @@ export class CanvasEngine {
   public onChange?: (elements: CanvasElement[]) => void;
   public onSelectionChange?: (selected: CanvasElement[]) => void;
   public onOpenIconPicker?: () => void;
+  public onViewportChange?: (view: { zoom: number; pan: Point }) => void;
+  public onEditCode?: (id: string) => void;
   public onStartInlineText?: (state: InlineTextState) => void;
   public onZoomChange?: (zoom: number) => void;
   public onToolChange?: (tool: Tool) => void;
@@ -327,6 +352,22 @@ export class CanvasEngine {
     this.requestRender();
   }
 
+  public getViewport() { return { zoom: this.zoom, pan: { ...this.pan } }; }
+  public restoreViewport(view: { zoom: number; pan: Point }) {
+    this.zoom = Math.max(0.1, Math.min(4, view.zoom)); this.pan = { ...view.pan };
+    this.onZoomChange?.(this.zoom); this.requestRender();
+  }
+  public setReadOnly(value: boolean) { this.cancelGesture(); this.readOnly = value; this.selectedIds.clear(); this.emitSelection(); this.updateCursor(); }
+  public focusElements(ids: string[], select = true) {
+    const elements = this.elements.filter(el => ids.includes(el.id));
+    const bounds = unionBounds(elements.map(el => getElementBounds(el, this.elements))); if (!bounds) return;
+    const width = Math.max(1, bounds.maxX - bounds.minX), height = Math.max(1, bounds.maxY - bounds.minY);
+    this.zoom = Math.max(0.1, Math.min(2, Math.max(1, this.cssWidth - 96) / width, Math.max(1, this.cssHeight - 120) / height));
+    this.pan = { x: this.cssWidth / 2 - (bounds.minX + bounds.maxX) / 2 * this.zoom, y: this.cssHeight / 2 - (bounds.minY + bounds.maxY) / 2 * this.zoom };
+    if (select) { this.cancelGesture(); this.tool = "select"; this.emitTool(); this.selectedIds = new Set(elements.map(el => el.id)); this.emitSelection(); this.updateCursor(); }
+    this.onZoomChange?.(this.zoom); this.requestRender();
+  }
+
   public getZoom(): number {
     return this.zoom;
   }
@@ -389,6 +430,7 @@ export class CanvasEngine {
     if (recordHistory) {
       this.commit();
     } else {
+      this.editingId = null;
       this.committedElements = [...this.elements];
       this.undoStack = [JSON.stringify(this.elements)];
       this.redoStack = [];
@@ -416,6 +458,7 @@ export class CanvasEngine {
     this.committedElements = [...elements];
     this.elements = resolveBindings(pruneBindings([...merged.values()]), changed);
     this.selectedIds = new Set([...this.selectedIds].filter(id => merged.has(id)));
+    if (this.editingId && !merged.has(this.editingId)) this.editingId = null;
     this.emitSelection(); this.requestRender();
   }
   public setCollaborators(people: { name: string; color: string; cursor?: Point }[]) { this.collaborators = people; this.requestRender(); }
@@ -514,8 +557,21 @@ export class CanvasEngine {
   }
 
   private remeasureText(el: TextElement): TextElement {
+    if (el.isCodeCard) {
+      setFont(this.ctx, el.fontSize, "mono");
+      return { ...el, width: Math.max(280, ...expandCodeTabs(el.text).split("\n").map(line => this.ctx.measureText(line).width)) + 24, height: Math.max(100, el.text.split("\n").length * el.fontSize * 1.5 + 36) };
+    }
     const size = measureTextBlock(this.ctx, el.text, el.fontSize, el.fontFamily, el);
     return { ...el, width: size.width, height: size.height };
+  }
+
+  public finishCode() { this.editingId = null; this.requestRender(); }
+
+  public updateCode(id: string, text: string, language = "auto") {
+    if (this.readOnly) return;
+    this.elements = this.elements.map(el => el.id === id && el.type === "text" && el.isCodeCard ? this.remeasureText({ ...el, text: text.slice(0, 100_000), codeLanguage: language }) : el);
+    this.elements = resolveBindings(this.elements, new Set([id]));
+    this.commit();
   }
 
   /** Steps the font size of selected text (Ctrl+Shift+. / Ctrl+Shift+,). */
@@ -622,16 +678,28 @@ export class CanvasEngine {
     this.commit();
   }
 
+  public getSelectionForExport(): CanvasElement[] {
+    const ids = this.withContainedText(this.selectedIds);
+    return this.elements.filter(el => ids.has(el.id));
+  }
+
+  private withContainedText(ids: Set<string>): Set<string> {
+    const expanded = new Set(ids);
+    for (const el of this.elements) if (el.type === "text" && el.containerId && ids.has(el.containerId)) expanded.add(el.id);
+    return expanded;
+  }
+
   public deleteSelected() {
     if (this.selectedIds.size === 0) return;
-    const ids = this.selectedIds;
+    const ids = this.withContainedText(this.selectedIds);
     this.elements = pruneBindings(this.elements.filter((el) => !ids.has(el.id)));
     this.selectedIds.clear();
     this.commit();
   }
 
   public duplicateSelected() {
-    const selected = this.getSelectedElements();
+    const ids = this.withContainedText(this.selectedIds);
+    const selected = this.elements.filter(el => ids.has(el.id));
     if (selected.length === 0) return;
     const copies = this.cloneElements(selected, 24);
     this.elements = [...this.elements, ...copies];
@@ -640,7 +708,8 @@ export class CanvasEngine {
   }
 
   public copySelection() {
-    this.clipboard = JSON.parse(JSON.stringify(this.getSelectedElements()));
+    const ids = this.withContainedText(this.selectedIds);
+    this.clipboard = JSON.parse(JSON.stringify(this.elements.filter(el => ids.has(el.id))));
     this.pasteCount = 0;
   }
 
@@ -659,7 +728,7 @@ export class CanvasEngine {
   }
 
   public bringToFront() {
-    const ids = this.selectedIds;
+    const ids = this.withContainedText(this.selectedIds);
     if (ids.size === 0) return;
     this.elements = [
       ...this.elements.filter((el) => !ids.has(el.id)),
@@ -669,7 +738,7 @@ export class CanvasEngine {
   }
 
   public sendToBack() {
-    const ids = this.selectedIds;
+    const ids = this.withContainedText(this.selectedIds);
     if (ids.size === 0) return;
     this.elements = [
       ...this.elements.filter((el) => ids.has(el.id)),
@@ -682,10 +751,10 @@ export class CanvasEngine {
   private cloneElements(source: CanvasElement[], offset: number): CanvasElement[] {
     const idMap = new Map<string, string>();
     source.forEach((el) => idMap.set(el.id, newId()));
-    return source.map((el) => {
+    return source.map((el, index) => {
       const copy = JSON.parse(JSON.stringify(el)) as CanvasElement;
       copy.id = idMap.get(el.id)!;
-      copy.zIndex = this.elements.length;
+      copy.zIndex = this.elements.length + index;
       if (copy.type === "arrow" || copy.type === "line") {
         copy.startX += offset;
         copy.startY += offset;
@@ -702,6 +771,10 @@ export class CanvasEngine {
       if (copy.type === "pencil") {
         copy.points = copy.points.map((p) => ({ x: p.x + offset, y: p.y + offset }));
       }
+      if (copy.type === "text" && copy.containerId) {
+        if (idMap.has(copy.containerId)) copy.containerId = idMap.get(copy.containerId)!;
+        else { delete copy.containerId; delete copy.containerOffset; }
+      }
       copy.x += offset;
       copy.y += offset;
       return copy;
@@ -716,9 +789,10 @@ export class CanvasEngine {
     this.editingId = null;
 
     if (info.kind === "new-text") {
+      if (info.replaceLabelId) this.elements = this.elements.map(el => el.id === info.replaceLabelId ? { ...el, label: undefined } : el);
       if (trimmed) {
         const el = this.makeTextElement(text, info.canvasX, info.canvasY, info.fontSize, info.fontFamily, info.color, info.align, false, info);
-        this.elements = [...this.elements, el];
+        this.elements = [...this.elements, { ...el, ...(info.containerId && info.containerOffset ? { containerId: info.containerId, containerOffset: info.containerOffset } : {}) }];
         this.selectedIds = new Set([el.id]);
         this.tool = "select";
         this.emitTool();
@@ -767,7 +841,7 @@ export class CanvasEngine {
     if (id) {
       // Discard a text or sticky that was just created and never filled in.
       const el = this.elements.find((e) => e.id === id);
-      if (el && el.type === "text" && !el.text.trim()) {
+      if (el && el.type === "text" && !el.isCodeCard && !el.text.trim()) {
         this.elements = this.elements.filter((e) => e.id !== id);
         this.selectedIds.delete(id);
         this.commit();
@@ -815,7 +889,8 @@ export class CanvasEngine {
   }
 
   /** Opens the in-place editor for the element under a double-click. */
-  private openEditorFor(el: CanvasElement) {
+  private openEditorFor(el: CanvasElement, click?: Point) {
+    if (el.type === "text" && el.isCodeCard) { this.editingId = el.id; this.requestRender(); this.onEditCode?.(el.id); return; }
     let state: InlineTextState | null = null;
     switch (el.type) {
       case "text": {
@@ -880,6 +955,30 @@ export class CanvasEngine {
       default:
         return;
     }
+    if (click && state && (el.type === "text" || el.type === "sticky")) {
+      setFont(this.ctx, state.fontSize, state.fontFamily, state.bold ? 700 : 400, state.italic);
+      const originX = el.x + (el.type === "sticky" ? 12 : 0), originY = el.y + (el.type === "sticky" ? 12 : 0);
+      const available = el.width - (el.type === "sticky" ? 24 : 0);
+      const lines = el.type === "sticky" ? wrapText(this.ctx, state.text, available) : state.text.split("\n");
+      let consumed = 0;
+      const offsets = lines.map(line => {
+        if (el.type === "text") { const offset = consumed; consumed += line.length + 1; return offset; }
+        if (!line && state!.text[consumed] === "\n") consumed++;
+        const offset = Math.max(consumed, state!.text.indexOf(line, consumed)); consumed = offset + line.length; return offset;
+      });
+      const row = Math.max(0, Math.min(lines.length - 1, Math.floor((click.y - originY) / (state.fontSize * 1.35))));
+      const line = lines[row], width = this.ctx.measureText(line).width;
+      const left = originX + (state.align === "center" ? (available - width) / 2 : state.align === "right" ? available - width : 0);
+      const x = click.x - left;
+      let column = 0;
+      const segments = typeof Intl.Segmenter === "function" ? [...new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(line)].map(part => ({ start: part.index, end: part.index + part.segment.length })) : Array.from(line).reduce<{ start: number; end: number }[]>((parts, char) => { const start = parts.at(-1)?.end || 0; parts.push({ start, end: start + char.length }); return parts; }, []);
+      for (const segment of segments) {
+        const before = this.ctx.measureText(line.slice(0, segment.start)).width, after = this.ctx.measureText(line.slice(0, segment.end)).width;
+        if (x < (before + after) / 2) break;
+        column = segment.end;
+      }
+      state.caret = offsets[row] + column;
+    }
     this.editingId = el.id;
     this.selectedIds = new Set([el.id]);
     this.emitSelection();
@@ -897,6 +996,7 @@ export class CanvasEngine {
   private onResourceLoad = () => this.requestRender();
 
   private requestRender() {
+    this.onViewportChange?.(this.getViewport());
     if (this.renderQueued || this.destroyed) return;
     this.renderQueued = true;
     requestAnimationFrame(() => {
@@ -963,6 +1063,8 @@ export class CanvasEngine {
     if (this.hoveredAnchors.length > 0) {
       drawElementAnchors(ctx, this.hoveredAnchors, this.snapTarget?.anchor, this.zoom);
     }
+
+    if (this.guides.length && this.gesture) drawSmartGuides(ctx, this.guides, this.zoom);
 
     if (this.marqueeRect) {
       drawMarquee(ctx, this.marqueeRect, this.zoom);
@@ -1158,7 +1260,7 @@ export class CanvasEngine {
   private onPointerDown = (e: PointerEvent) => {
     if (e.button === 2 || e.isPrimary === false || this.gesture) return;
     this.activePointerId = e.pointerId;
-    const opensEditor = e.button === 0 && !this.spaceDown && ["text", "doc", "sticky"].includes(this.tool);
+    const opensEditor = e.button === 0 && !this.spaceDown && ["text", "doc", "sticky", "code"].includes(this.tool);
     if (opensEditor) {
       // The editor takes focus during this event. A compatibility mousedown on
       // the canvas would blur it and immediately commit/discard an empty draft.
@@ -1167,10 +1269,11 @@ export class CanvasEngine {
       this.canvas.setPointerCapture?.(e.pointerId);
     }
     this.shiftDown = e.shiftKey;
+    this.altDown = !!e.altKey;
     const sp = this.screenPoint(e);
     const pt = this.screenToCanvas(sp.x, sp.y);
 
-    if (e.button === 1 || this.spaceDown || this.tool === "hand") {
+    if (this.readOnly || e.button === 1 || this.spaceDown || this.tool === "hand") {
       this.gesture = { kind: "pan", last: sp };
       this.updateCursor();
       return;
@@ -1233,7 +1336,8 @@ export class CanvasEngine {
         }
         const soloId = !e.shiftKey && this.selectedIds.size > 1 ? hit.id : null;
         const snapshots = new Map<string, CanvasElement>();
-        for (const el of this.getSelectedElements()) snapshots.set(el.id, el);
+        const movingIds = this.withContainedText(this.selectedIds);
+        for (const el of this.elements) if (movingIds.has(el.id)) snapshots.set(el.id, el);
         this.gesture = { kind: "move", origin: pt, snapshots, moved: false, soloId };
         this.emitSelection();
         this.requestRender();
@@ -1270,6 +1374,11 @@ export class CanvasEngine {
       return;
     }
 
+    if (this.tool === "code") {
+      const el = this.remeasureText({ ...this.makeTextElement("", pt.x, pt.y, 14, "mono", "#eeffff", "left", true), isCodeCard: true, codeLanguage: "auto", title: "Code" });
+      this.elements = [...this.elements, el]; this.selectedIds = new Set([el.id]);
+      this.tool = "select"; this.emitTool(); this.commit(); this.editingId = el.id; this.onEditCode?.(el.id); return;
+    }
     if (this.tool === "doc") {
       this.tool = "select";
       this.emitTool();
@@ -1329,6 +1438,7 @@ export class CanvasEngine {
   private onPointerMove = (e: PointerEvent) => {
     if (e.isPrimary === false || (this.activePointerId !== null && e.pointerId !== this.activePointerId)) return;
     this.shiftDown = e.shiftKey;
+    this.altDown = !!e.altKey;
     const sp = this.screenPoint(e);
     const pt = this.screenToCanvas(sp.x, sp.y);
     const g = this.gesture;
@@ -1381,6 +1491,7 @@ export class CanvasEngine {
     this.gesture = null;
     this.draft = null;
     this.marqueeRect = null;
+    this.guides = [];
     this.hoveredAnchors = [];
     this.snapTarget = null;
     this.releasePointer();
@@ -1405,6 +1516,7 @@ export class CanvasEngine {
     if (e && this.activePointerId !== null && e.pointerId !== this.activePointerId) return;
     const g = this.gesture;
     this.gesture = null;
+    this.guides = [];
     this.releasePointer();
     if (!g) return;
     this.snapTarget = null;
@@ -1441,10 +1553,27 @@ export class CanvasEngine {
   };
 
   private onDoubleClick = (e: MouseEvent) => {
-    const sp = this.screenPoint(e);
-    const pt = this.screenToCanvas(sp.x, sp.y);
+    if (this.readOnly || this.tool === "hand" || this.spaceDown || e.button === 2) return;
+    e.preventDefault();
+    this.cancelGesture();
+    const sp = this.screenPoint(e), pt = this.screenToCanvas(sp.x, sp.y);
     const hit = this.hitTest(pt);
-    if (hit) this.openEditorFor(hit);
+    if (hit?.type === "arrow" && hit.label) { this.openEditorFor(hit); return; }
+    if (hit?.type === "frame" && pt.y < hit.y + 8 / this.zoom) { this.openEditorFor(hit); return; }
+    if (hit?.type === "text" || hit?.type === "sticky") { this.openEditorFor(hit, pt); return; }
+    this.tool = "select"; this.emitTool(); this.selectedIds.clear(); this.emitSelection();
+    const frame = !hit ? [...this.elements].reverse().find(el => el.type === "frame" && pt.x >= el.x && pt.x <= el.x + el.width && pt.y >= el.y && pt.y <= el.y + el.height) : null;
+    const container = hit && ["rectangle", "diamond", "circle", "frame"].includes(hit.type) ? hit : frame;
+    const box = container ? normalizeRect(container) : null;
+    const legacyLabel = container && container.type !== "frame" ? container.label : undefined;
+    if (legacyLabel && container) this.editingId = container.id;
+    this.onStartInlineText?.({ kind: "new-text", canvasX: pt.x, canvasY: pt.y, screenX: sp.x, screenY: sp.y,
+      text: legacyLabel || "", fontSize: this.currentStyle.fontSize, fontFamily: this.currentStyle.fontFamily, color: this.currentStyle.stroke || "#FFFFFF", align: "left",
+      ...(legacyLabel && container ? { replaceLabelId: container.id } : {}),
+      bold: this.currentStyle.bold, italic: this.currentStyle.italic, underline: this.currentStyle.underline, strikethrough: this.currentStyle.strikethrough,
+      ...(container && box ? { containerId: container.id, containerOffset: { x: (pt.x - box.x) / Math.max(1, box.w), y: (pt.y - box.y) / Math.max(1, box.h) } } : {}),
+    });
+    this.requestRender();
   };
 
   private onWheel = (e: WheelEvent) => {
@@ -1558,6 +1687,7 @@ export class CanvasEngine {
     const x = dx >= 0 ? origin.x : origin.x + dx;
     const y = dy >= 0 ? origin.y : origin.y + dy;
     this.draft = { ...d, x, y, width: Math.abs(dx), height: Math.abs(dy) } as CanvasElement;
+    this.guides = smartGuides(getElementBounds(this.draft), this.elements.filter(el => el.type !== "arrow" && el.type !== "line" && el.type !== "frame").map(el => getElementBounds(el)), this.zoom, false).guides;
   }
 
   private constrainAngle(origin: Point, pt: Point): Point {
@@ -1607,10 +1737,18 @@ export class CanvasEngine {
     g.moved = true;
 
     const movedIds = new Set(g.snapshots.keys());
-    const moved = this.elements.map((el) => {
+    let moved = this.elements.map((el) => {
       const snap = g.snapshots.get(el.id);
       return snap ? translateElement(snap, dx, dy, movedIds) : el;
     });
+    const shapes = moved.filter(el => this.selectedIds.has(el.id) && el.type !== "arrow" && el.type !== "line");
+    const bounds = unionBounds(shapes.map(el => getElementBounds(el)));
+    if (bounds) {
+      const others = moved.filter(el => !movedIds.has(el.id) && el.type !== "arrow" && el.type !== "line" && el.type !== "frame").map(el => getElementBounds(el));
+      const result = smartGuides(bounds, others, this.zoom, !this.altDown && !this.snapToGrid);
+      this.guides = result.guides;
+      if (result.dx || result.dy) moved = moved.map(el => movedIds.has(el.id) ? translateElement(el, result.dx, result.dy, movedIds) : el);
+    } else this.guides = [];
     this.elements = resolveBindings(moved, movedIds);
   }
 
@@ -1644,6 +1782,8 @@ export class CanvasEngine {
       return { ...snapshot, ...rect };
     });
     this.elements = resolveBindings(resized, new Set([id]));
+    const current = this.elements.find(el => el.id === id);
+    this.guides = current ? smartGuides(getElementBounds(current), this.elements.filter(el => el.id !== id && !(el.type === "text" && el.containerId === id) && el.type !== "arrow" && el.type !== "line" && el.type !== "frame").map(el => getElementBounds(el)), this.zoom, false).guides : [];
   }
 
   private moveEndpoint(pt: Point) {
@@ -1729,8 +1869,9 @@ export class CanvasEngine {
     const g = this.gesture;
     const target = this.hitTest(pt);
     if (!target) return;
-    this.elements = pruneBindings(this.elements.filter((el) => el.id !== target.id));
-    this.selectedIds.delete(target.id);
+    const ids = this.withContainedText(new Set([target.id]));
+    this.elements = pruneBindings(this.elements.filter((el) => !ids.has(el.id)));
+    for (const id of ids) this.selectedIds.delete(id);
     if (g && g.kind === "erase") g.erased = true;
     this.emitSelection();
     this.requestRender();
@@ -1741,7 +1882,7 @@ export class CanvasEngine {
   private updateHoverCursor(pt: Point) {
     this.hoveredAnchors = [];
     this.snapTarget = null;
-    if (this.spaceDown || this.tool === "hand") {
+    if (this.readOnly || this.spaceDown || this.tool === "hand") {
       this.updateCursor(); this.requestRender(); return;
     }
     const selected = this.getSelectedElements();
@@ -1762,7 +1903,7 @@ export class CanvasEngine {
   }
 
   private updateCursor() {
-    if (this.gesture?.kind === "pan" || this.spaceDown) {
+    if (this.readOnly || this.gesture?.kind === "pan" || this.spaceDown) {
       this.canvas.style.cursor = this.gesture?.kind === "pan" ? "grabbing" : "grab";
       return;
     }
@@ -1795,6 +1936,7 @@ export class CanvasEngine {
   private onKeyDown = (e: KeyboardEvent) => {
     if (e.isComposing || (e.target instanceof HTMLElement && e.target.getAttribute("role") === "separator") || this.isTypingTarget(e.target) || document.querySelector("dialog[open]")) return;
     this.shiftDown = e.shiftKey;
+    this.altDown = !!e.altKey;
     const mod = e.ctrlKey || e.metaKey;
     const key = e.key.toLowerCase();
 
@@ -1805,6 +1947,11 @@ export class CanvasEngine {
       return;
     }
 
+    if (this.readOnly) {
+      if (key === "+" || key === "=") { e.preventDefault(); this.zoomIn(); }
+      else if (key === "-") { e.preventDefault(); this.zoomOut(); }
+      return;
+    }
     if (mod) {
       switch (key) {
         case "b": case "i": case "u":
@@ -1932,8 +2079,14 @@ export class CanvasEngine {
       case "p":
         this.setTool("pencil");
         break;
+      case "c":
+        this.setTool("code");
+        break;
       case "t":
         this.setTool("text");
+        break;
+      case "n":
+        this.setTool("doc");
         break;
       case "s":
         this.setTool("sticky");
@@ -1959,6 +2112,7 @@ export class CanvasEngine {
 
   private onKeyUp = (e: KeyboardEvent) => {
     this.shiftDown = e.shiftKey;
+    this.altDown = !!e.altKey;
     if (e.code === "Space") {
       this.spaceDown = false;
       this.updateCursor();

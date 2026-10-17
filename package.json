@@ -1,5 +1,5 @@
 {
-  "name": "whiteboard",
+  "name": "knotleaf-desk",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -11,12 +11,18 @@
     "test": "bun test",
     "collab:server": "node server/collaboration.mjs",
     "test:server": "node scripts/smoke-server.mjs",
-    "build:server": "bun run build && node scripts/prepare-server.mjs"
+    "build:server": "bun run build && node scripts/prepare-server.mjs",
+    "db:migrate": "node scripts/migrate-db.mjs",
+    "db:check": "node scripts/check-db.mjs"
   },
   "dependencies": {
     "@y/websocket-server": "0.1.0",
+    "highlight.js": "^11.12.0",
+    "html2canvas": "^1.4.1",
     "lucide-react": "^0.554.0",
     "next": "16.4.2",
+    "pdf-lib": "^1.17.1",
+    "pg": "^8.23.1",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "react-markdown": "^10.1.0",
@@ -34,10 +40,11 @@
     "@xmldom/xmldom": "^0.9.12",
     "eslint": "^9",
     "eslint-config-next": "16.4.2",
+    "happy-dom": "^21.0.3",
     "tailwindcss": "^4",
     "typescript": "^5"
   },
-  "description": "An open-source, local-first whiteboard and Markdown notebook for the web.",
+  "description": "Knotleaf Desk — an open-source canvas and notebook with portable projects.",
   "license": "MIT",
   "author": "Whiteboard contributors",
   "homepage": "https://github.com/ayush931/excalidraw"

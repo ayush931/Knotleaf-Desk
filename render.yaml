@@ -2,14 +2,27 @@ services:
   - type: web
     name: whiteboard
     runtime: docker
-    plan: starter
+    plan: free
+    autoDeployTrigger: checksPass
     healthCheckPath: /api/collaboration-health
     envVars:
+      - key: NEXT_PUBLIC_APP_URL
+        value: https://excalidraw-steel-eta.vercel.app
+      - key: NEXT_PUBLIC_COLLAB_URL
+        value: wss://excalidraw-tl7h.onrender.com/collaboration
+      - key: WEB_HOST
+        value: 0.0.0.0
       - key: COLLAB_DATA_DIR
-        value: /data/rooms
-      - key: COLLAB_ORIGINS
+        value: /tmp/knotleaf-rooms
+      - key: DATABASE_URL
         sync: false
-    disk:
-      name: room-data
-      mountPath: /data/rooms
-      sizeGB: 1
+      - key: COLLAB_ORIGINS
+        value: https://excalidraw-steel-eta.vercel.app,https://excalidraw-tl7h.onrender.com
+      - key: CLASSROOM_MAX_PARTICIPANTS
+        value: "8"
+      - key: STUN_URLS
+        value: stun:stun.l.google.com:19302
+      - key: TURN_URLS
+        value: ""
+      - key: TURN_SHARED_SECRET
+        sync: false

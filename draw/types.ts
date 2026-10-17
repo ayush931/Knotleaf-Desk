@@ -8,6 +8,7 @@ export type Tool =
   | "line"
   | "pencil"
   | "text"
+  | "code"
   | "doc"
   | "sticky"
   | "frame"
@@ -43,6 +44,10 @@ export interface TextFormatting {
 }
 
 export interface InlineTextState extends TextFormatting {
+  containerId?: string;
+  containerOffset?: Point;
+  caret?: number;
+  replaceLabelId?: string;
   kind: InlineTextKind;
   elementId?: string;
   /** Canvas-space position used when creating a new text element. */
@@ -138,12 +143,16 @@ export interface PencilElement extends BaseElement {
 }
 
 export interface TextElement extends BaseElement, TextFormatting {
+  containerId?: string;
+  containerOffset?: Point;
   type: "text";
   text: string;
   fontSize: number;
   fontFamily: FontFamily;
   textAlign: TextAlign;
   isDocCard?: boolean;
+  isCodeCard?: boolean;
+  codeLanguage?: string;
   title?: string;
 }
 

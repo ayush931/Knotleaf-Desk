@@ -1,16 +1,20 @@
 import { CanvasElement, Theme, Board } from "./types";
 import { drawElement, getElementBounds, unionBounds } from "./renderer";
 import { getIconImage } from "./iconSvg";
+import { serializeProject, safeFilename, type ExportScope } from "@/lib/projectFile";
 
 const PADDING = 40;
 
 /** Renders the elements into an offscreen canvas at the given scale. */
-async function renderToCanvas(elements: CanvasElement[], theme: Theme, scale: number, transparent: boolean, scene: CanvasElement[] = elements) {
+export async function renderToCanvas(elements: CanvasElement[], theme: Theme, scale: number, transparent: boolean, scene: CanvasElement[] = elements) {
   await Promise.all(elements.filter(el => el.type === "icon" && el.svgMarkup).map(el => el.type === "icon" ? getIconImage(el.svgMarkup!, el.viewBox || "0 0 24 24", el.iconColor || "#3B82F6").loaded : undefined));
   const bounds = unionBounds(elements.map(el => getElementBounds(el, scene)));
   if (!bounds) return null;
-  const w = Math.ceil((bounds.maxX - bounds.minX + PADDING * 2) * scale);
-  const h = Math.ceil((bounds.maxY - bounds.minY + PADDING * 2) * scale);
+  const naturalW = bounds.maxX - bounds.minX + PADDING * 2, naturalH = bounds.maxY - bounds.minY + PADDING * 2;
+  const actualScale = Math.min(scale, 16384 / naturalW, 16384 / naturalH, Math.sqrt(32_000_000 / (naturalW * naturalH)));
+  if (!Number.isFinite(actualScale) || actualScale <= 0) throw new Error("The canvas dimensions are invalid.");
+  const w = Math.max(1, Math.ceil(naturalW * actualScale));
+  const h = Math.max(1, Math.ceil(naturalH * actualScale));
 
   const canvas = document.createElement("canvas");
   canvas.width = w;
@@ -23,7 +27,7 @@ async function renderToCanvas(elements: CanvasElement[], theme: Theme, scale: nu
     ctx.fillRect(0, 0, w, h);
   }
   ctx.save();
-  ctx.scale(scale, scale);
+  ctx.scale(actualScale, actualScale);
   ctx.translate(-bounds.minX + PADDING, -bounds.minY + PADDING);
   elements.forEach((el) => drawElement(ctx, el, { theme, scene }));
   ctx.restore();
@@ -45,7 +49,7 @@ export async function exportToPng(
   scene: CanvasElement[] = elements
 ): Promise<void> {
   const canvas = await renderToCanvas(elements, theme, scale, transparent, scene);
-  if (!canvas) return;
+  if (!canvas) throw new Error("Add something to the canvas before exporting an image.");
   download(canvas.toDataURL("image/png"), `whiteboard-${Date.now()}.png`);
 }
 
@@ -67,17 +71,23 @@ export async function copyPngToClipboard(elements: CanvasElement[], theme: Theme
 }
 
 function slug(title: string) {
-  return title.toLowerCase().trim().replace(/\s+/g, "-") || "board";
+  return safeFilename(title).toLowerCase().replace(/\s+/g, "-");
 }
 
 export function exportToJson(board: Board): void {
   const url = URL.createObjectURL(new Blob([JSON.stringify(board, null, 2)], { type: "application/json" }));
   download(url, `${slug(board.title)}-${board.id}.json`);
-  URL.revokeObjectURL(url);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 export function exportNotesToMarkdown(board: Board): void {
   const url = URL.createObjectURL(new Blob([board.markdownNotes || ""], { type: "text/markdown" }));
   download(url, `${slug(board.title)}-notes.md`);
-  URL.revokeObjectURL(url);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+export function exportProjectFile(board: Board, scope: ExportScope = "project") {
+  const url = URL.createObjectURL(new Blob([serializeProject(board, scope)], { type: "application/json" }));
+  download(url, `${safeFilename(board.title)}${scope === "project" ? "" : `-${scope}`}.knotleaf`);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }

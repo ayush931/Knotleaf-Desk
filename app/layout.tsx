@@ -9,10 +9,10 @@ const firaCode = Fira_Code({ variable: "--font-fira", subsets: ["latin"], displa
 
 export const metadata: Metadata = {
   title: {
-    default: "Whiteboard",
-    template: "%s · Whiteboard",
+    default: "Knotleaf Desk",
+    template: "%s · Knotleaf Desk",
   },
-  description: "A fast whiteboard for diagrams, architecture, and notes. Create diagrams and Markdown notes in your browser.",
+  description: "Knotleaf Desk brings diagrams and notes together. Draw, collaborate, and keep editable project backups in your browser.",
   icons: {
     icon: [{ url: "/icons/mark.svg", type: "image/svg+xml" }, { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" }],
   },

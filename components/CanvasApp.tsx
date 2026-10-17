@@ -7,7 +7,7 @@ const Canvas = dynamic(() => import("./Canvas").then((m) => m.Canvas), {
   ssr: false,
   loading: () => (
     <div className="w-screen h-[100dvh] flex items-center justify-center bg-[#121212] text-neutral-400 text-sm">
-      Loading whiteboard…
+      Loading Knotleaf Desk…
     </div>
   ),
 });

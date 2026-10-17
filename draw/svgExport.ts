@@ -106,7 +106,7 @@ export function boardToSvg(elements: CanvasElement[], transparent = false, scene
 }
 export function exportToSvg(board: Board, elements = board.elements, transparent = false) {
   const svg = boardToSvg(elements, transparent, board.elements);
-  if (!svg) return;
+  if (!svg) throw new Error("Add something to the canvas before exporting SVG.");
   const url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml" }));
   const link = document.createElement("a"); link.href = url; link.download = `${board.title.replace(/[^a-z0-9_-]/gi, "-") || "board"}.svg`; link.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);

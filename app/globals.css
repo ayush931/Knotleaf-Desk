@@ -114,3 +114,35 @@ dialog::backdrop { background: rgb(0 0 0 / 55%); backdrop-filter: blur(3px); }
 .note-preview th { background: #27272a; text-align: left; }
 .note-preview hr { border-color: #3f3f46; margin: 1.5em 0; }
 .note-preview img { max-width: 100%; height: auto; border-radius: 6px; }
+
+/* One typography contract for code glyphs, caret and selection. No theme padding. */
+.code-source pre, .code-source textarea, .code-source code {
+  font-family: var(--font-fira), ui-monospace, monospace;
+  font-size: inherit;
+  line-height: inherit;
+  font-weight: 400;
+  font-style: normal;
+  font-variant-ligatures: none;
+  letter-spacing: 0;
+  tab-size: 2;
+  margin: 0;
+  padding: 0;
+}
+.code-source pre code.hljs { display: block; overflow: visible; white-space: pre; background: transparent; color: #d4d4d8; }
+.hljs { color: #d4d4d8; }
+.hljs span { font-weight: 400; font-style: normal; }
+.hljs-keyword, .hljs-literal { color: #b8a8c4; }
+.hljs-string { color: #afbaa8; }
+.hljs-comment { color: #808995; }
+.code-source textarea { -webkit-text-fill-color: transparent; }
+@media (forced-colors: active) {
+  .code-source pre { visibility: hidden; }
+  .code-source textarea { color: CanvasText; -webkit-text-fill-color: CanvasText; caret-color: CanvasText; }
+}
+
+.notes-source pre, .notes-source textarea { font-variant-ligatures: none; letter-spacing: 0; tab-size: 2; overflow-wrap: break-word; white-space: pre-wrap; font-weight: 400; font-style: normal; }
+.notes-source textarea { position: relative; -webkit-text-fill-color: transparent; }
+.notes-source textarea::placeholder { -webkit-text-fill-color: #525252; }
+@media (forced-colors: active) { .notes-source pre { visibility: hidden; } .notes-source textarea { color: CanvasText; -webkit-text-fill-color: CanvasText; caret-color: CanvasText; } }
+
+.code-source textarea::placeholder { -webkit-text-fill-color: #64748b; opacity: 1; }

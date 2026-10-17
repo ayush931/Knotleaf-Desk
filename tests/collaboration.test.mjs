@@ -1,6 +1,7 @@
 import { test, expect } from 'bun:test';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import os from 'node:os';
+import { connect } from 'node:net';
 import path from 'node:path';
 import * as Y from 'yjs';
 import { WebsocketProvider } from 'y-websocket';
@@ -16,7 +17,7 @@ test('concurrent note edits merge rather than replace the entire document', () =
 });
 test('two real WebSocket clients sync shapes, notes, presence and persisted rooms', async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), 'whiteboard-rooms-'));
-  const service = createCollaborationServer({ port: 0, directory });
+  const service = createCollaborationServer({ port: 0, directory, roomStore: null });
   const address = await service.listen();
   const room = crypto.randomUUID(), url = `ws://127.0.0.1:${address.port}`;
   const first = new Y.Doc(), second = new Y.Doc();
@@ -40,7 +41,7 @@ test('two real WebSocket clients sync shapes, notes, presence and persisted room
 test('application room sessions seed once, preserve attachments, reconnect edits and undo locally', async () => {
   const { RoomSession } = await import('../lib/collaboration.ts');
   const directory = await mkdtemp(path.join(os.tmpdir(), 'whiteboard-session-'));
-  const service = createCollaborationServer({ port: 0, directory }); const address = await service.listen();
+  const service = createCollaborationServer({ port: 0, directory, roomStore: null }); const address = await service.listen();
   const room = crypto.randomUUID(), url = `ws://127.0.0.1:${address.port}`;
   const base = { stroke: '#fff', strokeWidth: 2, strokeStyle: 'solid', fill: 'transparent', fillStyle: 'none', roundness: 'rounded', opacity: 1, zIndex: 0 };
   const shape = { ...base, id: 'shape', type: 'rectangle', x: 10, y: 20, width: 120, height: 80 };
@@ -70,7 +71,7 @@ test('application room sessions seed once, preserve attachments, reconnect edits
 test('adding from a stale scene cannot resurrect a shape deleted by a collaborator', async () => {
   const { RoomSession } = await import('../lib/collaboration.ts');
   const directory = await mkdtemp(path.join(os.tmpdir(), 'whiteboard-delete-'));
-  const service = createCollaborationServer({ port: 0, directory }); const address = await service.listen();
+  const service = createCollaborationServer({ port: 0, directory, roomStore: null }); const address = await service.listen();
   const base = { stroke: '#fff', strokeWidth: 2, strokeStyle: 'solid', fill: 'transparent', fillStyle: 'none', roundness: 'rounded', opacity: 1, zIndex: 0 };
   const original = { ...base, id: 'original', type: 'rectangle', x: 10, y: 20, width: 120, height: 80 };
   const added = { ...original, id: 'added', x: 300 };
@@ -88,3 +89,25 @@ test('adding from a stale scene cannot resurrect a shape deleted by a collaborat
     await until(() => b.notes.toString() === 'Keep this deletion'); expect(b.elements.has(original.id)).toBe(false);
   } finally { a.destroy(); b.destroy(); await service.close(); await rm(directory, { recursive: true, force: true }); }
 }, 10000);
+test('database rooms load before sync, persist edits and survive a fresh server', async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'knotleaf-db-'));
+  const room = crypto.randomUUID(), seed = new Y.Doc(); seed.getMap('meta').set('initialized', 'true'); seed.getMap('meta').set('title', 'Saved class'); seed.getText('notes').insert(0, 'Existing lesson');
+  let saved = Buffer.from(Y.encodeStateAsUpdate(seed)).toString('base64'); seed.destroy(); let snapshot;
+  const store = { async load() { await new Promise(r => setTimeout(r, 50)); return { state: saved }; }, async save(_id, state, next) { saved = state; snapshot = next; } };
+  let service = createCollaborationServer({ port: 0, directory, roomStore: store }), provider, doc;
+  try {
+    let address = await service.listen(); doc = new Y.Doc(); provider = new WebsocketProvider(`ws://127.0.0.1:${address.port}`, room, doc, { WebSocketPolyfill: WebSocket, disableBc: true });
+    await until(() => provider.synced); expect(doc.getText('notes').toString()).toBe('Existing lesson'); expect(doc.getMap('meta').get('title')).toBe('Saved class');
+    doc.getText('notes').insert(doc.getText('notes').length, ' updated'); await until(() => snapshot?.markdownNotes === 'Existing lesson updated');
+    provider.destroy(); doc.destroy(); await service.close();
+    service = createCollaborationServer({ port: 0, directory, roomStore: store }); address = await service.listen(); doc = new Y.Doc(); provider = new WebsocketProvider(`ws://127.0.0.1:${address.port}`, room, doc, { WebSocketPolyfill: WebSocket, disableBc: true });
+    await until(() => provider.synced); expect(doc.getText('notes').toString()).toBe('Existing lesson updated');
+  } finally { provider?.destroy(); doc?.destroy(); await service.close(); await rm(directory, { recursive: true, force: true }); }
+});
+test('database outage rejects a room before any empty synchronization can happen', async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'knotleaf-db-outage-'));
+  const service = createCollaborationServer({ port: 0, directory, roomStore: { load: async () => { throw new Error('offline'); } } });
+  const address = await service.listen();
+  try { const response = await new Promise((resolve, reject) => { const socket = connect(address.port, '127.0.0.1', () => socket.write(`GET /${crypto.randomUUID()} HTTP/1.1\r\nHost: localhost\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Key: SGVsbG9Xb3JsZDEyMzQ1Ng==\r\n\r\n`)); socket.on('data', data => { resolve(data.toString()); socket.destroy(); }); socket.on('error', reject); }); expect(response).toContain('503 Service Unavailable'); }
+  finally { await service.close(); await rm(directory, { recursive: true, force: true }); }
+});

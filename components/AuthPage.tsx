@@ -76,14 +76,14 @@ export function AuthPage({ isSignIn }: { isSignIn: boolean }) {
             type="submit"
             className="w-full py-3.5 bg-blue-600 hover:bg-blue-500 active:scale-[0.98] text-white font-semibold rounded-2xl transition duration-200 flex items-center justify-center gap-2 shadow-lg shadow-blue-500/25 cursor-pointer text-sm"
           >
-            <span>Open Whiteboard</span>
+            <span>Open Knotleaf Desk</span>
             <ArrowRight className="w-4 h-4" />
           </button>
         </form>
 
         <div className="text-center mt-5 text-xs text-neutral-400">
           <Link href="/" className="text-blue-400 hover:underline">
-            Go directly to Whiteboard
+            Go directly to Knotleaf Desk
           </Link>
         </div>
       </div>

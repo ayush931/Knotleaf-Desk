@@ -46,7 +46,10 @@ export class RoomSession {
         this.doc.transact(() => {
           this.meta.set("initialized", "true");
           this.meta.set("title", initial?.title || "Shared whiteboard");
-          initial?.elements.forEach(el => this.elements.set(el.id, structuredClone(el)));
+          initial?.elements.forEach(el => {
+            if (el.type === "text" && el.isCodeCard) { const code = this.doc.getText(`code:${el.id}`); code.insert(0, el.text); this.undo.addToScope(code); this.elements.set(el.id, { ...structuredClone(el), text: "" }); }
+            else this.elements.set(el.id, structuredClone(el));
+          });
           if (initial?.markdownNotes) this.notes.insert(0, initial.markdownNotes);
         }, "seed");
       }
@@ -80,7 +83,12 @@ export class RoomSession {
         const previous = this.lastScene.get(el.id);
         if (JSON.stringify(previous) === JSON.stringify(el)) continue;
         if ((previous || this.knownElementIds.has(el.id)) && !this.elements.has(el.id)) continue; // Remote deletion wins over a stale edit.
-        this.elements.set(el.id, structuredClone(el));
+        if (el.type === "text" && el.isCodeCard) {
+          const code = this.doc.getText(`code:${el.id}`); this.undo.addToScope(code);
+          updateSharedText(code, el.text);
+          const metadata = { ...structuredClone(el), text: "" };
+          if (JSON.stringify(this.elements.get(el.id)) !== JSON.stringify(metadata)) this.elements.set(el.id, metadata);
+        } else this.elements.set(el.id, structuredClone(el));
       }
       updateSharedText(this.notes, board.markdownNotes || "");
       if (this.meta.get("title") !== board.title) this.meta.set("title", board.title);
@@ -88,7 +96,11 @@ export class RoomSession {
     this.emitRemote();
   }
   private emitRemote() {
-    const elements = [...this.elements.values()].filter(isValidElement).sort((a, b) => a.zIndex - b.zIndex || a.id.localeCompare(b.id));
+    const elements = [...this.elements.values()].filter(isValidElement).map(el => {
+      if (el.type !== "text" || !el.isCodeCard) return el;
+      const code = this.doc.getText(`code:${el.id}`); this.undo.addToScope(code);
+      return { ...el, text: code.toString() || el.text };
+    }).sort((a, b) => a.zIndex - b.zIndex || a.id.localeCompare(b.id));
     for (const el of elements) this.knownElementIds.add(el.id);
     this.lastScene = new Map(elements.map(el => [el.id, structuredClone(el)]));
     this.onRemote?.(elements, this.notes.toString(), this.meta.get("title") || "Shared whiteboard");

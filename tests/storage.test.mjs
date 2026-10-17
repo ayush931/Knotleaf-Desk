@@ -48,3 +48,41 @@ test('leaving a room creates a personal board when the browser only has room cop
   const personal = getOrCreatePersonalBoard();
   expect(personal.id).not.toBe(room.id); expect(personal.elements).toHaveLength(0); expect(getBoard(room.id)).not.toBeNull();
 });
+
+test('portable project round trip preserves notes, styling, icons and bound connector IDs', async () => {
+  const { serializeProject } = await import('../lib/projectFile.ts');
+  const board = createBoard('Portable project');
+  const base = { stroke: '#fff', strokeWidth: 2, strokeStyle: 'solid', fill: 'transparent', fillStyle: 'none', roundness: 'rounded', opacity: 1, zIndex: 0 };
+  board.elements = [{ ...base, id: 'shape', type: 'rectangle', x: 10, y: 20, width: 120, height: 80 }, { ...base, id: 'arrow', type: 'arrow', x: 130, y: 60, width: 70, height: 40, startX: 130, startY: 60, endX: 200, endY: 100, startBinding: { elementId: 'shape', anchor: 'right' } }, { ...base, id: 'icon', type: 'icon', x: 200, y: 100, width: 48, height: 48, iconId: 'online:lucide:cloud', svgMarkup: '<path d="M0 0h24v24z"/>', viewBox: '0 0 24 24' }, { ...base, id: 'text', type: 'text', x: 400, y: 100, width: 150, height: 30, text: 'Résumé नमस्ते', fontSize: 24, fontFamily: 'sans', bold: true, containerId: 'shape', containerOffset: { x: 0.25, y: 0.25 } }];
+  board.markdownNotes = '# Unicode notes\n\n- [x] नमस्ते\n\n```js\nconst result = true;\n```'; board.viewMode = 'split'; board.snapToGrid = true;
+  saveBoard(board); const original = JSON.stringify(board);
+  const restored = importBoardFromJson(serializeProject(board));
+  expect(restored.id).not.toBe(board.id); expect(restored.elements).toEqual(board.elements); expect(restored.markdownNotes).toBe(board.markdownNotes);
+  expect(restored.viewMode).toBe('split'); expect(restored.snapToGrid).toBe(true); expect(JSON.stringify(getBoard(board.id))).toBe(original);
+});
+
+test('canvas-only and notes-only portable files contain exactly the requested content', async () => {
+  const { serializeProject } = await import('../lib/projectFile.ts');
+  const board = createBoard('Scope test'); board.markdownNotes = '# Keep notes'; board.workspaceId = 'foreign-workspace';
+  const snapshot = JSON.stringify(board);
+  const canvas = importBoardFromJson(serializeProject(board, 'canvas'));
+  const notes = importBoardFromJson(serializeProject(board, 'notes'));
+  expect(canvas.markdownNotes).toBe(''); expect(canvas.viewMode).toBe('canvas');
+  expect(notes.elements).toEqual([]); expect(notes.markdownNotes).toBe('# Keep notes'); expect(notes.viewMode).toBe('notes');
+  expect(notes.workspaceId).toBe('personal'); expect(JSON.stringify(board)).toBe(snapshot);
+});
+
+test('Markdown opens as a new editable notes board, including Unicode and empty notes', async () => {
+  const { importBoardFile } = await import('../lib/storage.ts');
+  const board = importBoardFile('\uFEFF# Decisions\n\nRésumé नमस्ते', 'Meeting.md');
+  expect(board.markdownNotes).toBe('# Decisions\n\nRésumé नमस्ते'); expect(board.viewMode).toBe('notes'); expect(board.elements).toEqual([]);
+  expect(importBoardFile('', 'Empty.markdown').markdownNotes).toBe('');
+});
+
+test('unknown portable versions and duplicate element IDs cannot create or overwrite a board', async () => {
+  const board = createBoard('Original'); board.markdownNotes = 'Keep me'; saveBoard(board);
+  expect(importBoardFromJson(JSON.stringify({ format: 'knotleaf.project', version: 2, scope: 'project', board }))).toBeNull();
+  const el = { id: 'same', type: 'rectangle', x: 0, y: 0, width: 100, height: 80, stroke: '#fff', strokeWidth: 2, strokeStyle: 'solid', fill: 'transparent', fillStyle: 'none', roundness: 'rounded', opacity: 1, zIndex: 0 };
+  expect(importBoardFromJson(JSON.stringify({ ...board, elements: [el, el] }))).toBeNull();
+  expect(getAllBoards()).toHaveLength(1); expect(getBoard(board.id).markdownNotes).toBe('Keep me');
+});

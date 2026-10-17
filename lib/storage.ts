@@ -1,3 +1,6 @@
+import { isValidElement } from "./elementValidation.mjs";
+export { isValidElement } from "./elementValidation.mjs";
+import { readProjectPayload } from "./projectFile";
 import { Board, BoardSummary, CanvasElement, Workspace } from "@/draw/types";
 import { TEMPLATES } from "@/draw/templatesData";
 
@@ -102,7 +105,7 @@ export function createBoard(title?: string, templateId?: string, workspaceId = "
   const newBoard: Board = {
     id,
     workspaceId,
-    title: title || "Untitled Whiteboard",
+    title: title || "Untitled board",
     elements,
     markdownNotes,
     createdAt: now,
@@ -133,6 +136,7 @@ export function deleteBoard(id: string): void {
   if (typeof window === "undefined") return;
   try {
     localStorage.removeItem(`${STORAGE_KEYS.BOARD_PREFIX}${id}`);
+    localStorage.removeItem(`knotleaf_history_${id}`);
     const index = getAllBoards().filter((b) => b.id !== id);
     saveBoardsIndex(index);
 
@@ -191,7 +195,7 @@ export function getOrCreateDefaultBoard(): Board {
   }
 
   // Create clean blank whiteboard (nothing in default, only clean white space)
-  const initial = createBoard("Untitled Whiteboard");
+  const initial = createBoard("Untitled board");
   initial.elements = [];
   initial.markdownNotes = "";
   initial.theme = "dark";
@@ -206,17 +210,22 @@ export function exportBoardToJson(board: Board): string {
 
 export function importBoardFromJson(jsonStr: string): Board | null {
   try {
-    const parsed = JSON.parse(jsonStr) as Board;
-    if (!parsed || !Array.isArray(parsed.elements) || parsed.elements.length > 10000 || !parsed.elements.every(isValidElement)) {
+    const parsed = readProjectPayload(jsonStr) as Board;
+    if (!parsed || typeof parsed !== "object" || typeof parsed.title !== "string" || !Array.isArray(parsed.elements) || parsed.elements.length > 10000 || !parsed.elements.every(isValidElement)) {
       throw new Error("Invalid board format");
     }
+    if (new Set(parsed.elements.map(el => el.id)).size !== parsed.elements.length) throw new Error("Duplicate element IDs in this backup.");
     parsed.createdAt = Number.isFinite(parsed.createdAt) ? parsed.createdAt : Date.now();
     parsed.markdownNotes = typeof parsed.markdownNotes === "string" ? parsed.markdownNotes : "";
     parsed.theme = "dark";
     parsed.viewMode = ["canvas", "split", "notes"].includes(parsed.viewMode) ? parsed.viewMode : "canvas";
     parsed.gridType = ["dot", "grid", "none"].includes(parsed.gridType) ? parsed.gridType : "dot";
     // Give unique ID on import to avoid collisions
-    parsed.id = Math.random().toString(36).substring(2, 10);
+    parsed.id = `import-${crypto.randomUUID()}`;
+    parsed.workspaceId = "personal";
+    parsed.snapToGrid = parsed.snapToGrid === true;
+    parsed.zoom = Number.isFinite(parsed.zoom) ? Math.max(0.1, Math.min(4, parsed.zoom)) : 1;
+    parsed.panOffset = parsed.panOffset && Number.isFinite(parsed.panOffset.x) && Number.isFinite(parsed.panOffset.y) ? parsed.panOffset : { x: 0, y: 0 };
     parsed.title = `${parsed.title || "Imported Board"} (Imported)`;
     parsed.updatedAt = Date.now();
     if (!saveBoard(parsed)) return null;
@@ -244,19 +253,7 @@ export function moveBoardToWorkspace(id: string, workspaceId: string) {
   if (board) saveBoard({ ...board, workspaceId });
 }
 
-export function isValidElement(value: unknown): value is CanvasElement {
-  if (!value || typeof value !== "object") return false;
-  const el = value as Record<string, unknown>;
-  if (typeof el.id !== "string" || !["rectangle", "diamond", "circle", "arrow", "line", "pencil", "text", "sticky", "icon", "frame"].includes(String(el.type))) return false;
-  if (!["x", "y", "width", "height", "strokeWidth", "opacity"].every(k => typeof el[k] === "number" && Number.isFinite(el[k]))) return false;
-  if (!["stroke", "fill", "strokeStyle", "fillStyle", "roundness"].every(k => typeof el[k] === "string")) return false;
-  if (el.type === "arrow" || el.type === "line") return ["startX", "startY", "endX", "endY"].every(k => typeof el[k] === "number" && Number.isFinite(el[k]));
-  if (el.type === "pencil") return Array.isArray(el.points) && el.points.every(p => p && typeof p.x === "number" && Number.isFinite(p.x) && typeof p.y === "number" && Number.isFinite(p.y));
-  if (el.type === "text" || el.type === "sticky") return typeof el.text === "string" && typeof el.fontSize === "number" && Number.isFinite(el.fontSize);
-  if (el.type === "frame") return typeof el.title === "string";
-  if (el.type === "icon") return typeof el.iconId === "string";
-  return true;
-}
+
 
 function isRoomBoardId(id: string): boolean {
   return /^[a-f\d]{8}-[a-f\d]{4}-4[a-f\d]{3}-[89ab][a-f\d]{3}-[a-f\d]{12}$/i.test(id);
@@ -268,4 +265,10 @@ export function getOrCreatePersonalBoard(): Board {
   const board = last || getAllBoards().filter(summary => !isRoomBoardId(summary.id)).sort((a, b) => b.updatedAt - a.updatedAt).map(summary => getBoard(summary.id)).find((candidate): candidate is Board => candidate !== null) || createBoard();
   setActiveBoardId(board.id);
   return board;
+}
+
+/** Opens Markdown notes or a portable/legacy project as a new personal board. */
+export function importBoardFile(text: string, filename = "backup.json"): Board | null {
+  if (/\.(md|markdown)$/i.test(filename)) return importBoardFromJson(JSON.stringify({ title: filename.replace(/\.(md|markdown)$/i, ""), elements: [], markdownNotes: text.replace(/^\uFEFF/, ""), viewMode: "notes" }));
+  return importBoardFromJson(text);
 }

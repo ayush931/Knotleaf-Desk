@@ -15,12 +15,13 @@ const web = next({ dev, hostname, port, ...(conf ? { conf } : {}) });
 await web.prepare();
 const handler = web.getRequestHandler();
 const server = http.createServer((request, response) => {
+  if (collaboration.handleHttp(request,response)) return;
   if (request.url === '/api/collaboration-health') { response.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); response.end(JSON.stringify({ collaboration: true })); return; }
   handler(request, response).catch(error => { console.error(error); if (!response.headersSent) response.writeHead(500); response.end('Unable to load Whiteboard'); });
 });
 const collaboration = createCollaborationServer({ httpServer: server, pathPrefix: '/collaboration/', directory: process.env.COLLAB_DATA_DIR || path.resolve('.collab-data'), origins: (process.env.COLLAB_ORIGINS || '').split(',').filter(Boolean) });
 server.on('upgrade', (request, socket, head) => {
-  if (!(request.url || '').startsWith('/collaboration/')) web.getUpgradeHandler()(request, socket, head);
+  if (!(request.url || '').startsWith('/collaboration/') && !(request.url || '').startsWith('/classroom/')) web.getUpgradeHandler()(request, socket, head);
 });
 server.on('error', error => { console.error(`Unable to start Whiteboard: ${error.message}`); process.exit(1); });
 server.listen(port, hostname, () => console.log(`Whiteboard + collaboration ready on http://${hostname}:${port}`));

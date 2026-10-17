@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Users, Link, X, LogOut } from "lucide-react";
 import type { Collaborator } from "@/lib/collaboration";
-interface Props { roomId?: string; status: string; people: Collaborator[]; onCreate: () => void; onJoin: (id: string) => void; onName: (name: string) => void; onLeave: () => void }
+interface Props { roomId?: string; status: string; people: Collaborator[]; onCreate: () => Promise<void>; onJoin: (id: string) => void; onName: (name: string) => void; onLeave: () => void }
 export function CollaborationPanel(p: Props) {
   const [open, setOpen] = useState(false), [invite, setInvite] = useState(""), [error, setError] = useState(""), [copied, setCopied] = useState(false);
   const dialog = useRef<HTMLDialogElement>(null);
@@ -13,7 +13,7 @@ export function CollaborationPanel(p: Props) {
     setCreating(true); setError("");
     try {
       if (!process.env.NEXT_PUBLIC_COLLAB_URL) { const response = await fetch("/api/collaboration-health"); const health = response.ok ? await response.json() : null; if (!health?.collaboration) throw new Error(health?.message || "Restart with bun dev or bun start to enable sharing. For Vercel, configure a hosted collaboration server."); }
-      p.onCreate();
+      await p.onCreate();
     } catch (error) { setError(error instanceof Error ? error.message : "Could not reach the room server."); }
     finally { setCreating(false); }
   };

@@ -1,18 +1,33 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
+import { highlightNotesSource } from "@/lib/code";
+import { HighlightedCode } from "./CodeEditor";
 import remarkGfm from "remark-gfm";
 import { Heading1, List, CheckSquare, Code, Quote, Download, Eye, Edit3, Bold, Italic, ListTree, X } from "lucide-react";
 
 interface DocEditorProps {
   value: string; onChange: (value: string) => void; onExportMarkdown: () => void;
   theme: "dark" | "light";
+  focusRange?: { start: number; end: number };
 }
-export function DocEditor({ value, onChange, onExportMarkdown }: DocEditorProps) {
-  const textarea = useRef<HTMLTextAreaElement>(null);
+export function DocEditor({ value, onChange, onExportMarkdown, focusRange }: DocEditorProps) {
+  const textarea = useRef<HTMLTextAreaElement>(null), sourcePreview = useRef<HTMLPreElement>(null);
+  const sourceHtml = useMemo(() => highlightNotesSource(value), [value]);
   const [preview, setPreview] = useState(false);
   const [outline, setOutline] = useState(false);
+  useEffect(() => {
+    if (!focusRange) return;
+    const frame = requestAnimationFrame(() => { const input = textarea.current; if (!input) return; input.focus(); input.setSelectionRange(focusRange.start, focusRange.end); input.scrollTop = Math.max(0, (input.value.slice(0, focusRange.start).split("\n").length - 3) * 24); });
+    return () => cancelAnimationFrame(frame);
+  }, [focusRange]);
+  useEffect(() => {
+    const input = textarea.current, painted = sourcePreview.current; if (!input || !painted) return;
+    const sync = () => { painted.style.width = `${input.clientWidth}px`; painted.scrollTop = input.scrollTop; };
+    const observer = new ResizeObserver(sync); observer.observe(input); sync();
+    return () => observer.disconnect();
+  }, [preview, value]);
   const words = value.trim() ? value.trim().split(/\s+/u).length : 0;
   const headings = value.split("\n").map((text, line) => ({ text, line })).filter(h => /^#{1,6}\s/.test(h.text));
   const insertText = (before: string, after = "") => {
@@ -44,7 +59,7 @@ export function DocEditor({ value, onChange, onExportMarkdown }: DocEditorProps)
     {!preview && <div role="toolbar" aria-label="Note formatting" className="flex flex-wrap gap-0.5 border-b border-neutral-800 px-2 py-1">{tools.map(t => <button key={t.label} className="note-tool" title={t.label} aria-label={t.label} onClick={() => insertText(t.before, t.after)}><t.icon className="h-4 w-4" /></button>)}</div>}
     {outline && <nav aria-label="Note outline" className="max-h-40 overflow-y-auto border-b border-neutral-800 px-3 py-2"><div className="mb-1 flex items-center justify-between text-[11px] text-neutral-500">Outline<button aria-label="Close outline" onClick={() => setOutline(false)} className="note-tool"><X className="h-3 w-3" /></button></div>{headings.length ? headings.map(h => <button key={h.line} className="block w-full truncate rounded px-2 py-1 text-left text-xs text-neutral-400 hover:bg-neutral-800 hover:text-white" onClick={() => { setPreview(false); requestAnimationFrame(() => { const input = textarea.current; if (!input) return; const offset = value.split("\n").slice(0, h.line).reduce((n, l) => n + l.length + 1, 0); input.focus(); input.setSelectionRange(offset, offset + h.text.length); input.scrollTop = h.line * 24; }); }}>{h.text.replace(/^#+\s/, "")}</button>) : <p className="py-2 text-xs text-neutral-500">Add headings with # to organize your notes.</p>}</nav>}
     <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
-      {preview ? <article className="note-preview mx-auto max-w-3xl break-words p-5"><ReactMarkdown remarkPlugins={[remarkGfm]} components={{ a: ({ children, ...props }) => <a {...props} target="_blank" rel="noopener noreferrer">{children}</a> }}>{value || "*Your notes will appear here. Switch to Edit to start writing.*"}</ReactMarkdown></article> : <textarea ref={textarea} aria-label="Board notes in Markdown" value={value} onChange={e => onChange(e.target.value)} placeholder={"Capture your thinking…\n\n# Project notes\n\n- Ideas, decisions, and next steps\n- [ ] Your first task\n\nUse Markdown for headings, tables, links, and code."} spellCheck className="mx-auto block h-full min-h-60 w-full max-w-3xl resize-none border-0 bg-transparent p-5 font-mono text-[13px] leading-6 text-neutral-200 placeholder:text-neutral-600 focus:outline-none" onKeyDown={e => {
+      {preview ? <article className="note-preview mx-auto max-w-3xl break-words p-5"><ReactMarkdown remarkPlugins={[remarkGfm]} components={{ code: ({ children, className, ...props }) => className || String(children).includes("\n") ? <HighlightedCode code={String(children).replace(/\n$/, "")} language={className?.replace("language-", "") || "auto"} /> : <code {...props}>{children}</code>, a: ({ children, ...props }) => <a {...props} target="_blank" rel="noopener noreferrer">{children}</a> }}>{value || "*Your notes will appear here. Switch to Edit to start writing.*"}</ReactMarkdown></article> : <div className="notes-source relative mx-auto h-full min-h-60 w-full max-w-3xl"><pre ref={sourcePreview} aria-hidden="true" className="hljs pointer-events-none absolute inset-0 m-0 overflow-hidden whitespace-pre-wrap break-words p-5 font-mono text-[13px] leading-6" dangerouslySetInnerHTML={{ __html: sourceHtml }} /><textarea ref={textarea} aria-label="Board notes in Markdown" value={value} onChange={e => onChange(e.target.value)} onScroll={e => { if (sourcePreview.current) sourcePreview.current.scrollTop = e.currentTarget.scrollTop; }} placeholder={"Capture your thinking…\n\n# Project notes\n\n- Ideas, decisions, and next steps\n- [ ] Your first task\n\nUse Markdown for headings, tables, links, and code."} spellCheck className="mx-auto block h-full min-h-60 w-full max-w-3xl resize-none border-0 bg-transparent p-5 font-mono text-[13px] leading-6 text-transparent caret-white placeholder:text-neutral-600 focus:outline-none selection:bg-blue-500/30" onKeyDown={e => {
         if (e.nativeEvent.isComposing) return;
         const mod = e.ctrlKey || e.metaKey;
         if (mod && (e.key.toLowerCase() === "b" || e.key.toLowerCase() === "i")) { e.preventDefault(); const mark = e.key.toLowerCase() === "b" ? "**" : "*"; insertText(mark, mark); }
@@ -65,7 +80,7 @@ export function DocEditor({ value, onChange, onExportMarkdown }: DocEditorProps)
             }
           }
         }
-      }} />}
+      }} /></div>}
     </div>
     <div className="flex shrink-0 justify-between border-t border-neutral-800 px-3 py-2 text-[10px] text-neutral-500"><span>Markdown</span><span>{words} {words === 1 ? "word" : "words"} · {Math.max(1, Math.ceil(words / 200))} min read</span></div>
   </div>;

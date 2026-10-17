@@ -1,8 +1,9 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { RoomSession, type Collaborator } from "@/lib/collaboration";
+import { Classroom } from "./Classroom";
 import { CollaborationPanel } from "./CollaborationPanel";
 import { CanvasEngine } from "@/draw/CanvasEngine";
 import { setFont } from "@/draw/renderer";
@@ -31,12 +32,12 @@ import {
   clearBoard,
   duplicateBoard,
   deleteBoard,
-  importBoardFromJson,
+  importBoardFile,
   setActiveBoardId,
 } from "@/lib/storage";
 import { exportToSvg } from "@/draw/svgExport";
 import { exportToDrawio } from "@/draw/drawioExport";
-import { exportToPng, copyPngToClipboard, exportToJson, exportNotesToMarkdown } from "@/draw/export";
+import { exportToPng, copyPngToClipboard, exportToJson, exportNotesToMarkdown, exportProjectFile } from "@/draw/export";
 import { TemplateDefinition } from "@/draw/templatesData";
 import { BoardHeader } from "./BoardHeader";
 import { DocEditor } from "./DocEditor";
@@ -46,6 +47,9 @@ import { IconPickerModal } from "./IconPickerModal";
 import { TemplatesModal } from "./TemplatesModal";
 import { BoardsSidebar } from "./BoardsSidebar";
 import { ZoomBar } from "./ZoomBar";
+import { CodeEditor } from "./CodeEditor";
+import { BoardTools } from "./BoardTools";
+import { saveVersion } from "@/lib/boardLibrary";
 import { PresentationMode } from "./PresentationMode";
 import { ShortcutsModal } from "./ShortcutsModal";
 
@@ -106,15 +110,27 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
   const [isIconPickerOpen, setIsIconPickerOpen] = useState(false);
   const [isTemplatesOpen, setIsTemplatesOpen] = useState(false);
   const [isPresentationOpen, setIsPresentationOpen] = useState(false);
+  const [presentationIndex, setPresentationIndex] = useState(0);
+  const presentationViewport = useRef<{ zoom: number; pan: { x: number; y: number } } | null>(null);
+  const [boardToolsOpen, setBoardToolsOpen] = useState(false);
+  const [historyError, setHistoryError] = useState("");
+  const [noteFocus, setNoteFocus] = useState<{ start: number; end: number; token: number } | undefined>();
+  const frames = useMemo(() => board.elements.filter(el => el.type === "frame"), [board.elements]);
+  const presentationFrames = JSON.stringify(frames.map(({ id, x, y, width, height }) => ({ id, x, y, width, height })));
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
 
   const [saveError, setSaveError] = useState(false);
+  const [codeViewport, setCodeViewport] = useState({ zoom: 1, pan: { x: 0, y: 0 } });
+  const [codeId, setCodeId] = useState<string | null>(null);
+  const codeElement = board.elements.find(el => el.id === codeId && el.type === "text" && el.isCodeCard);
   const [inlineText, setInlineText] = useState<InlineTextState | null>(null);
   const [currentStyle, setCurrentStyle] = useState<ElementStyleProps>({ ...DEFAULT_STYLE });
 
   const selectedElement = selectedElements.length === 1 ? selectedElements[0] : null;
+  const librarySelection = useMemo(() => { if (!selectedElements.length) return []; const ids = new Set(selectedElements.map(el => el.id)); return board.elements.filter(el => ids.has(el.id) || el.type === "text" && !!el.containerId && ids.has(el.containerId)); }, [selectedElements, board.elements]);
 
   const persist = useCallback((next: Board) => {
+    try { if (saveVersion(boardRef.current, "Automatic checkpoint", true)) setHistoryError(""); } catch (error) { setHistoryError(error instanceof Error ? error.message : "Automatic history could not be saved."); }
     boardRef.current = next;
     setSaveError(!saveBoard(next));
     setBoard(next);
@@ -174,6 +190,8 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
     };
     engine.onSelectionChange = (selected) => setSelectedElements(selected);
     engine.onOpenIconPicker = () => setIsIconPickerOpen(true);
+    engine.onEditCode = setCodeId;
+    engine.onViewportChange = view => setCodeViewport(previous => previous.zoom === view.zoom && previous.pan.x === view.pan.x && previous.pan.y === view.pan.y ? previous : view);
     engine.onStartInlineText = (state) => setInlineText(state);
     engine.onZoomChange = (z) => setZoom(z);
     engine.onToolChange = (t) => setSelectedTool(t);
@@ -231,11 +249,14 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
   // App-level shortcuts. Engine shortcuts (tools, undo, shapes) live in CanvasEngine.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (isEditableTarget(e.target)) return;
+      if (e.isComposing) return;
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f" && !document.querySelector("dialog[open]")) { e.preventDefault(); setBoardToolsOpen(true); return; }
+      if (isEditableTarget(e.target) || document.querySelector("dialog[open]")) return;
       if (e.key === "?" || (e.key === "/" && (e.ctrlKey || e.metaKey))) {
         e.preventDefault();
         setIsShortcutsOpen((open) => !open);
       } else if (e.key === "Escape") {
+        setBoardToolsOpen(false);
         setIsShortcutsOpen(false);
         setIsIconPickerOpen(false);
         setIsTemplatesOpen(false);
@@ -259,9 +280,27 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
     router.push("/");
   };
 
+  const beginPresentation = () => {
+    engineRef.current?.finishCode(); setCodeId(null);
+    presentationViewport.current = engineRef.current?.getViewport() || null;
+    setPresentationIndex(0); setIsPresentationOpen(true); engineRef.current?.setReadOnly(true);
+  };
+  const endPresentation = () => {
+    setIsPresentationOpen(false); engineRef.current?.setReadOnly(false);
+    const view = presentationViewport.current; presentationViewport.current = null;
+    if (view) requestAnimationFrame(() => engineRef.current?.restoreViewport(view));
+  };
+  useEffect(() => {
+    if (!isPresentationOpen || !containerRef.current) return;
+    const focus = () => { const element = containerRef.current; if (element) engineRef.current?.resize(element.clientWidth, element.clientHeight); const ordered = JSON.parse(presentationFrames) as { id: string }[]; const frame = ordered[Math.min(presentationIndex, Math.max(0, ordered.length - 1))]; if (frame) engineRef.current?.focusElements([frame.id], false); else engineRef.current?.fitToContent(); };
+    const timer = requestAnimationFrame(focus);
+    const observer = new ResizeObserver(focus); observer.observe(containerRef.current);
+    return () => { cancelAnimationFrame(timer); observer.disconnect(); };
+  }, [isPresentationOpen, presentationIndex, presentationFrames]);
+
   // Board actions
   const handleSelectBoard = (id: string) => {
-    if (initialRoomId && id !== initialRoomId) { setActiveBoardId(id); router.push("/"); return; }
+    if (initialRoomId && id !== initialRoomId) { sessionRef.current?.destroy(); sessionRef.current = null; setActiveBoardId(id); router.push("/"); return; }
     const loaded = getBoard(id);
     if (!loaded) return;
     boardRef.current = loaded;
@@ -271,7 +310,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
     setGridType(loaded.gridType || "dot");
     setSnapToGrid(loaded.snapToGrid || false);
     setWorkspaceId(loaded.workspaceId || "personal");
-    setInlineText(null);
+    setInlineText(null); setCodeId(null);
     engineRef.current?.setElements(loaded.elements, false);
     engineRef.current?.resetZoom();
     refreshBoardsList();
@@ -359,16 +398,16 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
   };
 
   // Export
-  const exportElements = (selection: boolean) => selection ? engineRef.current?.getSelectedElements() || [] : engineRef.current?.getElements() || [];
+  const exportElements = (selection: boolean) => selection ? engineRef.current?.getSelectionForExport() || [] : engineRef.current?.getElements() || [];
   const handleExportPng = (selection: boolean, transparent: boolean, scale: number) => exportToPng(exportElements(selection), theme, transparent, scale, boardRef.current.elements);
   const handleCopyClipboard = async () => {
     return engineRef.current ? await copyPngToClipboard(engineRef.current.getElements(), theme) : false;
   };
   const handleExportJson = () => exportToJson(boardRef.current);
   const handleExportMarkdown = () => exportNotesToMarkdown(boardRef.current);
-  const handleImportJson = (jsonStr: string) => {
-    const imported = importBoardFromJson(jsonStr);
-    if (imported) { moveBoardToWorkspace(imported.id, workspaceId); handleSelectBoard(imported.id); } else { throw new Error("Invalid board backup"); }
+  const handleImportJson = (jsonStr: string, filename = "backup.json") => {
+    const imported = importBoardFile(jsonStr, filename);
+    if (imported) { moveBoardToWorkspace(imported.id, workspaceId); handleSelectBoard(imported.id); } else { throw new Error("Could not open this backup. Use a supported .knotleaf or board JSON file and check available browser storage."); }
   };
 
   // Inline text editing
@@ -435,7 +474,8 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
       const editor = inlineTextareaRef.current;
       if (!editor) return;
       editor.focus({ preventScroll: true });
-      if (inlineText.text) editor.select();
+      if (inlineText.caret !== undefined) editor.setSelectionRange(inlineText.caret, inlineText.caret);
+      else if (inlineText.text) editor.select();
     });
     return () => cancelAnimationFrame(frame);
   }, [inlineText?.elementId, inlineText?.kind, inlineText?.canvasX, inlineText?.canvasY]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -472,6 +512,14 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
   }, [inlineText?.text, inlineText?.fontSize, inlineText?.fontFamily, inlineText?.bold, inlineText?.italic, inlineText?.screenHeight, inlineText?.screenY, zoom]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const inlineTextAlign = inlineText?.align ?? "left";
+  const createSharedRoom = async (openClassroom = false) => {
+    const response = await fetch("/api/rooms", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(boardRef.current) });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Could not save the room.");
+    saveBoard({ ...boardRef.current, id: data.id, title: data.title, createdAt: Date.now() });
+    router.push(`/canvas/${data.id}${openClassroom ? "?classroom=1" : ""}`);
+  };
+
   const inlineFamily =
     inlineText?.fontFamily === "hand" ? "var(--font-caveat), Caveat, cursive" : inlineText?.fontFamily === "mono" ? "var(--font-fira), 'Fira Code', monospace" : "var(--font-inter), Inter, sans-serif";
 
@@ -481,7 +529,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
     >
       {!isPresentationOpen && (
         <BoardHeader
-          collaboration={<CollaborationPanel roomId={initialRoomId} onLeave={handleLeaveRoom} status={roomStatus} people={people} onName={name => sessionRef.current?.setName(name)} onJoin={id => router.push(`/canvas/${id}`)} onCreate={() => { const id = crypto.randomUUID(); saveBoard({ ...boardRef.current, id, title: `${boardRef.current.title} · shared`, createdAt: Date.now() }); router.push(`/canvas/${id}`); }} />}
+          collaboration={<><Classroom key={initialRoomId || "personal"} roomId={initialRoomId} onCreateRoom={() => createSharedRoom(true)} /><CollaborationPanel roomId={initialRoomId} onLeave={handleLeaveRoom} status={roomStatus} people={people} onName={name => sessionRef.current?.setName(name)} onJoin={id => router.push(`/canvas/${id}`)} onCreate={() => createSharedRoom()} /></>}
           title={board.title}
           saveError={saveError}
           onRetrySave={() => persist(boardRef.current)}
@@ -490,6 +538,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
           onRenameTitle={handleRenameTitle}
           onToggleSidebar={() => setIsSidebarOpen(true)}
           onOpenTemplates={() => setIsTemplatesOpen(true)}
+          onOpenBoardTools={() => setBoardToolsOpen(true)}
           onClearBoard={handleClearBoard}
           gridType={gridType}
           onChangeGridType={handleChangeGridType}
@@ -499,16 +548,19 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
           onExportSvg={(selection, transparent) => exportToSvg(boardRef.current, exportElements(selection), transparent)}
           onExportDrawio={selection => exportToDrawio(boardRef.current, exportElements(selection))}
           onExportPng={handleExportPng}
+          onExportProject={scope => exportProjectFile(boardRef.current, scope)}
+          onExportPdf={async scope => { const snapshot = structuredClone(boardRef.current); const { exportProjectPdf } = await import("@/draw/projectPdf"); await exportProjectPdf(snapshot, scope); }}
+          onImportFile={handleImportJson}
           onExportJson={handleExportJson}
           onExportMarkdown={handleExportMarkdown}
           onCopyClipboard={handleCopyClipboard}
-          onTogglePresentation={() => setIsPresentationOpen(true)}
+          onTogglePresentation={beginPresentation}
           onShowShortcuts={() => setIsShortcutsOpen(true)}
         />
       )}
 
       <main inert={!roomReady} ref={splitRef} className={`relative flex max-sm:flex-col min-h-0 flex-1 w-full overflow-hidden ${!isPresentationOpen ? "mt-11" : ""}`} >
-        {viewMode !== "canvas" && !isPresentationOpen && <section aria-label="Board notes" style={viewMode === "split" ? narrowSplit ? { width: "100%", height: Math.min(notesHeight, splitBounds.height - 160) } : { width: Math.min(notesWidth, splitBounds.width - 280) } : undefined} className={`board-notes min-h-0 ${viewMode === "notes" ? "w-full" : "shrink-0"}`}><DocEditor value={board.markdownNotes || ""} onChange={markdownNotes => persist({ ...boardRef.current, markdownNotes })} onExportMarkdown={handleExportMarkdown} theme={theme} /></section>}
+        {viewMode !== "canvas" && !isPresentationOpen && <section aria-label="Board notes" style={viewMode === "split" ? narrowSplit ? { width: "100%", height: Math.min(notesHeight, splitBounds.height - 160) } : { width: Math.min(notesWidth, splitBounds.width - 280) } : undefined} className={`board-notes min-h-0 ${viewMode === "notes" ? "w-full" : "shrink-0"}`}><DocEditor key={noteFocus?.token || 0} focusRange={noteFocus} value={board.markdownNotes || ""} onChange={markdownNotes => persist({ ...boardRef.current, markdownNotes })} onExportMarkdown={handleExportMarkdown} theme={theme} /></section>}
         {viewMode === "split" && !isPresentationOpen && <div role="separator" aria-label="Resize notes panel" aria-orientation={narrowSplit ? "horizontal" : "vertical"} aria-valuemin={narrowSplit ? 160 : 220} aria-valuemax={narrowSplit ? Math.max(160, splitBounds.height - 160) : Math.max(220, splitBounds.width - 280)} aria-valuenow={Math.round(narrowSplit ? notesHeight : notesWidth)} tabIndex={0} className={`split-handle z-30 shrink-0 touch-none bg-neutral-800 hover:bg-blue-500 focus-visible:bg-blue-500 focus-visible:outline-none ${narrowSplit ? "h-1.5 w-full cursor-row-resize" : "w-1.5 cursor-col-resize"}`} onDoubleClick={() => { setNotesWidth(360); setNotesHeight(300); }} onKeyDown={e => { if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"].includes(e.key)) {
           e.preventDefault(); e.stopPropagation();
           const delta = e.key === "ArrowRight" || e.key === "ArrowDown" ? 20 : -20;
@@ -522,6 +574,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
         >
             <canvas ref={canvasRef} className="block touch-none" />
 
+            {codeElement?.type === "text" && <CodeEditor key={codeElement.id} value={codeElement.text} language={codeElement.codeLanguage || "auto"} fontSize={codeElement.fontSize} zoom={codeViewport.zoom} x={(codeElement.x - 16) * codeViewport.zoom + codeViewport.pan.x} y={(codeElement.y - 16) * codeViewport.zoom + codeViewport.pan.y} width={codeElement.width} height={codeElement.height} onChange={(text, language) => engineRef.current?.updateCode(codeElement.id, text, language)} onClose={() => { engineRef.current?.finishCode(); setCodeId(null); }} />}
             {inlineText && (
               <>
                 {/* Document-specific list tools; ordinary canvas text stays unobstructed. */}
@@ -851,7 +904,13 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
       </main>
 
       {initialRoomId && !roomReady && <div role="status" className="fixed left-1/2 top-20 z-40 w-[min(400px,90vw)] -translate-x-1/2 rounded-xl border border-amber-500/30 bg-neutral-900 p-4 text-center text-sm text-neutral-300"><p>Connecting to your room…</p><p className="mt-2 text-xs text-neutral-500">Start the collaboration server or check your connection. Drawing unlocks after the room syncs.</p><button onClick={handleLeaveRoom} className="mt-3 inline-block text-xs text-blue-400 underline">Leave room</button></div>}
-      <PresentationMode isActive={isPresentationOpen} onExit={() => setIsPresentationOpen(false)} title={board.title} theme={theme} />
+      <PresentationMode isActive={isPresentationOpen} onExit={endPresentation} title={board.title} theme={theme} frames={frames} index={presentationIndex} onIndex={setPresentationIndex} />
+      <BoardTools open={boardToolsOpen} onClose={() => setBoardToolsOpen(false)} board={board} selection={librarySelection} historyError={historyError} onHistorySaved={() => setHistoryError("")} onOpenCopy={(source, title) => { const copy = importBoardFile(JSON.stringify({ ...source, title })); if (!copy) throw new Error("Could not create a board. Check available browser storage."); copy.title = title; if (!saveBoard(copy)) throw new Error("Could not save the new board."); moveBoardToWorkspace(copy.id, workspaceId); handleSelectBoard(copy.id); }} onFind={(id, index, length) => {
+        if (index !== undefined) {
+          persist({ ...boardRef.current, viewMode: "notes" });
+          setNoteFocus(previous => ({ start: index, end: index + (length || 0), token: (previous?.token || 0) + 1 }));
+        } else { if (board.viewMode === "notes") persist({ ...boardRef.current, viewMode: "canvas" }); requestAnimationFrame(() => { const element = containerRef.current; if (element) engineRef.current?.resize(element.clientWidth, element.clientHeight); engineRef.current?.focusElements([id]); }); }
+      }} />
 
       <IconPickerModal
         isOpen={isIconPickerOpen}

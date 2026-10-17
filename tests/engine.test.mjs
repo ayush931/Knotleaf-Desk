@@ -418,7 +418,126 @@ test('inserted icons have compact transparent bounds and no caption editor', () 
   expect(engine.getElements()[0]).toMatchObject({ type: 'icon', width: 48, height: 48, fill: 'transparent', svgMarkup: '<path d="M0 0h24v24z"/>' });
   expect(engine.getElements()[0].label).toBeUndefined();
   let editor; engine.onStartInlineText = state => { editor = state; };
-  listeners.dblclick(point(500, 350)); expect(editor).toBeUndefined();
+  listeners.dblclick(point(500, 350)); expect(editor).toMatchObject({ kind: 'new-text', canvasX: 500, canvasY: 350 });
   engine.addIconElement('arch-client'); expect(engine.getElements()[1]).toMatchObject({ width: 48, height: 48, fill: 'transparent' });
+  engine.destroy();
+});
+
+
+test('double-click opens writing at the exact pointer on empty canvas, including zoom and pan', () => {
+  const { engine, listeners, point } = setup([]); engine.setZoom(2, { x: 0, y: 0 });
+  let editor; engine.onStartInlineText = value => { editor = value; };
+  listeners.dblclick(point(450, 350));
+  expect(editor).toMatchObject({ kind: 'new-text', canvasX: 225, canvasY: 175, screenX: 450, screenY: 350, align: 'left' });
+  engine.commitInlineText({ ...editor, text: 'Write here' });
+  expect(engine.getElements()[0]).toMatchObject({ x: 225, y: 175, text: 'Write here' }); engine.destroy();
+});
+
+test('double-click writing inside a shape stays attached through moving, resizing, duplicating and undo', () => {
+  const { engine, listeners, point, drag } = setup([source]);
+  let editor; engine.onStartInlineText = value => { editor = value; };
+  listeners.dblclick(point(130, 120));
+  expect(editor).toMatchObject({ screenX: 130, screenY: 120, canvasX: 130, canvasY: 120, containerId: 'source', containerOffset: { x: 0.25, y: 0.25 } });
+  engine.commitInlineText({ ...editor, text: 'Attached' });
+  drag(205, 160, 205, 160); drag(205, 160, 255, 200);
+  let text = engine.getElements().find(el => el.type === 'text'); expect([text.x, text.y]).toEqual([180, 160]);
+  engine.updateSelectedElement({ width: 240, height: 160 });
+  text = engine.getElements().find(el => el.type === 'text'); expect([text.x, text.y]).toEqual([210, 180]);
+  engine.duplicateSelected();
+  const copiedShape = engine.getElements().filter(el => el.type === 'rectangle').find(el => el.id !== 'source');
+  const copiedText = engine.getElements().filter(el => el.type === 'text').find(el => el.id !== text.id);
+  expect(copiedText.containerId).toBe(copiedShape.id); expect(copiedText.text).toBe('Attached');
+  engine.undo(); expect(engine.getElements()).toHaveLength(2); engine.destroy();
+});
+
+test('double-clicking existing text sets a caret at the click instead of selecting all content', () => {
+  const text = { ...base, id: 'text', type: 'text', x: 100, y: 100, width: 150, height: 50, text: 'Hello world\nSecond line', fontSize: 20, fontFamily: 'sans', textAlign: 'left' };
+  const { engine, listeners, point } = setup([text]); let editor; engine.onStartInlineText = value => { editor = value; };
+  listeners.dblclick(point(121, 102)); expect(editor.caret).toBe(3);
+  listeners.dblclick(point(114, 130)); expect(editor.caret).toBe(14); engine.destroy();
+});
+
+test('deleting or erasing a shape also removes its attached text in a single undo step', () => {
+  const { engine, listeners, point, drag } = setup([source]);
+  let editor; engine.onStartInlineText = value => { editor = value; };
+  listeners.dblclick(point(130, 120)); engine.commitInlineText({ ...editor, text: 'Attached' });
+  drag(205, 160, 205, 160); engine.deleteSelected(); expect(engine.getElements()).toHaveLength(0);
+  engine.undo(); expect(engine.getElements()).toHaveLength(2);
+  engine.setTool('eraser'); listeners.pointerdown(point(205, 160)); listeners.pointerup(point(205, 160));
+  expect(engine.getElements()).toHaveLength(0); engine.undo(); expect(engine.getElements()).toHaveLength(2); engine.destroy();
+});
+
+test('alignment guides show during a drag, snap edges and disappear without entering saved scene data', () => {
+  const alignedTarget = { ...target, x: 400, y: 100 };
+  const { engine, listeners, point } = setup([source, alignedTarget]);
+  listeners.pointerdown(point(150, 130)); listeners.pointermove(point(205, 133));
+  expect(engine.guides.length).toBeGreaterThan(0);
+  expect(engine.getElements().find(el => el.id === 'source').y).toBe(100);
+  listeners.pointerup(point(205, 133)); expect(engine.guides).toEqual([]);
+  expect(JSON.stringify(engine.getElements())).not.toContain('guides'); engine.destroy();
+});
+
+test('Alt dragging bypasses magnetic alignment while keeping live gap measurements', () => {
+  const { engine, listeners, point } = setup([source, { ...target, x: 350, y: 100 }]);
+  listeners.pointerdown(point(150, 130)); listeners.pointermove({ ...point(205, 133), altKey: true });
+  expect(engine.getElements().find(el => el.id === 'source').y).toBe(103);
+  expect(engine.guides.some(guide => guide.label)).toBe(true);
+  listeners.pointercancel(point(205, 133)); expect(engine.guides).toEqual([]); engine.destroy();
+});
+
+
+test('shape selection exports include attached text, and dragging text away detaches it', () => {
+  const { engine, listeners, point, drag } = setup([source]); let editor; engine.onStartInlineText = value => { editor = value; };
+  listeners.dblclick(point(130, 120)); engine.commitInlineText({ ...editor, text: 'Attached' });
+  drag(205, 160, 205, 160); expect(engine.getSelectedElements()).toHaveLength(1); expect(engine.getSelectionForExport()).toHaveLength(2);
+  engine.copySelection(); expect(engine.clipboard).toHaveLength(2);
+  drag(140, 125, 140, 125);
+  listeners.pointerdown(point(140, 125)); listeners.pointermove({ ...point(400, 250), altKey: true }); listeners.pointerup(point(400, 250));
+  const text = engine.getElements().find(el => el.type === 'text'); expect(text.containerId).toBeUndefined();
+  expect(text).toMatchObject({ x: 390, y: 245 }); engine.destroy();
+});
+
+test('sticky note caret placement accounts for visual wrapping', () => {
+  const sticky = { ...base, id: 'sticky', type: 'sticky', x: 100, y: 100, width: 100, height: 140, text: 'aaaa bbbb cccc dddd', fontSize: 20, fontFamily: 'sans', textAlign: 'left', color: '#FEF08A' };
+  const { engine, listeners, point } = setup([sticky]); let editor; engine.onStartInlineText = value => { editor = value; };
+  listeners.dblclick(point(119, 140)); expect(editor.caret).toBe(11); engine.destroy();
+});
+
+
+test('double-clicking a legacy shape label opens at the pointer and migrates without losing text', () => {
+  const labelled = { ...source, label: 'Existing label' };
+  const { engine, listeners, point } = setup([labelled]); let editor; engine.onStartInlineText = value => { editor = value; };
+  listeners.dblclick(point(140, 130));
+  expect(editor).toMatchObject({ kind: 'new-text', text: 'Existing label', canvasX: 140, canvasY: 130, screenX: 140, screenY: 130, replaceLabelId: source.id });
+  engine.commitInlineText(editor);
+  expect(engine.getElements().find(el => el.id === source.id).label).toBeUndefined();
+  expect(engine.getElements().find(el => el.type === 'text')).toMatchObject({ text: 'Existing label', x: 140, y: 130, containerId: source.id });
+  engine.undo(); expect(engine.getElements()).toEqual([labelled]); engine.destroy();
+});
+
+test('presentation is read-only for drawing, typing and deletion while preserving pan and viewport restoration', () => {
+  const { engine, listeners, point } = setup([source]);
+  const view = engine.getViewport(); engine.setTool('rectangle'); engine.setReadOnly(true);
+  listeners.pointerdown(point(400, 400)); listeners.pointermove(point(450, 450)); listeners.pointerup(point(450, 450));
+  expect(engine.getElements()).toEqual([source]); expect(engine.canUndo()).toBe(false);
+  let editor; engine.onStartInlineText = state => { editor = state; }; listeners.dblclick(point(500, 500)); expect(editor).toBeUndefined();
+  engine.selectAll(); engine.onKeyDown({ key: 'Delete', code: 'Delete', target: null, shiftKey: false, preventDefault() {} }); expect(engine.getElements()).toEqual([source]);
+  engine.restoreViewport(view); expect(engine.getViewport()).toEqual(view); engine.setReadOnly(false); engine.destroy();
+});
+test('search focusing selects the result and changes back to the selection tool', () => {
+  const { engine } = setup([source, target]); engine.setTool('eraser'); engine.focusElements(['target']);
+  expect(engine.getSelectedElements().map(el => el.id)).toEqual(['target']); expect(engine.getTool()).toBe('select');
+  const point = engine.canvasToScreen(target.x + target.width / 2, target.y + target.height / 2);
+  expect(point.x).toBeCloseTo(500); expect(point.y).toBeCloseTo(350); engine.destroy();
+});
+test('code tool creates an inline card at the click, supports live edits, blank code and undo', () => {
+  const { engine, listeners, point } = setup([]); let opened;
+  engine.onEditCode = id => { opened = id; }; engine.setTool('code');
+  listeners.pointerdown(point(120, 180)); listeners.pointerup(point(120, 180));
+  let card = engine.getElements()[0]; expect(opened).toBe(card.id); expect(card.isCodeCard).toBe(true); expect(card.text).toBe(""); expect([card.x, card.y]).toEqual([120, 180]);
+  engine.updateCode(card.id, 'def hello():\n    print("hello")', 'python'); card = engine.getElements()[0];
+  expect(card.codeLanguage).toBe('python'); expect(card.text).toContain('def hello');
+  engine.updateCode(card.id, '', 'auto'); engine.finishCode(); expect(engine.getElements()).toHaveLength(1);
+  engine.undo(); expect(engine.getElements()[0].text).toContain('def hello');
   engine.destroy();
 });

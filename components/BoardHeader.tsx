@@ -3,18 +3,19 @@
 import React, { useState, useRef, useEffect } from "react";
 import {
   Menu,
+  FolderOpen,
+  Search,
   Sparkles,
   Grid,
   Download,
   Check,
   Copy,
-  FileCode,
-  FileText,
   Play,
   Magnet,
   Trash2,
 } from "lucide-react";
 import { ConfirmDialog } from "./ConfirmDialog";
+import type { ExportScope } from "@/lib/projectFile";
 import { GridType, ViewMode } from "@/draw/types";
 
 interface BoardHeaderProps {
@@ -27,6 +28,7 @@ interface BoardHeaderProps {
   onRenameTitle: (newTitle: string) => void;
   onToggleSidebar: () => void;
   onOpenTemplates: () => void;
+  onOpenBoardTools: () => void;
   onClearBoard: () => void;
   gridType: GridType;
   onChangeGridType: (g: GridType) => void;
@@ -37,6 +39,9 @@ interface BoardHeaderProps {
   onExportDrawio: (selection: boolean) => void;
   onExportPng: (selection: boolean, transparent: boolean, scale: number) => void | Promise<void>;
   onExportJson: () => void;
+  onExportProject: (scope: ExportScope) => void;
+  onExportPdf: (scope: ExportScope) => Promise<void>;
+  onImportFile: (text: string, filename: string) => void;
   onExportMarkdown: () => void;
   onCopyClipboard: () => Promise<boolean>;
   onTogglePresentation: () => void;
@@ -53,6 +58,7 @@ export function BoardHeader({
   onRenameTitle,
   onToggleSidebar,
   onOpenTemplates,
+  onOpenBoardTools,
   onClearBoard,
   gridType,
   onChangeGridType,
@@ -63,11 +69,17 @@ export function BoardHeader({
   onExportDrawio,
   onExportPng,
   onExportJson,
+  onExportProject,
+  onExportPdf,
+  onImportFile,
   onExportMarkdown,
   onCopyClipboard,
   onTogglePresentation,
   onShowShortcuts,
 }: BoardHeaderProps) {
+  const [scope, setScope] = useState<ExportScope>("project");
+  const [format, setFormat] = useState("project");
+  const importFile = useRef<HTMLInputElement>(null);
   const [exportSelection, setExportSelection] = useState(false);
   const [transparent, setTransparent] = useState(false);
   const [exportScale, setExportScale] = useState(2);
@@ -129,10 +141,13 @@ export function BoardHeader({
           <Menu className="w-4 h-4" />
         </button>
 
+        <button aria-label="Find, history and custom templates" title="Board tools · Find (Ctrl/Cmd+F)" onClick={onOpenBoardTools} className="rounded-lg p-1.5 text-neutral-400 hover:bg-neutral-800 hover:text-white"><Search className="h-4 w-4" /></button>
+        <input ref={importFile} type="file" accept=".knotleaf,.json,.md,.markdown" className="hidden" onChange={async e => { const file = e.target.files?.[0]; e.target.value = ""; if (!file) return; try { if (file.size > 50_000_000) throw new Error("This file exceeds the 50 MB import limit."); onImportFile(await file.text(), file.name); setExportError(""); } catch (error) { setExportError(error instanceof Error ? error.message : "Could not open this project."); setShowExportMenu(true); } }} />
+        <button aria-label="Open project or notes" title="Open .knotleaf, .json or Markdown notes" onClick={() => importFile.current?.click()} className="rounded-lg p-1.5 text-neutral-400 hover:bg-neutral-800 hover:text-white"><FolderOpen className="h-4 w-4" /></button>
         <div className="flex items-center gap-2">
           {/* The app mark is shared with the website favicon. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/icons/mark.svg" alt="" width={26} height={26} className="hidden sm:block shrink-0" />
+          <img src="/icons/mark.svg" alt="Knotleaf Desk" title="Knotleaf Desk · Canvas and notes" width={26} height={26} className="hidden sm:block shrink-0" />
 
           {isEditingTitle ? (
             <input
@@ -151,10 +166,10 @@ export function BoardHeader({
                 setIsEditingTitle(true);
               }}
               className="flex items-center gap-1 cursor-pointer group"
-              title="Click to rename board"
+              title="Knotleaf Desk · Click to rename board"
             >
               <h1 className="text-xs font-semibold tracking-tight text-neutral-200 group-hover:text-blue-400 transition max-w-[80px] sm:max-w-[180px] truncate">
-                {title || "Untitled Whiteboard"}
+                {title || "Untitled board"}
               </h1>
               <span className="text-[10px] text-neutral-400 opacity-0 group-hover:opacity-100">
                 ✎
@@ -187,7 +202,7 @@ export function BoardHeader({
         <button
           onClick={() => setClearOpen(true)}
           aria-label="Clear board"
-          title="Clear Whiteboard to Blank Canvas"
+          title="Clear this board and its notes"
           className="hidden sm:flex p-1.5 rounded-lg hover:bg-rose-500/10 text-neutral-400 hover:text-rose-400 transition cursor-pointer"
         >
           <Trash2 className="w-3.5 h-3.5" />
@@ -248,65 +263,34 @@ export function BoardHeader({
           </button>
 
           {showExportMenu && (
-            <div className="absolute right-0 top-full mt-2 w-56 max-h-[calc(100dvh-60px)] overflow-y-auto rounded-xl border shadow-2xl p-1 space-y-0.5 z-50 backdrop-blur-xl animate-fade-in bg-[#18181b] border-[#27272a] text-[#f4f4f5]">
-              <div className="space-y-2 border-b border-neutral-700/50 px-2.5 py-2 text-xs text-neutral-300">
-                <label className="flex items-center gap-2"><input type="checkbox" checked={exportSelection && selectionCount > 0} disabled={!selectionCount} onChange={e => setExportSelection(e.target.checked)} />Selection only ({selectionCount})</label>
-                <label className="flex items-center gap-2"><input type="checkbox" checked={transparent} onChange={e => setTransparent(e.target.checked)} />Transparent background</label>
-                <label className="flex items-center justify-between gap-2">PNG quality<select aria-label="PNG quality" value={exportScale} onChange={e => setExportScale(Number(e.target.value))} className="rounded border border-neutral-700 bg-neutral-900 px-2 py-1"><option value={1}>1x</option><option value={2}>2x</option><option value={3}>3x</option></select></label>
-              </div>
-              {exportError && <p role="alert" className="px-2 py-2 text-xs text-rose-400">{exportError}</p>}
-              <button onClick={() => { onExportSvg(exportSelection && selectionCount > 0, transparent); setShowExportMenu(false); }} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs hover:bg-neutral-800"><FileCode className="h-3.5 w-3.5 text-blue-400" />Export SVG · vector</button>
-              <button onClick={() => { onExportDrawio(exportSelection && selectionCount > 0); setShowExportMenu(false); }} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs hover:bg-neutral-800"><FileCode className="h-3.5 w-3.5 text-amber-400" />Export draw.io · editable</button>
-              <button
-                disabled={exporting}
-                onClick={async () => {
+            <div className="absolute right-0 top-full mt-2 w-72 max-w-[92vw] max-h-[calc(100dvh-60px)] overflow-y-auto rounded-xl border shadow-2xl p-1 space-y-0.5 z-50 backdrop-blur-xl animate-fade-in bg-[#18181b] border-[#27272a] text-[#f4f4f5]">
+              <div className="space-y-3 p-3 text-xs text-neutral-300">
+                <label className="block space-y-1.5"><span>File format</span><select aria-label="Export format" value={format} disabled={exporting} onChange={e => { const next = e.target.value; setFormat(next); setExportError(""); if (["png", "svg", "drawio"].includes(next)) setScope("canvas"); if (next === "markdown") setScope("notes"); if (next === "json") setScope("project"); }} className="w-full rounded-lg border border-neutral-700 bg-neutral-900 p-2">
+                  <option value="project">Knotleaf project · editable</option><option value="pdf">PDF document</option><option value="png">PNG image</option><option value="svg">SVG vector</option><option value="markdown">Markdown notes</option><option value="drawio">draw.io diagram</option><option value="json">Legacy JSON backup</option>
+                </select></label>
+                <label className="block space-y-1.5"><span>Include</span><select aria-label="Export content" value={scope} disabled={exporting || !["project", "pdf"].includes(format)} onChange={e => setScope(e.target.value as ExportScope)} className="w-full rounded-lg border border-neutral-700 bg-neutral-900 p-2 disabled:opacity-60"><option value="project">Canvas & notes</option><option value="canvas">Canvas only</option><option value="notes">Notes only</option></select></label>
+                {["png", "svg", "drawio"].includes(format) && <label className="flex items-center gap-2"><input type="checkbox" checked={exportSelection && selectionCount > 0} disabled={!selectionCount || exporting} onChange={e => setExportSelection(e.target.checked)} />Selected elements only ({selectionCount})</label>}
+                {["png", "svg"].includes(format) && <label className="flex items-center gap-2"><input type="checkbox" checked={transparent} onChange={e => setTransparent(e.target.checked)} />Transparent background</label>}
+                {format === "png" && <label className="flex items-center justify-between gap-2">Quality<select aria-label="PNG quality" value={exportScale} onChange={e => setExportScale(Number(e.target.value))} className="rounded border border-neutral-700 bg-neutral-900 p-1.5"><option value={1}>1x</option><option value={2}>2x</option><option value={3}>3x</option></select></label>}
+                <p className="text-[11px] leading-relaxed text-neutral-500">{["project", "json"].includes(format) ? "Reopen this file here to continue editing. Includes embedded icons and connector attachments." : format === "markdown" ? "Editable notes. Open the .md file here to continue writing." : format === "drawio" ? "Edit in diagrams.net. Keep a Knotleaf backup to resume here." : "For viewing and sharing. Keep a Knotleaf backup to resume editing."}</p>
+                {exportError && <p role="alert" className="text-xs text-rose-400">{exportError}</p>}
+                <button disabled={exporting} onClick={async () => {
                   setExporting(true); setExportError("");
-                  try { await onExportPng(exportSelection && selectionCount > 0, transparent, exportScale); setShowExportMenu(false); }
-                  catch { setExportError("Could not render the image. Retry or export SVG instead."); }
+                  try {
+                    const selected = exportSelection && selectionCount > 0;
+                    if (format === "project") onExportProject(scope);
+                    else if (format === "pdf") await onExportPdf(scope);
+                    else if (format === "png") await onExportPng(selected, transparent, exportScale);
+                    else if (format === "svg") onExportSvg(selected, transparent);
+                    else if (format === "drawio") onExportDrawio(selected);
+                    else if (format === "markdown") onExportMarkdown();
+                    else onExportJson();
+                    setShowExportMenu(false);
+                  } catch (error) { setExportError(error instanceof Error ? error.message : "Download failed. Please try again."); }
                   finally { setExporting(false); }
-                }}
-                className="w-full px-2.5 py-1.5 text-xs rounded-lg flex items-center gap-2 hover:bg-neutral-800 text-left transition cursor-pointer"
-              >
-                <Download className="w-3.5 h-3.5 text-blue-500" />
-                <span>{exporting ? "Preparing icons…" : `Export PNG (${exportScale}x)`}</span>
-              </button>
-
-              <button
-                onClick={() => {
-                  handleCopyImage();
-                  setShowExportMenu(false);
-                }}
-                className="w-full px-2.5 py-1.5 text-xs rounded-lg flex items-center gap-2 hover:bg-neutral-800 text-left transition cursor-pointer"
-              >
-                {copiedSuccess ? (
-                  <Check className="w-3.5 h-3.5 text-emerald-500" />
-                ) : (
-                  <Copy className="w-3.5 h-3.5 text-purple-500" />
-                )}
-                <span>{copiedSuccess ? "Copied image" : copyError ? "Copy failed — try PNG" : "Copy to Clipboard"}</span>
-              </button>
-
-              <button
-                onClick={() => {
-                  onExportJson();
-                  setShowExportMenu(false);
-                }}
-                className="w-full px-2.5 py-1.5 text-xs rounded-lg flex items-center gap-2 hover:bg-neutral-800 text-left transition cursor-pointer"
-              >
-                <FileCode className="w-3.5 h-3.5 text-amber-500" />
-                <span>Export JSON</span>
-              </button>
-
-              <button
-                onClick={() => {
-                  onExportMarkdown();
-                  setShowExportMenu(false);
-                }}
-                className="w-full px-2.5 py-1.5 text-xs rounded-lg flex items-center gap-2 hover:bg-neutral-800 text-left transition cursor-pointer"
-              >
-                <FileText className="w-3.5 h-3.5 text-emerald-500" />
-                <span>Export Notes (.md)</span>
-              </button>
+                }} className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-white hover:bg-blue-500 disabled:opacity-60"><Download className="h-3.5 w-3.5" />{exporting ? "Preparing download…" : "Download"}</button>
+                <button onClick={handleCopyImage} className="flex w-full items-center justify-center gap-2 rounded-lg border border-neutral-700 px-3 py-2 hover:bg-neutral-800">{copiedSuccess ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}{copiedSuccess ? "Image copied" : copyError ? "Copy failed · download PNG" : "Copy canvas image"}</button>
+              </div>
             </div>
           )}
         </div>

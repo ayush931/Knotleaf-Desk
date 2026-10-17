@@ -23,6 +23,7 @@ const GROUPS: { title: string; items: [string, string][] }[] = [
       ["L", "Line"],
       ["P", "Draw"],
       ["T", "Text"],
+      ["C", "Code card (inline editor)"],
       ["N", "Doc Card (rich formatted note)"],
       ["S", "Sticky note"],
       ["F", "Frame"],
@@ -38,6 +39,7 @@ const GROUPS: { title: string; items: [string, string][] }[] = [
       ["Ctrl+C / Ctrl+X / Ctrl+V", "Copy / cut / paste"],
       ["Ctrl+D", "Duplicate"],
       ["Ctrl+A", "Select all"],
+      ["Ctrl/Cmd+F", "Find on board and in notes"],
       ["Delete / Backspace", "Delete selection"],
       ["Arrow keys", "Nudge (Shift = 10px)"],
       ["Ctrl+] / Ctrl+[", "Bring to front / send to back"],
@@ -47,7 +49,8 @@ const GROUPS: { title: string; items: [string, string][] }[] = [
   {
     title: "Canvas & Document",
     items: [
-      ["Double-click", "Edit text or doc card"],
+      ["Double-click", "Write here; edit existing text"],
+      ["Alt+drag", "Move without alignment snapping"],
       ["Click Checkbox", "Toggle checklist directly on canvas"],
       ["Enter", "Continue list / checklist bullet"],
       ["Tab / Shift+Tab", "Indent / outdent list item"],
@@ -64,6 +67,7 @@ const GROUPS: { title: string; items: [string, string][] }[] = [
       ["+ / - / 0", "Zoom in / out / reset"],
       ["Shift+1", "Fit to content"],
       ["?", "Show this sheet"],
+      ["Left / Right in presentation", "Previous / next frame"],
     ],
   },
 ];

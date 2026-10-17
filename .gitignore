@@ -35,3 +35,7 @@ premium-audit.json
 
 # Private collaboration rooms
 .collab-data/
+
+# Private hosting environment exports
+.env.render.local
+.env.vercel.local
