@@ -172,3 +172,9 @@ Save a complete board or selected elements as a named custom template. Attached 
 
 
 For the hosted classroom, see [DEPLOYMENT.md](DEPLOYMENT.md). Calls use a small-group mesh (8 participants by default); larger classrooms need an SFU. Run `bun run db:migrate` and `bun run db:check` to initialize and verify the database in your ignored `.env`. No hosted video SDK is installed.
+
+### Install the web app
+
+Use **Install web app** in the top bar. Chrome/Edge offer the browser install prompt when available; otherwise the button shows browser instructions. On iOS use Safari → Share → Add to Home Screen, and on macOS Safari use File → Add to Dock. This installs the website, with no desktop binaries or release pipeline. Deploy over HTTPS. The app loads website updates on reopening/reloading; it does not force reload an active class. An internet connection is needed to load the app and use shared rooms/calls; offline startup is not provided.
+
+The Classroom panel displays a copyable invite link that opens the same board and call panel. Anyone with it can edit and join. Audio source defaults to Auto and shows the captured microphone name after permission; select a different microphone without leaving the call. Device names remain on your device. Screen tiles also indicate whether screen/tab audio is being shared.

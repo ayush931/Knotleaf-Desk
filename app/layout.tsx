@@ -13,7 +13,10 @@ export const metadata: Metadata = {
     template: "%s · Knotleaf Desk",
   },
   description: "Knotleaf Desk brings diagrams and notes together. Draw, collaborate, and keep editable project backups in your browser.",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: { capable: true, title: "Knotleaf Desk", statusBarStyle: "black-translucent" },
   icons: {
+    apple: "/icons/icon-192.png",
     icon: [{ url: "/icons/mark.svg", type: "image/svg+xml" }, { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" }],
   },
 };

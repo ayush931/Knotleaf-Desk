@@ -13,6 +13,11 @@ let a, b, call;
 try {
   await until(async () => { try { return (await fetch(`http://127.0.0.1:${port}/api/collaboration-health`)).ok; } catch { return false; } });
   const home = await fetch(`http://127.0.0.1:${port}/`); if (!home.ok) throw new Error('Home page did not load');
+  const manifestResponse=await fetch(`http://127.0.0.1:${port}/manifest.webmanifest`);
+  if(!manifestResponse.ok)throw new Error('Web app manifest did not load');
+  const manifest=await manifestResponse.json();
+  if(manifest.display!=='standalone'||manifest.scope!=='/'||manifest.icons.length<2)throw new Error('Invalid installable web app manifest');
+  for(const icon of manifest.icons){const response=await fetch(`http://127.0.0.1:${port}${icon.src}`);if(!response.ok||!response.headers.get('content-type')?.includes('image/png'))throw new Error('Web app install icon did not load');}
   const created = await fetch(`http://127.0.0.1:${port}/api/rooms`, {method:'POST',headers:{Origin:`http://127.0.0.1:${port}`,'Content-Type':'application/json'},body:JSON.stringify({title:'Smoke class',elements:[],markdownNotes:''})});
   if(created.status!==201) throw new Error('Room creation did not save on the hub: '+await created.text());
   const {id:room}=await created.json();
@@ -26,7 +31,7 @@ try {
   call=new TestSocket(`ws://127.0.0.1:${port}/classroom/${room}`); let welcome;
   call.on('message',raw=>{const message=JSON.parse(raw);if(message.type==='welcome')welcome=message;});
   await new Promise((resolve,reject)=>{call.on('open',resolve);call.on('error',reject);});call.send(JSON.stringify({type:'join',name:'Teacher'}));await until(()=>welcome);call.close();
-  console.log('PASS: home, durable room creation, shared route, two-client sync and native classroom signaling');
+  console.log('PASS: home, web app manifest/icons, durable room creation, shared route, two-client sync and native classroom signaling');
   a.destroy(); b.destroy(); first.destroy(); second.destroy();
 } catch (error) { console.error(error); process.exitCode = 1; }
 finally { a?.destroy(); b?.destroy(); call?.close(); child.kill('SIGTERM'); }

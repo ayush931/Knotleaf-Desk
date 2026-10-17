@@ -14,6 +14,7 @@ import {
   Magnet,
   Trash2,
 } from "lucide-react";
+import { InstallWebApp } from "./InstallWebApp";
 import { ConfirmDialog } from "./ConfirmDialog";
 import type { ExportScope } from "@/lib/projectFile";
 import { GridType, ViewMode } from "@/draw/types";
@@ -251,6 +252,7 @@ export function BoardHeader({
           ?
         </button>
 
+        <InstallWebApp />
         {/* Export Dropdown */}
         <div className="relative" ref={exportMenuRef}>
           <button

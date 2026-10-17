@@ -1,6 +1,6 @@
 export interface ClassMedia { mic: boolean; camera: boolean; screen: boolean }
 export interface ClassPeer { id: string; name: string; media: ClassMedia; camera: MediaStream; screen: MediaStream; audio: MediaStream; status: RTCPeerConnectionState }
-export interface ClassState { status: 'joining' | 'connected' | 'disconnected'; peers: ClassPeer[]; media: ClassMedia; camera: MediaStream | null; screen: MediaStream | null; relayConfigured: boolean; maxParticipants: number; messages: { id: string; name: string; text: string; at: number }[] }
+export interface ClassState { microphoneId: string; microphoneLabel: string; status: 'joining' | 'connected' | 'disconnected'; peers: ClassPeer[]; media: ClassMedia; camera: MediaStream | null; screen: MediaStream | null; relayConfigured: boolean; maxParticipants: number; messages: { id: string; name: string; text: string; at: number }[] }
 interface PeerConnection { pc: RTCPeerConnection; view: ClassPeer; slots: RTCRtpTransceiver[]; makingOffer: boolean; ignoreOffer: boolean; answering: boolean; candidates: RTCIceCandidateInit[]; queue: Promise<void>; restarts: number }
 const kinds = ['audio','video','video','audio'] as const;
 export function classroomSocketUrl(base: string, roomId: string) { const url=new URL(base); url.protocol=url.protocol==='https:'||url.protocol==='wss:'?'wss:':'ws:';url.pathname=`/classroom/${roomId}`;url.search='';url.hash='';return url.toString(); }
@@ -13,7 +13,7 @@ export class ClassroomSession {
   private peers=new Map<string,PeerConnection>();
   private tracks: (MediaStreamTrack|null)[]=[null,null,null,null];
   private pending=new Set<string>();
-  private state: ClassState={status:'joining',peers:[],media:{mic:false,camera:false,screen:false},camera:null,screen:null,relayConfigured:false,maxParticipants:8,messages:[]};
+  private state: ClassState={microphoneId:'',microphoneLabel:'',status:'joining',peers:[],media:{mic:false,camera:false,screen:false},camera:null,screen:null,relayConfigured:false,maxParticipants:8,messages:[]};
   constructor(url: string, private name: string) {
     this.socket=new WebSocket(url);
     this.socket.onopen=()=>this.send({type:'join',name});
@@ -68,16 +68,37 @@ export class ClassroomSession {
   }
   private async replace(index:number,track:MediaStreamTrack|null){this.tracks[index]=track;const results=await Promise.allSettled([...this.peers.values()].map(peer=>peer.slots[index].sender.replaceTrack(track)));if(results.some(r=>r.status==='rejected')&&!this.closed)this.onError?.('A participant could not receive the media update. Leave and rejoin if it persists.');}
   private publishMedia(){this.send({type:'media',...this.state.media});this.emit();}
+  private microphoneConstraints(deviceId=this.state.microphoneId): MediaTrackConstraints {
+    return {echoCancellation:true,noiseSuppression:true,...(deviceId?{deviceId:{exact:deviceId}}:{})};
+  }
+  private watchMicrophone(track:MediaStreamTrack){
+    this.state.microphoneLabel=track.label||'System microphone';
+    track.onended=()=>{if(this.tracks[0]===track){void this.replace(0,null);this.state.media.mic=false;this.state.microphoneLabel='';this.publishMedia();}};
+  }
+  async selectMicrophone(deviceId:string){
+    if(this.closed||this.state.status!=='connected'||this.pending.has('mic'))return;
+    if(!this.state.media.mic){this.state.microphoneId=deviceId;this.emit();return;}
+    this.pending.add('mic');
+    try{
+      // Acquire first: a denied or unplugged device must not silence the current microphone.
+      const stream=await navigator.mediaDevices.getUserMedia({audio:this.microphoneConstraints(deviceId),video:false});
+      if(this.closed||this.state.status!=='connected'){stream.getTracks().forEach(t=>t.stop());return;}
+      const track=stream.getAudioTracks()[0],previous=this.tracks[0];
+      await this.replace(0,track);
+      if(this.closed||this.state.status!=='connected'){track.stop();previous?.stop();return;}
+      this.state.microphoneId=deviceId;this.watchMicrophone(track);previous?.stop();this.publishMedia();
+    }finally{this.pending.delete('mic');}
+  }
   async toggle(kind:'mic'|'camera') {
     if(this.closed||this.state.status!=='connected'||this.pending.has(kind))return;this.pending.add(kind);
     const index=kind==='mic'?0:1;
     try{
-      if(this.tracks[index]){this.tracks[index]?.stop();await this.replace(index,null);this.state.media[kind]=false;if(kind==='camera')this.state.camera=null;}
+      if(this.tracks[index]){this.tracks[index]?.stop();await this.replace(index,null);this.state.media[kind]=false;if(kind==='mic')this.state.microphoneLabel='';if(kind==='camera')this.state.camera=null;}
       else{
-        const stream=await navigator.mediaDevices.getUserMedia(kind==='mic'?{audio:{echoCancellation:true,noiseSuppression:true},video:false}:{video:{width:{ideal:640},height:{ideal:360},frameRate:{ideal:20,max:24}},audio:false});
+        const stream=await navigator.mediaDevices.getUserMedia(kind==='mic'?{audio:this.microphoneConstraints(),video:false}:{video:{width:{ideal:640},height:{ideal:360},frameRate:{ideal:20,max:24}},audio:false});
         if(this.closed||this.state.status!=='connected'){stream.getTracks().forEach(t=>t.stop());return;}
-        const track=stream.getTracks()[0];await this.replace(index,track);this.state.media[kind]=true;if(kind==='camera')this.state.camera=stream;
-        track.onended=()=>{if(this.tracks[index]===track){void this.replace(index,null);this.state.media[kind]=false;if(kind==='camera')this.state.camera=null;this.publishMedia();}};
+        const track=stream.getTracks()[0];await this.replace(index,track);if(this.closed||this.state.status!=='connected'){track.stop();return;}this.state.media[kind]=true;if(kind==='camera')this.state.camera=stream;
+        if(kind==='mic')this.watchMicrophone(track);else track.onended=()=>{if(this.tracks[index]===track){void this.replace(index,null);this.state.media.camera=false;this.state.camera=null;this.publishMedia();}};
       }
       this.publishMedia();
     }finally{this.pending.delete(kind);}
@@ -94,7 +115,7 @@ export class ClassroomSession {
   }
   private async stopScreen(){const stream=this.state.screen;this.state.screen=null;stream?.getTracks().forEach(t=>t.stop());await this.replace(2,null);await this.replace(3,null);this.state.media.screen=false;this.publishMedia();}
   chat(text:string){if(this.state.status==='connected'&&text.trim())this.send({type:'chat',text:text.trim().slice(0,2000)});}
-  private stopMedia(){this.tracks.forEach(t=>t?.stop());this.tracks=[null,null,null,null];this.state.camera=null;this.state.screen=null;this.state.media={mic:false,camera:false,screen:false};}
+  private stopMedia(){this.tracks.forEach(t=>t?.stop());this.tracks=[null,null,null,null];this.state.camera=null;this.state.screen=null;this.state.microphoneLabel='';this.state.media={mic:false,camera:false,screen:false};}
   private dropPeers(){for(const peer of this.peers.values())peer.pc.close();this.peers.clear();}
   close(){if(this.closed)return;this.closed=true;this.socket.onclose=null;this.socket.close();this.stopMedia();this.dropPeers();}
 }
