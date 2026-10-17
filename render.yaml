@@ -7,7 +7,7 @@ services:
     healthCheckPath: /api/collaboration-health
     envVars:
       - key: NEXT_PUBLIC_APP_URL
-        value: https://excalidraw-steel-eta.vercel.app
+        value: https://knotleaf-desk.vercel.app
       - key: NEXT_PUBLIC_COLLAB_URL
         value: wss://excalidraw-tl7h.onrender.com/collaboration
       - key: WEB_HOST
@@ -17,7 +17,7 @@ services:
       - key: DATABASE_URL
         sync: false
       - key: COLLAB_ORIGINS
-        value: https://excalidraw-steel-eta.vercel.app,https://excalidraw-tl7h.onrender.com
+        value: https://knotleaf-desk.vercel.app,https://excalidraw-tl7h.onrender.com
       - key: CLASSROOM_MAX_PARTICIPANTS
         value: "8"
       - key: STUN_URLS

@@ -11,12 +11,12 @@ Production uses your Vercel website, a Render Node/WebSocket service, and Neon P
 
 The two `.local` hosting exports are ignored by Git and excluded from Docker build context. They are snapshots: refresh their secret values if you rotate credentials in `.env`. Changing these files does not update hosting dashboards automatically. Do not rename/copy the Render file to a Next.js auto-loaded `.env.local` on a Vercel-only project; its server secrets are not needed there. `PORT` comes from Render and Docker supplies its internal runtime flags. `STUN_URLS` uses Google’s public `stun:stun.l.google.com:19302` endpoint, verified with a binding request. `TURN_URLS` stays empty by your choice; no relay is enabled.
 
-## 1. Vercel — excalidraw-steel-eta.vercel.app
+## 1. Vercel — knotleaf-desk.vercel.app
 
 Set these in Project Settings → Environment Variables for Production, then redeploy:
 
 ```dotenv
-NEXT_PUBLIC_APP_URL=https://excalidraw-steel-eta.vercel.app
+NEXT_PUBLIC_APP_URL=https://knotleaf-desk.vercel.app
 NEXT_PUBLIC_COLLAB_URL=wss://excalidraw-tl7h.onrender.com/collaboration
 ```
 
@@ -33,11 +33,11 @@ Connect the repository/service to [render.yaml](render.yaml), or apply the same 
 Set these non-secret values in Render → Environment:
 
 ```dotenv
-NEXT_PUBLIC_APP_URL=https://excalidraw-steel-eta.vercel.app
+NEXT_PUBLIC_APP_URL=https://knotleaf-desk.vercel.app
 NEXT_PUBLIC_COLLAB_URL=wss://excalidraw-tl7h.onrender.com/collaboration
 WEB_HOST=0.0.0.0
 COLLAB_DATA_DIR=/tmp/knotleaf-rooms
-COLLAB_ORIGINS=https://excalidraw-steel-eta.vercel.app,https://excalidraw-tl7h.onrender.com
+COLLAB_ORIGINS=https://knotleaf-desk.vercel.app,https://excalidraw-tl7h.onrender.com
 CLASSROOM_MAX_PARTICIPANTS=8
 ```
 
@@ -86,7 +86,7 @@ TURN_URLS=turn:YOUR_REAL_RELAY_HOST:3478?transport=udp,turn:YOUR_REAL_RELAY_HOST
 TURN_SHARED_SECRET=YOUR_RELAY_SHARED_SECRET
 ```
 
-Do not substitute `excalidraw-steel-eta.vercel.app` or the Render web-service hostname into these fields unless an actual TURN service is reachable there. An HTTPS website is not a TURN endpoint. Vercel/ordinary Render web services do not expose the UDP relay ports needed for a normal coturn deployment. Running a container in CI does not make its relay ports reachable by students; CI jobs are temporary. A relay requires a reachable persistent host with suitable ports, or a compatible hosted relay offering. No relay host was provisioned here.
+Do not substitute `knotleaf-desk.vercel.app` or the Render web-service hostname into these fields unless an actual TURN service is reachable there. An HTTPS website is not a TURN endpoint. Vercel/ordinary Render web services do not expose the UDP relay ports needed for a normal coturn deployment. Running a container in CI does not make its relay ports reachable by students; CI jobs are temporary. A relay requires a reachable persistent host with suitable ports, or a compatible hosted relay offering. No relay host was provisioned here.
 
 The ignored local `.env` contains a randomly generated `TURN_SHARED_SECRET` when previously empty. Copy it to Render **and to your relay's matching authentication-secret setting** if you provision a relay. This is not a database password. The shared secret stays server-only; browsers receive HMAC credentials valid for 12 hours. Public STUN is enabled and its binding response was verified from this environment. Keep `TURN_URLS` empty until a working relay is configured. Some NAT/firewall combinations will fail without TURN; STUN is not a replacement for it. Google documents this STUN endpoint at https://web.dev/articles/webrtc-infrastructure. The documented Open Relay static-auth endpoint timed out over UDP/TCP/TLS during checks here, so it was not enabled. This does not prove that endpoint is globally unavailable.
 
