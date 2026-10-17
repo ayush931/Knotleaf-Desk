@@ -51,7 +51,7 @@ Copy your actual `DATABASE_URL` from the ignored local `.env` into Render's secr
 
 Render provides `PORT`; leave it unset. Docker runtime starts `node server/web.mjs`. If using Render's native Node runtime instead, install/build with `bun install --frozen-lockfile && bun run build`, start `bun start`, and use Node 24. Health check: `/api/collaboration-health`.
 
-Free Render services can sleep. Sleeping/restarting interrupts live sessions, even though Neon preserves confirmed saves. No paid disk is required: `/tmp/knotleaf-rooms` contains only ephemeral recovery copies. Back up existing `.bin` room files and open/export important old rooms before detaching any old persistent disk; old rooms that never reached Neon need their recovery files to migrate. Run one hub replica: PostgreSQL stores snapshots, but does not distribute live Yjs or signaling events between independent hubs.
+Free Render services can sleep. Sleeping/restarting interrupts live sessions, even though Neon preserves confirmed saves. No paid disk is required: `/tmp/knotleaf-rooms` contains only ephemeral recovery copies. Export any room content you want to retain before its 24-hour deadline. Recovery files without an authoritative room record are removed and cannot renew a room. Run one hub replica: PostgreSQL stores snapshots, but does not distribute live Yjs or signaling events between independent hubs.
 
 ## 3. Neon data and migrations
 
@@ -119,3 +119,7 @@ Create/open a shared room → Classroom → name → Join class. Mic/camera star
 For local recording, select this app's tab, enable tab audio to capture remote voices, and optionally include your microphone. Stop & save downloads WebM (or MP4 if supported). Nothing uploads to the database. Recordings are held in memory and stop/save at 512 MB; split long lessons and save before closing the page. Screen/audio support varies by browser/OS; tell students before recording.
 
 After deployment, test on two devices on different networks: edit canvas/code/notes, join, enable mic/camera, share a screen, minimize, record/save and leave. HTTPS is required outside localhost. If signaling connects but media fails, check the real relay settings and network/firewall. Unit tests and the server smoke test do not prove real-device media/NAT connectivity.
+
+## Room retention
+
+All rooms, including previously created rooms, have a fixed 24-hour lifetime based on their original creation timestamp. Activity never renews it. PostgreSQL reads/writes and local disk reads enforce the deadline, both WebSocket services close active sessions at expiry, and startup/minute cleanup removes expired records and recovery files. The `Expire rooms` GitHub Actions workflow calls the hub cleanup endpoint every 15 minutes so a sleeping Render host also gets cleanup requests; scheduled jobs can be delayed. Expired access is denied independently of cleanup timing. Personal boards remain; cached room copies and history are removed on expiry or the next app read. Unregistered legacy recovery files are removed rather than turned into fresh rooms.

@@ -4,7 +4,7 @@ import { Heading1, List, CheckSquare, Quote, Check } from "lucide-react";
 import { useRouter } from "next/navigation";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { RoomSession, type Collaborator } from "@/lib/collaboration";
-import { getRoomServerUrl } from "@/lib/roomConnection";
+import { getRoomServerUrl, checkRoomAvailable, RoomExpiredError } from "@/lib/roomConnection";
 import { createRoomFromBoard } from "@/lib/roomCreation";
 import { Classroom } from "./Classroom";
 import { CollaborationPanel } from "./CollaborationPanel";
@@ -219,14 +219,21 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
     let session: RoomSession | undefined;
     const engine = engineRef.current;
     const timer = setTimeout(() => setRoomError("The room has not synced yet. Check your connection or retry. Your saved local copy is preserved."), 25000);
-    void getRoomServerUrl(controller.signal).then(url => {
+    void getRoomServerUrl(controller.signal).then(async url => {
+      await checkRoomAvailable(url, initialRoomId, controller.signal);
       if (controller.signal.aborted) return;
       session = new RoomSession(url, initialRoomId, boardRef.current);
       sessionRef.current = session;
+      session.onExpired = () => {
+        clearTimeout(timer); deleteBoard(initialRoomId); refreshBoardsList();
+        setRoomStatus("expired"); setRoomReady(false); setRoomError("This room expired and was deleted after 24 hours.");
+        const next = { ...boardRef.current, elements: [], markdownNotes: "" };
+        boardRef.current = next; setBoard(next); engine?.applyRemoteElements([]);
+      };
       session.onStatus = setRoomStatus;
       session.onRemote = (elements, markdownNotes, title) => {
         clearTimeout(timer); setRoomError("");
-        const next = { ...boardRef.current, elements, markdownNotes, title };
+        const next = { ...boardRef.current, elements, markdownNotes, title, roomExpiresAt: session?.expiresAt };
         boardRef.current = next; setBoard(next); setSaveError(!saveBoard(next));
         engine?.applyRemoteElements(elements); setRoomReady(true); refreshBoardsList();
       };
@@ -240,7 +247,12 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
       session.connect();
     }).catch(error => {
       if (controller.signal.aborted) return;
-      clearTimeout(timer); setRoomStatus("disconnected");
+      clearTimeout(timer); setRoomStatus(error instanceof RoomExpiredError ? "expired" : "disconnected");
+      if (error instanceof RoomExpiredError) {
+        deleteBoard(initialRoomId); refreshBoardsList();
+        const next = { ...boardRef.current, elements: [], markdownNotes: "" };
+        boardRef.current = next; setBoard(next); engine?.applyRemoteElements([]);
+      }
       setRoomError(error instanceof Error ? error.message : "Could not connect to the room server.");
     });
     return () => {
@@ -837,7 +849,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
         </div>
       </main>
 
-      {initialRoomId && !roomReady && <div role="status" className="fixed left-1/2 top-20 z-40 w-[min(400px,90vw)] -translate-x-1/2 rounded-xl border border-amber-500/30 bg-neutral-900 p-4 text-center text-sm text-neutral-300"><p>{roomError || "Connecting to your room…"}</p><p className="mt-2 text-xs text-neutral-500">Start the collaboration server or check your connection. Drawing unlocks after the room syncs.</p><div className="mt-3 flex justify-center gap-4">{roomError && <button onClick={() => { setRoomError(""); setRoomStatus("connecting"); setRoomAttempt(attempt => attempt + 1); }} className="text-xs text-blue-400 underline">Retry connection</button>}<button onClick={handleLeaveRoom} className="text-xs text-blue-400 underline">Leave room</button></div></div>}
+      {initialRoomId && !roomReady && <div role="status" className="fixed left-1/2 top-20 z-40 w-[min(400px,90vw)] -translate-x-1/2 rounded-xl border border-amber-500/30 bg-neutral-900 p-4 text-center text-sm text-neutral-300"><p>{roomError || "Connecting to your room…"}</p><p className="mt-2 text-xs text-neutral-500">Start the collaboration server or check your connection. Drawing unlocks after the room syncs.</p><div className="mt-3 flex justify-center gap-4">{roomError && roomStatus !== "expired" && <button onClick={() => { setRoomError(""); setRoomStatus("connecting"); setRoomAttempt(attempt => attempt + 1); }} className="text-xs text-blue-400 underline">Retry connection</button>}<button onClick={handleLeaveRoom} className="text-xs text-blue-400 underline">Leave room</button></div></div>}
       <PresentationMode isActive={isPresentationOpen} onExit={endPresentation} title={board.title} theme={theme} frames={frames} index={presentationIndex} onIndex={setPresentationIndex} />
       <BoardTools open={boardToolsOpen} onClose={() => setBoardToolsOpen(false)} board={board} selection={librarySelection} historyError={historyError} onHistorySaved={() => setHistoryError("")} onOpenCopy={(source, title) => { const copy = importBoardFile(JSON.stringify({ ...source, title })); if (!copy) throw new Error("Could not create a board. Check available browser storage."); copy.title = title; if (!saveBoard(copy)) throw new Error("Could not save the new board."); moveBoardToWorkspace(copy.id, workspaceId); handleSelectBoard(copy.id); }} onFind={(id, index, length) => {
         if (index !== undefined) {

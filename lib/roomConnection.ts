@@ -16,3 +16,14 @@ export async function getRoomServerUrl(signal?: AbortSignal): Promise<string> {
 export function roomInviteUrl(roomId: string, classroom = false): string {
   return `${window.location.origin}/canvas/${encodeURIComponent(roomId)}${classroom ? "?classroom=1" : ""}`;
 }
+
+export class RoomExpiredError extends Error {}
+export async function checkRoomAvailable(serverUrl: string, roomId: string, signal?: AbortSignal): Promise<void> {
+  const url = new URL(serverUrl);
+  url.protocol = url.protocol === "wss:" ? "https:" : "http:";
+  url.pathname = `/api/rooms/${encodeURIComponent(roomId)}`; url.search = "";
+  const timeout = AbortSignal.timeout(60000);
+  const response = await fetch(url, { cache: "no-store", signal: signal ? AbortSignal.any([signal, timeout]) : timeout });
+  if (response.status === 404 || response.status === 410) throw new RoomExpiredError("This room expired or no longer exists.");
+  if (!response.ok) throw new Error("Could not check the room server. Retry shortly.");
+}

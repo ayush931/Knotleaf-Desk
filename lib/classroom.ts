@@ -19,7 +19,7 @@ export class ClassroomSession {
     this.socket.onopen=()=>this.send({type:'join',name});
     this.socket.onmessage=e=>{try{this.receive(JSON.parse(e.data));}catch{this.onError?.('Invalid response from the call server. Leave and rejoin.');}};
     this.socket.onerror=()=>this.onError?.('Could not reach the call server. Check your connection and the room server.');
-    this.socket.onclose=()=>{if(!this.closed){this.stopMedia();this.dropPeers();this.state.status='disconnected';this.emit();}};
+    this.socket.onclose=event=>{if(event.code===4001)this.onError?.('This room expired after 24 hours.');if(!this.closed){this.stopMedia();this.dropPeers();this.state.status='disconnected';this.emit();}};
   }
   private emit(){ if(!this.closed)this.onState?.({...this.state,media:{...this.state.media},peers:[...this.peers.values()].map(p=>({...p.view,media:{...p.view.media},status:p.pc.connectionState}))}); }
   private send(data: unknown){if(this.socket.readyState===1)this.socket.send(JSON.stringify(data));}

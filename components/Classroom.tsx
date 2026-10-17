@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import { useSearchParams } from 'next/navigation';
 import { Video, X, Mic, MonitorUp, PhoneOff, Copy } from 'lucide-react';
 import { ClassroomSession, classroomSocketUrl, type ClassState } from '@/lib/classroom';
-import { getRoomServerUrl, roomInviteUrl } from '@/lib/roomConnection';
+import { getRoomServerUrl, roomInviteUrl, checkRoomAvailable } from '@/lib/roomConnection';
 import { ClassroomAudioSource } from './ClassroomAudioSource';
 import { LocalRecorder } from './LocalRecorder';
 function MediaVideo({stream,label}:{stream:MediaStream|null;label:string}){
@@ -34,6 +34,7 @@ export function Classroom({roomId,onCreateRoom}:{roomId?:string;onCreateRoom?:()
     const controller=new AbortController();joinAbort.current?.abort();joinAbort.current=controller;
     try {
       const base=await getRoomServerUrl(controller.signal);
+      await checkRoomAvailable(base,roomId,controller.signal);
       if(controller.signal.aborted)return;
       const session=new ClassroomSession(classroomSocketUrl(base,roomId),name.trim());client.current=session;
       session.onState=next=>{setState(next);if(next.status!=='joining')setBusy('');};session.onError=message=>{setError(message);setBusy('');};

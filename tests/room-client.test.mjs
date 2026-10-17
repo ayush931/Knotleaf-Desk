@@ -1,5 +1,5 @@
 import { beforeEach, afterEach, test, expect } from 'bun:test';
-import { getRoomServerUrl, roomInviteUrl } from '../lib/roomConnection.ts';
+import { getRoomServerUrl, roomInviteUrl, checkRoomAvailable, RoomExpiredError } from '../lib/roomConnection.ts';
 import { createRoomFromBoard } from '../lib/roomCreation.ts';
 import { createBoard, getBoard, getOrCreateDefaultBoard } from '../lib/storage.ts';
 const originals = new Map();
@@ -30,6 +30,10 @@ test('unavailable or invalid room configuration reports an error', async () => {
   await expect(getRoomServerUrl()).rejects.toThrow('Configure your room host.');
   globalThis.fetch = async () => Response.json({ collaboration: true, websocketUrl: 'file:///tmp/room' });
   await expect(getRoomServerUrl()).rejects.toThrow('invalid');
+});
+test('expired invite links report a terminal expiry rather than reconnecting forever', async () => {
+  globalThis.fetch = async url => { expect(url.toString()).toContain('https://rooms.example/api/rooms/'); return Response.json({ error: 'Expired' }, { status: 410 }); };
+  await expect(checkRoomAvailable('wss://rooms.example/collaboration', crypto.randomUUID())).rejects.toBeInstanceOf(RoomExpiredError);
 });
 test('creating a shared copy preserves the personal board and normalizes legacy notes', async () => {
   const board = createBoard('Personal'), id = crypto.randomUUID();

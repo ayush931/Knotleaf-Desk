@@ -68,6 +68,16 @@ test('personal drawing can start even if browser storage is blocked', () => {
   try { expect(getOrCreateDefaultBoard().elements).toEqual([]); }
   finally { localStorage.getItem = read; localStorage.setItem = write; }
 });
+test('expired room backups and history are deleted while personal boards remain', () => {
+  const personal = createBoard('Keep personal'), room = createBoard('Temporary', undefined, 'personal', crypto.randomUUID());
+  room.roomExpiresAt = Date.now() - 1;
+  data.set(`excali_eraser_board_${room.id}`, JSON.stringify(room));
+  data.set(`knotleaf_history_${room.id}`, 'history');
+  expect(getAllBoards().map(board => board.id)).toEqual([personal.id]);
+  expect(getBoard(room.id)).toBeNull(); expect(data.has(`knotleaf_history_${room.id}`)).toBe(false);
+  expect(getBoard(personal.id).title).toBe('Keep personal');
+  expect(saveBoard(room)).toBe(false);
+});
 
 test('portable project round trip preserves notes, styling, icons and bound connector IDs', async () => {
   const { serializeProject } = await import('../lib/projectFile.ts');

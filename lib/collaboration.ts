@@ -25,6 +25,9 @@ export class RoomSession {
   readonly provider: WebsocketProvider;
   synced = false;
   private destroyed = false;
+  private expiryTimer?: ReturnType<typeof setTimeout>;
+  private expired = false;
+  expiresAt?: number;
   private queued: Board | undefined;
   private lastScene = new Map<string, CanvasElement>();
   private knownElementIds = new Set<string>();
@@ -32,14 +35,22 @@ export class RoomSession {
   onStatus?: (status: string) => void;
   onPresence?: (people: Collaborator[]) => void;
   onHistory?: (canUndo: boolean, canRedo: boolean) => void;
+  onExpired?: () => void;
   constructor(url: string, roomId: string, seed?: Board) {
     this.queued = seed;
     this.provider = new WebsocketProvider(url, roomId, this.doc, { connect: false });
     const colors = ["#60a5fa", "#f472b6", "#34d399", "#fbbf24", "#c084fc"];
     this.provider.awareness.setLocalStateField("user", { name: `Guest ${String(this.doc.clientID).slice(-4)}`, color: colors[this.doc.clientID % colors.length] });
     this.provider.on("status", ({ status }: { status: string }) => this.onStatus?.(status));
+    this.provider.on("connection-close", (event: CloseEvent | null) => { if (event?.code === 4001) this.expire(); });
     this.provider.on("sync", (synced: boolean) => {
       if (!synced) return; // Keep an initialized document writable during reconnects.
+      const expiry = Date.parse(this.meta.get("expiresAt") || "");
+      if (Number.isFinite(expiry)) {
+        this.expiresAt = expiry; clearTimeout(this.expiryTimer);
+        if (expiry <= Date.now()) { this.expire(); return; }
+        this.expiryTimer = setTimeout(() => this.expire(), Math.min(24 * 60 * 60 * 1000, expiry - Date.now()));
+      }
       this.synced = true;
       if (!this.meta.has("initialized")) {
         const initial = this.queued;
@@ -71,7 +82,13 @@ export class RoomSession {
     });
   }
   connect() { this.provider.connect(); }
+  private expire() {
+    if (this.expired || this.destroyed) return;
+    this.expired = true; this.synced = false; clearTimeout(this.expiryTimer);
+    this.provider.disconnect(); this.onExpired?.();
+  }
   update(board: Board) {
+    if (this.expired) return;
     if (!this.synced) { this.queued = board; return; }
     this.doc.transact(() => {
       // Publish only this client's edits, never replace the room with a full snapshot.
@@ -111,8 +128,9 @@ export class RoomSession {
   destroy() {
     if (this.destroyed) return;
     this.destroyed = true;
+    clearTimeout(this.expiryTimer);
     this.provider.awareness.setLocalState(null);
-    this.onRemote = undefined; this.onStatus = undefined; this.onPresence = undefined; this.onHistory = undefined;
+    this.onRemote = undefined; this.onStatus = undefined; this.onPresence = undefined; this.onHistory = undefined; this.onExpired = undefined;
     this.provider.destroy(); this.undo.destroy(); this.doc.destroy();
   }
 }

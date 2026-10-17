@@ -197,6 +197,7 @@ export type CanvasElement =
 export interface Workspace { id: string; name: string; createdAt: number }
 
 export interface Board {
+  roomExpiresAt?: number;
   workspaceId?: string;
   id: string;
   title: string;

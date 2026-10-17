@@ -15,6 +15,6 @@ export async function createRoomFromBoard(board: Board): Promise<{ id: string; s
   const data = await response.json().catch(() => null);
   if (!response.ok) throw new Error(typeof data?.error === "string" ? data.error : "The room server is unavailable. Your personal board is safe; retry shortly.");
   if (!data || !isRoomBoardId(data.id) || typeof data.title !== "string") throw new Error("The room server returned an invalid invite. Your personal board is safe; retry.");
-  const savedLocally = saveBoard({ ...board, markdownNotes: board.markdownNotes ?? "", id: data.id, title: data.title, createdAt: Date.now() });
+  const savedLocally = saveBoard({ ...board, markdownNotes: board.markdownNotes ?? "", id: data.id, title: data.title, createdAt: Date.now(), roomExpiresAt: data.expiresAt ? Date.parse(data.expiresAt) : undefined });
   return { id: data.id, savedLocally };
 }

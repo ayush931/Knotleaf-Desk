@@ -21,11 +21,14 @@ export function attachClassroomServer(server, {store,origins=[],maxParticipants=
     const url=new URL(request.url,'http://localhost'); if (!url.pathname.startsWith('/classroom/')) return;
     const roomId=url.pathname.slice('/classroom/'.length);
     if (!validRoomId(roomId) || origins.length && !origins.includes(request.headers.origin)) { socket.end('HTTP/1.1 403 Forbidden\r\n\r\n'); return; }
-    try { if (!await store.load(roomId)) { socket.end('HTTP/1.1 404 Not Found\r\n\r\n'); return; } } catch { socket.end('HTTP/1.1 503 Service Unavailable\r\n\r\n'); return; }
+    let stored;
+    try { stored = await store.load(roomId); if (!stored) { socket.end('HTTP/1.1 404 Not Found\r\n\r\n'); return; } } catch { socket.end('HTTP/1.1 503 Service Unavailable\r\n\r\n'); return; }
     if (socket.destroyed) return;
     sockets.handleUpgrade(request,socket,head,ws=>{
       const id=randomUUID(); let joined=false, alive=true, windowStart=Date.now(), count=0;
       const deadline=setTimeout(()=>ws.close(1008,'Join timeout'),10000);
+      const expires = stored.expiresAt ? new Date(stored.expiresAt).getTime() : NaN;
+      const expiryTimer = Number.isFinite(expires) ? setTimeout(()=>{ws.removeAllListeners('message');ws.close(4001,'Room expired after 24 hours');},Math.max(0,expires-Date.now())) : undefined;
       ws.on('pong',()=>{alive=true;});
       const heartbeat=setInterval(()=>{if(!alive){ws.terminate();return;} alive=false;ws.ping();},30000);
       ws.on('message',raw=>{
@@ -50,8 +53,8 @@ export function attachClassroomServer(server, {store,origins=[],maxParticipants=
         }else if(message.type==='chat'&&typeof message.text==='string'&&message.text.trim()&&message.text.length<=2000){broadcast(room,{type:'chat',id,name:room.get(id).name,text:message.text.trim(),at:Date.now()});}
       });
       ws.on('error',()=>{});
-      ws.on('close',()=>{clearTimeout(deadline);clearInterval(heartbeat);const room=rooms.get(roomId);if(joined&&room){room.delete(id);broadcast(room,{type:'left',id});if(!room.size)rooms.delete(roomId);}});
+      ws.on('close',()=>{clearTimeout(deadline);clearTimeout(expiryTimer);clearInterval(heartbeat);const room=rooms.get(roomId);if(joined&&room){room.delete(id);broadcast(room,{type:'left',id});if(!room.size)rooms.delete(roomId);}});
     });
   });
-  return {close:()=>{for(const socket of sockets.clients)socket.terminate();sockets.close();}};
+  return {expireRoom:id=>{for(const peer of rooms.get(id)?.values()||[]){peer.socket.removeAllListeners('message');peer.socket.close(4001,'Room expired after 24 hours');}rooms.delete(id);},close:()=>{for(const socket of sockets.clients)socket.terminate();sockets.close();}};
 }

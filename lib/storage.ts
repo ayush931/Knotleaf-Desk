@@ -3,6 +3,16 @@ export { isValidElement } from "./elementValidation.mjs";
 import { readProjectPayload } from "./projectFile";
 import { Board, BoardSummary, CanvasElement, Workspace } from "@/draw/types";
 import { TEMPLATES } from "@/draw/templatesData";
+import { roomExpiresAt } from "./roomExpiry.mjs";
+
+function expiredRoom(board: { id: string; createdAt: number; roomExpiresAt?: number }): boolean {
+  return isRoomBoardId(board.id) && (board.roomExpiresAt ?? roomExpiresAt(board.createdAt)) <= Date.now();
+}
+function removeRoomCache(id: string) {
+  localStorage.removeItem(`excali_eraser_board_${id}`);
+  localStorage.removeItem(`knotleaf_history_${id}`);
+  if (getActiveBoardId() === id) localStorage.removeItem('excali_eraser_active_board_id');
+}
 
 const STORAGE_KEYS = {
   BOARDS_INDEX: "excali_eraser_boards_index",
@@ -16,7 +26,16 @@ export function getAllBoards(): BoardSummary[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.BOARDS_INDEX);
     if (!raw) return [];
-    return JSON.parse(raw);
+    const index: BoardSummary[] = JSON.parse(raw);
+    const kept = index.filter(summary => {
+      if (!isRoomBoardId(summary.id)) return true;
+      const cached = localStorage.getItem(`${STORAGE_KEYS.BOARD_PREFIX}${summary.id}`);
+      const board = cached ? JSON.parse(cached) : summary;
+      if (!expiredRoom(board)) return true;
+      removeRoomCache(summary.id); return false;
+    });
+    if (kept.length !== index.length) saveBoardsIndex(kept);
+    return kept;
   } catch (err) {
     console.error("Failed to load boards from localStorage", err);
     return [];
@@ -40,6 +59,7 @@ export function getBoard(id: string): Board | null {
     const raw = localStorage.getItem(`${STORAGE_KEYS.BOARD_PREFIX}${id}`);
     if (!raw) return null;
     const board = JSON.parse(raw) as Board;
+    if (board && expiredRoom(board)) { removeRoomCache(id); return null; }
     if (board) {
       board.theme = "dark";
       board.viewMode ||= "canvas";
@@ -55,6 +75,7 @@ export function getBoard(id: string): Board | null {
 export function saveBoard(board: Board): boolean {
   if (typeof window === "undefined") return false;
   try {
+    if (expiredRoom(board)) { removeRoomCache(board.id); return false; }
     board.updatedAt = Date.now();
     localStorage.setItem(
       `${STORAGE_KEYS.BOARD_PREFIX}${board.id}`,
