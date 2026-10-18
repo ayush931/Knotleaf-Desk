@@ -71,7 +71,7 @@ test('Pencil stays active between strokes, cancellation and quick repeated click
   const { engine, drag, listeners, point } = setup([]);
   engine.setTool('pencil');
   drag(100, 100, 140, 130);
-  expect(engine.getTool()).toBe('pencil'); expect(engine.getSelectedElements()).toEqual([]);
+  expect(engine.getTool()).toBe('pencil'); expect(engine.getSelectedElements()).toEqual([engine.getElements()[0]]);
   drag(180, 100, 220, 150);
   expect(engine.getElements().map(el => el.type)).toEqual(['pencil', 'pencil']);
   expect(engine.getTool()).toBe('pencil');
@@ -88,10 +88,13 @@ for (const tool of ['rectangle', 'diamond', 'circle', 'arrow', 'line', 'pencil',
   test(`${tool} stays active for repeated drawing, double clicks and cancellation`, () => {
     const { engine, drag, listeners, point } = setup([]);
     engine.setTool(tool); drag(100, 100, 180, 160);
-    expect(engine.getTool()).toBe(tool); expect(engine.getSelectedElements()).toEqual([]);
+    expect(engine.getTool()).toBe(tool); expect(engine.getSelectedElements()).toEqual([engine.getElements()[0]]);
+    listeners.pointermove(point(750, 600));
+    expect(engine.getSelectedElements()).toEqual([engine.getElements()[0]]);
     listeners.dblclick(point(500, 500)); expect(engine.getTool()).toBe(tool);
     drag(300, 100, 380, 160);
     expect(engine.getElements().map(el => el.type)).toEqual([tool, tool]);
+    expect(engine.getSelectedElements()).toEqual([engine.getElements()[1]]);
     listeners.pointerdown(point(500, 100)); listeners.pointermove(point(580, 160)); listeners.pointercancel(point(580, 160));
     expect(engine.getTool()).toBe(tool); expect(engine.getElements()).toHaveLength(2);
     engine.undo(); expect(engine.getElements()).toHaveLength(1);
@@ -110,6 +113,7 @@ for (const tool of ['text', 'doc', 'sticky']) {
     engine.commitInlineText({ ...editor, text: 'Second item' });
     expect(engine.getTool()).toBe(tool);
     expect(engine.getElements().map(el => el.text)).toEqual(['First item', 'Second item']);
+    listeners.pointermove(point(750, 600)); expect(engine.getSelectedElements()).toEqual([engine.getElements()[1]]);
     engine.setTool('select'); expect(engine.getTool()).toBe('select'); engine.destroy();
   });
 }
@@ -125,6 +129,7 @@ test('Code stays active after editing and creates a second independent card', ()
 test('icon insertion and erasing preserve the explicitly chosen tool', () => {
   const { engine, drag, listeners, point } = setup([]); engine.setTool('rectangle');
   engine.addOnlineIcon('Test', 'test', '<path d="M0 0h24v24z"/>', '0 0 24 24'); expect(engine.getTool()).toBe('rectangle');
+  listeners.pointermove(point(750, 600)); expect(engine.getSelectedElements()).toEqual([engine.getElements()[0]]);
   drag(100, 100, 180, 160); engine.setTool('eraser');
   listeners.pointerdown(point(140, 130)); listeners.pointerup(point(140, 130)); expect(engine.getTool()).toBe('eraser'); engine.destroy();
 });
@@ -784,3 +789,18 @@ for (const [type, extra, x, y] of [
     expect(engine.getSelectedElements().map(el => el.id)).toEqual([source.id]); expect(engine.getTool()).toBe('select'); engine.destroy();
   });
 }
+
+
+test('a completed shape still paints its blue outline after the pointer moves away', () => {
+  const { engine, drag, listeners, point } = setup([]);
+  const outlines = [];
+  engine.ctx.strokeRect = (...rect) => outlines.push({ rect, color: engine.ctx.strokeStyle });
+  engine.setTool('rectangle'); drag(100, 100, 180, 160);
+  listeners.pointermove(point(900, 650)); engine.draw();
+  expect(outlines).toContainEqual({ rect: [95, 95, 90, 70], color: '#3B82F6' });
+  expect(engine.getTool()).toBe('rectangle');
+  const selectedId = engine.getSelectedElements()[0].id;
+  listeners.pointerdown(point(300, 100)); listeners.pointermove(point(380, 160)); listeners.pointercancel(point(380, 160));
+  expect(engine.getSelectedElements()[0].id).toBe(selectedId);
+  engine.destroy();
+});

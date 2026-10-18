@@ -627,7 +627,7 @@ export class CanvasEngine {
       zIndex: this.elements.length,
     };
     this.elements = [...this.elements, el];
-    this.selectedIds = this.tool === "select" ? new Set([el.id]) : new Set();
+    this.selectedIds = new Set([el.id]);
     this.commit();
   }
 
@@ -679,7 +679,7 @@ export class CanvasEngine {
       zIndex: this.elements.length,
     };
     this.elements = [...this.elements, el];
-    this.selectedIds = this.tool === "select" ? new Set([el.id]) : new Set();
+    this.selectedIds = new Set([el.id]);
     this.commit();
   }
 
@@ -798,7 +798,7 @@ export class CanvasEngine {
       if (trimmed) {
         const el = this.makeTextElement(text, info.canvasX, info.canvasY, info.fontSize, info.fontFamily, info.color, info.align, false, info);
         this.elements = [...this.elements, { ...el, ...(info.containerId && info.containerOffset ? { containerId: info.containerId, containerOffset: info.containerOffset } : {}) }];
-        this.selectedIds = this.tool === "select" ? new Set([el.id]) : new Set();
+        this.selectedIds = new Set([el.id]);
       }
     } else if (info.elementId) {
       const id = info.elementId;
@@ -1770,9 +1770,8 @@ export class CanvasEngine {
 
     if (keep) {
       this.elements = [...this.elements, finalEl];
-      // Connectors dragged from a Select-mode port remain selected. Explicit
-      // drawing tools stay active and are ready to create another element.
-      this.selectedIds = this.tool === "select" ? new Set([finalEl.id]) : new Set();
+      // Keep the newest element outlined without replacing the active tool.
+      this.selectedIds = new Set([finalEl.id]);
     }
     this.commit();
   }
