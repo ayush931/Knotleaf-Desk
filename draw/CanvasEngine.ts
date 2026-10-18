@@ -1820,7 +1820,9 @@ export class CanvasEngine {
 
     if (keep) {
       this.elements = [...this.elements, finalEl];
-      this.selectCreatedElement(finalEl.id);
+      // Freehand remains ready for the next stroke, without selection chrome.
+      if (finalEl.type === "pencil" && this.tool === "pencil") this.selectedIds.clear();
+      else this.selectCreatedElement(finalEl.id);
     }
     this.commit();
   }
