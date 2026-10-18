@@ -10,6 +10,8 @@ import { Classroom } from "./Classroom";
 import { CollaborationPanel } from "./CollaborationPanel";
 import { CanvasEngine } from "@/draw/CanvasEngine";
 import { setFont } from "@/draw/renderer";
+import { fontCssStack } from "@/draw/fonts";
+import { inlineEditorLayout } from "@/draw/inlineEditorLayout";
 import {
   Tool,
   ViewMode,
@@ -535,24 +537,30 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
   };
   const isInlineTextual = !!inlineText && ["new-text", "text", "sticky"].includes(inlineText.kind);
   const textOptionsVisible = selectedTool === "text" || isInlineTextual;
-  useEffect(() => {
+  const inlinePlaceholder = inlineText?.kind === "sticky" ? "Write a sticky note…" : selectedElement?.type === "text" && selectedElement.isDocCard ? "Write your document notes…" : "Type here…";
+  useLayoutEffect(() => {
     const editor = inlineTextareaRef.current;
     if (!editor || !inlineText) return;
-    if (inlineText.kind === "text" || inlineText.kind === "new-text") {
+    const resizeEditor = () => {
       const context = canvasRef.current?.getContext("2d");
-      if (context) {
-        context.save();
-        setFont(context, inlineText.fontSize, inlineText.fontFamily, inlineText.bold ? 700 : 400, inlineText.italic);
-        const width = Math.max(inlineText.fontSize * 2, ...inlineText.text.split("\n").map(line => context.measureText(line).width)) + 12;
-        editor.style.width = `${Math.ceil(width) * zoom}px`;
-        context.restore();
-      }
-    }
-    editor.style.height = "auto";
-    const available = Math.max(80, (containerRef.current?.clientHeight || 600) - inlineText.screenY - 12);
-    editor.style.height = `${Math.min(available, Math.max(editor.scrollHeight, inlineText.screenHeight || 0))}px`;
-    editor.style.overflowY = editor.scrollHeight > available ? "auto" : "hidden";
-  }, [inlineText?.text, inlineText?.fontSize, inlineText?.fontFamily, inlineText?.bold, inlineText?.italic, inlineText?.screenHeight, inlineText?.screenY, zoom]); // eslint-disable-line react-hooks/exhaustive-deps
+      if (!context) return;
+      context.save();
+      setFont(context, inlineText.fontSize, inlineText.fontFamily, inlineText.bold ? 700 : 400, inlineText.italic);
+      const layout = inlineEditorLayout({ ...inlineText, placeholder: inlinePlaceholder, measure: text => context.measureText(text).width, zoom,
+        preferredWidth: inlineText.kind === "sticky" || selectedElement?.type === "text" && selectedElement.isDocCard ? inlineText.screenWidth : undefined,
+        viewportWidth: containerRef.current?.clientWidth || 900, viewportHeight: containerRef.current?.clientHeight || 600 });
+      context.restore();
+      editor.style.width = `${Math.ceil(layout.width)}px`;
+      editor.style.left = `${layout.left}px`; editor.style.top = `${layout.top}px`;
+      editor.style.minHeight = `${layout.minHeight}px`;
+      editor.style.height = "auto";
+      editor.style.height = `${Math.min(layout.maxHeight, Math.max(layout.minHeight, editor.scrollHeight, inlineText.screenHeight || 0))}px`;
+      editor.style.overflowY = editor.scrollHeight > layout.maxHeight ? "auto" : "hidden";
+    };
+    resizeEditor();
+    document.fonts?.addEventListener("loadingdone", resizeEditor);
+    return () => document.fonts?.removeEventListener("loadingdone", resizeEditor);
+  }, [inlineText, inlinePlaceholder, selectedElement, zoom, splitBounds.width, splitBounds.height, notesWidth, notesHeight, viewMode]);
 
   const inlineTextAlign = inlineText?.align ?? "left";
   const createSharedRoom = (openClassroom = false): Promise<void> => {
@@ -567,8 +575,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
     return operation;
   };
 
-  const inlineFamily =
-    inlineText?.fontFamily === "hand" ? "var(--font-caveat), Caveat, cursive" : inlineText?.fontFamily === "mono" ? "var(--font-fira), 'Fira Code', monospace" : "var(--font-inter), Inter, sans-serif";
+  const inlineFamily = fontCssStack(inlineText?.fontFamily || "sans");
 
   return (
     <div
@@ -635,7 +642,8 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
                 </div>}
 
                 <textarea
-                  className="resize-none select-text"
+                  className="canvas-text-editor resize-none select-text"
+                  data-surface={inlineText.kind === "sticky" ? "sticky" : "canvas"}
                   ref={inlineTextareaRef}
                   value={inlineText.text}
                   aria-label="Edit text"
@@ -759,8 +767,8 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
                       }
                     }
                   }}
-                  placeholder={inlineText.kind === "sticky" ? "Write a sticky note…" : selectedElement?.type === "text" && selectedElement.isDocCard ? "Write your document notes…" : "Type here…"}
-                  wrap={inlineText.kind === "sticky" ? "soft" : "off"}
+                  placeholder={inlinePlaceholder}
+                  wrap={!inlineText.text || inlineText.kind === "sticky" ? "soft" : "off"}
                   spellCheck={false}
                   style={{
                     position: "absolute",

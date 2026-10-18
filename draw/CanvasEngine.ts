@@ -25,7 +25,7 @@ import {
   drawElementAnchors,
   drawGrid,
   drawMarquee,
-  fontStack,
+  loadCanvasFonts,
   getElementAnchors,
   getElementBounds,
   getResizeHandles,
@@ -287,8 +287,7 @@ export class CanvasEngine {
 
     // Canvas text can't trigger font loading the way DOM text does, so ask for it explicitly.
     if (typeof document !== "undefined" && document.fonts) {
-      const families: FontFamily[] = ["sans", "hand", "mono"];
-      Promise.all(families.map((f) => document.fonts.load(`16px ${fontStack(f)}`)))
+      loadCanvasFonts()
         .catch(() => undefined)
         .finally(() => this.requestRender());
     }
@@ -1377,7 +1376,7 @@ export class CanvasEngine {
     }
     if (this.tool === "doc") {
       this.updateCursor();
-      const docEl = this.remeasureText(this.makeTextElement("", pt.x, pt.y, 15, "sans", "#FFFFFF", "left", true));
+      const docEl = this.remeasureText(this.makeTextElement("", pt.x, pt.y, 15, this.currentStyle.fontFamily, "#FFFFFF", "left", true));
       this.elements = [...this.elements, docEl];
       this.selectedIds = new Set([docEl.id]);
       this.commit();
@@ -1396,6 +1395,7 @@ export class CanvasEngine {
         height: 140,
         text: "",
         color: "#FEF08A",
+        fontFamily: this.currentStyle.fontFamily,
         fontSize: 15,
         stroke: "#1E293B",
         strokeWidth: 1,

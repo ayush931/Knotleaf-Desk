@@ -1,5 +1,9 @@
 # Whiteboard interaction contract
 
+Canvas text, document cards and sticky notes share seven font choices: Inter, Caveat, Fira Code, Lora, Nunito, Roboto Condensed and Patrick Hand. Existing sans/hand/mono IDs retain their meaning. Font buttons expose the selected family and preserve editor focus. Font IDs persist through board backups and room sync. Canvas startup and raster/vector export wait for bundled font faces to load; standalone SVG viewers may use the documented fallback stack when a font is not installed.
+
+Empty inline editors size from their actual placeholder using the active font metrics. Hints inherit the chosen family, weight and style, use explicit high-contrast placeholder colors, and wrap within constrained viewports. Editor bounds remeasure after font loading and viewport/split changes. Document/sticky editors preserve card widths; editing surfaces stay visible near viewport edges without changing saved canvas coordinates.
+
 Drawing tools remain active after creation, pointer cancellation and repeated clicks until another tool is chosen or Escape returns to Select. This applies to Pencil, rectangles, diamonds, ellipses, arrows, lines, frames, text, document cards, sticky notes and code cards. Each item remains separately undoable. Double-click text editing belongs to Select mode. Creating another item commits an active inline editor first. Icon insertion and action buttons do not replace the chosen tool. Select-mode connections still select the newly created arrow for editing.
 
 The current user brief and README define a personal, local-first tool. No server account, billing, or team permissions are implied by a local workspace. Explicitly shared rooms synchronize through a configured WebSocket service using UUID invite capabilities.

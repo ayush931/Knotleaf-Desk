@@ -1,11 +1,15 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, Caveat, Fira_Code } from "next/font/google";
+import { Inter, Caveat, Fira_Code, Lora, Nunito, Roboto_Condensed, Patrick_Hand } from "next/font/google";
 import "./globals.css";
 
 // Bundle fonts with the website instead of fetching them while editing.
 const inter = Inter({ variable: "--font-inter", subsets: ["latin"], display: "swap" });
 const caveat = Caveat({ variable: "--font-caveat", subsets: ["latin"], display: "swap" });
 const firaCode = Fira_Code({ variable: "--font-fira", subsets: ["latin"], display: "swap" });
+const lora = Lora({ variable: "--font-lora", subsets: ["latin"], style: ["normal", "italic"], display: "swap" });
+const nunito = Nunito({ variable: "--font-nunito", subsets: ["latin"], style: ["normal", "italic"], display: "swap" });
+const condensed = Roboto_Condensed({ variable: "--font-condensed", subsets: ["latin"], style: ["normal", "italic"], display: "swap" });
+const patrick = Patrick_Hand({ variable: "--font-patrick", subsets: ["latin"], weight: "400", display: "swap" });
 
 export const metadata: Metadata = {
   title: {
@@ -30,7 +34,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" suppressHydrationWarning className={`dark ${inter.variable} ${caveat.variable} ${firaCode.variable}`}>
+    <html lang="en" suppressHydrationWarning className={`dark ${inter.variable} ${caveat.variable} ${firaCode.variable} ${lora.variable} ${nunito.variable} ${condensed.variable} ${patrick.variable}`}>
       <body className="antialiased bg-[#121212] text-[#f4f4f5]">{children}</body>
     </html>
   );

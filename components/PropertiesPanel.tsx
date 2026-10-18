@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { FONT_OPTIONS, fontCssStack } from "@/draw/fonts";
 import {
   CanvasElement,
   StrokeStyle,
@@ -337,21 +338,18 @@ export function PropertiesPanel({
             <span className="flex-1 text-center text-xs font-mono tabular-nums">{Math.round(activeFontSize)}px</span>
             <button onClick={() => onChangeFontSize(2)} title="Larger (Ctrl+Shift+>)" aria-label="Increase font size" className="w-7 h-7 rounded-md bg-neutral-800 hover:bg-neutral-700 text-sm">+</button>
           </div>
-          <div className="grid grid-cols-3 gap-1 p-0.5 mt-1.5 rounded-lg bg-neutral-800 text-[11px]">
-            {(
-              [
-                ["sans", "Sans"],
-                ["hand", "Hand"],
-                ["mono", "Mono"],
-              ] as const
-            ).map(([fam, label]) => (
+          <div role="group" aria-label="Font family" className="grid grid-cols-2 gap-1 p-0.5 mt-1.5 rounded-lg bg-neutral-800 text-[11px]">
+            {FONT_OPTIONS.map(({ id: fam, label }) => (
               <button
                 key={fam}
+                aria-label={`Font: ${label}`}
+                aria-pressed={activeFamily === fam}
+                style={{ fontFamily: fontCssStack(fam) }}
                 onClick={() => {
                   onUpdateElement({ fontFamily: fam });
                   onUpdateStyle({ fontFamily: fam });
                 }}
-                className={`py-0.5 rounded font-medium transition ${activeFamily === fam ? "bg-neutral-700 text-white shadow-xs" : "text-neutral-400"}`}
+                className={`min-h-7 px-1 py-1 rounded font-medium transition cursor-pointer focus-visible:outline-2 focus-visible:outline-blue-500 active:bg-neutral-600 ${activeFamily === fam ? "bg-neutral-700 text-white shadow-xs" : "text-neutral-400 hover:bg-neutral-700/60 hover:text-white"}`}
               >
                 {label}
               </button>
