@@ -17,7 +17,7 @@ function PeerAudio({stream,name}:{stream:MediaStream;name:string}){
   useEffect(()=>{const element=audio.current;if(!element)return;element.srcObject=stream;if(tracks)void element.play().catch(()=>setBlocked(true));return()=>{element.srcObject=null;};},[stream,tracks]);
   return <><audio ref={audio} autoPlay />{blocked&&<button className="rounded border border-neutral-700 px-2 py-1 text-xs" onClick={()=>{void audio.current?.play().then(()=>setBlocked(false)).catch(()=>{});}}>Enable sound for {name}</button>}</>;
 }
-export function Classroom({roomId,onCreateRoom}:{roomId?:string;onCreateRoom?:()=>Promise<void>}){
+export function Classroom({roomId,onCreateRoom,onRecordingChange}:{roomId?:string;onCreateRoom?:()=>Promise<void>;onRecordingChange?:(active:boolean)=>void}){
   const search=useSearchParams(),panelId=useId(),trigger=useRef<HTMLButtonElement>(null);
   const minimize=()=>{setOpen(false);requestAnimationFrame(()=>trigger.current?.focus());};
   const [open,setOpen]=useState(()=>!!roomId&&search.get('classroom')==='1'),[name,setName]=useState(''),[state,setState]=useState<ClassState|null>(null),[error,setError]=useState(''),[busy,setBusy]=useState(''),[chat,setChat]=useState('');
@@ -67,7 +67,7 @@ export function Classroom({roomId,onCreateRoom}:{roomId?:string;onCreateRoom?:()
         </>}
         {state?.peers.map(peer=><PeerAudio key={peer.id} stream={peer.audio} name={peer.name}/>)}
         {error&&<p id="classroom-error" role="alert" className="text-xs text-rose-300">{error}</p>}
-      </div><LocalRecorder/>
+      </div><LocalRecorder onActivityChange={onRecordingChange}/>
     </aside>,document.body)}
   </>;
 }

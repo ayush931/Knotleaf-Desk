@@ -15,11 +15,14 @@ import {
   Trash2,
 } from "lucide-react";
 import { InstallWebApp } from "./InstallWebApp";
+import { RefreshWebApp } from "./RefreshWebApp";
 import { ConfirmDialog } from "./ConfirmDialog";
 import type { ExportScope } from "@/lib/projectFile";
 import { GridType, ViewMode } from "@/draw/types";
 
 interface BoardHeaderProps {
+  onBeforeRefresh: () => void | Promise<void>;
+  recording?: boolean;
   saveError: boolean;
   onRetrySave: () => void;
   viewMode: ViewMode;
@@ -50,6 +53,8 @@ interface BoardHeaderProps {
 }
 
 export function BoardHeader({
+  onBeforeRefresh,
+  recording,
   title,
   collaboration,
   viewMode,
@@ -188,6 +193,7 @@ export function BoardHeader({
       </nav>
       {/* Right Section: Actions */}
       <div className="header-actions flex shrink-0 items-center gap-1">
+        <RefreshWebApp onBeforeRefresh={onBeforeRefresh} recording={recording} />
         {collaboration}
         {/* Templates Button */}
         <button

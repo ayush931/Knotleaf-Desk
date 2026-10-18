@@ -1,9 +1,11 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import { Circle, Square } from 'lucide-react';
-export function LocalRecorder() {
+export function LocalRecorder({onActivityChange}:{onActivityChange?:(active:boolean)=>void}={}) {
   const recorder = useRef<MediaRecorder | null>(null), cleanup = useRef<(() => void) | null>(null);
   const [recording, setRecording] = useState(false), [busy, setBusy] = useState(false), [mic, setMic] = useState(true), [error, setError] = useState(''), [download, setDownload] = useState<{ url: string; name: string } | null>(null);
+  useEffect(()=>{onActivityChange?.(recording||busy);},[recording,busy,onActivityChange]);
+  useEffect(()=>()=>onActivityChange?.(false),[onActivityChange]);
   useEffect(() => () => { if (recorder.current?.state === 'recording') recorder.current.stop(); cleanup.current?.(); }, []);
   useEffect(() => () => { if (download) URL.revokeObjectURL(download.url); }, [download]);
   const start = async () => {

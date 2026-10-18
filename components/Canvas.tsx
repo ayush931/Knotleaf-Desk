@@ -131,6 +131,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
   const [saveError, setSaveError] = useState(false);
   const [codeViewport, setCodeViewport] = useState({ zoom: 1, pan: { x: 0, y: 0 } });
   const [codeId, setCodeId] = useState<string | null>(null);
+  const [recording, setRecording] = useState(false);
   const codeElement = board.elements.find(el => el.id === codeId && el.type === "text" && el.isCodeCard);
   const [inlineText, setInlineText] = useState<InlineTextState | null>(null);
   const inlineTextStateRef = useRef<InlineTextState | null>(null);
@@ -577,13 +578,32 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
 
   const inlineFamily = fontCssStack(inlineText?.fontFamily || "sans");
 
+  const prepareRefresh = async () => {
+    if (recording) throw new Error("Stop and save your recording before refreshing.");
+    commitInline(); engineRef.current?.finishCode(); setCodeId(null);
+    if (initialRoomId && !roomReady) return;
+    const session = sessionRef.current;
+    if (session?.synced) {
+      const deadline = Date.now() + 5000;
+      while (session.provider.ws?.bufferedAmount) {
+        if (Date.now() >= deadline) throw new Error("Room edits are still syncing. Wait a moment and try refreshing again.");
+        await new Promise(resolve => setTimeout(resolve, 50));
+      }
+      if (!session.provider.wsconnected) throw new Error("Reconnect to your room before refreshing so your latest edits can sync.");
+    }
+    const saved = saveBoard(boardRef.current); setSaveError(!saved);
+    if (!saved) throw new Error("Your work could not be saved. Retry saving or download a backup before refreshing.");
+  };
+
   return (
     <div
       className="relative w-screen h-[100dvh] overflow-hidden flex flex-col font-sans select-none bg-[#121212] text-white"
     >
       {!isPresentationOpen && (
         <BoardHeader
-          collaboration={<><Classroom key={initialRoomId || "personal"} roomId={initialRoomId} onCreateRoom={() => createSharedRoom(true)} /><CollaborationPanel roomId={initialRoomId} onLeave={handleLeaveRoom} status={roomStatus} people={people} onName={name => sessionRef.current?.setName(name)} onJoin={id => router.push(`/canvas/${id}`)} onCreate={() => createSharedRoom()} /></>}
+          onBeforeRefresh={prepareRefresh}
+          recording={recording}
+          collaboration={<><Classroom key={initialRoomId || "personal"} roomId={initialRoomId} onRecordingChange={setRecording} onCreateRoom={() => createSharedRoom(true)} /><CollaborationPanel roomId={initialRoomId} onLeave={handleLeaveRoom} status={roomStatus} people={people} onName={name => sessionRef.current?.setName(name)} onJoin={id => router.push(`/canvas/${id}`)} onCreate={() => createSharedRoom()} /></>}
           title={board.title}
           saveError={saveError}
           onRetrySave={() => persist(boardRef.current)}
