@@ -79,7 +79,7 @@ export const TopToolbar = memo(function TopToolbar({
       <div
         role="toolbar"
         aria-label="Drawing tools"
-        className="flex items-center gap-0.5 p-1 rounded-xl border shadow-lg backdrop-blur-xl flex-nowrap justify-start overflow-x-auto overscroll-x-contain bg-[#18181b]/95 border-[#27272a] shadow-black/50"
+        className="flex items-center gap-0.5 p-1 rounded-xl border shadow-sm backdrop-blur-md flex-nowrap justify-start overflow-x-auto overscroll-x-contain bg-[#18181b]/95 border-[#27272a] shadow-black/10"
       >
         <button onClick={onUndo} disabled={!canUndo} title="Undo (Ctrl/Cmd+Z)" aria-label="Undo" className={iconBtn}>
           <Undo2 className="w-4 h-4" />

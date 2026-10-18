@@ -125,7 +125,7 @@ Tool buttons show their shortcut keys. Press **?** in the app for the full short
 | Undo / Redo | Ctrl/Cmd+Z / Ctrl/Cmd+Shift+Z |
 | Copy / Cut / Paste / Duplicate / Select all | Ctrl/Cmd+C / X / V / D / A |
 | Write anywhere / edit existing text | Double-click |
-| Bypass alignment snapping | Alt+drag |
+| Duplicate while dragging | Alt+drag |
 | Bold / italic / underline canvas text | Ctrl/Cmd+B / I / U |
 | Strikethrough canvas text | Ctrl/Cmd+Shift+X |
 | Finish canvas text editing | Ctrl/Cmd+Enter |
@@ -183,4 +183,6 @@ Room links stop working 24 hours after creation, including during an active draw
 
 ### Canvas appearance
 
-The whiteboard uses a muted charcoal canvas, subtle grid guides and soft drawing colors. Appearance stays hidden until opened. Use Focus canvas (Shift+Z) for a full-window drawing area; Escape restores the controls. Appearance includes separate background colors and Solid/Hatch/Crosshatch/Dots styles for shapes/cards and the canvas. Paint has been removed. Existing board images and saved background styles remain supported in projects and exports.
+The whiteboard keeps its original black canvas and dot/grid appearance. Appearance stays hidden until opened. Use Focus canvas (Shift+Z) for a full-window drawing area; Escape restores the controls. Appearance includes separate background colors and Solid/Hatch/Crosshatch/Dots styles for shapes/cards and the canvas. Paint has been removed. Existing board images and saved background styles remain supported in projects and exports.
+
+Notes include Find/Replace (Ctrl/Cmd+F or H while writing), previous/next matches, match case, Undo replace and Copy Markdown. Canvas text connectors sit at the outer outline’s side midpoints. Double-click inside a shape to write, and double-click its border to select. Alt+drag duplicates the selection in one undoable action. Each color section offers 50 extra predefined shades through More colors.

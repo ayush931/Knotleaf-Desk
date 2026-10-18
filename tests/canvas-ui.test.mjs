@@ -6,6 +6,7 @@ import { AppRouterContext } from 'next/dist/shared/lib/app-router-context.shared
 import { SearchParamsContext } from 'next/dist/shared/lib/hooks-client-context.shared-runtime.js';
 import { createBoard, setActiveBoardId, getOrCreateDefaultBoard, getBoard } from '../lib/storage.ts';
 import { PropertiesPanel } from '../components/PropertiesPanel.tsx';
+import { STROKE_SHADES, BACKGROUND_SHADES } from '../lib/colorPalettes.ts';
 import { DEFAULT_STYLE } from '../draw/types.ts';
 import { ColorControl } from '../components/ColorControl.tsx';
 const saved = new Map(), contexts = new WeakMap(), captures = new WeakMap(), exports = [];
@@ -146,4 +147,28 @@ test('background color changes shapes independently of stroke and canvas color p
   expect(getBoard(id).background).toEqual({ fill: '#292c30', fillStyle: 'solid', fillOpacity: 1 });
   await clickNamed('Canvas background style: Dots'); expect(getBoard(id).background.fillStyle).toBe('dots');
   expect(getBoard(id).elements[0].fill).toBe('transparent');
+});
+
+test('both More colors buttons reveal 50 distinct predefined shades and apply independently', async () => {
+  const id = await renderBoard(); await clickNamed('Rectangle (R)'); await boardPointer('pointerdown', 100, 100); await boardPointer('pointermove', 240, 200); await boardPointer('pointerup', 240, 200); await clickNamed('Open appearance settings');
+  expect(named('Stroke color shades')).toBeNull(); expect(named('Background color shades')).toBeNull();
+  await clickNamed('More stroke colors'); await clickNamed('More background colors');
+  expect(named('Stroke color shades').querySelectorAll('button')).toHaveLength(50); expect(named('Background color shades').querySelectorAll('button')).toHaveLength(50);
+  expect(new Set(STROKE_SHADES).size).toBe(50); expect(new Set(BACKGROUND_SHADES).size).toBe(50); expect(STROKE_SHADES.some(color => BACKGROUND_SHADES.includes(color))).toBe(false);
+  await clickNamed(`Color ${STROKE_SHADES[20]}`); await clickNamed(`Background ${BACKGROUND_SHADES[20]}`);
+  expect(getBoard(id).elements[0]).toMatchObject({ stroke: STROKE_SHADES[20], fill: BACKGROUND_SHADES[20] });
+  await clickNamed('More stroke colors'); expect(named('Stroke color shades')).toBeNull(); expect(named('Background color shades')).toBeTruthy();
+});
+test('double-click inside a shape focuses attached text while border double-click only selects', async () => {
+  const id = await renderBoard(); await clickNamed('Rectangle (R)'); await boardPointer('pointerdown', 100, 100); await boardPointer('pointermove', 240, 200); await boardPointer('pointerup', 240, 200);
+  await boardPointer('dblclick', 160, 140); await act(async () => new Promise(resolve => window.requestAnimationFrame(resolve)));
+  const editor = named('Edit text'); expect(editor).toBeTruthy(); expect(document.activeElement).toBe(editor); expect(named('Appearance settings')).toBeNull();
+  await typeText(editor, 'Inside my shape'); await act(async () => editor.dispatchEvent(new browser.KeyboardEvent('keydown', { bubbles: true, key: 'Enter', ctrlKey: true })));
+  const elements = getBoard(id).elements; expect(elements.find(el => el.type === 'text')).toMatchObject({ text: 'Inside my shape', containerId: elements[0].id });
+  await boardPointer('dblclick', 130, 100); expect(named('Edit text')).toBeNull();
+});
+
+test('notes-only layout fills the available main area instead of collapsing on narrow screens', async () => {
+  await renderBoard('notes');expect(named('Board notes').classList.contains('flex-1')).toBe(true);
+  expect(named('Board notes in Markdown')).toBeTruthy();
 });

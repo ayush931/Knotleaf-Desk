@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useLayoutEffect, useRef } from "react";
+import { ColorPalette } from "./ColorPalette";
 import { BackgroundStylePicker, type BackgroundPattern } from "./BackgroundStylePicker";
 import { parseFillColor } from "@/lib/fillColor";
 import { DEFAULT_BACKGROUND } from "@/lib/background.mjs";
@@ -58,15 +59,15 @@ interface PropertiesPanelProps {
 }
 
 const STROKE_COLORS = [
-  "#dedbd4",
-  "#92989e",
-  "#8299b5",
-  "#829c88",
-  "#b5a078",
-  "#b4837e",
-  "#9a8ca8",
-  "#b38e9c",
-  "#7f9fa1",
+  "#FFFFFF",
+  "#94A3B8",
+  "#3B82F6",
+  "#10B981",
+  "#F59E0B",
+  "#EF4444",
+  "#A855F7",
+  "#EC4899",
+  "#06B6D4",
   "#18181B",
 ];
 
@@ -463,28 +464,12 @@ export function PropertiesPanel({
         <label className="text-[11px] font-medium text-neutral-400 tracking-wide block mb-1">
           {isIcon ? "Icon color" : isTextual ? "Text color" : "Stroke color"}
         </label>
-        <div className="flex flex-wrap gap-1.5">
-          {STROKE_COLORS.map((color) => (
-            <button
-              key={color}
-              aria-label={`Color ${color}`} title={color} aria-pressed={activeStroke === color}
-              onClick={() => handleStrokeColor(color)}
-              className={`w-6 h-6 rounded-md border transition-transform ${
-                activeStroke === color
-                  ? "scale-115 ring-2 ring-blue-500 ring-offset-1 ring-offset-neutral-900 border-white"
-                  : "border-neutral-300 dark:border-neutral-700 hover:scale-105"
-              }`}
-              style={{ backgroundColor: color }}
-            />
-          ))}
-        </div>
+        <ColorPalette kind="stroke" presets={STROKE_COLORS} value={activeStroke} onChange={handleStrokeColor} />
       </div>}
 
       {hasBackground && <div className="space-y-2">
         <ColorControl label="Background color" value={activeFill === "transparent" ? "transparent" : parseFillColor(activeFill).color} onChange={fill => changeBackground(fill)} />
-        <div className="flex flex-wrap gap-1.5" role="group" aria-label="Background colors">
-          {["#303236", "#454b53", "#48596b", "#4a5b4c", "#6a6048", "#674c4b", "#5c5268", "#c7ba91"].map(color => <button type="button" key={color} aria-label={`Background ${color}`} title={color} aria-pressed={activeFill === color} onClick={() => changeBackground(color)} style={{ backgroundColor: color }} className={`h-6 w-6 rounded-md border border-neutral-600 ${activeFill === color ? "ring-2 ring-blue-500 ring-offset-1 ring-offset-neutral-900" : "hover:border-neutral-400"}`} />)}
-        </div>
+        <ColorPalette kind="background" presets={["#303236", "#454b53", "#48596b", "#4a5b4c", "#6a6048", "#674c4b", "#5c5268", "#c7ba91"]} value={activeFill} onChange={fill => changeBackground(fill)} />
         <BackgroundStylePicker value={activeFillStyle} onChange={pattern => changeBackground(activeFill === "transparent" ? "#48596b" : parseFillColor(activeFill).color, pattern)} />
         <button type="button" aria-pressed={activeFill === "transparent"} onClick={() => changeBackground("transparent")} className="rounded-md border border-neutral-700 px-2 py-1 text-xs text-neutral-400 hover:bg-neutral-800">No background</button>
       </div>}
