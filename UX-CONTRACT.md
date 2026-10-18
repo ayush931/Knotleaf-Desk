@@ -1,5 +1,7 @@
 # Whiteboard interaction contract
 
+Pencil remains active after each completed stroke, pointer cancellation and repeated clicks until another tool is chosen. Completed strokes are not automatically selected; each remains separately undoable. Double-clicking with Pencil never switches to text editing. Other drawing tools retain their existing completion behavior.
+
 The current user brief and README define a personal, local-first tool. No server account, billing, or team permissions are implied by a local workspace. Explicitly shared rooms synchronize through a configured WebSocket service using UUID invite capabilities.
 
 | Capability | Canonical owner | Source of truth | Allowed variants | Verification |
