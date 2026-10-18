@@ -1,3 +1,4 @@
+import { normalizeBackground } from '../lib/background.mjs';
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -21,7 +22,7 @@ export function createCollaborationServer({ host = '127.0.0.1', port = 3002, dir
   const ownedRooms = new Set();
   let closed = false;
   const expired = new Set(), expiryTimers = new Map(), deadlines = new Map();
-  const snapshotOf = doc => ({ title: doc.getMap("meta").get("title") || "Shared whiteboard", elements: [...doc.getMap("elements").values()].map(el => el.type === "text" && el.isCodeCard ? { ...el, text: doc.getText(`code:${el.id}`).toString() } : el), markdownNotes: doc.getText("notes").toString() });
+  const snapshotOf = doc => ({ background: normalizeBackground(doc.getMap("meta").get("background")), title: doc.getMap("meta").get("title") || "Shared whiteboard", elements: [...doc.getMap("elements").values()].map(el => el.type === "text" && el.isCodeCard ? { ...el, text: doc.getText(`code:${el.id}`).toString() } : el), markdownNotes: doc.getText("notes").toString() });
   const persist = async (name, doc) => {
     if (closed || !ownedRooms.has(name) || expired.has(name)) return;
     const state = Buffer.from(Y.encodeStateAsUpdate(doc)).toString('base64');

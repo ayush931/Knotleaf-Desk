@@ -111,3 +111,27 @@ test('database outage rejects a room before any empty synchronization can happen
   try { const response = await new Promise((resolve, reject) => { const socket = connect(address.port, '127.0.0.1', () => socket.write(`GET /${crypto.randomUUID()} HTTP/1.1\r\nHost: localhost\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Key: SGVsbG9Xb3JsZDEyMzQ1Ng==\r\n\r\n`)); socket.on('data', data => { resolve(data.toString()); socket.destroy(); }); socket.on('error', reject); }); expect(response).toContain('503 Service Unavailable'); }
   finally { await service.close(); await rm(directory, { recursive: true, force: true }); }
 });
+
+test('canvas backgrounds, patterned shape fills and embedded images sync and background edits undo', async () => {
+  const { RoomSession } = await import('../lib/collaboration.ts');
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'paint-background-room-'));
+  const service = createCollaborationServer({ port: 0, directory, roomStore: null }); const address = await service.listen();
+  const room = crypto.randomUUID(), url = `ws://127.0.0.1:${address.port}`;
+  const background = { fill: '#3b82f6', fillStyle: 'crosshatch', fillOpacity: 0.4 };
+  const board = { id: room, title: 'Paint room', elements: [], markdownNotes: '', background };
+  const a = new RoomSession(url, room, board), b = new RoomSession(url, room, board); let first, second;
+  a.onRemote = (elements, markdownNotes, title, background) => { first = { ...board, elements, markdownNotes, title, background }; };
+  b.onRemote = (elements, markdownNotes, title, background) => { second = { ...board, elements, markdownNotes, title, background }; };
+  try {
+    a.connect(); await until(() => first && a.synced); b.connect(); await until(() => second && b.synced);
+    expect(second.background).toEqual(background);
+    a.update({ ...first, background: { ...background, fillOpacity: 0 } }); await until(() => second.background.fillOpacity === 0);
+    a.undo.undo(); await until(() => second.background.fillOpacity === 0.4);
+    const base = { id: 'shape', type: 'rectangle', x: 0, y: 0, width: 100, height: 80, stroke: '#fff', strokeWidth: 2, strokeStyle: 'solid', fill: '#ec4899', fillStyle: 'dots', fillOpacity: 0.6, opacity: 1, roundness: 'sharp', zIndex: 0 };
+    const image = { ...base, id: 'image', type: 'image', source: 'data:image/png;base64,cGFpbnQ=', imageName: 'Paint image', zIndex: 1 };
+    a.update({ ...first, elements: [base, image] }); await until(() => second.elements.length === 2);
+    expect(second.elements[0]).toMatchObject({ fillStyle: 'dots', fillOpacity: 0.6 }); expect(second.elements[1].source).toBe(image.source);
+    await new Promise(resolve => setTimeout(resolve, 250));
+    const restored = new Y.Doc(); Y.applyUpdate(restored, new Uint8Array(await readFile(path.join(directory, `${room}.bin`)))); expect(JSON.parse(restored.getMap('meta').get('background'))).toEqual(background); restored.destroy();
+  } finally { a.destroy(); b.destroy(); await service.close(); await rm(directory, { recursive: true, force: true }); }
+}, 10000);

@@ -180,3 +180,9 @@ Use **Install web app** in the top bar. Chrome/Edge offer the browser install pr
 The Classroom panel displays a copyable invite link that opens the same board and call panel. Anyone with it can edit and join. Audio source defaults to Auto and shows the captured microphone name after permission; select a different microphone without leaving the call. Device names remain on your device. Screen tiles also indicate whether screen/tab audio is being shared.
 
 Room links stop working 24 hours after creation, including during an active drawing or classroom session. Expired records and recovery files are removed on server startup and by a one-minute cleanup loop. Production also has a scheduled cleanup every 15 minutes to wake a sleeping host; scheduler delays can postpone physical deletion, while access still expires at 24 hours. Browser room backups/history are removed when an active session expires or the app next reads storage. Personal boards and downloaded exports are independent of room retention.
+
+### Paint and backgrounds
+
+Open **Paint** in the drawing toolbar for brushes, pixel fills, image import, crop, resize, rotate/flip, selections and layers. Save an editable `.kpaint` project to retain layers, export PNG/JPEG, or insert the combined image onto your board. Microsoft-specific AI generation and automatic background removal are not included.
+
+Use **Fill (B)** and **Pick color (K)** on whiteboard objects. Appearance settings offer custom stroke/fill colors, Solid/Hachure/Crosshatch/Dots fills, and independent background opacity from transparent to opaque. **Canvas background** in Appearance controls the whole board. Transparency displays a checkerboard while editing; PNG/SVG preserve it and PDF composites against its page. Canvas background settings synchronize in rooms.

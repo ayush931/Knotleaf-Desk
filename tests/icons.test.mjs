@@ -115,3 +115,24 @@ test('exported icon instances keep gradient and mask references separate', () =>
   expect(svg).toContain('id="icon-first-shade"'); expect(svg).toContain('fill="url(#icon-first-shade)"');
   expect(svg).toContain('id="icon-second-shade"'); expect(svg).toContain('fill="url(#icon-second-shade)"');
 });
+
+test('embedded Paint images stay self-contained in SVG and PNG waits for decoding', async () => {
+  const image = { ...base, type: 'image', source: 'data:image/png;base64,aW1hZ2UtcGFpbnQ=', imageName: 'Paint', width: 120, height: 80 };
+  const svg = boardToSvg([image], true);
+  expect(svg).toContain('<image x="10" y="20" width="120" height="80"'); expect(svg).toContain(image.source);
+  automatic = false; downloads.length = 0;
+  try {
+    const exporting = exportToPng([image], 'dark', true);
+    await new Promise(resolve => setTimeout(resolve, 0)); expect(downloads).toHaveLength(0);
+    expect(pending).toHaveLength(1); pending.shift()(); await exporting;
+    expect(downloads).toHaveLength(1);
+    expect(draws.some(args => args[1] === 10 && args[2] === 20 && args[3] === 120 && args[4] === 80)).toBe(true);
+  } finally { automatic = true; pending.length = 0; }
+});
+
+test('SVG exports clipped patterned fills with independent alpha and transparent canvas settings', () => {
+  const shape = { ...base, type: 'rectangle', fill: '#3b82f6', fillStyle: 'hachure', fillOpacity: 0.3, opacity: 1, label: undefined };
+  const svg = boardToSvg([shape], false, [shape], { fill: '#ec4899', fillStyle: 'dots', fillOpacity: 0 });
+  expect(svg).toContain('<clipPath'); expect(svg).toContain('clip-path="url(#paint-clip-'); expect(svg).toContain('opacity="0.3"'); expect(svg).not.toContain('#ec4899');
+  expect(svg).toContain('stroke="#fff"');
+});

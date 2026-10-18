@@ -800,3 +800,38 @@ test('a newly drawn shape immediately exposes its normal connector ports', () =>
   expect(engine.getSelectedElements()[0].id).toBe(connector.id);
   engine.destroy();
 });
+
+test('Fill tool colors shapes, freehand interiors, text and connectors with undo', () => {
+  const pencil = { ...source, type: 'pencil', id: 'pencil', points: [{ x: 300, y: 100 }, { x: 400, y: 100 }, { x: 400, y: 200 }, { x: 300, y: 200 }, { x: 300, y: 100 }], x: 300, width: 100, height: 100 };
+  const line = { ...source, id: 'line', type: 'line', startX: 500, startY: 100, endX: 600, endY: 100, x: 500, width: 100, height: 0 };
+  const { engine, listeners, point } = setup([source, pencil, line]); engine.currentStyle.fill = '#ec4899';
+  for (const [x, y, id, field] of [[150, 130, 'source', 'fill'], [350, 150, 'pencil', 'fill'], [550, 100, 'line', 'stroke']]) {
+    engine.setTool('fill'); listeners.pointerdown(point(x, y)); listeners.pointerup(point(x, y));
+    expect(engine.getElements().find(el => el.id === id)[field]).toBe('#ec4899'); expect(engine.getTool()).toBe('select'); expect(engine.getSelectedElements()[0].id).toBe(id);
+  }
+  engine.undo(); expect(engine.getElements().find(el => el.id === 'line').stroke).toBe('#fff'); engine.destroy();
+});
+test('color picking updates both future drawing and fill colors without changing the board', () => {
+  const colored = { ...source, fill: '#10b981', fillStyle: 'solid' };
+  const { engine, listeners, point } = setup([colored]); let picked; engine.onPickColor = c => { picked = c; };
+  engine.setTool('eyedropper'); listeners.pointerdown(point(150, 130)); listeners.pointerup(point(150, 130));
+  expect(picked).toBe('#10b981'); expect(engine.currentStyle).toMatchObject({ fill: picked, stroke: picked, fillStyle: 'solid' }); expect(engine.canUndo()).toBe(false); engine.destroy();
+});
+test('image insertion uses normal selection, movement, resize, undo and portable source data', () => {
+  const { engine, drag } = setup([]); const source = 'data:image/png;base64,iVBORw0KGgo=';
+  engine.addImage(source, 100, 80); expect(engine.getTool()).toBe('select');
+  const image = engine.getSelectedElements()[0]; expect(image).toMatchObject({ type: 'image', source, width: 100, height: 80 });
+  drag(500, 350, 550, 400); expect(engine.getElements()[0]).toMatchObject({ x: image.x + 50, y: image.y + 50 });
+  engine.updateSelectedElement({ width: 200, height: 160 }); expect(engine.getElements()[0].source).toBe(source);
+  engine.undo(); expect(engine.getElements()[0].width).toBe(100);
+  expect(() => engine.addImage('https://example.com/x.png', 100, 80)).toThrow(); engine.destroy();
+});
+
+
+test('new shapes inherit patterned fill opacity while stroke opacity remains independent', () => {
+  const { engine, drag } = setup([]); engine.currentStyle = { ...engine.currentStyle, fill: '#3b82f6', fillStyle: 'dots', fillOpacity: 0.2, opacity: 0.9 };
+  engine.setTool('rectangle'); drag(100, 100, 220, 180);
+  expect(engine.getSelectedElements()[0]).toMatchObject({ fill: '#3b82f6', fillStyle: 'dots', fillOpacity: 0.2, opacity: 0.9 });
+  engine.updateSelectedElement({ fillOpacity: 0 }); expect(engine.getElements()[0].opacity).toBe(0.9);
+  engine.undo(); expect(engine.getElements()[0].fillOpacity).toBe(0.2); engine.destroy();
+});

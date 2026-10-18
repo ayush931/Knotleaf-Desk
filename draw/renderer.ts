@@ -1,3 +1,4 @@
+import { drawBackgroundFill } from "./backgroundFill";
 import { expandCodeTabs, highlightCode } from "@/lib/code";
 import { routeConnector } from "./connectorRouting";
 import {
@@ -13,6 +14,7 @@ import {
   TextFormatting,
 } from "./types";
 import { getIconById } from "./iconsData";
+import { getImageResource } from "./imageResource";
 import { getIconImage } from "./iconSvg";
 import { FONT_OPTIONS } from "./fonts";
 
@@ -382,7 +384,8 @@ export function drawGrid(
   height: number,
   pan: Point,
   zoom: number,
-  gridType: GridType
+  gridType: GridType,
+  light = false
 ) {
   if (gridType === "none") return;
 
@@ -394,7 +397,7 @@ export function drawGrid(
 
   ctx.save();
   if (gridType === "dot") {
-    ctx.fillStyle = "rgba(255, 255, 255, 0.12)";
+    ctx.fillStyle = light ? "rgba(0, 0, 0, 0.15)" : "rgba(255, 255, 255, 0.12)";
     const r = Math.max(0.9, 1.0 * Math.min(zoom, 1.4));
     ctx.beginPath();
     for (let x = startX; x < width; x += spacing) {
@@ -405,7 +408,7 @@ export function drawGrid(
     }
     ctx.fill();
   } else {
-    ctx.strokeStyle = "rgba(255, 255, 255, 0.06)";
+    ctx.strokeStyle = light ? "rgba(0, 0, 0, 0.1)" : "rgba(255, 255, 255, 0.06)";
     ctx.lineWidth = 1;
     ctx.beginPath();
     for (let x = startX; x < width; x += spacing) {
@@ -455,6 +458,10 @@ export function drawElement(ctx: CanvasRenderingContext2D, el: CanvasElement, op
     case "sticky":
       drawSticky(ctx, el);
       break;
+    case "image": {
+      try { const resource = getImageResource(el.source, opts.onResourceLoad); if (resource.ready) ctx.drawImage(resource.image, el.x, el.y, el.width, el.height); } catch { /* Invalid imported images cannot stop the scene. */ }
+      break;
+    }
     case "icon":
       drawIcon(ctx, el, opts.onResourceLoad);
       break;
@@ -564,10 +571,6 @@ function smoothPath(ctx: CanvasRenderingContext2D, pts: Point[]) {
   ctx.lineTo(last.x, last.y);
 }
 
-function isFillable(el: { fill: string; fillStyle: string }) {
-  return el.fillStyle !== "none" && !!el.fill && el.fill !== "transparent" && el.fill !== "none";
-}
-
 /** Fills and strokes a closed or open outline, sketching it when strokeStyle is "rough". */
 function paintShape(
   ctx: CanvasRenderingContext2D,
@@ -576,12 +579,8 @@ function paintShape(
   sketchPts: Point[] | null,
   closed = true
 ) {
-  if (isFillable(el)) {
-    ctx.beginPath();
-    build();
-    ctx.fillStyle = el.fill;
-    ctx.fill();
-  }
+  const bounds = getElementBounds(el);
+  drawBackgroundFill(ctx, el, build, { x: bounds.minX, y: bounds.minY, width: bounds.maxX - bounds.minX, height: bounds.maxY - bounds.minY });
   ctx.strokeStyle = el.stroke;
   ctx.lineWidth = el.strokeWidth || 2;
   applyDash(ctx, el);
@@ -987,7 +986,9 @@ function drawPencil(ctx: CanvasRenderingContext2D, el: CanvasElement) {
   ctx.setLineDash([]);
   ctx.beginPath();
   smoothPath(ctx, pts);
-  ctx.stroke();
+  const bounds = getElementBounds(el);
+  drawBackgroundFill(ctx, el, () => { smoothPath(ctx, pts); ctx.closePath(); }, { x: bounds.minX, y: bounds.minY, width: bounds.maxX - bounds.minX, height: bounds.maxY - bounds.minY });
+  ctx.beginPath(); smoothPath(ctx, pts); ctx.stroke();
 }
 
 
@@ -1009,7 +1010,9 @@ function drawText(ctx: CanvasRenderingContext2D, el: CanvasElement) {
   if (el.isCodeCard) {
     const result = highlightCode(expandCodeTabs(el.text), el.codeLanguage);
     ctx.save(); ctx.fillStyle = "#10151e"; ctx.strokeStyle = "#334155"; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.roundRect(el.x - 16, el.y - 16, el.width + 32, el.height + 32, 10); ctx.fill(); ctx.stroke();
+    const build = () => ctx.roundRect(el.x - 16, el.y - 16, el.width + 32, el.height + 32, 10);
+    drawBackgroundFill(ctx, el, build, { x: el.x - 16, y: el.y - 16, width: el.width + 32, height: el.height + 32 });
+    ctx.beginPath(); build(); ctx.stroke();
     ctx.textBaseline = "top"; setFont(ctx, 11, "mono"); ctx.fillStyle = "#94a3b8"; ctx.fillText(result.language, el.x, el.y);
     setFont(ctx, el.fontSize, "mono");
     result.lines.forEach((line, row) => { let x = el.x; for (const token of line) { ctx.fillStyle = token.color; ctx.fillText(token.text, x, el.y + 28 + el.fontSize * 0.25 + row * el.fontSize * 1.5); x += ctx.measureText(token.text).width; } });
@@ -1031,13 +1034,13 @@ function drawText(ctx: CanvasRenderingContext2D, el: CanvasElement) {
     ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
     ctx.shadowBlur = 18;
     ctx.shadowOffsetY = 4;
-    ctx.fillStyle = fill && fill !== "transparent" ? fill : "#18181B";
+    const buildCard = () => { if (ctx.roundRect) ctx.roundRect(cardX, cardY, cardW, cardH, 12); else ctx.rect(cardX, cardY, cardW, cardH); };
+    drawBackgroundFill(ctx, el, buildCard, { x: cardX, y: cardY, width: cardW, height: cardH });
     ctx.strokeStyle = "#3f3f46";
     ctx.lineWidth = el.strokeWidth || 1;
     ctx.beginPath();
     if (ctx.roundRect) ctx.roundRect(cardX, cardY, cardW, cardH, 12);
     else ctx.rect(cardX, cardY, cardW, cardH);
-    ctx.fill();
     ctx.shadowColor = "transparent";
     ctx.stroke();
 
@@ -1250,11 +1253,8 @@ function drawSticky(ctx: CanvasRenderingContext2D, el: CanvasElement) {
   ctx.shadowColor = "rgba(15, 23, 42, 0.22)";
   ctx.shadowBlur = 14;
   ctx.shadowOffsetY = 5;
-  ctx.fillStyle = color || "#FEF08A";
-  ctx.beginPath();
-  if (ctx.roundRect) ctx.roundRect(x, y, width, height, r);
-  else ctx.rect(x, y, width, height);
-  ctx.fill();
+  const background = el.fill !== "transparent" ? el.fill : color || "#FEF08A";
+  drawBackgroundFill(ctx, { ...el, fill: background, fillStyle: background !== "transparent" && el.fillStyle === "none" ? "solid" : el.fillStyle }, () => { if (ctx.roundRect) ctx.roundRect(x, y, width, height, r); else ctx.rect(x, y, width, height); }, { x, y, width, height });
   ctx.restore();
 
   ctx.save();
@@ -1429,14 +1429,13 @@ function drawFrame(ctx: CanvasRenderingContext2D, el: CanvasElement) {
   const color = el.stroke || ACCENT;
 
   ctx.save();
-  ctx.fillStyle = el.fill && el.fill !== "transparent" ? el.fill : "rgba(24, 24, 27, 0.4)";
+  drawBackgroundFill(ctx, el, () => { if (ctx.roundRect) ctx.roundRect(x, y, w, h, 14); else ctx.rect(x, y, w, h); }, { x, y, width: w, height: h });
   ctx.strokeStyle = color;
   ctx.lineWidth = el.strokeWidth || 1.5;
   ctx.setLineDash([8, 6]);
   ctx.beginPath();
   if (ctx.roundRect) ctx.roundRect(x, y, w, h, 14);
   else ctx.rect(x, y, w, h);
-  ctx.fill();
   ctx.stroke();
   ctx.setLineDash([]);
 

@@ -20,6 +20,9 @@ import {
   Undo2,
   Redo2,
   Shapes,
+  PaintBucket,
+  Pipette,
+  Paintbrush,
 } from "lucide-react";
 
 interface TopToolbarProps {
@@ -30,6 +33,7 @@ interface TopToolbarProps {
   canUndo: boolean;
   canRedo: boolean;
   onOpenIconPicker: () => void;
+  onOpenPaint?: () => void;
   theme: Theme;
   onHeightChange?: (height: number) => void;
 }
@@ -48,6 +52,8 @@ const TOOLS: { id: Tool; label: string; key: string; icon: React.ReactNode }[] =
   { id: "code", label: "Code card", key: "C", icon: <Code2 className="w-4 h-4" /> },
   { id: "sticky", label: "Sticky note", key: "S", icon: <StickyNote className="w-4 h-4" /> },
   { id: "frame", label: "Frame", key: "F", icon: <Frame className="w-4 h-4" /> },
+  { id: "fill", label: "Fill color", key: "B", icon: <PaintBucket className="w-4 h-4" /> },
+  { id: "eyedropper", label: "Pick color", key: "K", icon: <Pipette className="w-4 h-4" /> },
   { id: "eraser", label: "Eraser", key: "E", icon: <Eraser className="w-4 h-4" /> },
 ];
 
@@ -59,6 +65,7 @@ export const TopToolbar = memo(function TopToolbar({
   canUndo,
   canRedo,
   onOpenIconPicker,
+  onOpenPaint,
   onHeightChange,
 }: TopToolbarProps) {
   const toolbar = useRef<HTMLDivElement>(null);
@@ -110,6 +117,7 @@ export const TopToolbar = memo(function TopToolbar({
         })}
 
         <span className="h-5 w-px mx-1 bg-[#27272a]" />
+        {onOpenPaint && <button onClick={onOpenPaint} aria-label="Open Paint workspace" title="Paint: draw and edit images" className="flex items-center gap-1 rounded-lg px-2 py-2 text-xs text-neutral-300 hover:bg-neutral-800"><Paintbrush className="h-4 w-4" />Paint</button>}
         <button
           onClick={onOpenIconPicker}
           title="Insert icon (I)"

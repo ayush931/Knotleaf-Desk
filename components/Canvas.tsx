@@ -6,6 +6,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState, useLayoutEffe
 import { RoomSession, type Collaborator } from "@/lib/collaboration";
 import { getRoomServerUrl, checkRoomAvailable, RoomExpiredError } from "@/lib/roomConnection";
 import { createRoomFromBoard } from "@/lib/roomCreation";
+import { normalizeBackground } from "@/lib/background.mjs";
+import { PaintStudio } from "./PaintStudio";
 import { Classroom } from "./Classroom";
 import { CollaborationPanel } from "./CollaborationPanel";
 import { CanvasEngine } from "@/draw/CanvasEngine";
@@ -136,6 +138,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
   const [inlineText, setInlineText] = useState<InlineTextState | null>(null);
   const inlineTextStateRef = useRef<InlineTextState | null>(null);
   useLayoutEffect(() => { inlineTextStateRef.current = inlineText; }, [inlineText]);
+  const [paintOpen, setPaintOpen] = useState(false);
   const [currentStyle, setCurrentStyle] = useState<ElementStyleProps>({ ...DEFAULT_STYLE });
 
   const selectedElement = selectedElements.length === 1 ? selectedElements[0] : null;
@@ -200,6 +203,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
       persist({ ...boardRef.current, elements });
       refreshBoardsList();
     };
+    engine.onPickColor = color => setCurrentStyle(previous => ({ ...previous, stroke: color, fill: color, fillStyle: "solid" }));
     engine.onSelectionChange = (selected) => setSelectedElements(selected);
     engine.onOpenIconPicker = () => setIsIconPickerOpen(true);
     engine.onEditCode = setCodeId;
@@ -242,9 +246,9 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
         boardRef.current = next; setBoard(next); engine?.applyRemoteElements([]);
       };
       session.onStatus = setRoomStatus;
-      session.onRemote = (elements, markdownNotes, title) => {
+      session.onRemote = (elements, markdownNotes, title, background) => {
         clearTimeout(timer); setRoomError("");
-        const next = { ...boardRef.current, elements, markdownNotes, title, roomExpiresAt: session?.expiresAt };
+        const next = { ...boardRef.current, elements, markdownNotes, title, background, roomExpiresAt: session?.expiresAt };
         boardRef.current = next; setBoard(next); setSaveError(!saveBoard(next));
         engine?.applyRemoteElements(elements); setRoomReady(true); refreshBoardsList();
       };
@@ -276,6 +280,8 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
   useEffect(() => {
     engineRef.current?.setTool(selectedTool);
   }, [selectedTool]);
+
+  useEffect(() => { engineRef.current?.setBackground(board.background); }, [board.background]);
 
   useEffect(() => {
     engineRef.current?.setTheme(theme);
@@ -443,9 +449,9 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
 
   // Export
   const exportElements = (selection: boolean) => selection ? engineRef.current?.getSelectionForExport() || [] : engineRef.current?.getElements() || [];
-  const handleExportPng = (selection: boolean, transparent: boolean, scale: number) => exportToPng(exportElements(selection), theme, transparent, scale, boardRef.current.elements);
+  const handleExportPng = (selection: boolean, transparent: boolean, scale: number) => exportToPng(exportElements(selection), theme, transparent, scale, boardRef.current.elements, boardRef.current.background);
   const handleCopyClipboard = async () => {
-    return engineRef.current ? await copyPngToClipboard(engineRef.current.getElements(), theme) : false;
+    return engineRef.current ? await copyPngToClipboard(engineRef.current.getElements(), theme, boardRef.current.background) : false;
   };
   const handleExportJson = () => exportToJson(boardRef.current);
   const handleExportMarkdown = () => exportNotesToMarkdown(boardRef.current);
@@ -646,9 +652,9 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
           ref={containerRef}
           className={`relative min-h-0 min-w-0 flex-1 h-full overflow-hidden bg-[#121212] ${viewMode === "notes" && !isPresentationOpen ? "hidden" : ""}`}
         >
-            <canvas ref={canvasRef} className="block touch-none" />
+            <canvas ref={canvasRef} className="block touch-none" style={{ backgroundColor: "#fafafa", backgroundImage: "conic-gradient(#d4d4d8 25%, transparent 0 50%, #d4d4d8 0 75%, transparent 0)", backgroundSize: "16px 16px" }} />
 
-            {codeElement?.type === "text" && <CodeEditor key={codeElement.id} value={codeElement.text} language={codeElement.codeLanguage || "auto"} fontSize={codeElement.fontSize} zoom={codeViewport.zoom} x={(codeElement.x - 16) * codeViewport.zoom + codeViewport.pan.x} y={(codeElement.y - 16) * codeViewport.zoom + codeViewport.pan.y} width={codeElement.width} height={codeElement.height} onChange={(text, language) => engineRef.current?.updateCode(codeElement.id, text, language)} onClose={() => { engineRef.current?.finishCode(); setCodeId(null); }} />}
+            {codeElement?.type === "text" && <CodeEditor background={codeElement} key={codeElement.id} value={codeElement.text} language={codeElement.codeLanguage || "auto"} fontSize={codeElement.fontSize} zoom={codeViewport.zoom} x={(codeElement.x - 16) * codeViewport.zoom + codeViewport.pan.x} y={(codeElement.y - 16) * codeViewport.zoom + codeViewport.pan.y} width={codeElement.width} height={codeElement.height} onChange={(text, language) => engineRef.current?.updateCode(codeElement.id, text, language)} onClose={() => { engineRef.current?.finishCode(); setCodeId(null); }} />}
             {inlineText && (
               <>
                 {/* Document-specific list tools; ordinary canvas text stays unobstructed. */}
@@ -805,7 +811,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
                     textAlign: inlineTextAlign,
                     color: inlineText.color || "#FFFFFF",
                     zIndex: 35,
-                    background: inlineText.kind === "sticky" ? selectedElement?.type === "sticky" ? selectedElement.color : "#FEF08A" : "transparent",
+                    background: "transparent",
                     border: "none",
                     borderRadius: 0,
                     padding: 0,
@@ -827,6 +833,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
                 onRedo={() => engineRef.current?.redo()}
                 canUndo={canUndo}
                 canRedo={canRedo}
+                onOpenPaint={() => { commitInline(); engineRef.current?.finishCode(); setCodeId(null); setPaintOpen(true); }}
                 onOpenIconPicker={() => setIsIconPickerOpen(true)}
                 theme={theme}
               />
@@ -835,6 +842,8 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
             {!isPresentationOpen && (
               <PropertiesPanel
                 topOffset={toolbarHeight + 12}
+                background={normalizeBackground(board.background)}
+                onBackgroundChange={background => persist({ ...boardRef.current, background })}
                 selectedTool={selectedTool}
                 isTextEditing={textOptionsVisible}
                 preserveTextFocus={isInlineTextual}
@@ -896,6 +905,10 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
         } else { if (board.viewMode === "notes") persist({ ...boardRef.current, viewMode: "canvas" }); requestAnimationFrame(() => { const element = containerRef.current; if (element) engineRef.current?.resize(element.clientWidth, element.clientHeight); engineRef.current?.focusElements([id]); }); }
       }} />
 
+      <PaintStudio open={paintOpen} onClose={() => setPaintOpen(false)} selectedImage={selectedElement?.type === "image" ? selectedElement : null} onInsert={(source, width, height) => {
+        if (initialRoomId && !roomReady) throw new Error("Wait for the room to connect before inserting an image.");
+        const engine = engineRef.current; if (!engine) throw new Error("The board is not ready yet."); engine.addImage(source, width, height);
+      }} />
       <IconPickerModal
         isOpen={isIconPickerOpen}
         onClose={() => setIsIconPickerOpen(false)}

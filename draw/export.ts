@@ -1,13 +1,17 @@
-import { CanvasElement, Theme, Board } from "./types";
+import { CanvasElement, Theme, Board, BackgroundSettings } from "./types";
+import { normalizeBackground } from "@/lib/background.mjs";
+import { drawBackgroundFill } from "./backgroundFill";
 import { drawElement, getElementBounds, unionBounds, loadCanvasFonts } from "./renderer";
+import { getImageResource } from "./imageResource";
 import { getIconImage } from "./iconSvg";
 import { serializeProject, safeFilename, type ExportScope } from "@/lib/projectFile";
 
 const PADDING = 40;
 
 /** Renders the elements into an offscreen canvas at the given scale. */
-export async function renderToCanvas(elements: CanvasElement[], theme: Theme, scale: number, transparent: boolean, scene: CanvasElement[] = elements) {
+export async function renderToCanvas(elements: CanvasElement[], theme: Theme, scale: number, transparent: boolean, scene: CanvasElement[] = elements, background?: BackgroundSettings) {
   await Promise.all([loadCanvasFonts(), ...elements.filter(el => el.type === "icon" && el.svgMarkup).map(el => el.type === "icon" ? getIconImage(el.svgMarkup!, el.viewBox || "0 0 24 24", el.iconColor || "#3B82F6").loaded : undefined)]);
+  await Promise.all(elements.map(el => el.type === "image" ? getImageResource(el.source).loaded : undefined));
   const bounds = unionBounds(elements.map(el => getElementBounds(el, scene)));
   if (!bounds) return null;
   const naturalW = bounds.maxX - bounds.minX + PADDING * 2, naturalH = bounds.maxY - bounds.minY + PADDING * 2;
@@ -22,10 +26,7 @@ export async function renderToCanvas(elements: CanvasElement[], theme: Theme, sc
   const ctx = canvas.getContext("2d");
   if (!ctx) return null;
 
-  if (!transparent) {
-    ctx.fillStyle = "#121212";
-    ctx.fillRect(0, 0, w, h);
-  }
+  if (!transparent) drawBackgroundFill(ctx, normalizeBackground(background), () => ctx.rect(0, 0, w, h), { x: 0, y: 0, width: w, height: h });
   ctx.save();
   ctx.scale(actualScale, actualScale);
   ctx.translate(-bounds.minX + PADDING, -bounds.minY + PADDING);
@@ -46,15 +47,16 @@ export async function exportToPng(
   theme: Theme,
   transparent: boolean = false,
   scale: number = 2,
-  scene: CanvasElement[] = elements
+  scene: CanvasElement[] = elements,
+  background?: BackgroundSettings
 ): Promise<void> {
-  const canvas = await renderToCanvas(elements, theme, scale, transparent, scene);
+  const canvas = await renderToCanvas(elements, theme, scale, transparent, scene, background);
   if (!canvas) throw new Error("Add something to the canvas before exporting an image.");
   download(canvas.toDataURL("image/png"), `whiteboard-${Date.now()}.png`);
 }
 
-export async function copyPngToClipboard(elements: CanvasElement[], theme: Theme): Promise<boolean> {
-  const canvas = await renderToCanvas(elements, theme, 2, false);
+export async function copyPngToClipboard(elements: CanvasElement[], theme: Theme, background?: BackgroundSettings): Promise<boolean> {
+  const canvas = await renderToCanvas(elements, theme, 2, false, elements, background);
   if (!canvas) return false;
   return new Promise((resolve) => {
     canvas.toBlob(async (blob) => {

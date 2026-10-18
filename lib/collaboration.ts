@@ -1,3 +1,5 @@
+import { normalizeBackground } from "./background.mjs";
+import type { BackgroundSettings } from "@/draw/types";
 import * as Y from "yjs";
 import { WebsocketProvider } from "y-websocket";
 import { isValidElement } from "./storage";
@@ -21,7 +23,7 @@ export class RoomSession {
   readonly elements = this.doc.getMap<CanvasElement>("elements");
   readonly notes = this.doc.getText("notes");
   readonly meta = this.doc.getMap<string>("meta");
-  readonly undo = new Y.UndoManager([this.elements, this.notes], { trackedOrigins: new Set([this]), captureTimeout: 300 });
+  readonly undo = new Y.UndoManager([this.elements, this.notes, this.meta], { trackedOrigins: new Set([this]), captureTimeout: 300 });
   readonly provider: WebsocketProvider;
   synced = false;
   private destroyed = false;
@@ -31,7 +33,7 @@ export class RoomSession {
   private queued: Board | undefined;
   private lastScene = new Map<string, CanvasElement>();
   private knownElementIds = new Set<string>();
-  onRemote?: (elements: CanvasElement[], notes: string, title: string) => void;
+  onRemote?: (elements: CanvasElement[], notes: string, title: string, background: BackgroundSettings) => void;
   onStatus?: (status: string) => void;
   onPresence?: (people: Collaborator[]) => void;
   onHistory?: (canUndo: boolean, canRedo: boolean) => void;
@@ -57,6 +59,7 @@ export class RoomSession {
         this.doc.transact(() => {
           this.meta.set("initialized", "true");
           this.meta.set("title", initial?.title || "Shared whiteboard");
+          this.meta.set("background", JSON.stringify(normalizeBackground(initial?.background)));
           initial?.elements.forEach(el => {
             if (el.type === "text" && el.isCodeCard) { const code = this.doc.getText(`code:${el.id}`); code.insert(0, el.text); this.undo.addToScope(code); this.elements.set(el.id, { ...structuredClone(el), text: "" }); }
             else this.elements.set(el.id, structuredClone(el));
@@ -108,6 +111,8 @@ export class RoomSession {
         } else this.elements.set(el.id, structuredClone(el));
       }
       updateSharedText(this.notes, board.markdownNotes || "");
+      const background = JSON.stringify(normalizeBackground(board.background));
+      if (this.meta.get("background") !== background) this.meta.set("background", background);
       if (this.meta.get("title") !== board.title) this.meta.set("title", board.title);
     }, this);
     this.emitRemote();
@@ -120,7 +125,7 @@ export class RoomSession {
     }).sort((a, b) => a.zIndex - b.zIndex || a.id.localeCompare(b.id));
     for (const el of elements) this.knownElementIds.add(el.id);
     this.lastScene = new Map(elements.map(el => [el.id, structuredClone(el)]));
-    this.onRemote?.(elements, this.notes.toString(), this.meta.get("title") || "Shared whiteboard");
+    this.onRemote?.(elements, this.notes.toString(), this.meta.get("title") || "Shared whiteboard", normalizeBackground(this.meta.get("background")));
   }
 
   cursor(point: Point | null) { this.provider.awareness.setLocalStateField("cursor", point); }

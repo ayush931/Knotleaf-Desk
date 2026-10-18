@@ -1,6 +1,7 @@
 import { isValidElement } from "./elementValidation.mjs";
 export { isValidElement } from "./elementValidation.mjs";
 import { readProjectPayload } from "./projectFile";
+import { normalizeBackground } from "./background.mjs";
 import { Board, BoardSummary, CanvasElement, Workspace } from "@/draw/types";
 import { TEMPLATES } from "@/draw/templatesData";
 import { roomExpiresAt } from "./roomExpiry.mjs";
@@ -218,6 +219,7 @@ export function importBoardFromJson(jsonStr: string): Board | null {
     if (new Set(parsed.elements.map(el => el.id)).size !== parsed.elements.length) throw new Error("Duplicate element IDs in this backup.");
     parsed.createdAt = Number.isFinite(parsed.createdAt) ? parsed.createdAt : Date.now();
     parsed.markdownNotes = typeof parsed.markdownNotes === "string" ? parsed.markdownNotes : "";
+    parsed.background = normalizeBackground(parsed.background);
     parsed.theme = "dark";
     parsed.viewMode = ["canvas", "split", "notes"].includes(parsed.viewMode) ? parsed.viewMode : "canvas";
     parsed.gridType = ["dot", "grid", "none"].includes(parsed.gridType) ? parsed.gridType : "dot";

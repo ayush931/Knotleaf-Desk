@@ -57,3 +57,10 @@ test('selected lines expose a signed bend input and straight reset instructions'
   expect(html).toMatch(/aria-label="Line bend in pixels"[^>]*value="-40"/);
   expect(html).toContain('Set 0 for a straight line');
 });
+
+
+test('Appearance separates shape fill opacity from whole-object and canvas opacity', () => {
+  const html = renderToStaticMarkup(React.createElement(PropertiesPanel, { ...props, background: { fill: '#123456', fillStyle: 'dots', fillOpacity: 0.6 }, onBackgroundChange: noop, selectedElement: { ...DEFAULT_STYLE, type: 'rectangle', id: 'fill', fill: '#ec4899', fillStyle: 'crosshatch', fillOpacity: 0.25, opacity: 0.8 } }));
+  expect(html).toContain('aria-label="Background opacity"'); expect(html).toContain('aria-label="Canvas background opacity"'); expect(html).toContain('aria-label="Opacity"');
+  expect(html).toContain('Custom fill color'); expect(html).toContain('Crosshatch'); expect(html).toContain('Transparent'); expect(html).toContain('Opaque');
+});
