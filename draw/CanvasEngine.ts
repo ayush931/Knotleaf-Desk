@@ -260,6 +260,7 @@ export class CanvasEngine {
   public onOpenIconPicker?: () => void;
   public onViewportChange?: (view: { zoom: number; pan: Point }) => void;
   public onEditCode?: (id: string) => void;
+  public onBeforeCreate?: () => void;
   public onStartInlineText?: (state: InlineTextState) => void;
   public onZoomChange?: (zoom: number) => void;
   public onToolChange?: (tool: Tool) => void;
@@ -594,6 +595,7 @@ export class CanvasEngine {
 
   /** Adds an icon imported from the internet. Its SVG is stored on the element so it works offline. */
   public addOnlineIcon(name: string, id: string, svgMarkup: string, viewBox: string) {
+    this.onBeforeCreate?.();
     const center = this.screenToCanvas(this.cssWidth / 2, this.cssHeight / 2);
     const el: CanvasElement = {
       id: newId(),
@@ -619,9 +621,7 @@ export class CanvasEngine {
       zIndex: this.elements.length,
     };
     this.elements = [...this.elements, el];
-    this.selectedIds = new Set([el.id]);
-    this.tool = "select";
-    this.emitTool();
+    this.selectedIds = this.tool === "select" ? new Set([el.id]) : new Set();
     this.commit();
   }
 
@@ -649,6 +649,7 @@ export class CanvasEngine {
   public addIconElement(iconId: string) {
     const def = getIconById(iconId);
     if (!def) return;
+    this.onBeforeCreate?.();
     const center = this.screenToCanvas(this.cssWidth / 2, this.cssHeight / 2);
     const el: CanvasElement = {
       id: newId(),
@@ -672,9 +673,7 @@ export class CanvasEngine {
       zIndex: this.elements.length,
     };
     this.elements = [...this.elements, el];
-    this.selectedIds = new Set([el.id]);
-    this.tool = "select";
-    this.emitTool();
+    this.selectedIds = this.tool === "select" ? new Set([el.id]) : new Set();
     this.commit();
   }
 
@@ -793,9 +792,7 @@ export class CanvasEngine {
       if (trimmed) {
         const el = this.makeTextElement(text, info.canvasX, info.canvasY, info.fontSize, info.fontFamily, info.color, info.align, false, info);
         this.elements = [...this.elements, { ...el, ...(info.containerId && info.containerOffset ? { containerId: info.containerId, containerOffset: info.containerOffset } : {}) }];
-        this.selectedIds = new Set([el.id]);
-        this.tool = "select";
-        this.emitTool();
+        this.selectedIds = this.tool === "select" ? new Set([el.id]) : new Set();
       }
     } else if (info.elementId) {
       const id = info.elementId;
@@ -1260,6 +1257,7 @@ export class CanvasEngine {
   private onPointerDown = (e: PointerEvent) => {
     if (e.button === 2 || e.isPrimary === false || this.gesture) return;
     this.activePointerId = e.pointerId;
+    if (!this.readOnly && e.button === 0 && !this.spaceDown && !["select", "hand", "eraser"].includes(this.tool)) this.onBeforeCreate?.();
     const opensEditor = e.button === 0 && !this.spaceDown && ["text", "doc", "sticky", "code"].includes(this.tool);
     if (opensEditor) {
       // The editor takes focus during this event. A compatibility mousedown on
@@ -1354,8 +1352,6 @@ export class CanvasEngine {
     if (this.tool === "text") {
       this.selectedIds.clear();
       this.emitSelection();
-      this.tool = "select";
-      this.emitTool();
       this.updateCursor();
       this.onStartInlineText?.({
         kind: "new-text",
@@ -1377,11 +1373,9 @@ export class CanvasEngine {
     if (this.tool === "code") {
       const el = this.remeasureText({ ...this.makeTextElement("", pt.x, pt.y, 14, "mono", "#eeffff", "left", true), isCodeCard: true, codeLanguage: "auto", title: "Code" });
       this.elements = [...this.elements, el]; this.selectedIds = new Set([el.id]);
-      this.tool = "select"; this.emitTool(); this.commit(); this.editingId = el.id; this.onEditCode?.(el.id); return;
+      this.commit(); this.editingId = el.id; this.onEditCode?.(el.id); return;
     }
     if (this.tool === "doc") {
-      this.tool = "select";
-      this.emitTool();
       this.updateCursor();
       const docEl = this.remeasureText(this.makeTextElement("", pt.x, pt.y, 15, "sans", "#FFFFFF", "left", true));
       this.elements = [...this.elements, docEl];
@@ -1414,8 +1408,6 @@ export class CanvasEngine {
       };
       this.elements = [...this.elements, sticky];
       this.selectedIds = new Set([sticky.id]);
-      this.tool = "select";
-      this.emitTool();
       this.commit();
       this.openEditorFor(sticky);
       return;
@@ -1552,7 +1544,7 @@ export class CanvasEngine {
   };
 
   private onDoubleClick = (e: MouseEvent) => {
-    if (this.readOnly || this.tool === "hand" || this.tool === "pencil" || this.spaceDown || e.button === 2) return;
+    if (this.readOnly || this.tool !== "select" || this.spaceDown || e.button === 2) return;
     e.preventDefault();
     this.cancelGesture();
     const sp = this.screenPoint(e), pt = this.screenToCanvas(sp.x, sp.y);
@@ -1718,13 +1710,9 @@ export class CanvasEngine {
 
     if (keep) {
       this.elements = [...this.elements, finalEl];
-      if (d.type === "pencil") {
-        this.selectedIds.clear();
-      } else {
-        this.selectedIds = new Set([finalEl.id]);
-        this.tool = "select";
-        this.emitTool();
-      }
+      // Connectors dragged from a Select-mode port remain selected. Explicit
+      // drawing tools stay active and are ready to create another element.
+      this.selectedIds = this.tool === "select" ? new Set([finalEl.id]) : new Set();
     }
     this.commit();
   }

@@ -1,6 +1,6 @@
 # Whiteboard interaction contract
 
-Pencil remains active after each completed stroke, pointer cancellation and repeated clicks until another tool is chosen. Completed strokes are not automatically selected; each remains separately undoable. Double-clicking with Pencil never switches to text editing. Other drawing tools retain their existing completion behavior.
+Drawing tools remain active after creation, pointer cancellation and repeated clicks until another tool is chosen or Escape returns to Select. This applies to Pencil, rectangles, diamonds, ellipses, arrows, lines, frames, text, document cards, sticky notes and code cards. Each item remains separately undoable. Double-click text editing belongs to Select mode. Creating another item commits an active inline editor first. Icon insertion and action buttons do not replace the chosen tool. Select-mode connections still select the newly created arrow for editing.
 
 The current user brief and README define a personal, local-first tool. No server account, billing, or team permissions are implied by a local workspace. Explicitly shared rooms synchronize through a configured WebSocket service using UUID invite capabilities.
 

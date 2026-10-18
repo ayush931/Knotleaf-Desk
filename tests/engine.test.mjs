@@ -60,6 +60,50 @@ test('Pencil stays active between strokes, cancellation and quick repeated click
   engine.setTool('select'); expect(engine.getTool()).toBe('select');
   engine.destroy();
 });
+for (const tool of ['rectangle', 'diamond', 'circle', 'arrow', 'line', 'pencil', 'frame']) {
+  test(`${tool} stays active for repeated drawing, double clicks and cancellation`, () => {
+    const { engine, drag, listeners, point } = setup([]);
+    engine.setTool(tool); drag(100, 100, 180, 160);
+    expect(engine.getTool()).toBe(tool); expect(engine.getSelectedElements()).toEqual([]);
+    listeners.dblclick(point(180, 160)); expect(engine.getTool()).toBe(tool);
+    drag(300, 100, 380, 160);
+    expect(engine.getElements().map(el => el.type)).toEqual([tool, tool]);
+    listeners.pointerdown(point(500, 100)); listeners.pointermove(point(580, 160)); listeners.pointercancel(point(580, 160));
+    expect(engine.getTool()).toBe(tool); expect(engine.getElements()).toHaveLength(2);
+    engine.undo(); expect(engine.getElements()).toHaveLength(1);
+    engine.redo(); expect(engine.getElements()).toHaveLength(2);
+    engine.setTool('select'); expect(engine.getTool()).toBe('select'); engine.destroy();
+  });
+}
+for (const tool of ['text', 'doc', 'sticky']) {
+  test(`${tool} stays active while finishing one editor and creating the next`, () => {
+    const { engine, listeners, point } = setup([]); let editor;
+    engine.onStartInlineText = state => { editor = state; };
+    engine.onBeforeCreate = () => { if (editor) { engine.commitInlineText({ ...editor, text: 'First item' }); editor = undefined; } };
+    engine.setTool(tool); listeners.pointerdown(point(100, 100)); listeners.pointerup(point(100, 100));
+    expect(engine.getTool()).toBe(tool);
+    listeners.pointerdown(point(400, 100)); listeners.pointerup(point(400, 100));
+    engine.commitInlineText({ ...editor, text: 'Second item' });
+    expect(engine.getTool()).toBe(tool);
+    expect(engine.getElements().map(el => el.text)).toEqual(['First item', 'Second item']);
+    engine.setTool('select'); expect(engine.getTool()).toBe('select'); engine.destroy();
+  });
+}
+test('Code stays active after editing and creates a second independent card', () => {
+  const { engine, listeners, point } = setup([]); let edited;
+  engine.onEditCode = id => { edited = id; }; engine.onBeforeCreate = () => engine.finishCode();
+  engine.setTool('code'); listeners.pointerdown(point(100, 100)); listeners.pointerup(point(100, 100));
+  engine.updateCode(edited, 'first()', 'javascript'); engine.finishCode(); expect(engine.getTool()).toBe('code');
+  listeners.pointerdown(point(400, 100)); listeners.pointerup(point(400, 100));
+  engine.updateCode(edited, 'second()', 'javascript'); engine.finishCode();
+  expect(engine.getElements().map(el => el.text)).toEqual(['first()', 'second()']); expect(engine.getTool()).toBe('code'); engine.destroy();
+});
+test('icon insertion and erasing preserve the explicitly chosen tool', () => {
+  const { engine, drag, listeners, point } = setup([]); engine.setTool('rectangle');
+  engine.addOnlineIcon('Test', 'test', '<path d="M0 0h24v24z"/>', '0 0 24 24'); expect(engine.getTool()).toBe('rectangle');
+  drag(100, 100, 180, 160); engine.setTool('eraser');
+  listeners.pointerdown(point(140, 130)); listeners.pointerup(point(140, 130)); expect(engine.getTool()).toBe('eraser'); engine.destroy();
+});
 describe('manual arrow bending', () => {
   const straight = { ...arrow, startX: 100, startY: 200, endX: 500, endY: 200, x: 100, y: 200, width: 400, height: 0, routing: 'straight', startBinding: undefined, endBinding: undefined, label: 'Flow', arrowHeadEnd: 'diamond', animated: true };
   test('dragging the center bends either way, follows the pointer and supports undo/redo', () => {

@@ -2,7 +2,7 @@
 
 import { Heading1, List, CheckSquare, Quote, Check } from "lucide-react";
 import { useRouter } from "next/navigation";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState, useLayoutEffect } from "react";
 import { RoomSession, type Collaborator } from "@/lib/collaboration";
 import { getRoomServerUrl, checkRoomAvailable, RoomExpiredError } from "@/lib/roomConnection";
 import { createRoomFromBoard } from "@/lib/roomCreation";
@@ -131,6 +131,8 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
   const [codeId, setCodeId] = useState<string | null>(null);
   const codeElement = board.elements.find(el => el.id === codeId && el.type === "text" && el.isCodeCard);
   const [inlineText, setInlineText] = useState<InlineTextState | null>(null);
+  const inlineTextStateRef = useRef<InlineTextState | null>(null);
+  useLayoutEffect(() => { inlineTextStateRef.current = inlineText; }, [inlineText]);
   const [currentStyle, setCurrentStyle] = useState<ElementStyleProps>({ ...DEFAULT_STYLE });
 
   const selectedElement = selectedElements.length === 1 ? selectedElements[0] : null;
@@ -199,7 +201,13 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
     engine.onOpenIconPicker = () => setIsIconPickerOpen(true);
     engine.onEditCode = setCodeId;
     engine.onViewportChange = view => setCodeViewport(previous => previous.zoom === view.zoom && previous.pan.x === view.pan.x && previous.pan.y === view.pan.y ? previous : view);
-    engine.onStartInlineText = (state) => setInlineText(state);
+    engine.onBeforeCreate = () => {
+      const current = inlineTextStateRef.current;
+      inlineTextStateRef.current = null;
+      if (current) engine.commitInlineText(current);
+      setInlineText(null); engine.finishCode(); setCodeId(null);
+    };
+    engine.onStartInlineText = state => { inlineTextStateRef.current = state; setInlineText(state); };
     engine.onZoomChange = (z) => setZoom(z);
     engine.onToolChange = (t) => setSelectedTool(t);
     engine.onHistoryChange = (u, r) => {
@@ -445,7 +453,9 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
 
   // Inline text editing
   const commitInline = () => {
-    if (inlineText && engineRef.current) engineRef.current.commitInlineText(inlineText);
+    const current = inlineTextStateRef.current;
+    inlineTextStateRef.current = null;
+    if (current && engineRef.current) engineRef.current.commitInlineText(current);
     setInlineText(null);
   };
 
