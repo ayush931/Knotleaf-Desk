@@ -849,7 +849,7 @@ export class CanvasEngine {
       }
       this.elements = resolveBindings(pruneBindings(next), new Set([id]));
       this.selectedIds = new Set([...this.selectedIds].filter((sid) => this.elements.some((e) => e.id === sid)));
-      this.selectedIds.add(id);
+      if (this.elements.some(el => el.id === id)) this.selectedIds.add(id);
     }
     this.commit();
   }
@@ -897,7 +897,7 @@ export class CanvasEngine {
       stroke: color || "#FFFFFF",
       strokeWidth: 1,
       strokeStyle: "solid",
-      fill: isDocCard ? this.currentStyle.fill === "transparent" ? "#18181B" : this.currentStyle.fill : "transparent",
+      fill: isDocCard ? this.currentStyle.fill === "transparent" ? "#232426" : this.currentStyle.fill : "transparent",
       fillStyle: isDocCard ? this.currentStyle.fillStyle === "none" ? "solid" : this.currentStyle.fillStyle : "none",
       fillOpacity: this.currentStyle.fillOpacity ?? 1,
       roundness: isDocCard ? "rounded" : "sharp",
@@ -1345,7 +1345,7 @@ export class CanvasEngine {
         if (hit.type === "image") {
           try { const pixel = this.ctx.getImageData(Math.floor(sp.x * this.dpr), Math.floor(sp.y * this.dpr), 1, 1).data; color = `#${[...pixel.slice(0, 3)].map(n => n.toString(16).padStart(2, "0")).join("")}`; } catch { return; }
         }
-        this.currentStyle = { ...this.currentStyle, stroke: color, fill: color, fillStyle: "solid" }; this.onPickColor?.(color); this.setTool("select"); return;
+        this.currentStyle = { ...this.currentStyle, stroke: color }; this.onPickColor?.(color); this.setTool("select"); return;
       }
       if (hit.type === "image") return;
       const color = this.currentStyle.fill === "transparent" ? this.currentStyle.stroke : this.currentStyle.fill;
@@ -1472,13 +1472,13 @@ export class CanvasEngine {
         width: 180,
         height: 140,
         text: "",
-        color: this.currentStyle.fill === "transparent" ? "#FEF08A" : this.currentStyle.fill,
+        color: this.currentStyle.fill === "transparent" ? "#c7ba91" : this.currentStyle.fill,
         fontFamily: this.currentStyle.fontFamily,
         fontSize: 15,
         stroke: "#1E293B",
         strokeWidth: 1,
         strokeStyle: "solid",
-        fill: this.currentStyle.fill === "transparent" ? "#FEF08A" : this.currentStyle.fill,
+        fill: this.currentStyle.fill === "transparent" ? "#c7ba91" : this.currentStyle.fill,
         fillStyle: this.currentStyle.fillStyle === "none" ? "solid" : this.currentStyle.fillStyle,
         fillOpacity: this.currentStyle.fillOpacity ?? 1,
         roundness: "rounded",
@@ -2196,9 +2196,6 @@ export class CanvasEngine {
         break;
       case "f":
         this.setTool("frame");
-        break;
-      case "b":
-        this.setTool("fill");
         break;
       case "k":
         this.setTool("eyedropper");

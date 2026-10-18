@@ -257,7 +257,7 @@ export interface ElementStyleProps extends TextFormatting {
 
 /** Default style applied to new elements and shown when nothing is selected. */
 export const DEFAULT_STYLE: ElementStyleProps = {
-  stroke: "#FFFFFF",
+  stroke: "#dedbd4",
   strokeWidth: 2,
   strokeStyle: "solid",
   fill: "transparent",

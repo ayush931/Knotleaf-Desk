@@ -397,7 +397,7 @@ export function drawGrid(
 
   ctx.save();
   if (gridType === "dot") {
-    ctx.fillStyle = light ? "rgba(0, 0, 0, 0.15)" : "rgba(255, 255, 255, 0.12)";
+    ctx.fillStyle = light ? "rgba(0, 0, 0, 0.15)" : "rgba(215, 211, 200, 0.075)";
     const r = Math.max(0.9, 1.0 * Math.min(zoom, 1.4));
     ctx.beginPath();
     for (let x = startX; x < width; x += spacing) {
@@ -408,7 +408,7 @@ export function drawGrid(
     }
     ctx.fill();
   } else {
-    ctx.strokeStyle = light ? "rgba(0, 0, 0, 0.1)" : "rgba(255, 255, 255, 0.06)";
+    ctx.strokeStyle = light ? "rgba(0, 0, 0, 0.1)" : "rgba(215, 211, 200, 0.035)";
     ctx.lineWidth = 1;
     ctx.beginPath();
     for (let x = startX; x < width; x += spacing) {

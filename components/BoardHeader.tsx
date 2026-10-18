@@ -3,6 +3,8 @@
 import React, { useState, useRef, useEffect } from "react";
 import {
   Menu,
+  MoreHorizontal,
+  Maximize2,
   FolderOpen,
   Search,
   Sparkles,
@@ -29,6 +31,7 @@ interface BoardHeaderProps {
   onChangeViewMode: (mode: ViewMode) => void;
   collaboration?: React.ReactNode;
   title: string;
+  onFocusCanvas?: () => void;
   onRenameTitle: (newTitle: string) => void;
   onToggleSidebar: () => void;
   onOpenTemplates: () => void;
@@ -56,6 +59,7 @@ export function BoardHeader({
   onBeforeRefresh,
   recording,
   title,
+  onFocusCanvas,
   collaboration,
   viewMode,
   saveError,
@@ -83,6 +87,17 @@ export function BoardHeader({
   onTogglePresentation,
   onShowShortcuts,
 }: BoardHeaderProps) {
+  const [actionsOpen, setActionsOpen] = useState(false);
+  const actionsButton = useRef<HTMLButtonElement>(null);
+  const actionsPanel = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!actionsOpen) return;
+    const dismiss = (event: PointerEvent) => {
+      if (event.target instanceof Node && !actionsPanel.current?.contains(event.target) && !actionsButton.current?.contains(event.target)) setActionsOpen(false);
+    };
+    document.addEventListener("pointerdown", dismiss);
+    return () => document.removeEventListener("pointerdown", dismiss);
+  }, [actionsOpen]);
   const [scope, setScope] = useState<ExportScope>("project");
   const [format, setFormat] = useState("project");
   const importFile = useRef<HTMLInputElement>(null);
@@ -135,9 +150,10 @@ export function BoardHeader({
   };
 
   return (
-    <header className="fixed top-0 left-0 right-0 h-11 z-30 px-2 gap-2 flex items-center justify-between border-b backdrop-blur-md select-none bg-[#121212]/95 border-[#27272a] text-[#f4f4f5]">
+    <header className="fixed top-0 left-0 right-0 h-11 z-40 px-2 gap-1 sm:gap-2 flex items-center justify-between border-b backdrop-blur-md select-none bg-[#121212]/95 border-[#27272a] text-[#f4f4f5]">
+      {onFocusCanvas && <button onClick={onFocusCanvas} aria-label="Focus canvas" aria-keyshortcuts="Shift+Z" title="Focus canvas · Shift+Z" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-neutral-400 hover:bg-neutral-800 hover:text-white focus-visible:outline-2 focus-visible:outline-blue-500"><Maximize2 className="h-4 w-4" /></button>}
       {/* Left Section: Menu & Title */}
-      <div className="flex min-w-0 items-center gap-2">
+      <div className="flex min-w-0 flex-1 items-center gap-1 sm:gap-2">
         <button
           onClick={onToggleSidebar}
           title="Open Boards Workspace"
@@ -150,7 +166,7 @@ export function BoardHeader({
         <button aria-label="Find, history and custom templates" title="Board tools · Find (Ctrl/Cmd+F)" onClick={onOpenBoardTools} className="rounded-lg p-1.5 text-neutral-400 hover:bg-neutral-800 hover:text-white"><Search className="h-4 w-4" /></button>
         <input ref={importFile} type="file" accept=".knotleaf,.json,.md,.markdown" className="hidden" onChange={async e => { const file = e.target.files?.[0]; e.target.value = ""; if (!file) return; try { if (file.size > 50_000_000) throw new Error("This file exceeds the 50 MB import limit."); onImportFile(await file.text(), file.name); setExportError(""); } catch (error) { setExportError(error instanceof Error ? error.message : "Could not open this project."); setShowExportMenu(true); } }} />
         <button aria-label="Open project or notes" title="Open .knotleaf, .json or Markdown notes" onClick={() => importFile.current?.click()} className="rounded-lg p-1.5 text-neutral-400 hover:bg-neutral-800 hover:text-white"><FolderOpen className="h-4 w-4" /></button>
-        <div className="flex items-center gap-2">
+        <div className="flex min-w-0 items-center gap-2">
           {/* The app mark is shared with the website favicon. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/icons/mark.svg" alt="Knotleaf Desk" title="Knotleaf Desk · Canvas and notes" width={26} height={26} className="hidden sm:block shrink-0" />
@@ -171,10 +187,10 @@ export function BoardHeader({
                 setLocalTitle(title);
                 setIsEditingTitle(true);
               }}
-              className="flex items-center gap-1 cursor-pointer group"
+              className="flex min-w-0 items-center gap-1 cursor-pointer group"
               title="Knotleaf Desk · Click to rename board"
             >
-              <h1 className="text-xs font-semibold tracking-tight text-neutral-200 group-hover:text-blue-400 transition max-w-[80px] sm:max-w-[180px] truncate">
+              <h1 className="text-xs font-semibold tracking-tight text-neutral-200 group-hover:text-blue-400 transition max-w-[48px] sm:max-w-[180px] truncate">
                 {title || "Untitled board"}
               </h1>
               <span className="text-[10px] text-neutral-400 opacity-0 group-hover:opacity-100">
@@ -189,16 +205,17 @@ export function BoardHeader({
       </div>
 
       <nav aria-label="Board view" className="flex shrink-0 items-center gap-0.5 rounded-lg border border-neutral-800 bg-neutral-900 p-0.5">
-        {(["canvas", "split", "notes"] as ViewMode[]).map(mode => <button key={mode} aria-pressed={viewMode === mode} onClick={() => onChangeViewMode(mode)} className={`rounded-md px-2 py-1 text-[11px] font-medium capitalize transition ${viewMode === mode ? "bg-neutral-700 text-white" : "text-neutral-400 hover:bg-neutral-800 hover:text-white"}`}>{mode}</button>)}
+        {(["canvas", "split", "notes"] as ViewMode[]).map(mode => <button key={mode} aria-pressed={viewMode === mode} onClick={() => onChangeViewMode(mode)} className={`rounded-md px-1.5 sm:px-2 py-1 text-[11px] font-medium capitalize transition ${viewMode === mode ? "bg-neutral-700 text-white" : "text-neutral-400 hover:bg-neutral-800 hover:text-white"}`}>{mode}</button>)}
       </nav>
       {/* Right Section: Actions */}
-      <div className="header-actions flex shrink-0 items-center gap-1">
+      <button ref={actionsButton} type="button" aria-label="Board actions" aria-expanded={actionsOpen} aria-controls="board-actions" onClick={() => setActionsOpen(value => !value)} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-neutral-400 hover:bg-neutral-800 hover:text-white xl:hidden"><MoreHorizontal className="h-4 w-4" /></button>
+      <div ref={actionsPanel} id="board-actions" onKeyDown={event => { if (event.key === "Escape" && !event.nativeEvent.isComposing) { event.stopPropagation(); setActionsOpen(false); actionsButton.current?.focus(); } }} className={`header-actions absolute right-2 top-12 max-w-[calc(100vw-1rem)] flex-wrap items-center gap-1 rounded-xl border border-neutral-700 bg-[#18181b] p-2 shadow-lg xl:static xl:flex xl:max-w-none xl:shrink-0 xl:flex-nowrap xl:rounded-none xl:border-0 xl:bg-transparent xl:p-0 xl:shadow-none ${actionsOpen ? "flex" : "hidden"}`}>
         <RefreshWebApp onBeforeRefresh={onBeforeRefresh} recording={recording} />
         {collaboration}
         {/* Templates Button */}
         <button
           onClick={onOpenTemplates}
-          title="Browse Diagram Templates"
+          aria-label="Browse diagram templates" title="Browse Diagram Templates"
           className="px-2.5 py-1 rounded-lg border border-purple-500/30 bg-purple-500/10 text-purple-400 text-xs font-medium flex items-center gap-1 hover:bg-purple-500/20 transition cursor-pointer"
         >
           <Sparkles className="w-3.5 h-3.5" />
@@ -210,7 +227,7 @@ export function BoardHeader({
           onClick={() => setClearOpen(true)}
           aria-label="Clear board"
           title="Clear this board and its notes"
-          className="hidden sm:flex p-1.5 rounded-lg hover:bg-rose-500/10 text-neutral-400 hover:text-rose-400 transition cursor-pointer"
+          className="flex p-1.5 rounded-lg hover:bg-rose-500/10 text-neutral-400 hover:text-rose-400 transition cursor-pointer"
         >
           <Trash2 className="w-3.5 h-3.5" />
         </button>
@@ -221,7 +238,7 @@ export function BoardHeader({
           title={snapToGrid ? "Snap to Grid: ON" : "Snap to Grid: OFF"}
           aria-label="Snap to grid"
           aria-pressed={snapToGrid}
-          className={`hidden sm:flex p-1.5 rounded-lg text-xs transition cursor-pointer ${
+          className={`flex p-1.5 rounded-lg text-xs transition cursor-pointer ${
             snapToGrid
               ? "bg-blue-500/15 text-blue-400 border border-blue-500/30"
               : "hover:bg-neutral-800 text-neutral-400 hover:text-white"
@@ -235,7 +252,7 @@ export function BoardHeader({
           onClick={cycleGrid}
           title={`Grid Mode: ${gridType.toUpperCase()}`}
           aria-label="Cycle grid style"
-          className="hidden sm:flex p-1.5 rounded-lg hover:bg-neutral-800 text-neutral-400 hover:text-white transition cursor-pointer"
+          className="flex p-1.5 rounded-lg hover:bg-neutral-800 text-neutral-400 hover:text-white transition cursor-pointer"
         >
           <Grid className="w-3.5 h-3.5" />
         </button>
@@ -244,7 +261,7 @@ export function BoardHeader({
         <button
           onClick={onTogglePresentation}
           title="Zen Fullscreen Mode"
-          className="hidden sm:flex p-1.5 rounded-lg hover:bg-neutral-800 text-neutral-400 hover:text-white transition cursor-pointer"
+          className="flex p-1.5 rounded-lg hover:bg-neutral-800 text-neutral-400 hover:text-white transition cursor-pointer"
         >
           <Play className="w-3.5 h-3.5" />
         </button>
@@ -262,7 +279,7 @@ export function BoardHeader({
         {/* Export Dropdown */}
         <div className="relative" ref={exportMenuRef}>
           <button
-            aria-expanded={showExportMenu}
+            aria-label="Export board" aria-expanded={showExportMenu}
             onClick={() => setShowExportMenu(!showExportMenu)}
             className="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold flex items-center gap-1 transition shadow-xs cursor-pointer ml-1"
           >

@@ -1,13 +1,12 @@
 "use client";
 
-import { Heading1, List, CheckSquare, Quote, Check } from "lucide-react";
+import { Heading1, List, CheckSquare, Quote, Check, PanelsTopLeft } from "lucide-react";
 import { useRouter } from "next/navigation";
 import React, { useCallback, useEffect, useMemo, useRef, useState, useLayoutEffect } from "react";
 import { RoomSession, type Collaborator } from "@/lib/collaboration";
 import { getRoomServerUrl, checkRoomAvailable, RoomExpiredError } from "@/lib/roomConnection";
 import { createRoomFromBoard } from "@/lib/roomCreation";
-import { normalizeBackground } from "@/lib/background.mjs";
-import { PaintStudio } from "./PaintStudio";
+import { useCanvasFocus } from "@/lib/useCanvasFocus";
 import { Classroom } from "./Classroom";
 import { CollaborationPanel } from "./CollaborationPanel";
 import { CanvasEngine } from "@/draw/CanvasEngine";
@@ -107,6 +106,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
 
 
   const [boardsList, setBoardsList] = useState<BoardSummary[]>(() => getAllBoards());
+  const [appearanceOpen, setAppearanceOpen] = useState(false);
   const [selectedTool, setSelectedTool] = useState<Tool>("select");
   const [toolbarHeight, setToolbarHeight] = useState(44);
   const [selectedElements, setSelectedElements] = useState<CanvasElement[]>([]);
@@ -135,10 +135,13 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
   const [codeId, setCodeId] = useState<string | null>(null);
   const [recording, setRecording] = useState(false);
   const codeElement = board.elements.find(el => el.id === codeId && el.type === "text" && el.isCodeCard);
-  const [inlineText, setInlineText] = useState<InlineTextState | null>(null);
+  const [inlineText, renderInlineText] = useState<InlineTextState | null>(null);
   const inlineTextStateRef = useRef<InlineTextState | null>(null);
-  useLayoutEffect(() => { inlineTextStateRef.current = inlineText; }, [inlineText]);
-  const [paintOpen, setPaintOpen] = useState(false);
+  const setInlineText = useCallback((update: React.SetStateAction<InlineTextState | null>) => {
+    const next = typeof update === "function" ? update(inlineTextStateRef.current) : update;
+    inlineTextStateRef.current = next;
+    renderInlineText(next);
+  }, []);
   const [currentStyle, setCurrentStyle] = useState<ElementStyleProps>({ ...DEFAULT_STYLE });
 
   const selectedElement = selectedElements.length === 1 ? selectedElements[0] : null;
@@ -203,7 +206,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
       persist({ ...boardRef.current, elements });
       refreshBoardsList();
     };
-    engine.onPickColor = color => setCurrentStyle(previous => ({ ...previous, stroke: color, fill: color, fillStyle: "solid" }));
+    engine.onPickColor = color => setCurrentStyle(previous => ({ ...previous, stroke: color }));
     engine.onSelectionChange = (selected) => setSelectedElements(selected);
     engine.onOpenIconPicker = () => setIsIconPickerOpen(true);
     engine.onEditCode = setCodeId;
@@ -226,7 +229,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
       engine.destroy();
       engineRef.current = null;
     };
-  }, [persist, refreshBoardsList]);
+  }, [persist, refreshBoardsList, setInlineText]);
 
   useEffect(() => {
     if (!initialRoomId) return;
@@ -461,12 +464,12 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
   };
 
   // Inline text editing
-  const commitInline = () => {
+  const commitInline = useCallback(() => {
     const current = inlineTextStateRef.current;
     inlineTextStateRef.current = null;
     if (current && engineRef.current) engineRef.current.commitInlineText(current);
     setInlineText(null);
-  };
+  }, [setInlineText]);
 
   const adjustInlineFontSize = (delta: number) => {
     setInlineText((prev) => (prev ? { ...prev, fontSize: Math.max(8, Math.min(96, prev.fontSize + delta)) } : prev));
@@ -544,7 +547,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
   };
   const isInlineTextual = !!inlineText && ["new-text", "text", "sticky"].includes(inlineText.kind);
   const textOptionsVisible = selectedTool === "text" || isInlineTextual;
-  const inlinePlaceholder = inlineText?.kind === "sticky" ? "Write a sticky note…" : selectedElement?.type === "text" && selectedElement.isDocCard ? "Write your document notes…" : "Type here…";
+  const inlinePlaceholder = inlineText?.kind === "sticky" ? "Write a sticky note…" : selectedElement?.type === "text" && selectedElement.isDocCard ? "Write your document notes…" : inlineText?.kind === "frame-title" ? "Name this frame…" : inlineText?.kind === "label" ? "Add a label…" : "Start typing…";
   useLayoutEffect(() => {
     const editor = inlineTextareaRef.current;
     if (!editor || !inlineText) return;
@@ -601,15 +604,30 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
     if (!saved) throw new Error("Your work could not be saved. Retry saving or download a backup before refreshing.");
   };
 
+  const prepareFocusChange = useCallback(() => {
+    setAppearanceOpen(false);
+    commitInline(); engineRef.current?.finishCode(); setCodeId(null);
+    const engine = engineRef.current; if (engine) engine.setTool(engine.getTool());
+  }, [commitInline, setAppearanceOpen, setCodeId]);
+  const { active: focusMode, toggle: toggleFocus, exit: exitFocus } = useCanvasFocus(prepareFocusChange, isPresentationOpen);
+  const previousFocusMode = useRef(false);
+  useLayoutEffect(() => {
+    if (focusMode || previousFocusMode.current) {
+      document.querySelector<HTMLButtonElement>(focusMode ? '[aria-label="Show controls"]' : '[aria-label="Focus canvas"]')?.focus({ preventScroll: true });
+    }
+    previousFocusMode.current = focusMode;
+  }, [focusMode]);
+
   return (
     <div
       className="relative w-screen h-[100dvh] overflow-hidden flex flex-col font-sans select-none bg-[#121212] text-white"
     >
       {!isPresentationOpen && (
-        <BoardHeader
+        <div hidden={focusMode}><BoardHeader
+          onFocusCanvas={toggleFocus}
           onBeforeRefresh={prepareRefresh}
           recording={recording}
-          collaboration={<><Classroom key={initialRoomId || "personal"} roomId={initialRoomId} onRecordingChange={setRecording} onCreateRoom={() => createSharedRoom(true)} /><CollaborationPanel roomId={initialRoomId} onLeave={handleLeaveRoom} status={roomStatus} people={people} onName={name => sessionRef.current?.setName(name)} onJoin={id => router.push(`/canvas/${id}`)} onCreate={() => createSharedRoom()} /></>}
+          collaboration={<><Classroom key={initialRoomId || "personal"} roomId={initialRoomId} onRecordingChange={setRecording} uiHidden={focusMode} onCreateRoom={() => createSharedRoom(true)} /><CollaborationPanel roomId={initialRoomId} onLeave={handleLeaveRoom} status={roomStatus} people={people} onName={name => sessionRef.current?.setName(name)} onJoin={id => router.push(`/canvas/${id}`)} onCreate={() => createSharedRoom()} /></>}
           title={board.title}
           saveError={saveError}
           onRetrySave={() => persist(boardRef.current)}
@@ -636,12 +654,12 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
           onCopyClipboard={handleCopyClipboard}
           onTogglePresentation={beginPresentation}
           onShowShortcuts={() => setIsShortcutsOpen(true)}
-        />
+        /></div>
       )}
 
-      <main inert={!roomReady} ref={splitRef} className={`relative flex max-sm:flex-col min-h-0 flex-1 w-full overflow-hidden ${!isPresentationOpen ? "mt-11" : ""}`} >
-        {viewMode !== "canvas" && !isPresentationOpen && <section aria-label="Board notes" style={viewMode === "split" ? narrowSplit ? { width: "100%", height: Math.min(notesHeight, splitBounds.height - 160) } : { width: Math.min(notesWidth, splitBounds.width - 280) } : undefined} className={`board-notes min-h-0 ${viewMode === "notes" ? "w-full" : "shrink-0"}`}><DocEditor key={noteFocus?.token || 0} focusRange={noteFocus} value={board.markdownNotes || ""} onChange={markdownNotes => persist({ ...boardRef.current, markdownNotes })} onExportMarkdown={handleExportMarkdown} theme={theme} /></section>}
-        {viewMode === "split" && !isPresentationOpen && <div role="separator" aria-label="Resize notes panel" aria-orientation={narrowSplit ? "horizontal" : "vertical"} aria-valuemin={narrowSplit ? 160 : 220} aria-valuemax={narrowSplit ? Math.max(160, splitBounds.height - 160) : Math.max(220, splitBounds.width - 280)} aria-valuenow={Math.round(narrowSplit ? notesHeight : notesWidth)} tabIndex={0} className={`split-handle z-30 shrink-0 touch-none bg-neutral-800 hover:bg-blue-500 focus-visible:bg-blue-500 focus-visible:outline-none ${narrowSplit ? "h-1.5 w-full cursor-row-resize" : "w-1.5 cursor-col-resize"}`} onDoubleClick={() => { setNotesWidth(360); setNotesHeight(300); }} onKeyDown={e => { if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"].includes(e.key)) {
+      <main inert={!roomReady} ref={splitRef} className={`relative flex max-sm:flex-col min-h-0 flex-1 w-full overflow-hidden ${!isPresentationOpen && !focusMode ? "mt-11" : ""}`} >
+        {viewMode !== "canvas" && !isPresentationOpen && <section aria-label="Board notes" style={viewMode === "split" ? narrowSplit ? { width: "100%", height: Math.min(notesHeight, splitBounds.height - 160) } : { width: Math.min(notesWidth, splitBounds.width - 280) } : undefined} className={`board-notes min-h-0 ${focusMode ? "hidden" : ""} ${viewMode === "notes" ? "w-full" : "shrink-0"}`}><DocEditor key={noteFocus?.token || 0} focusRange={noteFocus} value={board.markdownNotes || ""} onChange={markdownNotes => persist({ ...boardRef.current, markdownNotes })} onExportMarkdown={handleExportMarkdown} theme={theme} /></section>}
+        {viewMode === "split" && !isPresentationOpen && !focusMode && <div role="separator" aria-label="Resize notes panel" aria-orientation={narrowSplit ? "horizontal" : "vertical"} aria-valuemin={narrowSplit ? 160 : 220} aria-valuemax={narrowSplit ? Math.max(160, splitBounds.height - 160) : Math.max(220, splitBounds.width - 280)} aria-valuenow={Math.round(narrowSplit ? notesHeight : notesWidth)} tabIndex={0} className={`split-handle z-30 shrink-0 touch-none bg-neutral-800 hover:bg-blue-500 focus-visible:bg-blue-500 focus-visible:outline-none ${narrowSplit ? "h-1.5 w-full cursor-row-resize" : "w-1.5 cursor-col-resize"}`} onDoubleClick={() => { setNotesWidth(360); setNotesHeight(300); }} onKeyDown={e => { if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"].includes(e.key)) {
           e.preventDefault(); e.stopPropagation();
           const delta = e.key === "ArrowRight" || e.key === "ArrowDown" ? 20 : -20;
           if (narrowSplit) setNotesHeight(h => Math.max(160, Math.min(e.key === "Home" ? 160 : e.key === "End" ? Infinity : h + delta, splitBounds.height - 160)));
@@ -650,9 +668,9 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
 
         <div
           ref={containerRef}
-          className={`relative min-h-0 min-w-0 flex-1 h-full overflow-hidden bg-[#121212] ${viewMode === "notes" && !isPresentationOpen ? "hidden" : ""}`}
+          className={`relative min-h-0 min-w-0 flex-1 h-full overflow-hidden bg-[#121212] ${viewMode === "notes" && !isPresentationOpen && !focusMode ? "hidden" : ""}`}
         >
-            <canvas ref={canvasRef} className="block touch-none" style={{ backgroundColor: "#fafafa", backgroundImage: "conic-gradient(#d4d4d8 25%, transparent 0 50%, #d4d4d8 0 75%, transparent 0)", backgroundSize: "16px 16px" }} />
+            <canvas ref={canvasRef} className="block touch-none" style={{ backgroundColor: "#202124", backgroundImage: "conic-gradient(#27282a 25%, transparent 0 50%, #27282a 0 75%, transparent 0)", backgroundSize: "16px 16px" }} />
 
             {codeElement?.type === "text" && <CodeEditor background={codeElement} key={codeElement.id} value={codeElement.text} language={codeElement.codeLanguage || "auto"} fontSize={codeElement.fontSize} zoom={codeViewport.zoom} x={(codeElement.x - 16) * codeViewport.zoom + codeViewport.pan.x} y={(codeElement.y - 16) * codeViewport.zoom + codeViewport.pan.y} width={codeElement.width} height={codeElement.height} onChange={(text, language) => engineRef.current?.updateCode(codeElement.id, text, language)} onClose={() => { engineRef.current?.finishCode(); setCodeId(null); }} />}
             {inlineText && (
@@ -674,7 +692,10 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
                   value={inlineText.text}
                   aria-label="Edit text"
                   onChange={(e) => setInlineText((prev) => (prev ? { ...prev, text: e.target.value } : null))}
-                  onBlur={commitInline}
+                  onBlur={event => {
+                    if (event.relatedTarget instanceof HTMLElement && event.relatedTarget.closest("[data-text-controls]")) return;
+                    commitInline();
+                  }}
                   onKeyDown={(e) => {
                     if (e.nativeEvent.isComposing) return;
                     const mod = e.ctrlKey || e.metaKey;
@@ -794,7 +815,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
                     }
                   }}
                   placeholder={inlinePlaceholder}
-                  wrap={!inlineText.text || inlineText.kind === "sticky" ? "soft" : "off"}
+                  wrap={!inlineText.text || inlineText.kind === "sticky" || selectedElement?.type === "text" && selectedElement.isDocCard ? "soft" : "off"}
                   spellCheck={false}
                   style={{
                     position: "absolute",
@@ -817,14 +838,14 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
                     padding: 0,
                     outline: "none",
                     resize: "none",
-                    overflow: "hidden",
+                    overflowX: "auto",
                     boxShadow: "none",
                   }}
                 />
               </>
             )}
 
-            {!isPresentationOpen && (
+            {!isPresentationOpen && !focusMode && (
               <TopToolbar
                 onHeightChange={setToolbarHeight}
                 selectedTool={selectedTool}
@@ -833,17 +854,19 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
                 onRedo={() => engineRef.current?.redo()}
                 canUndo={canUndo}
                 canRedo={canRedo}
-                onOpenPaint={() => { commitInline(); engineRef.current?.finishCode(); setCodeId(null); setPaintOpen(true); }}
                 onOpenIconPicker={() => setIsIconPickerOpen(true)}
                 theme={theme}
               />
             )}
 
-            {!isPresentationOpen && (
-              <PropertiesPanel
+            {!isPresentationOpen && !focusMode && (
+              <div data-text-controls onBlur={event => {
+                if (event.relatedTarget === inlineTextareaRef.current || event.relatedTarget instanceof HTMLElement && event.relatedTarget.closest("[data-text-controls]")) return;
+                if (inlineTextStateRef.current) commitInline();
+              }}><PropertiesPanel
+                isOpen={appearanceOpen}
+                onOpenChange={setAppearanceOpen}
                 topOffset={toolbarHeight + 12}
-                background={normalizeBackground(board.background)}
-                onBackgroundChange={background => persist({ ...boardRef.current, background })}
                 selectedTool={selectedTool}
                 isTextEditing={textOptionsVisible}
                 preserveTextFocus={isInlineTextual}
@@ -859,10 +882,10 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
                   if (isInlineTextual && "text" in props && typeof props.text === "string") setInlineText(previous => previous ? { ...previous, text: props.text! } : null);
                   if (inlineText?.kind !== "new-text" && selectedTool !== "text") engineRef.current?.updateSelectedElement(props);
                 }}
-                onDuplicate={() => engineRef.current?.duplicateSelected()}
-                onDelete={() => engineRef.current?.deleteSelected()}
-                onBringToFront={() => engineRef.current?.bringToFront()}
-                onSendToBack={() => engineRef.current?.sendToBack()}
+                onDuplicate={() => { commitInline(); engineRef.current?.duplicateSelected(); }}
+                onDelete={() => { commitInline(); engineRef.current?.deleteSelected(); }}
+                onBringToFront={() => { commitInline(); engineRef.current?.bringToFront(); }}
+                onSendToBack={() => { commitInline(); engineRef.current?.sendToBack(); }}
                 onSwapArrow={() => engineRef.current?.swapSelectedArrows()}
                 onChangeFontSize={delta => {
                   if (isInlineTextual) adjustInlineFontSize(delta);
@@ -872,10 +895,10 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
                   }
                 }}
                 theme={theme}
-              />
+              /></div>
             )}
 
-            {!isPresentationOpen && selectedElements.length > 1 && <div role="toolbar" aria-label="Arrange selection" className="absolute bottom-16 left-2 z-30 flex max-w-[calc(100%-1rem)] flex-wrap items-center gap-1 rounded-lg border border-neutral-700 bg-neutral-900 p-1.5 text-xs text-neutral-300 shadow-lg">
+            {!isPresentationOpen && !focusMode && selectedElements.length > 1 && <div role="toolbar" aria-label="Arrange selection" className="absolute bottom-16 left-2 z-30 flex max-w-[calc(100%-1rem)] flex-wrap items-center gap-1 rounded-lg border border-neutral-700 bg-neutral-900 p-1.5 text-xs text-neutral-300 shadow-lg">
               <button onClick={() => engineRef.current?.connectSelected()} className="rounded px-2 py-1.5 text-blue-400 hover:bg-neutral-800">Connect selected</button>
               <span className="h-4 w-px bg-neutral-700" />
               <button onClick={() => engineRef.current?.arrangeSelected("left")} className="rounded px-2 py-1.5 hover:bg-neutral-800">Align left</button>
@@ -883,7 +906,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
               <button disabled={selectedElements.length < 3} onClick={() => engineRef.current?.arrangeSelected("horizontal")} className="rounded px-2 py-1.5 hover:bg-neutral-800 disabled:opacity-40">Space evenly</button>
             </div>}
 
-            {!isPresentationOpen && (
+            {!isPresentationOpen && !focusMode && (
               <ZoomBar
                 zoom={zoom}
                 onZoomIn={() => engineRef.current?.zoomIn()}
@@ -897,6 +920,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
       </main>
 
       {initialRoomId && !roomReady && <div role="status" className="fixed left-1/2 top-20 z-40 w-[min(400px,90vw)] -translate-x-1/2 rounded-xl border border-amber-500/30 bg-neutral-900 p-4 text-center text-sm text-neutral-300"><p>{roomError || "Connecting to your room…"}</p><p className="mt-2 text-xs text-neutral-500">Start the collaboration server or check your connection. Drawing unlocks after the room syncs.</p><div className="mt-3 flex justify-center gap-4">{roomError && roomStatus !== "expired" && <button onClick={() => { setRoomError(""); setRoomStatus("connecting"); setRoomAttempt(attempt => attempt + 1); }} className="text-xs text-blue-400 underline">Retry connection</button>}<button onClick={handleLeaveRoom} className="text-xs text-blue-400 underline">Leave room</button></div></div>}
+      {focusMode && <button onClick={exitFocus} aria-label="Show controls" aria-keyshortcuts="Escape Shift+Z" title="Show controls · Escape or Shift+Z" className="absolute right-2 top-2 z-40 flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-700 bg-neutral-900/80 text-neutral-400 transition-colors hover:bg-neutral-800 hover:text-white focus-visible:outline-2 focus-visible:outline-blue-500"><PanelsTopLeft className="h-4 w-4" /></button>}
       <PresentationMode isActive={isPresentationOpen} onExit={endPresentation} title={board.title} theme={theme} frames={frames} index={presentationIndex} onIndex={setPresentationIndex} />
       <BoardTools open={boardToolsOpen} onClose={() => setBoardToolsOpen(false)} board={board} selection={librarySelection} historyError={historyError} onHistorySaved={() => setHistoryError("")} onOpenCopy={(source, title) => { const copy = importBoardFile(JSON.stringify({ ...source, title })); if (!copy) throw new Error("Could not create a board. Check available browser storage."); copy.title = title; if (!saveBoard(copy)) throw new Error("Could not save the new board."); moveBoardToWorkspace(copy.id, workspaceId); handleSelectBoard(copy.id); }} onFind={(id, index, length) => {
         if (index !== undefined) {
@@ -905,10 +929,6 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
         } else { if (board.viewMode === "notes") persist({ ...boardRef.current, viewMode: "canvas" }); requestAnimationFrame(() => { const element = containerRef.current; if (element) engineRef.current?.resize(element.clientWidth, element.clientHeight); engineRef.current?.focusElements([id]); }); }
       }} />
 
-      <PaintStudio open={paintOpen} onClose={() => setPaintOpen(false)} selectedImage={selectedElement?.type === "image" ? selectedElement : null} onInsert={(source, width, height) => {
-        if (initialRoomId && !roomReady) throw new Error("Wait for the room to connect before inserting an image.");
-        const engine = engineRef.current; if (!engine) throw new Error("The board is not ready yet."); engine.addImage(source, width, height);
-      }} />
       <IconPickerModal
         isOpen={isIconPickerOpen}
         onClose={() => setIsIconPickerOpen(false)}

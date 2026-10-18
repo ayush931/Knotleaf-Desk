@@ -811,11 +811,11 @@ test('Fill tool colors shapes, freehand interiors, text and connectors with undo
   }
   engine.undo(); expect(engine.getElements().find(el => el.id === 'line').stroke).toBe('#fff'); engine.destroy();
 });
-test('color picking updates both future drawing and fill colors without changing the board', () => {
+test('color picking updates drawing color without introducing a fill without changing the board', () => {
   const colored = { ...source, fill: '#10b981', fillStyle: 'solid' };
   const { engine, listeners, point } = setup([colored]); let picked; engine.onPickColor = c => { picked = c; };
   engine.setTool('eyedropper'); listeners.pointerdown(point(150, 130)); listeners.pointerup(point(150, 130));
-  expect(picked).toBe('#10b981'); expect(engine.currentStyle).toMatchObject({ fill: picked, stroke: picked, fillStyle: 'solid' }); expect(engine.canUndo()).toBe(false); engine.destroy();
+  expect(picked).toBe('#10b981'); expect(engine.currentStyle).toMatchObject({ fill: 'transparent', stroke: picked, fillStyle: 'none' }); expect(engine.canUndo()).toBe(false); engine.destroy();
 });
 test('image insertion uses normal selection, movement, resize, undo and portable source data', () => {
   const { engine, drag } = setup([]); const source = 'data:image/png;base64,iVBORw0KGgo=';

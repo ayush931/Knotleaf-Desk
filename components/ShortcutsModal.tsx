@@ -14,6 +14,7 @@ const GROUPS: { title: string; items: [string, string][] }[] = [
   {
     title: "Tools",
     items: [
+      ["Shift+Z", "Focus canvas / show controls"],
       ["V", "Select"],
       ["H / Space+drag", "Pan"],
       ["R", "Rectangle"],
@@ -28,7 +29,6 @@ const GROUPS: { title: string; items: [string, string][] }[] = [
       ["S", "Sticky note"],
       ["F", "Frame"],
       ["E", "Eraser"],
-      ["B", "Fill shape color"],
       ["K", "Pick object color"],
       ["I", "Insert icon"],
       ["Esc", "Back to select"],
