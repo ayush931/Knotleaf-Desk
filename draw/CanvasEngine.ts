@@ -33,6 +33,7 @@ import {
   getElementAnchors,
   getElementBounds,
   getResizeHandles,
+  selectionPadding,
   measureTextBlock,
   normalizeRect,
   unionBounds,
@@ -84,6 +85,9 @@ type Gesture =
       moved: boolean;
       /** Element to select alone if the pointer is released without dragging. */
       soloId: string | null;
+      duplicate: boolean;
+      duplicated: boolean;
+      originalSelection: Set<string>;
     }
   | { kind: "resize"; handle: Handle; origin: Point; snapshot: CanvasElement }
   | { kind: "endpoint"; handle: Handle; snapshot: ArrowElement | LineElement }
@@ -189,6 +193,18 @@ function resolveBindings(list: CanvasElement[], changed: Set<string>): CanvasEle
   });
 }
 
+/** Reconcile older text bindings with the outside ports without moving content. */
+function alignTextPorts(elements: CanvasElement[]): CanvasElement[] {
+  const texts = new Map(elements.filter(el => el.type === "text").map(el => [el.id, getElementAnchors(el)]));
+  return elements.map(el => {
+    if (el.type !== "arrow") return el;
+    const start = el.startBinding && texts.get(el.startBinding.elementId)?.find(port => port.anchor === el.startBinding!.anchor);
+    const end = el.endBinding && texts.get(el.endBinding.elementId)?.find(port => port.anchor === el.endBinding!.anchor);
+    if ((!start || start.x === el.startX && start.y === el.startY) && (!end || end.x === el.endX && end.y === el.endY)) return el;
+    return syncLineBox({ ...el, ...(start ? { startX: start.x, startY: start.y } : {}), ...(end ? { endX: end.x, endY: end.y } : {}) });
+  });
+}
+
 /** Drops bindings that point at elements which no longer exist. */
 function pruneBindings(list: CanvasElement[]): CanvasElement[] {
   const ids = new Set(list.map((el) => el.id));
@@ -287,8 +303,8 @@ export class CanvasEngine {
     const ctx = canvas.getContext("2d");
     if (!ctx) throw new Error("Canvas 2D context is not available");
     this.ctx = ctx;
-    this.elements = [...initialElements];
-    this.committedElements = [...initialElements];
+    this.elements = alignTextPorts([...initialElements]);
+    this.committedElements = [...this.elements];
     this.theme = initialTheme;
     this.gridType = initialGrid;
     this.undoStack = [JSON.stringify(this.elements)];
@@ -382,6 +398,10 @@ export class CanvasEngine {
     this.onZoomChange?.(this.zoom); this.requestRender();
   }
 
+  public fitToSelection() {
+    if (this.selectedIds.size) this.focusElements([...this.withContainedText(this.selectedIds)], false);
+  }
+
   public getZoom(): number {
     return this.zoom;
   }
@@ -439,7 +459,7 @@ export class CanvasEngine {
    * persisted). False is a board load, which clears the undo history.
    */
   public setElements(elements: CanvasElement[], recordHistory = true) {
-    this.elements = [...elements];
+    this.elements = alignTextPorts([...elements]);
     this.selectedIds = new Set([...this.selectedIds].filter((id) => elements.some((e) => e.id === id)));
     if (recordHistory) {
       this.commit();
@@ -455,6 +475,7 @@ export class CanvasEngine {
   }
 
   public applyRemoteElements(elements: CanvasElement[]) {
+    elements = alignTextPorts(elements);
     // Preserve unfinished local gestures (especially erasing) while accepting
     // remote additions/deletions. Replacing the scene here used to undo an erase
     // before pointer-up could publish it.
@@ -849,7 +870,7 @@ export class CanvasEngine {
       }
       this.elements = resolveBindings(pruneBindings(next), new Set([id]));
       this.selectedIds = new Set([...this.selectedIds].filter((sid) => this.elements.some((e) => e.id === sid)));
-      this.selectedIds.add(id);
+      if (this.elements.some(el => el.id === id)) this.selectedIds.add(id);
     }
     this.commit();
   }
@@ -1248,7 +1269,7 @@ export class CanvasEngine {
     }
 
     const bounds = getElementBounds(el);
-    const handles = getResizeHandles(bounds, this.zoom, el.type === "frame");
+    const handles = getResizeHandles(bounds, this.zoom, el.type === "frame", selectionPadding(el, this.zoom));
     for (const { handle, x, y } of handles) {
       if (near(x, y)) return handle;
     }
@@ -1256,7 +1277,7 @@ export class CanvasEngine {
     // The outline is draggable for one-axis resizing. Leave the circular
     // connector hit areas free so the same gesture cannot start both actions.
     if (el.type !== "frame" && getElementAnchors(el).some(port => Math.hypot(pt.x - port.x, pt.y - port.y) < 10 / this.zoom)) return null;
-    const pad = 5 / this.zoom;
+    const pad = selectionPadding(el, this.zoom);
     const edgeTolerance = 6 / this.zoom;
     const x0 = bounds.minX - pad, x1 = bounds.maxX + pad;
     const y0 = bounds.minY - pad, y1 = bounds.maxY + pad;
@@ -1345,7 +1366,7 @@ export class CanvasEngine {
         if (hit.type === "image") {
           try { const pixel = this.ctx.getImageData(Math.floor(sp.x * this.dpr), Math.floor(sp.y * this.dpr), 1, 1).data; color = `#${[...pixel.slice(0, 3)].map(n => n.toString(16).padStart(2, "0")).join("")}`; } catch { return; }
         }
-        this.currentStyle = { ...this.currentStyle, stroke: color, fill: color, fillStyle: "solid" }; this.onPickColor?.(color); this.setTool("select"); return;
+        this.currentStyle = { ...this.currentStyle, stroke: color }; this.onPickColor?.(color); this.setTool("select"); return;
       }
       if (hit.type === "image") return;
       const color = this.currentStyle.fill === "transparent" ? this.currentStyle.stroke : this.currentStyle.fill;
@@ -1389,7 +1410,7 @@ export class CanvasEngine {
       if (hit) {
         if (hit.type === "text") {
           const cb = getCheckboxAtPoint(hit, pt);
-          if (cb) {
+          if (cb && !e.altKey) {
             this.elements = this.elements.map((el) => (el.id === hit.id ? { ...el, text: cb.newText } : el));
             this.selectedIds = new Set([hit.id]);
             this.commit();
@@ -1412,7 +1433,7 @@ export class CanvasEngine {
         const snapshots = new Map<string, CanvasElement>();
         const movingIds = this.withContainedText(this.selectedIds);
         for (const el of this.elements) if (movingIds.has(el.id)) snapshots.set(el.id, el);
-        this.gesture = { kind: "move", origin: pt, snapshots, moved: false, soloId };
+        this.gesture = { kind: "move", origin: pt, snapshots, moved: false, soloId, duplicate: !!e.altKey, duplicated: false, originalSelection: new Set(this.selectedIds) };
         this.emitSelection();
         this.requestRender();
         return;
@@ -1562,7 +1583,8 @@ export class CanvasEngine {
     if (this.gesture) {
       // This baseline includes remote updates received during the drag.
       this.elements = pruneBindings([...this.committedElements]);
-      this.selectedIds = new Set([...this.selectedIds].filter(id => this.elements.some(el => el.id === id)));
+      const selection = this.gesture.kind === "move" && this.gesture.duplicated ? this.gesture.originalSelection : this.selectedIds;
+      this.selectedIds = new Set([...selection].filter(id => this.elements.some(el => el.id === id)));
     }
     this.gesture = null;
     this.draft = null;
@@ -1635,6 +1657,21 @@ export class CanvasEngine {
     this.requestRender();
   };
 
+  /** A screen-sized border band keeps selection/resize separate from writing. */
+  private isShapeInterior(el: CanvasElement, pt: Point): boolean {
+    if (!["rectangle", "diamond", "circle"].includes(el.type)) return false;
+    const r = normalizeRect(el), inset = Math.max(8 / this.zoom, el.strokeWidth / 2 + 2 / this.zoom);
+    if (r.w <= inset * 2 || r.h <= inset * 2) return false;
+    const cx = r.x + r.w / 2, cy = r.y + r.h / 2;
+    if (el.type === "circle") return ((pt.x - cx) / (r.w / 2 - inset)) ** 2 + ((pt.y - cy) / (r.h / 2 - inset)) ** 2 < 1;
+    if (el.type === "diamond") {
+      if (Math.abs(pt.x - cx) / (r.w / 2) + Math.abs(pt.y - cy) / (r.h / 2) >= 1) return false;
+      const corners = [{ x: cx, y: r.y }, { x: r.x + r.w, y: cy }, { x: cx, y: r.y + r.h }, { x: r.x, y: cy }];
+      return corners.every((corner, index) => distToSegment(pt, corner, corners[(index + 1) % 4]) > inset);
+    }
+    return pt.x > r.x + inset && pt.x < r.x + r.w - inset && pt.y > r.y + inset && pt.y < r.y + r.h - inset;
+  }
+
   private onDoubleClick = (e: MouseEvent) => {
     if (this.readOnly || this.spaceDown || e.button !== 0) return;
     e.preventDefault();
@@ -1642,24 +1679,27 @@ export class CanvasEngine {
     const sp = this.screenPoint(e), pt = this.screenToCanvas(sp.x, sp.y);
     const hit = this.hitTest(pt);
     const wasSelect = this.tool === "select";
+    const shapeInterior = !!hit && this.isShapeInterior(hit, pt);
+    const attachedText = hit?.type === "text" && !!hit.containerId;
     if (hit && !e.altKey) {
       this.onBeforeCreate?.();
       this.setTool("select");
       this.selectedIds = new Set([hit.id]);
       this.emitSelection();
       this.requestRender();
-      if (!wasSelect || !["text", "sticky", "arrow", "frame"].includes(hit.type)) return;
+      if (!shapeInterior && !attachedText && (!wasSelect || !["text", "sticky", "arrow", "frame"].includes(hit.type))) return;
     } else if (!wasSelect) return;
     if (hit?.type === "arrow" && hit.label) { this.openEditorFor(hit); return; }
     if (hit?.type === "frame" && pt.y < hit.y + 8 / this.zoom) { this.openEditorFor(hit); return; }
     if (hit?.type === "text" || hit?.type === "sticky") { this.openEditorFor(hit, pt); return; }
-    if (hit && !e.altKey) return;
-    this.tool = "select"; this.emitTool(); this.selectedIds.clear(); this.emitSelection();
+    if (hit && !e.altKey && !shapeInterior) return;
+    this.tool = "select"; this.emitTool();
     const frame = !hit ? [...this.elements].reverse().find(el => el.type === "frame" && pt.x >= el.x && pt.x <= el.x + el.width && pt.y >= el.y && pt.y <= el.y + el.height) : null;
     const container = hit && ["rectangle", "diamond", "circle", "frame"].includes(hit.type) ? hit : frame;
     const box = container ? normalizeRect(container) : null;
     const legacyLabel = container && container.type !== "frame" ? container.label : undefined;
-    if (legacyLabel && container) this.editingId = container.id;
+    this.selectedIds = container ? new Set([container.id]) : new Set(); this.emitSelection();
+    if (container && container.type !== "frame") this.editingId = container.id;
     this.onStartInlineText?.({ kind: "new-text", canvasX: pt.x, canvasY: pt.y, screenX: sp.x, screenY: sp.y,
       text: legacyLabel || "", fontSize: this.currentStyle.fontSize, fontFamily: this.currentStyle.fontFamily, color: this.currentStyle.stroke || "#FFFFFF", align: "left",
       ...(legacyLabel && container ? { replaceLabelId: container.id } : {}),
@@ -1835,6 +1875,18 @@ export class CanvasEngine {
     const dx = this.snapToGrid ? Math.round(rawDx / SNAP_GRID) * SNAP_GRID : rawDx;
     const dy = this.snapToGrid ? Math.round(rawDy / SNAP_GRID) * SNAP_GRID : rawDy;
     if (dx === 0 && dy === 0 && !g.moved) return;
+    if (g.duplicate && !g.duplicated && !g.moved) {
+      if (!this.altDown) g.duplicate = false;
+      else {
+        if (Math.hypot(rawDx, rawDy) * this.zoom < 4) return;
+        const originals = [...g.snapshots.values()];
+        const copies = this.cloneElements(originals, 0);
+        this.elements = [...this.elements, ...copies];
+        this.selectedIds = new Set(copies.filter((_, index) => g.originalSelection.has(originals[index].id)).map(el => el.id));
+        g.snapshots = new Map(copies.map(el => [el.id, el])); this.canvas.style.cursor = "copy"; g.duplicated = true; g.soloId = null;
+        this.emitSelection();
+      }
+    }
     g.moved = true;
 
     const movedIds = new Set(g.snapshots.keys());
@@ -2055,6 +2107,10 @@ export class CanvasEngine {
       else if (key === "-") { e.preventDefault(); this.zoomOut(); }
       return;
     }
+    if (e.shiftKey && !mod && !e.altKey && !this.gesture) {
+      if (e.code === "Digit1" || key === "1" || key === "!") { e.preventDefault(); this.fitToContent(); return; }
+      if (e.code === "Digit2" || key === "2" || key === "@") { e.preventDefault(); this.fitToSelection(); return; }
+    }
     if (mod) {
       switch (key) {
         case "b": case "i": case "u":
@@ -2196,9 +2252,6 @@ export class CanvasEngine {
         break;
       case "f":
         this.setTool("frame");
-        break;
-      case "b":
-        this.setTool("fill");
         break;
       case "k":
         this.setTool("eyedropper");

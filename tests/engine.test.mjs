@@ -477,9 +477,9 @@ test('text resizing sizes the glyphs and keeps the opposite side anchored', () =
   engine.undo(); expect(engine.getElements()[0]).toEqual(text); engine.destroy();
 });
 
-test('document card ports attach to the visible card boundary', () => {
+test('document card ports sit at the outer selection boundary', () => {
   const text = { ...base, id: 'doc', type: 'text', isDocCard: true, fill: '#18181B', x: 100, y: 100, width: 120, height: 54, text: 'Document', fontSize: 20, fontFamily: 'sans', textAlign: 'left' };
-  expect(getElementAnchors(text)).toEqual([{ anchor: 'top', x: 160, y: 84 }, { anchor: 'right', x: 236, y: 127 }, { anchor: 'bottom', x: 160, y: 170 }, { anchor: 'left', x: 84, y: 127 }]);
+  expect(getElementAnchors(text)).toEqual([{ anchor: 'top', x: 160, y: 76 }, { anchor: 'right', x: 244, y: 127 }, { anchor: 'bottom', x: 160, y: 178 }, { anchor: 'left', x: 76, y: 127 }]);
   expect(getElementAnchors({ ...source, type: 'frame', title: 'Frame' })).toEqual([]);
 });
 
@@ -683,12 +683,12 @@ test('document title cannot overlap the first line and list text resets inherite
 
 
 for (const tool of ['select', 'hand', 'rectangle', 'diamond', 'circle', 'arrow', 'line', 'pencil', 'frame', 'text', 'doc', 'sticky', 'code', 'eraser']) {
-  test(`double-click selects existing content with ${tool} active`, () => {
+  test(`double-click on a border selects existing content with ${tool} active`, () => {
     const { engine, listeners, point } = setup([source]);
     let editor; engine.onStartInlineText = state => { editor = state; };
     engine.setTool(tool);
-    for (let i = 0; i < 2; i++) { listeners.pointerdown(point(130, 120)); listeners.pointerup(point(130, 120)); }
-    listeners.dblclick(point(130, 120));
+    for (let i = 0; i < 2; i++) { listeners.pointerdown(point(130, 100)); listeners.pointerup(point(130, 100)); }
+    listeners.dblclick(point(130, 100));
     expect(engine.getTool()).toBe('select');
     expect(engine.getSelectedElements().map(el => el.id)).toEqual(['source']);
     expect(engine.getElements()).toEqual([source]); expect(editor).toBeUndefined(); engine.destroy();
@@ -811,11 +811,11 @@ test('Fill tool colors shapes, freehand interiors, text and connectors with undo
   }
   engine.undo(); expect(engine.getElements().find(el => el.id === 'line').stroke).toBe('#fff'); engine.destroy();
 });
-test('color picking updates both future drawing and fill colors without changing the board', () => {
+test('color picking updates drawing color without introducing a fill without changing the board', () => {
   const colored = { ...source, fill: '#10b981', fillStyle: 'solid' };
   const { engine, listeners, point } = setup([colored]); let picked; engine.onPickColor = c => { picked = c; };
   engine.setTool('eyedropper'); listeners.pointerdown(point(150, 130)); listeners.pointerup(point(150, 130));
-  expect(picked).toBe('#10b981'); expect(engine.currentStyle).toMatchObject({ fill: picked, stroke: picked, fillStyle: 'solid' }); expect(engine.canUndo()).toBe(false); engine.destroy();
+  expect(picked).toBe('#10b981'); expect(engine.currentStyle).toMatchObject({ fill: 'transparent', stroke: picked, fillStyle: 'none' }); expect(engine.canUndo()).toBe(false); engine.destroy();
 });
 test('image insertion uses normal selection, movement, resize, undo and portable source data', () => {
   const { engine, drag } = setup([]); const source = 'data:image/png;base64,iVBORw0KGgo=';
@@ -850,4 +850,68 @@ test('Pencil stays active between strokes, pointer departure, cancellation and u
   expect(engine.getSelectedElements()).toEqual([]); expect(engine.getTool()).toBe('pencil');
   listeners.dblclick(point(140, 130)); expect(engine.getTool()).toBe('select'); expect(engine.getSelectedElements()[0].type).toBe('pencil');
   engine.destroy();
+});
+
+for (const type of ['rectangle', 'diamond', 'circle']) {
+  test(`double-click inside ${type} opens attached text, while its border only selects`, () => {
+    const shape = { ...source, type }; const { engine, listeners, point } = setup([shape]); let editor;
+    engine.onStartInlineText = value => { editor = value; }; engine.setTool('pencil');
+    listeners.dblclick(point(160, 140)); expect(editor).toMatchObject({ kind: 'new-text', containerId: 'source', canvasX: 160, canvasY: 140 });
+    engine.commitInlineText({ ...editor, text: 'Inside shape' });
+    const text = engine.getElements().find(el => el.type === 'text'); expect(text.containerId).toBe('source');
+    editor = undefined; engine.setTool('select'); listeners.dblclick(point(160, 100));
+    expect(editor).toBeUndefined(); expect(engine.getSelectedElements()[0].id).toBe('source');
+    engine.setTool('pencil'); listeners.dblclick(point(text.x + 2, text.y + 2)); expect(editor).toMatchObject({ kind: 'text', elementId: text.id, text: 'Inside shape' });
+    engine.destroy();
+  });
+}
+test('shape border exclusion scales with zoom and does not mistake diamond corners for interior', () => {
+  const { engine, listeners, point } = setup([source]); let editor; engine.onStartInlineText = state => { editor = state; };
+  engine.setZoom(2, { x: 0, y: 0 }); listeners.dblclick(point(208, 240)); expect(editor).toBeUndefined();
+  listeners.dblclick(point(230, 240)); expect(editor.containerId).toBe('source'); engine.destroy();
+});
+
+test('text ports sit on the middle of each outside outline edge at every zoom and start bound connectors', () => {
+  const text = { ...base, id: 'plain', type: 'text', x: 100, y: 100, width: 120, height: 32.4, text: 'Text', fontSize: 24, fontFamily: 'sans', textAlign: 'left' };
+  for (const zoom of [0.5, 1, 2, 3]) {
+    const { engine, drag } = setup([text]); engine.selectAll(); engine.setZoom(zoom, { x: 0, y: 0 });
+    const boxes = []; engine.ctx.strokeRect = (...box) => boxes.push(box); engine.draw();
+    expect(boxes).toContainEqual([92, 92, 136, 48.400000000000006]);
+    const ports = getElementAnchors(text); expect(ports.find(p => p.anchor === 'right')).toEqual({ anchor: 'right', x: 228, y: 116.2 });
+    const from = engine.canvasToScreen(228, 116.2), to = engine.canvasToScreen(400, 200); drag(from.x, from.y, to.x, to.y);
+    expect(engine.getElements().find(el => el.type === 'arrow')).toMatchObject({ startX: 228, startY: 116.2, startBinding: { elementId: 'plain', anchor: 'right' } }); engine.destroy();
+  }
+});
+test('older text bindings reconcile to the new outside ports without moving text', () => {
+  const text = { ...base, id: 'plain', type: 'text', x: 100, y: 100, width: 120, height: 27, text: 'Text', fontSize: 20, fontFamily: 'sans', textAlign: 'left' };
+  const bound = { ...arrow, startX: 220, startY: 113.5, startBinding: { elementId: 'plain', anchor: 'right' }, endBinding: undefined };
+  const { engine } = setup([text, bound]); expect(engine.getElements()[0]).toEqual(text); expect(engine.getElements()[1]).toMatchObject({ startX: 228, startY: 113.5 });
+  engine.applyRemoteElements([text, bound]); expect(engine.getElements()[1].startX).toBe(228); engine.destroy();
+});
+
+test('Alt-drag duplicates a selection with attached text and internally rebound connectors in one undo', () => {
+  const text = { ...base, id: 'attached', type: 'text', x: 130, y: 120, width: 80, height: 20, text: 'Label', fontSize: 15, fontFamily: 'sans', textAlign: 'left', containerId: source.id, containerOffset: { x: .25, y: .25 } };
+  const original = [source, target, arrow, text], { engine, listeners, point } = setup(original); engine.selectAll();
+  listeners.pointerdown({ ...point(150, 150), altKey: true }); listeners.pointermove({ ...point(250, 250), altKey: true }); listeners.pointerup({ ...point(250, 250), altKey: true });
+  expect(engine.getElements()).toHaveLength(8); for (const el of original) expect(engine.getElements().find(item => item.id === el.id)).toEqual(el);
+  const copies = engine.getSelectedElements(), copiedSource = copies.find(el => el.type === 'rectangle' && el.x === 200), copiedTarget = copies.find(el => el.type === 'rectangle' && el.x === 600);
+  expect(copies.find(el => el.type === 'text')).toMatchObject({ containerId: copiedSource.id, x: 230, y: 220 });
+  expect(copies.find(el => el.type === 'arrow')).toMatchObject({ startBinding: { elementId: copiedSource.id, anchor: 'right' }, endBinding: { elementId: copiedTarget.id, anchor: 'left' } });
+  engine.undo(); expect(engine.getElements()).toEqual(original); engine.redo(); expect(engine.getElements()).toHaveLength(8); engine.destroy();
+});
+test('Alt-click and tiny pointer jitter do not duplicate, and cancellation restores original selection', () => {
+  const { engine, listeners, point } = setup([source]); engine.selectAll();
+  const alt = (x,y) => ({ ...point(x,y), altKey: true });
+  listeners.pointerdown(alt(150,150)); listeners.pointermove(alt(151,151)); listeners.pointerup(alt(151,151)); expect(engine.getElements()).toEqual([source]); expect(engine.canUndo()).toBe(false);
+  listeners.pointerdown(alt(150,150)); listeners.pointermove(alt(210,210)); expect(engine.getElements()).toHaveLength(2);
+  listeners.pointercancel(alt(210,210)); expect(engine.getElements()).toEqual([source]); expect(engine.getSelectedElements()).toEqual([source]); expect(engine.canUndo()).toBe(false); engine.destroy();
+});
+
+test('physical Shift+1 and Shift+2 keys fit content or selection without altering artwork or tool', () => {
+  const { engine, listeners, point } = setup([source, { ...target, x: 2000 }]); engine.resize(1000,700);
+  listeners.pointerdown(point(140,150)); listeners.pointerup(point(140,150));
+  const selected = engine.getSelectedElements(), elements = engine.getElements();
+  let prevented=0;engine.onKeyDown({key:'@',code:'Digit2',shiftKey:true,preventDefault(){prevented++;}});
+  const zoom=engine.getZoom();expect(zoom).toBeGreaterThan(1);expect(engine.getSelectedElements()).toEqual(selected);expect(engine.getTool()).toBe('select');
+  engine.onKeyDown({key:'!',code:'Digit1',shiftKey:true,preventDefault(){prevented++;}});expect(engine.getZoom()).toBeLessThan(zoom);expect(prevented).toBe(2);expect(engine.getElements()).toEqual(elements);engine.destroy();
 });

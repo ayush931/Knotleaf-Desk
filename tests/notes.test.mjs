@@ -1,4 +1,5 @@
 import {test,expect} from 'bun:test';
+import {findNoteMatches,replaceAllNoteMatches} from '../lib/notesSearch.ts';
 import {formatNotes,indentNotes,continueNoteList,noteHeadings} from '../lib/notesEditing.ts';
 test('note formatting uses whole lines and never inserts sample text',()=>{
  expect(formatNotes('hello world',6,11,'heading').value).toBe('# hello world');
@@ -21,4 +22,13 @@ test('indent and outdent preserve selected content and list continuation resets 
 test('outline excludes fenced code and retains correct source offsets',()=>{
  const text='# Intro\n```python\n# a comment\n```\n## Next';
  expect(noteHeadings(text)).toEqual([{text:'Intro',start:0,end:7,level:1},{text:'Next',start:34,end:41,level:2}]);
+});
+
+test('notes search is literal, case-aware, Unicode-safe and replaces dollar signs verbatim',()=>{
+ expect(findNoteMatches('a.b aXb A.B','a.b')).toEqual([{start:0,end:3},{start:8,end:11}]);
+ expect(findNoteMatches('a.b aXb A.B','a.b',true)).toEqual([{start:0,end:3}]);
+ expect(findNoteMatches('😀 note 😀 note','note')).toEqual([{start:3,end:7},{start:11,end:15}]);
+ expect(replaceAllNoteMatches('[a].* [a].*','[a].*','$&')).toEqual({value:'$& $&',count:2});
+ expect(replaceAllNoteMatches('keep','', 'x')).toEqual({value:'keep',count:0});
+ expect(replaceAllNoteMatches('foo FOO','foo','')).toEqual({value:' ',count:2});
 });

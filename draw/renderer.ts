@@ -136,10 +136,15 @@ function pointsBounds(pts: Point[]): Bounds {
   return { minX, minY, maxX, maxY };
 }
 
+/** Text ports and its selection outline share stable, outside-glyph padding. */
+export const TEXT_PORT_PADDING = 8;
+export function selectionPadding(el: CanvasElement, zoom: number) { return el.type === "text" ? TEXT_PORT_PADDING : 5 / zoom; }
+
 export function getElementAnchors(el: CanvasElement): { anchor: AnchorPosition; x: number; y: number }[] {
   if (el.type === "arrow" || el.type === "line" || el.type === "pencil" || el.type === "frame") return [];
   const bounds = getElementBounds(el);
-  const r = { x: bounds.minX, y: bounds.minY, w: bounds.maxX - bounds.minX, h: bounds.maxY - bounds.minY };
+  const pad = el.type === "text" ? TEXT_PORT_PADDING : 0;
+  const r = { x: bounds.minX - pad, y: bounds.minY - pad, w: bounds.maxX - bounds.minX + pad * 2, h: bounds.maxY - bounds.minY + pad * 2 };
   return [
     { anchor: "top", x: r.x + r.w / 2, y: r.y },
     { anchor: "right", x: r.x + r.w, y: r.y + r.h / 2 },
@@ -1495,9 +1500,9 @@ export function drawSelection(ctx: CanvasRenderingContext2D, el: CanvasElement, 
     }
   } else {
     const b = getElementBounds(el);
-    const pad = 5 / z;
+    const pad = selectionPadding(el, z);
     drawBoundsOutline(ctx, b, z, pad, false);
-    drawResizeHandles(ctx, b, z, el.type === "frame");
+    drawResizeHandles(ctx, b, z, el.type === "frame", pad);
   }
   ctx.restore();
 }
@@ -1514,8 +1519,7 @@ export function drawBoundsOutline(ctx: CanvasRenderingContext2D, b: Bounds, zoom
 export type ResizeHandle = "nw" | "ne" | "se" | "sw" | "n" | "e" | "s" | "w";
 
 /** Shared positions for painting and hit testing. Side centers belong to connectors. */
-export function getResizeHandles(b: Bounds, zoom: number, includeSides = false): { handle: ResizeHandle; x: number; y: number }[] {
-  const pad = 5 / zoom;
+export function getResizeHandles(b: Bounds, zoom: number, includeSides = false, pad = 5 / zoom): { handle: ResizeHandle; x: number; y: number }[] {
   const x0 = b.minX - pad, x1 = b.maxX + pad;
   const y0 = b.minY - pad, y1 = b.maxY + pad;
   const corners: { handle: ResizeHandle; x: number; y: number }[] = [
@@ -1530,9 +1534,9 @@ export function getResizeHandles(b: Bounds, zoom: number, includeSides = false):
   return corners;
 }
 
-export function drawResizeHandles(ctx: CanvasRenderingContext2D, b: Bounds, zoom: number, includeSides = false) {
+export function drawResizeHandles(ctx: CanvasRenderingContext2D, b: Bounds, zoom: number, includeSides = false, pad = 5 / zoom) {
   const s = 8 / zoom;
-  const pts = getResizeHandles(b, zoom, includeSides);
+  const pts = getResizeHandles(b, zoom, includeSides, pad);
   ctx.save();
   ctx.setLineDash([]);
   ctx.fillStyle = "#FFFFFF";

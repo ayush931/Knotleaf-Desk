@@ -6,8 +6,8 @@ import { TopToolbar } from '../components/TopToolbar.tsx';
 import { DEFAULT_STYLE } from '../draw/types.ts';
 import { FONT_OPTIONS } from '../draw/fonts.ts';
 const noop = () => {};
-const props = { selectedElement: null, selectedTool: 'select', selectionCount: 1, currentStyle: DEFAULT_STYLE, onSwapArrow: noop, onChangeFontSize: noop, onUpdateStyle: noop, onUpdateElement: noop, onDuplicate: noop, onDelete: noop, onBringToFront: noop, onSendToBack: noop, theme: 'dark' };
-test('choosing Arrow immediately exposes all routing modes', () => {
+const props = { isOpen: true, onOpenChange: noop, selectedElement: null, selectedTool: 'select', selectionCount: 1, currentStyle: DEFAULT_STYLE, onSwapArrow: noop, onChangeFontSize: noop, onUpdateStyle: noop, onUpdateElement: noop, onDuplicate: noop, onDelete: noop, onBringToFront: noop, onSendToBack: noop, theme: 'dark' };
+test('manually opened Arrow inspector exposes all routing modes', () => {
   const html = renderToStaticMarkup(React.createElement(PropertiesPanel, { ...props, selectedTool: 'arrow' }));
   expect(html).toContain('aria-label="Arrow routing"');
   for (const label of ['Straight', 'Elbow', 'Curved']) expect(html).toContain(label);
@@ -43,11 +43,11 @@ test('font picker previews all seven families and announces the selected font', 
   expect(html).toContain('aria-label="Font: Lora" aria-pressed="true"');
   expect(html).toContain('var(--font-lora)');
 });
-test('drawing tools expose visible shortcuts and keyboard metadata', () => {
+test('compact drawing tools retain shortcuts in accessible metadata and tooltips', () => {
   const html = renderToStaticMarkup(React.createElement(TopToolbar, { selectedTool: 'select', setSelectedTool: noop, onUndo: noop, onRedo: noop, canUndo: true, canRedo: true, onOpenIconPicker: noop, theme: 'dark' }));
   for (const key of ['v', 'h', 'r', 'd', 'o', 'a', 'l', 'p', 't', 'n', 's', 'f', 'e', 'i']) {
     expect(html).toContain(`aria-keyshortcuts="${key}"`);
-    expect(html).toContain(`>${key.toUpperCase()}</kbd>`);
+    expect(html).toContain(`(${key.toUpperCase()})`);
   }
 });
 
@@ -59,14 +59,15 @@ test('selected lines expose a signed bend input and straight reset instructions'
 });
 
 
-test('Appearance separates shape fill opacity from whole-object and canvas opacity', () => {
-  const html = renderToStaticMarkup(React.createElement(PropertiesPanel, { ...props, background: { fill: '#123456', fillStyle: 'dots', fillOpacity: 0.6 }, onBackgroundChange: noop, selectedElement: { ...DEFAULT_STYLE, type: 'rectangle', id: 'fill', fill: '#ec4899', fillStyle: 'crosshatch', fillOpacity: 0.25, opacity: 0.8 } }));
-  expect(html).toContain('aria-label="Background opacity"'); expect(html).toContain('aria-label="Canvas background opacity"'); expect(html).toContain('aria-label="Opacity"');
-  expect(html).toContain('Custom fill color'); expect(html).toContain('Crosshatch'); expect(html).toContain('Transparent'); expect(html).toContain('Opaque');
+test('Appearance offers background colors and previewed patterns without fill-opacity controls', () => {
+  const html = renderToStaticMarkup(React.createElement(PropertiesPanel, { ...props, selectedElement: { ...DEFAULT_STYLE, type: 'rectangle', id: 'fill', fill: '#ec4899', fillStyle: 'crosshatch', fillOpacity: 0.25, opacity: 0.8 } }));
+  expect(html).toContain('Background color'); expect(html).toContain('No background'); expect(html).toContain('Crosshatch'); expect(html).not.toContain('aria-label="Background opacity"');
+  expect(html).toContain('aria-label="Opacity"');
 });
 
-
-test('legacy translucent swatches report their effective fill opacity', () => {
-  const html = renderToStaticMarkup(React.createElement(PropertiesPanel, { ...props, selectedElement: { ...DEFAULT_STYLE, type: 'rectangle', id: 'legacy-alpha', fill: 'rgba(59, 130, 246, 0.2)', fillStyle: 'solid' } }));
-  expect(html).toMatch(/aria-label="Background opacity"[^>]*value="0.2"/); expect(html).toContain('value="#3b82f6"');
+test('Appearance defaults closed for every selected tool and element, including text editing', () => {
+  for (const tool of ['select', 'rectangle', 'arrow', 'fill', 'eyedropper', 'text', 'pencil', 'doc', 'sticky', 'code']) {
+    const html = renderToStaticMarkup(React.createElement(PropertiesPanel, { ...props, isOpen: false, selectedTool: tool, isTextEditing: true, selectedElement: { ...DEFAULT_STYLE, type: 'rectangle', id: 'created' } }));
+    expect(html).toContain('aria-label="Open appearance settings"'); expect(html).toContain('aria-expanded="false"'); expect(html).not.toContain('role="region"');
+  }
 });

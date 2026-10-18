@@ -20,9 +20,7 @@ import {
   Undo2,
   Redo2,
   Shapes,
-  PaintBucket,
   Pipette,
-  Paintbrush,
 } from "lucide-react";
 
 interface TopToolbarProps {
@@ -33,7 +31,6 @@ interface TopToolbarProps {
   canUndo: boolean;
   canRedo: boolean;
   onOpenIconPicker: () => void;
-  onOpenPaint?: () => void;
   theme: Theme;
   onHeightChange?: (height: number) => void;
 }
@@ -52,7 +49,6 @@ const TOOLS: { id: Tool; label: string; key: string; icon: React.ReactNode }[] =
   { id: "code", label: "Code card", key: "C", icon: <Code2 className="w-4 h-4" /> },
   { id: "sticky", label: "Sticky note", key: "S", icon: <StickyNote className="w-4 h-4" /> },
   { id: "frame", label: "Frame", key: "F", icon: <Frame className="w-4 h-4" /> },
-  { id: "fill", label: "Fill color", key: "B", icon: <PaintBucket className="w-4 h-4" /> },
   { id: "eyedropper", label: "Pick color", key: "K", icon: <Pipette className="w-4 h-4" /> },
   { id: "eraser", label: "Eraser", key: "E", icon: <Eraser className="w-4 h-4" /> },
 ];
@@ -65,7 +61,6 @@ export const TopToolbar = memo(function TopToolbar({
   canUndo,
   canRedo,
   onOpenIconPicker,
-  onOpenPaint,
   onHeightChange,
 }: TopToolbarProps) {
   const toolbar = useRef<HTMLDivElement>(null);
@@ -77,14 +72,14 @@ export const TopToolbar = memo(function TopToolbar({
     const observer = new ResizeObserver(update); observer.observe(element);
     return () => observer.disconnect();
   }, [onHeightChange]);
-  const iconBtn = `p-2 rounded-lg flex items-center justify-center transition disabled:opacity-35 disabled:pointer-events-none text-neutral-400 hover:bg-neutral-800 hover:text-white`;
+  const iconBtn = `shrink-0 p-2 rounded-lg flex items-center justify-center transition disabled:opacity-35 disabled:pointer-events-none text-neutral-400 hover:bg-neutral-800 hover:text-white`;
 
   return (
     <div ref={toolbar} className="absolute top-1.5 left-1/2 -translate-x-1/2 z-30 w-max max-w-[calc(100%-0.75rem)]">
       <div
         role="toolbar"
         aria-label="Drawing tools"
-        className="flex items-center gap-0.5 p-1 rounded-xl border shadow-lg backdrop-blur-xl flex-wrap justify-center bg-[#18181b]/95 border-[#27272a] shadow-black/50"
+        className="flex items-center gap-0.5 p-1 rounded-xl border shadow-sm backdrop-blur-md flex-nowrap justify-start overflow-x-auto overscroll-x-contain bg-[#18181b]/95 border-[#27272a] shadow-black/10"
       >
         <button onClick={onUndo} disabled={!canUndo} title="Undo (Ctrl/Cmd+Z)" aria-label="Undo" className={iconBtn}>
           <Undo2 className="w-4 h-4" />
@@ -104,28 +99,26 @@ export const TopToolbar = memo(function TopToolbar({
               aria-label={`${t.label} (${t.key})`}
               aria-keyshortcuts={t.key.toLowerCase()}
               aria-pressed={active}
-              className={`relative h-10 w-9 rounded-lg flex items-center justify-center pb-2 transition cursor-pointer ${
+              className={`relative h-8 w-8 shrink-0 rounded-lg flex items-center justify-center transition cursor-pointer ${
                 active
                   ? "bg-blue-600 text-white shadow-sm"
                   : "text-neutral-400 hover:bg-neutral-800 hover:text-white"
               }`}
             >
               {t.icon}
-              <kbd aria-hidden="true" className={`absolute bottom-0.5 right-1 text-[8px] font-medium leading-none ${active ? "text-blue-100" : "text-neutral-500"}`}>{t.key}</kbd>
             </button>
           );
         })}
 
         <span className="h-5 w-px mx-1 bg-[#27272a]" />
-        {onOpenPaint && <button onClick={onOpenPaint} aria-label="Open Paint workspace" title="Paint: draw and edit images" className="flex items-center gap-1 rounded-lg px-2 py-2 text-xs text-neutral-300 hover:bg-neutral-800"><Paintbrush className="h-4 w-4" />Paint</button>}
         <button
           onClick={onOpenIconPicker}
           title="Insert icon (I)"
           aria-label="Insert icon (I)" aria-keyshortcuts="i"
-          className="px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 text-xs font-semibold bg-purple-500/10 text-purple-600 dark:text-purple-400 hover:bg-purple-500/20 transition"
+          className="shrink-0 px-2 py-1.5 rounded-lg flex items-center gap-1.5 text-xs font-semibold bg-purple-500/10 text-purple-600 dark:text-purple-400 hover:bg-purple-500/20 transition"
         >
           <Shapes className="w-4 h-4" />
-          <span className="hidden md:inline">Icons</span><kbd aria-hidden="true" className="text-[9px] text-purple-300">I</kbd>
+
         </button>
       </div>
     </div>

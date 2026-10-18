@@ -125,7 +125,7 @@ Tool buttons show their shortcut keys. Press **?** in the app for the full short
 | Undo / Redo | Ctrl/Cmd+Z / Ctrl/Cmd+Shift+Z |
 | Copy / Cut / Paste / Duplicate / Select all | Ctrl/Cmd+C / X / V / D / A |
 | Write anywhere / edit existing text | Double-click |
-| Bypass alignment snapping | Alt+drag |
+| Duplicate while dragging | Alt+drag |
 | Bold / italic / underline canvas text | Ctrl/Cmd+B / I / U |
 | Strikethrough canvas text | Ctrl/Cmd+Shift+X |
 | Finish canvas text editing | Ctrl/Cmd+Enter |
@@ -181,8 +181,8 @@ The Classroom panel displays a copyable invite link that opens the same board an
 
 Room links stop working 24 hours after creation, including during an active drawing or classroom session. Expired records and recovery files are removed on server startup and by a one-minute cleanup loop. Production also has a scheduled cleanup every 15 minutes to wake a sleeping host; scheduler delays can postpone physical deletion, while access still expires at 24 hours. Browser room backups/history are removed when an active session expires or the app next reads storage. Personal boards and downloaded exports are independent of room retention.
 
-### Paint and backgrounds
+### Canvas appearance
 
-Open **Paint** in the drawing toolbar for brushes, pixel fills, image import, crop, resize, rotate/flip, selections and layers. Save an editable `.kpaint` project to retain layers, export PNG/JPEG, or insert the combined image onto your board. Microsoft-specific AI generation and automatic background removal are not included.
+The whiteboard keeps its original black canvas and dot/grid appearance. Appearance stays hidden until opened. Use Focus canvas (Shift+Z) for a full-window drawing area; Escape restores the controls. Appearance includes separate background colors and Solid/Hatch/Crosshatch/Dots styles for shapes/cards and the canvas. Paint has been removed. Existing board images and saved background styles remain supported in projects and exports.
 
-Use **Fill (B)** and **Pick color (K)** on whiteboard objects. Appearance settings offer custom stroke/fill colors, Solid/Hachure/Crosshatch/Dots fills, and independent background opacity from transparent to opaque. **Canvas background** in Appearance controls the whole board. Transparency displays a checkerboard while editing; PNG/SVG preserve it and PDF composites against its page. Canvas background settings synchronize in rooms.
+Notes include Find/Replace (Ctrl/Cmd+F or H while writing), previous/next matches, match case, Undo replace and Copy Markdown. Canvas text connectors sit at the outer outline’s side midpoints. Double-click inside a shape to write, and double-click its border to select. Alt+drag duplicates the selection in one undoable action. Each color section offers 50 extra predefined shades through More colors.

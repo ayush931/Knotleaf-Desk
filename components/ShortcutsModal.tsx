@@ -14,6 +14,7 @@ const GROUPS: { title: string; items: [string, string][] }[] = [
   {
     title: "Tools",
     items: [
+      ["Shift+Z", "Focus canvas / show controls"],
       ["V", "Select"],
       ["H / Space+drag", "Pan"],
       ["R", "Rectangle"],
@@ -28,7 +29,6 @@ const GROUPS: { title: string; items: [string, string][] }[] = [
       ["S", "Sticky note"],
       ["F", "Frame"],
       ["E", "Eraser"],
-      ["B", "Fill shape color"],
       ["K", "Pick object color"],
       ["I", "Insert icon"],
       ["Esc", "Back to select"],
@@ -51,16 +51,18 @@ const GROUPS: { title: string; items: [string, string][] }[] = [
   {
     title: "Canvas & Document",
     items: [
-      ["Double-click element", "Select; edit text in Select mode"],
+      ["Double-click shape border", "Select and resize"],
       ["Double-click blank space", "Write here in Select mode"],
-      ["Alt+double-click shape", "Write inside shape in Select mode"],
+      ["Double-click inside shape", "Write inside; Alt also works"],
       ["Drag center diamond", "Bend selected line or arrow"],
-      ["Alt+drag", "Move without alignment snapping"],
+      ["Alt+drag", "Duplicate selection while dragging"],
       ["Click Checkbox", "Toggle checklist directly on canvas"],
       ["Enter", "Continue list / checklist bullet"],
       ["Tab / Shift+Tab", "Indent / outdent list item"],
       ["Ctrl/Cmd+B / I / U", "Bold / italic / underline text"],
       ["Ctrl/Cmd+Shift+X", "Strikethrough text"],
+      ["Ctrl/Cmd+F or H in notes", "Find and replace notes"],
+      ["F3 / Shift+F3 in notes", "Next / previous note match"],
       ["Ctrl+Shift+> / <", "Increase / decrease font size"],
       ["Ctrl+Enter or Esc", "Finish editing"],
     ],
@@ -70,7 +72,8 @@ const GROUPS: { title: string; items: [string, string][] }[] = [
     items: [
       ["Ctrl + scroll / pinch", "Zoom"],
       ["+ / - / 0", "Zoom in / out / reset"],
-      ["Shift+1", "Fit to content"],
+      ["Shift+1", "Fit board"],
+      ["Shift+2", "Fit selection"],
       ["?", "Show this sheet"],
       ["Left / Right in presentation", "Previous / next frame"],
     ],
