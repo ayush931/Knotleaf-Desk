@@ -26,6 +26,19 @@ afterAll(() => { for (const [key, descriptor] of saved) { if (descriptor) Object
 const artwork = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 16" fill="none" stroke="currentColor" stroke-width="2"><defs><linearGradient id="shade"><stop stop-color="#ff0000"/><stop offset="1" stop-color="#00ff00"/></linearGradient><mask id="hole"><rect width="32" height="16" fill="white"/></mask></defs><g transform="translate(2 1)" mask="url(#hole)"><path d="M0 0h20v10H0z" fill="url(#shade)"/></g></svg>';
 const base = { id: 'icon', type: 'icon', iconId: 'online:test:group', iconName: 'group', category: 'online', x: 10, y: 20, width: 48, height: 48, stroke: '#fff', strokeWidth: 2, strokeStyle: 'solid', fill: 'transparent', fillStyle: 'none', roundness: 'rounded', opacity: 1, zIndex: 0, iconColor: '#E2E8F0', badgeBg: '#fff', label: 'Old saved caption' };
 
+test('text export waits for fonts and SVG retains the chosen family', async () => {
+  const previous = document.fonts, ready = [], requested = [];
+  document.fonts = { load: font => { requested.push(font); return new Promise(resolve => ready.push(resolve)); } };
+  const text = { ...base, type: 'text', text: 'Serif sample', fontSize: 24, fontFamily: 'serif', textAlign: 'left', label: undefined };
+  downloads.length = 0;
+  try {
+    const exporting = exportToPng([text], 'dark', true);
+    expect(downloads).toHaveLength(0); expect(requested.some(font => font.includes('Lora'))).toBe(true);
+    ready.forEach(resolve => resolve([])); await exporting;
+    expect(downloads).toHaveLength(1); expect(boardToSvg([text], true)).toContain('Lora');
+  } finally { if (previous) document.fonts = previous; else delete document.fonts; ready.forEach(resolve => resolve([])); }
+});
+
 test('online SVG retains root styles, groups, transforms, gradients and local masks', () => {
   const safe = normalizeIconSvg(artwork);
   expect(safe.viewBox).toBe('0 0 32 16');

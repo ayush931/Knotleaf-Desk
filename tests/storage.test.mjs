@@ -1,4 +1,5 @@
 import { beforeEach, afterAll, test, expect } from 'bun:test';
+import { FONT_OPTIONS } from '../draw/fonts.ts';
 import { createBoard, getBoard, getAllBoards, saveBoard, createWorkspace, getWorkspaces, moveBoardToWorkspace, duplicateBoard, deleteBoard, importBoardFromJson, getOrCreateDefaultBoard } from '../lib/storage.ts';
 const previousWindow = Object.getOwnPropertyDescriptor(globalThis, 'window');
 const previousStorage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
@@ -21,6 +22,12 @@ test('create workspace, create board, move, duplicate, and delete without affect
 test('JSON round trip retains notes and never overwrites the original', () => {
   const original = createBoard('Project'); original.markdownNotes = 'A & B'; saveBoard(original);
   const imported = importBoardFromJson(JSON.stringify(original)); expect(imported.id).not.toBe(original.id); expect(imported.markdownNotes).toBe('A & B'); expect(getAllBoards()).toHaveLength(2);
+});
+test('all seven font choices survive local saving and project import', () => {
+  const board = createBoard('Fonts');
+  board.elements = FONT_OPTIONS.map((font, index) => ({ id: `font-${index}`, type: 'text', x: 10, y: index * 40, width: 200, height: 30, stroke: '#fff', strokeWidth: 2, strokeStyle: 'solid', fill: 'transparent', fillStyle: 'none', roundness: 'rounded', opacity: 1, zIndex: index, text: font.label, fontFamily: font.id, fontSize: 24, textAlign: 'left' }));
+  saveBoard(board); const imported = importBoardFromJson(JSON.stringify(getBoard(board.id)));
+  expect(imported.elements.map(el => el.fontFamily)).toEqual(FONT_OPTIONS.map(font => font.id));
 });
 test('legacy demo-titled board is never silently erased', () => {
   const board = createBoard('Production Cloud Architecture (Demo)'); board.markdownNotes = 'Keep my work'; saveBoard(board);

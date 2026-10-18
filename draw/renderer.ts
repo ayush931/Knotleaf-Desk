@@ -14,6 +14,7 @@ import {
 } from "./types";
 import { getIconById } from "./iconsData";
 import { getIconImage } from "./iconSvg";
+import { FONT_OPTIONS } from "./fonts";
 
 export const ACCENT = "#3B82F6";
 export const LINE_HEIGHT = 1.35;
@@ -36,17 +37,7 @@ export interface DrawOptions {
 
 // --- Fonts -----------------------------------------------------------------
 
-const FONT_VARS: Record<FontFamily, string> = {
-  sans: "--font-inter",
-  hand: "--font-caveat",
-  mono: "--font-fira",
-};
-
-const FONT_FALLBACK: Record<FontFamily, string> = {
-  sans: 'Inter, ui-sans-serif, system-ui, sans-serif',
-  hand: 'Caveat, "Comic Sans MS", cursive',
-  mono: '"Fira Code", ui-monospace, monospace',
-};
+const FONT_FALLBACK = Object.fromEntries(FONT_OPTIONS.map(font => [font.id, font.fallback])) as Record<FontFamily, string>;
 
 let resolvedFonts: Record<FontFamily, string> | null = null;
 
@@ -54,15 +45,20 @@ let resolvedFonts: Record<FontFamily, string> | null = null;
 export function fontStack(family: FontFamily): string {
   if (!resolvedFonts) {
     resolvedFonts = { ...FONT_FALLBACK };
-    if (typeof document !== "undefined") {
+    if (typeof document !== "undefined" && document.documentElement && typeof getComputedStyle === "function") {
       const styles = getComputedStyle(document.documentElement);
-      (Object.keys(FONT_VARS) as FontFamily[]).forEach((key) => {
-        const value = styles.getPropertyValue(FONT_VARS[key]).trim();
-        if (value) resolvedFonts![key] = `${value}, ${FONT_FALLBACK[key]}`;
+      FONT_OPTIONS.forEach(font => {
+        const value = styles.getPropertyValue(font.variable).trim();
+        if (value) resolvedFonts![font.id] = `${value}, ${font.fallback}`;
       });
     }
   }
-  return resolvedFonts[family];
+  return resolvedFonts[family] || resolvedFonts.sans;
+}
+
+export async function loadCanvasFonts(): Promise<void> {
+  if (typeof document === "undefined" || !document.fonts) return;
+  await Promise.all(FONT_OPTIONS.flatMap(font => ["400", "700", "italic 400", "italic 700"].map(style => document.fonts.load(`${style} 16px ${fontStack(font.id)}`))));
 }
 
 export function setFont(

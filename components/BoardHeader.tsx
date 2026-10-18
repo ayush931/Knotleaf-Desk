@@ -36,7 +36,7 @@ interface BoardHeaderProps {
   snapToGrid: boolean;
   onToggleSnap: () => void;
   selectionCount: number;
-  onExportSvg: (selection: boolean, transparent: boolean) => void;
+  onExportSvg: (selection: boolean, transparent: boolean) => void | Promise<void>;
   onExportDrawio: (selection: boolean) => void;
   onExportPng: (selection: boolean, transparent: boolean, scale: number) => void | Promise<void>;
   onExportJson: () => void;
@@ -283,7 +283,7 @@ export function BoardHeader({
                     if (format === "project") onExportProject(scope);
                     else if (format === "pdf") await onExportPdf(scope);
                     else if (format === "png") await onExportPng(selected, transparent, exportScale);
-                    else if (format === "svg") onExportSvg(selected, transparent);
+                    else if (format === "svg") await onExportSvg(selected, transparent);
                     else if (format === "drawio") onExportDrawio(selected);
                     else if (format === "markdown") onExportMarkdown();
                     else onExportJson();

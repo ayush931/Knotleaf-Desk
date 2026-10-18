@@ -1,5 +1,7 @@
 import { beforeAll, afterAll, describe, test, expect } from 'bun:test';
 import { CanvasEngine } from '../draw/CanvasEngine.ts';
+import { FONT_OPTIONS, fontCssStack } from '../draw/fonts.ts';
+import { setFont } from '../draw/renderer.ts';
 import { computeArrowPath, drawElement, layoutDocument, drawSelection, drawElementAnchors, getElementAnchors, getElementBounds } from '../draw/renderer.ts';
 const savedGlobals = new Map();
 beforeAll(() => {
@@ -26,6 +28,27 @@ function setup(elements = [source, target, arrow]) {
   const drag = (x, y, nx, ny) => { listeners.pointerdown(point(x, y)); listeners.pointermove(point(nx, ny)); listeners.pointerup(point(nx, ny)); };
   return { engine, listeners, point, drag, captures };
 }
+test('all font families render, remain editable, and survive undo/redo', () => {
+  for (const font of FONT_OPTIONS) {
+    const { engine, listeners, point } = setup([]); let editor;
+    engine.currentStyle.fontFamily = font.id; engine.onStartInlineText = state => { editor = state; };
+    engine.setTool('text'); listeners.pointerdown(point(100, 100)); listeners.pointerup(point(100, 100));
+    expect(editor.fontFamily).toBe(font.id); engine.commitInlineText({ ...editor, text: 'Font sample' });
+    expect(engine.getElements()[0].fontFamily).toBe(font.id);
+    engine.undo(); expect(engine.getElements()).toHaveLength(0); engine.redo();
+    engine.setTool('select'); listeners.dblclick(point(105, 105)); expect(editor.fontFamily).toBe(font.id);
+    const ctx = {}; setFont(ctx, 24, font.id, 700, true);
+    expect(ctx.font).toContain(font.fallback); expect(ctx.font).toStartWith('italic 700 24px');
+    expect(fontCssStack(font.id)).toContain(font.variable);
+    engine.destroy();
+  }
+});
+test('document and sticky creation use the chosen font', () => {
+  for (const tool of ['doc', 'sticky']) {
+    const { engine, listeners, point } = setup([]); engine.currentStyle.fontFamily = 'rounded'; engine.setTool(tool);
+    listeners.pointerdown(point(100, 100)); expect(engine.getElements()[0].fontFamily).toBe('rounded'); engine.destroy();
+  }
+});
 test('straight arrows draw directly and preserve properties through routing changes', () => {
   const { engine, drag } = setup([source, target]);
   engine.currentStyle = { ...engine.currentStyle, arrowRouting: 'straight', arrowHeadStart: 'dot', arrowHeadEnd: 'diamond', arrowAnimated: true };

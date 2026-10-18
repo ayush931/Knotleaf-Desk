@@ -45,9 +45,11 @@ Runtime sources are canonical: `app/globals.css` owns global styles and scrollba
 Background #121212, surface #18181b, border #27272a, text #f4f4f5, muted #a1a1aa, primary #3b82f6. Blue means active/selected/connected. Rose indicates destructive actions. Use labels and shapes alongside color. Forced-colors scrollbars use system colors.
 
 ## Typography
-Inter for controls, Fira Code for Markdown source and coordinates, Caveat for hand lettering. Fonts are bundled by Next at build time. Notes use 13px source with 24px line height and 14px rendered prose. Controls remain compact without compromising focus indicators.
+Inter for controls, Fira Code for Markdown source and coordinates, Caveat for hand lettering. Canvas text also offers Lora (serif), Nunito (rounded sans), Roboto Condensed and Patrick Hand (printed handwriting). The appearance picker previews each named family in a compact two-column button group with selected-state semantics. `draw/fonts.ts` owns family IDs, labels, CSS-variable names and fallback stacks; `app/layout.tsx` bundles the corresponding Next fonts. Renderer, inline editor and picker use that shared mapping. Fonts are bundled by Next at build time. Notes use 13px source with 24px line height and 14px rendered prose. Controls remain compact without compromising focus indicators.
 
 ## Layout
+
+Canvas editor placeholders inherit the chosen font and have explicit full-opacity muted text (#a1a1aa), with slate (#475569) on yellow sticky surfaces. Empty editors measure the complete hint, wrap it when constrained, and stay inside the canvas viewport. Font-load completion and viewport/split changes remeasure the editor. `app/globals.css` owns placeholder colors; `draw/inlineEditorLayout.ts` owns editor bounds.
 44px fixed header, drawing tools inset 6px below it. Inspector is relative to the canvas, below the tools; it scrolls internally only when necessary. Notes split starts at 360px, is draggable and keyboard resizable; below 640px it becomes a vertically stacked split. Notes contain their own vertical scroll; long prose and code wrap instead of forcing horizontal scrolling. Toolbars wrap on narrow viewports. The canvas itself pans, never document-scrolls.
 
 ## Elevation & Depth

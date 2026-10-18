@@ -1,5 +1,5 @@
 import type { Board, CanvasElement } from "./types";
-import { drawElement, getElementBounds, unionBounds } from "./renderer";
+import { drawElement, getElementBounds, unionBounds, loadCanvasFonts } from "./renderer";
 import { getIconById } from "./iconsData";
 import { normalizeIconSvg } from "./iconSvg";
 
@@ -104,7 +104,8 @@ export function boardToSvg(elements: CanvasElement[], transparent = false, scene
   }
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="${bounds.minX - 40} ${bounds.minY - 40} ${width} ${height}">${transparent ? "" : `<rect x="${bounds.minX - 40}" y="${bounds.minY - 40}" width="${width}" height="${height}" fill="#121212"/>`}${recorder.output.join("\n")}</svg>`;
 }
-export function exportToSvg(board: Board, elements = board.elements, transparent = false) {
+export async function exportToSvg(board: Board, elements = board.elements, transparent = false) {
+  await loadCanvasFonts();
   const svg = boardToSvg(elements, transparent, board.elements);
   if (!svg) throw new Error("Add something to the canvas before exporting SVG.");
   const url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml" }));

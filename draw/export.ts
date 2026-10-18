@@ -1,5 +1,5 @@
 import { CanvasElement, Theme, Board } from "./types";
-import { drawElement, getElementBounds, unionBounds } from "./renderer";
+import { drawElement, getElementBounds, unionBounds, loadCanvasFonts } from "./renderer";
 import { getIconImage } from "./iconSvg";
 import { serializeProject, safeFilename, type ExportScope } from "@/lib/projectFile";
 
@@ -7,7 +7,7 @@ const PADDING = 40;
 
 /** Renders the elements into an offscreen canvas at the given scale. */
 export async function renderToCanvas(elements: CanvasElement[], theme: Theme, scale: number, transparent: boolean, scene: CanvasElement[] = elements) {
-  await Promise.all(elements.filter(el => el.type === "icon" && el.svgMarkup).map(el => el.type === "icon" ? getIconImage(el.svgMarkup!, el.viewBox || "0 0 24 24", el.iconColor || "#3B82F6").loaded : undefined));
+  await Promise.all([loadCanvasFonts(), ...elements.filter(el => el.type === "icon" && el.svgMarkup).map(el => el.type === "icon" ? getIconImage(el.svgMarkup!, el.viewBox || "0 0 24 24", el.iconColor || "#3B82F6").loaded : undefined)]);
   const bounds = unionBounds(elements.map(el => getElementBounds(el, scene)));
   if (!bounds) return null;
   const naturalW = bounds.maxX - bounds.minX + PADDING * 2, naturalH = bounds.maxY - bounds.minY + PADDING * 2;

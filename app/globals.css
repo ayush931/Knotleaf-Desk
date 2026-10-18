@@ -84,6 +84,18 @@
 button:not(:disabled), select { cursor: pointer; }
 button:disabled { cursor: default; }
 input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid #3b82f6; outline-offset: 2px; }
+
+.canvas-text-editor { --editor-placeholder: #a1a1aa; }
+.canvas-text-editor[data-surface="sticky"] { --editor-placeholder: #475569; }
+.canvas-text-editor::placeholder {
+  font: inherit;
+  color: var(--editor-placeholder);
+  -webkit-text-fill-color: var(--editor-placeholder);
+  opacity: 1;
+}
+@media (forced-colors: active) {
+  .canvas-text-editor::placeholder { color: GrayText; -webkit-text-fill-color: GrayText; }
+}
 dialog::backdrop { background: rgb(0 0 0 / 55%); backdrop-filter: blur(3px); }
 .workspace-drawer:not([open]) { display: none; }
 .board-notes > div { height: 100%; min-height: 0; }
