@@ -73,7 +73,7 @@ Motion is brief functional feedback. Reduced-motion styles disable decorative an
 
 Selection controls use four square corner resize handles and one circular attachment port per side. Side-center resize squares are omitted on connectable elements to avoid duplicate controls. The selection outline supports side resizing beside the connector dots, with directional resize cursors. Frames also keep their edge squares because they do not expose connectors.
 
-The single-selection outline is solid and quiet. Newly created elements retain this blue outline after pointer release and hover departure, without switching away from the active drawing tool. Connection points belong to the selected element in Select mode; other elements reveal them only as Arrow-tool targets. Bound arrow endpoints use the existing blue accent. Port layers are painted once, and selection controls stay hidden while typing.
+The single-selection outline is solid and quiet. Successful creation returns to Select with the same blue outline, resize handles and connector points as a manually selected element. Clicking blank space clears the selection. Connection points belong to the selected element in Select mode; other elements reveal them only as Arrow-tool targets. Bound arrow endpoints use the existing blue accent. Port layers are painted once, and selection controls stay hidden while typing.
 
 Canvas icons are standalone glyphs on transparent backgrounds, with no captions or badge cards. The appearance panel is 240px wide, follows measured toolbar height, and groups secondary options into native details. Drawing-tool shortcut hints remain visible beneath their glyphs. Workspace rows use quiet surfaces and disclose move controls only when needed.
 
