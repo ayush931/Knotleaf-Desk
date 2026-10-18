@@ -4,6 +4,7 @@ import {Window} from 'happy-dom';
 import {SearchParamsContext} from 'next/dist/shared/lib/hooks-client-context.shared-runtime.js';
 import {ClassroomAudioSource} from '../components/ClassroomAudioSource.tsx';
 import {InstallWebApp} from '../components/InstallWebApp.tsx';
+import {RefreshWebApp} from '../components/RefreshWebApp.tsx';
 import manifest from '../app/manifest.ts';
 import {Classroom} from '../components/Classroom.tsx';
 let browser,root,createRoot;const previous=new Map();
@@ -20,6 +21,49 @@ async function render(props={},query=''){await act(async()=>root.render(React.cr
 const trigger=()=>document.querySelector('[aria-label="Open classroom call"]');
 const panel=()=>document.querySelector('[aria-label="Classroom call"]');
 const button=text=>[...document.querySelectorAll('button')].find(el=>el.textContent.includes(text));
+test('Refresh checks the current room URL, saves latest edits and blocks duplicate clicks',async()=>{
+ const originalFetch=globalThis.fetch,originalReload=window.location.reload,originalUrl=window.location.href;
+ const id=crypto.randomUUID(),order=[];let finish,requests=0;
+ window.history.replaceState(null,'',`/canvas/${id}?classroom=1`);
+ globalThis.fetch=async(url,options)=>{requests++;expect(url).toBe(window.location.href);expect(options.method).toBe('HEAD');expect(options.cache).toBe('no-store');return new Promise(resolve=>{finish=resolve;});};
+ window.location.reload=()=>order.push('reload');
+ try{
+  await act(async()=>root.render(React.createElement(RefreshWebApp,{onBeforeRefresh:()=>order.push('old save')})));
+  const refresh=()=>document.querySelector('[aria-label="Refresh app"]');
+  await act(async()=>{refresh().click();refresh().click();});expect(requests).toBe(1);expect(refresh().disabled).toBe(true);expect(order).toEqual([]);
+  await act(async()=>root.render(React.createElement(RefreshWebApp,{onBeforeRefresh:()=>order.push('latest save')})));
+  await act(async()=>finish(new Response(null,{status:200})));
+  expect(order).toEqual(['latest save','reload']);expect(window.location.href).toContain(`/${id}?classroom=1`);
+ }finally{globalThis.fetch=originalFetch;window.location.reload=originalReload;window.history.replaceState(null,'',originalUrl);}
+});
+test('Refresh leaves the app open after network or save failures and allows retry',async()=>{
+ const originalFetch=globalThis.fetch,originalReload=window.location.reload;let reloads=0,failSave=true;
+ globalThis.fetch=async()=>new Response(null,{status:503});window.location.reload=()=>reloads++;
+ try{
+  await act(async()=>root.render(React.createElement(RefreshWebApp,{onBeforeRefresh:()=>{if(failSave)throw new Error('Could not save work.');}})));
+  await act(async()=>document.querySelector('[aria-label="Refresh app"]').click());expect(reloads).toBe(0);expect(document.querySelector('[role="alert"]').textContent).toContain('could not be loaded');
+  globalThis.fetch=async()=>new Response(null,{status:200});
+  await act(async()=>document.querySelector('[aria-label="Refresh app"]').click());expect(reloads).toBe(0);expect(document.querySelector('[role="alert"]').textContent).toContain('Could not save work');
+  failSave=false;await act(async()=>document.querySelector('[aria-label="Refresh app"]').click());expect(reloads).toBe(1);expect(document.querySelector('[role="alert"]')).toBe(null);
+ }finally{globalThis.fetch=originalFetch;window.location.reload=originalReload;}
+});
+test('Refresh is available without browser chrome and is disabled during recording',async()=>{
+ let prepared=0;
+ await act(async()=>root.render(React.createElement(RefreshWebApp,{recording:true,onBeforeRefresh:()=>prepared++})));
+ const refresh=document.querySelector('[aria-label="Refresh app"]');expect(refresh.disabled).toBe(true);expect(refresh.title).toContain('Stop and save');await act(async()=>refresh.click());expect(prepared).toBe(0);
+ await act(async()=>root.render(React.createElement(RefreshWebApp,{recording:false,onBeforeRefresh:()=>prepared++})));expect(document.querySelector('[aria-label="Refresh app"]').disabled).toBe(false);
+});
+test('a recording started during the update check prevents reloading',async()=>{
+ const originalFetch=globalThis.fetch,originalReload=window.location.reload;let finish,reloads=0;
+ globalThis.fetch=async()=>new Promise(resolve=>{finish=resolve;});window.location.reload=()=>reloads++;
+ try{
+  await act(async()=>root.render(React.createElement(RefreshWebApp,{recording:false,onBeforeRefresh:()=>{}})));
+  await act(async()=>document.querySelector('[aria-label="Refresh app"]').click());
+  await act(async()=>root.render(React.createElement(RefreshWebApp,{recording:true,onBeforeRefresh:()=>{}})));
+  await act(async()=>finish(new Response(null,{status:200})));
+  expect(reloads).toBe(0);expect(document.querySelector('[role="alert"]').textContent).toContain('Stop and save your recording');
+ }finally{globalThis.fetch=originalFetch;window.location.reload=originalReload;}
+});
 test('Classroom click opens outside the blurred header and Escape minimizes with focus restoration',async()=>{
  await render();expect(panel().classList.contains('hidden')).toBe(true);
  await act(async()=>trigger().click());expect(trigger().getAttribute('aria-expanded')).toBe('true');expect(panel().classList.contains('hidden')).toBe(false);expect(panel().parentElement).toBe(document.body);expect(document.querySelector('header').contains(panel())).toBe(false);
