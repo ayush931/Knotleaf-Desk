@@ -96,8 +96,8 @@ export function unionBounds(list: Bounds[]): Bounds | null {
 export function getElementBounds(el: CanvasElement, scene: CanvasElement[] = []): Bounds {
   if (el.type === "arrow" || el.type === "line") {
     const pts: Point[] = [];
-    if (el.type === "arrow") {
-      const info = computeArrowPath(el, scene);
+    if (el.type === "arrow" || el.bendOffset) {
+      const info = el.type === "arrow" ? computeArrowPath(el, scene) : computeLinePath(el);
       pts.push(...info.points);
       if (info.cpx !== undefined && info.cpy !== undefined) pts.push({ x: info.cpx, y: info.cpy });
     } else {
@@ -691,7 +691,13 @@ function drawLine(ctx: CanvasRenderingContext2D, el: CanvasElement) {
   ctx.strokeStyle = el.stroke;
   ctx.lineWidth = el.strokeWidth || 2;
   applyDash(ctx, el);
-  if (el.strokeStyle === "rough") {
+  const info = computeLinePath(el);
+  if (info.cpx !== undefined && info.cpy !== undefined) {
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.quadraticCurveTo(info.cpx, info.cpy, b.x, b.y);
+    ctx.stroke();
+  } else if (el.strokeStyle === "rough") {
     strokeSketch(ctx, [a, b], false, seedOf(el.id), ctx.lineWidth);
   } else {
     ctx.beginPath();
@@ -711,6 +717,10 @@ export interface ArrowPathInfo {
   midPt: Point;
   startAngle: number;
   endAngle: number;
+}
+
+export function computeLinePath(el: import("./types").LineElement): ArrowPathInfo {
+  return computeArrowPath({ ...el, type: "arrow", routing: el.bendOffset ? "curved" : "straight", bendOffset: el.bendOffset ?? 0 });
 }
 
 export function computeArrowPath(el: ArrowElement, scene: CanvasElement[] = []): ArrowPathInfo {
@@ -1471,9 +1481,9 @@ export function drawSelection(ctx: CanvasRenderingContext2D, el: CanvasElement, 
       ctx.fill();
       ctx.stroke();
     }
-    if (el.type === "arrow") {
+    {
       ctx.fillStyle = "#FFFFFF";
-      const mid = computeArrowPath(el, scene).midPt;
+      const mid = (el.type === "arrow" ? computeArrowPath(el, scene) : computeLinePath(el)).midPt;
       const d = 4.5 / z;
       ctx.beginPath();
       ctx.moveTo(mid.x, mid.y - d);

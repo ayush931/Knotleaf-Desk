@@ -50,3 +50,10 @@ test('drawing tools expose visible shortcuts and keyboard metadata', () => {
     expect(html).toContain(`>${key.toUpperCase()}</kbd>`);
   }
 });
+
+
+test('selected lines expose a signed bend input and straight reset instructions', () => {
+  const html = renderToStaticMarkup(React.createElement(PropertiesPanel, { ...props, selectedElement: { ...DEFAULT_STYLE, id: 'line', type: 'line', bendOffset: -80 } }));
+  expect(html).toMatch(/aria-label="Line bend in pixels"[^>]*value="-40"/);
+  expect(html).toContain('Set 0 for a straight line');
+});

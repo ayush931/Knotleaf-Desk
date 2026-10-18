@@ -131,6 +131,8 @@ export interface ArrowElement extends BaseElement {
 
 export interface LineElement extends BaseElement {
   type: "line";
+  /** Signed quadratic control-point offset; zero keeps the line straight. */
+  bendOffset?: number;
   startX: number;
   startY: number;
   endX: number;

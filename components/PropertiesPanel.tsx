@@ -485,6 +485,23 @@ export function PropertiesPanel({
         </div>
       )}
 
+      {selectedElement?.type === "line" && (
+        <div className="space-y-1">
+          <p className="text-[10px] text-neutral-400">Drag the center diamond to bend the line.</p>
+          <label className="flex items-center justify-between gap-2 text-[10px] text-neutral-400">
+            Bend (px)
+            <input type="number" aria-label="Line bend in pixels" step="1"
+              value={Math.round((selectedElement.bendOffset ?? 0) / 2)}
+              onChange={event => {
+                const bend = event.currentTarget.valueAsNumber;
+                if (Number.isFinite(bend)) onUpdateElement({ bendOffset: bend * 2 });
+              }}
+              className="w-20 rounded border border-neutral-700 bg-neutral-900 px-2 py-1 text-neutral-200 focus-visible:outline-2 focus-visible:outline-blue-500" />
+          </label>
+          <p className="text-[10px] text-neutral-500">Use positive or negative values to bend either way. Set 0 for a straight line.</p>
+        </div>
+      )}
+
       {/* Stroke Color */}
       <div>
         <label className="text-[10px] font-medium text-neutral-400 uppercase tracking-wider block mb-1">

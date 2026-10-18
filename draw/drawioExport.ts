@@ -1,5 +1,5 @@
 import type { Board, CanvasElement } from "./types";
-import { computeArrowPath, normalizeRect } from "./renderer";
+import { computeArrowPath, computeLinePath, normalizeRect } from "./renderer";
 const xml = (v: unknown) => String(v).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" }[c]!));
 /** Exports editable shapes and bound connectors for diagrams.net / draw.io. */
 export function boardToDrawio(board: Board, elements: CanvasElement[] = board.elements) {
@@ -8,7 +8,7 @@ export function boardToDrawio(board: Board, elements: CanvasElement[] = board.el
     const r = normalizeRect(el);
     const style = `strokeColor=${el.stroke};strokeWidth=${el.strokeWidth};fillColor=${el.fillStyle === "none" || el.fill === "transparent" ? "none" : el.fill};opacity=${Math.round(el.opacity * 100)};fontColor=#f4f4f5;whiteSpace=wrap;html=0;${el.strokeStyle === "dashed" || el.strokeStyle === "dotted" ? "dashed=1;" : ""}`;
     if (el.type === "arrow" || el.type === "line") {
-      const info = el.type === "arrow" ? computeArrowPath(el, board.elements) : null;
+      const info = el.type === "arrow" ? computeArrowPath(el, board.elements) : computeLinePath(el);
       const binding = (b: { elementId: string; anchor: string } | undefined, kind: string) => {
         if (!b || !ids.has(b.elementId)) return "";
         return ` ${kind}="${xml(b.elementId)}"`;
