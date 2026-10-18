@@ -1,6 +1,10 @@
 "use client";
 
 import React, { useLayoutEffect, useRef } from "react";
+import { BackgroundStylePicker, type BackgroundPattern } from "./BackgroundStylePicker";
+import { parseFillColor } from "@/lib/fillColor";
+import { DEFAULT_BACKGROUND } from "@/lib/background.mjs";
+import type { BackgroundSettings } from "@/draw/types";
 import { ColorControl } from "./ColorControl";
 import { FONT_OPTIONS, fontCssStack } from "@/draw/fonts";
 import {
@@ -34,6 +38,8 @@ interface PropertiesPanelProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   selectedElement: CanvasElement | null;
+  background?: BackgroundSettings;
+  onBackgroundChange?: (background: BackgroundSettings) => void;
   selectedTool?: Tool;
   topOffset?: number;
   isTextEditing?: boolean;
@@ -68,6 +74,8 @@ export function PropertiesPanel({
   isOpen = false,
   onOpenChange,
   selectedElement,
+  background = DEFAULT_BACKGROUND,
+  onBackgroundChange,
   selectedTool = "select",
   topOffset = 56,
   isTextEditing = false,
@@ -95,6 +103,13 @@ export function PropertiesPanel({
   const arrowEl = selectedElement?.type === "arrow" ? selectedElement : null;
 
   const activeStroke = selectedElement?.type === "icon" ? selectedElement.iconColor || "#E2E8F0" : selectedElement ? selectedElement.stroke : currentStyle.stroke;
+  const activeFill = selectedElement?.fill ?? currentStyle.fill;
+  const activeFillStyle = selectedElement?.fillStyle ?? currentStyle.fillStyle;
+  const changeBackground = (fill: string, pattern?: BackgroundPattern) => {
+    const next = { fill, fillStyle: fill === "transparent" ? "none" as const : pattern ?? (activeFillStyle === "none" || activeFillStyle === "semi" ? "solid" : activeFillStyle), fillOpacity: 1 };
+    if (selectedElement) onUpdateElement(selectedElement.type === "sticky" ? { ...next, color: fill } : next);
+    onUpdateStyle(next);
+  };
   const activeStrokeWidth = selectedElement ? selectedElement.strokeWidth : currentStyle.strokeWidth;
   const activeStrokeStyle = selectedElement ? selectedElement.strokeStyle : currentStyle.strokeStyle;
   const activeRoundness = selectedElement ? selectedElement.roundness : currentStyle.roundness;
@@ -177,6 +192,7 @@ export function PropertiesPanel({
   };
 
   const isTextual = isTextEditing || selectedElement?.type === "text" || selectedElement?.type === "sticky" || (!selectedElement && ["text", "doc", "sticky"].includes(selectedTool));
+  const hasBackground = !isImage && !isIcon && !isArrow && selectedElement?.type !== "line" && selectedTool !== "line" && selectedTool !== "pencil" && (!isTextual || selectedElement?.type === "sticky" || selectedElement?.type === "text" && selectedElement.isDocCard || selectedTool === "doc" || selectedTool === "sticky");
   const textEl = selectedElement && (selectedElement.type === "text" || selectedElement.type === "sticky") ? selectedElement : null;
   const activeFontSize = textEl ? textEl.fontSize : currentStyle.fontSize;
   const activeFamily = textEl ? textEl.fontFamily || "sans" : currentStyle.fontFamily;
@@ -238,15 +254,15 @@ export function PropertiesPanel({
     return (
       <button ref={openButton} type="button" onMouseDown={event => { if (preserveTextFocus) event.preventDefault(); }} onClick={() => onOpenChange(true)}
         style={{ top: topOffset }} aria-expanded={false}
-        title="Open appearance settings" aria-label="Open appearance settings"
-        className="absolute left-2 z-30 flex h-8 w-8 items-center justify-center rounded-xl border border-neutral-700 bg-[#18181b]/95 text-xs font-medium text-neutral-300 shadow-lg backdrop-blur-md transition-colors hover:border-neutral-500 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
-      ><Palette className="h-4 w-4" /><span className="sr-only">Appearance</span></button>
+        title="Style · stroke, background and text" aria-label="Open appearance settings" aria-controls="appearance-settings"
+        className="absolute left-2 z-30 flex h-9 w-9 sm:h-8 sm:w-8 items-center justify-center rounded-lg border border-neutral-600 bg-[#202124] text-xs font-medium text-neutral-200 shadow-lg backdrop-blur-md transition-colors hover:border-neutral-500 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
+      ><Palette aria-hidden="true" strokeWidth={1.75} className="h-[18px] w-[18px] shrink-0" /><span className="sr-only">Style</span></button>
     );
   }
 
   return (
     <div style={{ top: topOffset, maxHeight: `calc(100% - ${topOffset + 64}px)` }}
-      role="region" aria-label="Appearance settings"
+      id="appearance-settings" role="region" aria-label="Appearance settings"
       onKeyDown={event => { if (event.key === "Escape" && !event.nativeEvent.isComposing) { event.preventDefault(); event.stopPropagation(); close(); } }}
       onMouseDown={event => { if (preserveTextFocus && event.target instanceof HTMLElement && event.target.closest("button, summary")) event.preventDefault(); }}
       className="absolute left-2 z-30 flex w-72 max-w-[calc(100%-1rem)] flex-col overflow-hidden rounded-xl border border-neutral-700 bg-[#18181b]/95 text-neutral-200 shadow-xl backdrop-blur-xl select-none"
@@ -441,7 +457,7 @@ export function PropertiesPanel({
 
       {selectedTool === "eyedropper" && <p className="text-xs text-neutral-400">Click an object to use its color for drawing.</p>}
       {!isImage && <ColorControl label="Custom stroke color" value={activeStroke} onChange={handleStrokeColor} />}
-      {isImage && <p className="text-xs text-neutral-400">Open Paint to edit image pixels, crop, rotate or flip. Use the selection handles to resize this image on the board.</p>}
+      {isImage && <p className="text-xs text-neutral-400">Drag to move this image. Use the selection handles to resize it.</p>}
       {/* Stroke Color */}
       {!isImage && <div>
         <label className="text-[11px] font-medium text-neutral-400 tracking-wide block mb-1">
@@ -462,6 +478,15 @@ export function PropertiesPanel({
             />
           ))}
         </div>
+      </div>}
+
+      {hasBackground && <div className="space-y-2">
+        <ColorControl label="Background color" value={activeFill === "transparent" ? "transparent" : parseFillColor(activeFill).color} onChange={fill => changeBackground(fill)} />
+        <div className="flex flex-wrap gap-1.5" role="group" aria-label="Background colors">
+          {["#303236", "#454b53", "#48596b", "#4a5b4c", "#6a6048", "#674c4b", "#5c5268", "#c7ba91"].map(color => <button type="button" key={color} aria-label={`Background ${color}`} title={color} aria-pressed={activeFill === color} onClick={() => changeBackground(color)} style={{ backgroundColor: color }} className={`h-6 w-6 rounded-md border border-neutral-600 ${activeFill === color ? "ring-2 ring-blue-500 ring-offset-1 ring-offset-neutral-900" : "hover:border-neutral-400"}`} />)}
+        </div>
+        <BackgroundStylePicker value={activeFillStyle} onChange={pattern => changeBackground(activeFill === "transparent" ? "#48596b" : parseFillColor(activeFill).color, pattern)} />
+        <button type="button" aria-pressed={activeFill === "transparent"} onClick={() => changeBackground("transparent")} className="rounded-md border border-neutral-700 px-2 py-1 text-xs text-neutral-400 hover:bg-neutral-800">No background</button>
       </div>}
 
       {!isIcon && !isImage && !isTextual && <details className="border-t border-neutral-800 pt-2 text-xs"><summary className="cursor-pointer py-1 text-neutral-400">Line & corners</summary><div className="mt-3 space-y-3">
@@ -741,6 +766,7 @@ export function PropertiesPanel({
         />
       </div>
 
+      {onBackgroundChange && <details className="border-t border-neutral-800 pt-2"><summary className="cursor-pointer py-1 text-xs text-neutral-400">Canvas background</summary><div className="mt-2 space-y-2"><ColorControl label="Canvas background color" value={background.fill} onChange={fill => onBackgroundChange({ ...background, fill, fillOpacity: 1 })} /><BackgroundStylePicker label="Canvas background style" value={background.fillStyle} onChange={fillStyle => onBackgroundChange({ ...background, fillStyle, fillOpacity: 1 })} /></div></details>}
       </div>
       {selectedElement && <footer aria-label="Selection actions" className="grid shrink-0 grid-cols-2 gap-2 border-t border-neutral-800 bg-neutral-900/80 p-3 text-xs">
         <button onClick={onDuplicate} aria-label="Duplicate selection" title="Duplicate (Ctrl/Cmd+D)" className="flex h-8 items-center justify-center gap-2 rounded-lg border border-neutral-700 text-neutral-300 hover:bg-neutral-800 focus-visible:outline-2 focus-visible:outline-blue-500"><Copy className="h-3.5 w-3.5" />Duplicate</button>

@@ -59,9 +59,9 @@ test('selected lines expose a signed bend input and straight reset instructions'
 });
 
 
-test('Appearance has no fill or background controls, including on older filled shapes', () => {
+test('Appearance offers background colors and previewed patterns without fill-opacity controls', () => {
   const html = renderToStaticMarkup(React.createElement(PropertiesPanel, { ...props, selectedElement: { ...DEFAULT_STYLE, type: 'rectangle', id: 'fill', fill: '#ec4899', fillStyle: 'crosshatch', fillOpacity: 0.25, opacity: 0.8 } }));
-  expect(html).not.toContain('Background Fill'); expect(html).not.toContain('Canvas background'); expect(html).not.toContain('Custom fill color'); expect(html).not.toContain('Crosshatch');
+  expect(html).toContain('Background color'); expect(html).toContain('No background'); expect(html).toContain('Crosshatch'); expect(html).not.toContain('aria-label="Background opacity"');
   expect(html).toContain('aria-label="Opacity"');
 });
 

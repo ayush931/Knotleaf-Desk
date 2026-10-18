@@ -183,4 +183,4 @@ Room links stop working 24 hours after creation, including during an active draw
 
 ### Canvas appearance
 
-The whiteboard uses a muted charcoal canvas, subtle grid guides and soft drawing colors. Appearance stays hidden until opened. Use Focus canvas (Shift+Z) for a full-window drawing area; Escape restores the controls. Paint and fill controls have been removed. Existing board images and saved background styles remain supported in projects and exports.
+The whiteboard uses a muted charcoal canvas, subtle grid guides and soft drawing colors. Appearance stays hidden until opened. Use Focus canvas (Shift+Z) for a full-window drawing area; Escape restores the controls. Appearance includes separate background colors and Solid/Hatch/Crosshatch/Dots styles for shapes/cards and the canvas. Paint has been removed. Existing board images and saved background styles remain supported in projects and exports.

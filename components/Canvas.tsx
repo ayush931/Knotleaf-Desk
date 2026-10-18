@@ -6,6 +6,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState, useLayoutEffe
 import { RoomSession, type Collaborator } from "@/lib/collaboration";
 import { getRoomServerUrl, checkRoomAvailable, RoomExpiredError } from "@/lib/roomConnection";
 import { createRoomFromBoard } from "@/lib/roomCreation";
+import { normalizeBackground } from "@/lib/background.mjs";
 import { useCanvasFocus } from "@/lib/useCanvasFocus";
 import { Classroom } from "./Classroom";
 import { CollaborationPanel } from "./CollaborationPanel";
@@ -864,6 +865,8 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
                 if (event.relatedTarget === inlineTextareaRef.current || event.relatedTarget instanceof HTMLElement && event.relatedTarget.closest("[data-text-controls]")) return;
                 if (inlineTextStateRef.current) commitInline();
               }}><PropertiesPanel
+                background={normalizeBackground(board.background)}
+                onBackgroundChange={background => persist({ ...boardRef.current, background })}
                 isOpen={appearanceOpen}
                 onOpenChange={setAppearanceOpen}
                 topOffset={toolbarHeight + 12}

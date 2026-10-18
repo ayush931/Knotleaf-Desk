@@ -130,3 +130,20 @@ test('focus view hides controls and notes, retains artwork, and restores the sav
   await act(async () => window.dispatchEvent(new browser.KeyboardEvent('keydown', { key: 'Z', shiftKey: true, bubbles: true })));
   expect(named('Show controls')).toBeTruthy(); await clickNamed('Show controls'); expect(named('Drawing tools')).toBeTruthy();
 });
+
+test('background color changes shapes independently of stroke and canvas color persists separately', async () => {
+  const id = await renderBoard(); await clickNamed('Rectangle (R)'); await boardPointer('pointerdown', 100, 100); await boardPointer('pointermove', 240, 200); await boardPointer('pointerup', 240, 200);
+  expect(named('Appearance settings')).toBeNull(); await clickNamed('Open appearance settings');
+  const before = getBoard(id).elements[0]; await clickNamed('Background #48596b');
+  expect(getBoard(id).elements[0]).toMatchObject({ fill: '#48596b', fillStyle: 'solid', stroke: before.stroke });
+  await clickNamed('Background style: Hatch'); await clickNamed('Background #4a5b4c');
+  expect(getBoard(id).elements[0]).toMatchObject({ fill: '#4a5b4c', fillStyle: 'hachure', stroke: before.stroke });
+  await act(async () => [...document.querySelectorAll('button')].find(button => button.textContent === 'No background').click());
+  expect(getBoard(id).elements[0]).toMatchObject({ fill: 'transparent', fillStyle: 'none', stroke: before.stroke });
+  const canvasColor = document.querySelector('[aria-label="Choose canvas background color"]');
+  const setter = Object.getOwnPropertyDescriptor(browser.HTMLInputElement.prototype, 'value').set;
+  await act(async () => { setter.call(canvasColor, '#292c30'); canvasColor.dispatchEvent(new browser.Event('input', { bubbles: true })); canvasColor.dispatchEvent(new browser.Event('change', { bubbles: true })); });
+  expect(getBoard(id).background).toEqual({ fill: '#292c30', fillStyle: 'solid', fillOpacity: 1 });
+  await clickNamed('Canvas background style: Dots'); expect(getBoard(id).background.fillStyle).toBe('dots');
+  expect(getBoard(id).elements[0].fill).toBe('transparent');
+});
