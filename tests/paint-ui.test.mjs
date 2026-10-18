@@ -22,7 +22,7 @@ beforeAll(async () => {
   browser = new Window();
   for (const [key, value] of Object.entries({ window: browser, document: browser.document, navigator: browser.navigator, HTMLElement: browser.HTMLElement, HTMLCanvasElement: browser.HTMLCanvasElement, IS_REACT_ACT_ENVIRONMENT: true })) { saved.set(key, Object.getOwnPropertyDescriptor(globalThis, key)); Object.defineProperty(globalThis, key, { configurable: true, writable: true, value }); }
   browser.HTMLCanvasElement.prototype.getContext = function () { return context(this); };
-  browser.HTMLCanvasElement.prototype.toDataURL = function () { exports.push({ width: this.width, height: this.height, pixels: context(this).data.slice() }); return 'data:image/png;base64,cGFpbnQ='; };
+  browser.HTMLCanvasElement.prototype.toDataURL = function (type) { exports.push({ type, width: this.width, height: this.height, pixels: context(this).data.slice() }); return type === 'image/jpeg' ? 'data:image/jpeg;base64,cGFpbnQ=' : 'data:image/png;base64,cGFpbnQ='; };
   browser.HTMLCanvasElement.prototype.getBoundingClientRect = function () { return { left: 0, top: 0, width: this.width, height: this.height }; };
   browser.HTMLCanvasElement.prototype.setPointerCapture = function (id) { captures.set(this, id); };
   browser.HTMLDialogElement.prototype.showModal = function () { this.open = true; }; browser.HTMLDialogElement.prototype.close = function () { this.open = false; };
@@ -84,4 +84,11 @@ test('background controls expose the complete transparent-to-opaque range and al
   await act(async () => { setter.call(slider, '0'); slider.dispatchEvent(new browser.Event('input', { bubbles: true })); slider.dispatchEvent(new browser.Event('change', { bubbles: true })); }); expect(opacity).toBe(0);
   await act(async () => { setter.call(slider, '1'); slider.dispatchEvent(new browser.Event('input', { bubbles: true })); slider.dispatchEvent(new browser.Event('change', { bubbles: true })); }); expect(opacity).toBe(1);
   await click('Crosshatch'); expect(style).toBe('crosshatch'); expect(document.body.textContent).toContain('Transparent'); expect(document.body.textContent).toContain('Opaque');
+});
+
+
+test('photo insertion offers JPEG explicitly while PNG remains the transparent default', async () => {
+  await small(); expect(document.querySelector('[aria-label="Board image format"]').value).toBe('png');
+  await input('Board format', 'jpeg', 'select'); await click('Insert onto board');
+  expect(inserted[0]).toEqual(['data:image/jpeg;base64,cGFpbnQ=', 16, 12]); expect(exports.at(-1).type).toBe('image/jpeg');
 });

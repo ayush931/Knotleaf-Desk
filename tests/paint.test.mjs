@@ -86,3 +86,9 @@ test('image import is a single undo step and restores the original blank documen
   doc.importPixels(rgba([4, 3, 2, 1]), 2, 2, 'Second', false); expect(doc.layers).toHaveLength(2);
   doc.undo(); expect(doc.layers).toHaveLength(1); expect(doc.active.name).toBe('Image');
 });
+
+
+test('editable layer projects permit bounded large PNGs without relaxing board image limits', () => {
+  const large = 'data:image/png;base64,' + 'A'.repeat(4_000_001);
+  expect(isEmbeddedImage(large)).toBe(false); expect(parsePaintProject(JSON.stringify({ ...project, layers: [{ ...project.layers[0], source: large }] })).layers[0].source).toBe(large);
+});

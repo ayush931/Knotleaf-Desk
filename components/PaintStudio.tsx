@@ -40,7 +40,7 @@ export function PaintStudio({ open, onClose, onInsert, selectedImage }: Props) {
   const [size, setSize] = useState(8), [brush, setBrush] = useState('round'), [opacity, setOpacity] = useState(1), [filled, setFilled] = useState(false), [fillStyle, setFillStyle] = useState<FillStyle>('solid'), [fillOpacity, setFillOpacity] = useState(1), [tolerance, setTolerance] = useState(0);
   const [text, setText] = useState(''), [fontSize, setFontSize] = useState(32), [font, setFontFamily] = useState<FontFamily>('sans');
   const [zoom, setZoom] = useState(1), [selection, setSelection] = useState<PixelRect | null>(null), [dimensions, setDimensions] = useState({ width: 960, height: 640 }), [scaleImage, setScaleImage] = useState(true);
-  const [error, setError] = useState(''), [notice, setNotice] = useState(''), [busy, setBusy] = useState(false), [dirty, setDirty] = useState(false), [confirmNew, setConfirmNew] = useState(false), [pendingProject, setPendingProject] = useState<PaintDocument | null>(null), [hasClipboard, setHasClipboard] = useState(false);
+  const [error, setError] = useState(''), [notice, setNotice] = useState(''), [busy, setBusy] = useState(false), [dirty, setDirty] = useState(false), [confirmNew, setConfirmNew] = useState(false), [pendingProject, setPendingProject] = useState<PaintDocument | null>(null), [hasClipboard, setHasClipboard] = useState(false), [insertFormat, setInsertFormat] = useState("png");
   const gesture = useRef<Gesture | null>(null), preview = useRef<HTMLCanvasElement | null>(null), clipboard = useRef<{ pixels: Uint8ClampedArray; width: number; height: number } | null>(null);
   const mounted = useRef(true), busyRef = useRef(false);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
@@ -137,16 +137,16 @@ export function PaintStudio({ open, onClose, onInsert, selectedImage }: Props) {
   const copy = (cut = false) => { if (!selection) return; clipboard.current = { pixels: extractPixels(doc.active.pixels, doc.width, selection), width: selection.width, height: selection.height }; setHasClipboard(true); if (cut) perform(() => { doc.checkpoint(); clearPixels(doc.active.pixels, doc.width, selection); }, 'Selection cut.'); else setNotice('Selection copied.'); };
   const paste = () => { const c = clipboard.current; if (!c) return; perform(() => { doc.checkpoint(); const rect = { x: selection?.x ?? 0, y: selection?.y ?? 0, width: c.width, height: c.height }; pastePixels(doc.active.pixels, doc.width, doc.height, c.pixels, rect); setSelection(clampRect(rect, doc.width, doc.height)); }, 'Selection pasted.'); };
   const history = (redo = false) => { cancel(); if (redo) doc.redo(); else doc.undo(); setSelection(null); update(); };
-  const importImage = async (source: string, name: string) => {
-    const resource = getImageResource(source); await resource.loaded;
+  const importDecodedImage = (image: HTMLImageElement, name: string) => {
     if (!mounted.current) return;
-    const width = resource.image.naturalWidth, height = resource.image.naturalHeight; validatePaintSize(width, height);
+    const width = image.naturalWidth, height = image.naturalHeight; validatePaintSize(width, height);
     const empty = doc.layers.length === 1 && !doc.canUndo;
     const nextWidth = empty ? width : doc.width, nextHeight = empty ? height : doc.height;
     const c = document.createElement('canvas'); c.width = nextWidth; c.height = nextHeight; const ctx = c.getContext('2d')!;
-    ctx.drawImage(resource.image, 0, 0);
+    ctx.drawImage(image, 0, 0);
     doc.importPixels(ctx.getImageData(0, 0, nextWidth, nextHeight).data, nextWidth, nextHeight, name, empty); setSelection(null); update('Image imported onto its own layer.');
   };
+  const importImage = async (source: string, name: string) => { const resource = getImageResource(source); await resource.loaded; importDecodedImage(resource.image, name); };
   const runAsync = async (fn: () => Promise<void>) => { if (busyRef.current) return; busyRef.current = true; setBusy(true); setError(''); try { await fn(); } catch (e) { if (mounted.current) setError(e instanceof Error ? e.message : 'Could not process this image.'); } finally { busyRef.current = false; if (mounted.current) setBusy(false); } };
   const acceptProject = (next: PaintDocument) => { cancel(); setDoc(next); setDimensions({ width: next.width, height: next.height }); setSelection(null); setPendingProject(null); setDirty(false); setNotice('Editable Paint project opened.'); };
   const importFile = (input: File) => runAsync(async () => {
@@ -156,7 +156,7 @@ export function PaintStudio({ open, onClose, onInsert, selectedImage }: Props) {
       const next = new PaintDocument(project.width, project.height);
       const layers = [];
       for (const layer of project.layers) {
-        const resource = getImageResource(layer.source); await resource.loaded;
+        const resource = getImageResource(layer.source, undefined, 24_000_000); await resource.loaded;
         if (resource.image.naturalWidth !== project.width || resource.image.naturalHeight !== project.height) throw new Error('A layer has different dimensions from its project.');
         const c = document.createElement('canvas'); c.width = project.width; c.height = project.height; const ctx = c.getContext('2d')!; ctx.drawImage(resource.image, 0, 0);
         layers.push({ id: crypto.randomUUID(), name: layer.name, visible: layer.visible, opacity: layer.opacity, pixels: ctx.getImageData(0, 0, c.width, c.height).data });
@@ -169,7 +169,7 @@ export function PaintStudio({ open, onClose, onInsert, selectedImage }: Props) {
     const source = await new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.onerror = () => reject(new Error('Could not read this file.')); reader.readAsDataURL(input); });
     // Decode arbitrary raster formats once, then store a bounded static PNG.
     const img = new Image(); await new Promise<void>((resolve, reject) => { img.onload = () => resolve(); img.onerror = () => reject(new Error('Could not decode this image.')); img.src = source; }); validatePaintSize(img.naturalWidth, img.naturalHeight);
-    const c = document.createElement('canvas'); c.width = img.naturalWidth; c.height = img.naturalHeight; c.getContext('2d')!.drawImage(img, 0, 0); await importImage(c.toDataURL('image/png'), input.name);
+    importDecodedImage(img, input.name);
   });
   const download = (jpeg = false) => { try { const c = composite(doc, null, jpeg ? '#ffffff' : undefined), a = document.createElement('a'); a.href = c.toDataURL(jpeg ? 'image/jpeg' : 'image/png', 0.92); a.download = `knotleaf-paint.${jpeg ? 'jpg' : 'png'}`; a.click(); setDirty(false); setNotice('Image downloaded.'); } catch { setError('Could not download this image.'); } };
   const downloadProject = () => {
@@ -179,7 +179,7 @@ export function PaintStudio({ open, onClose, onInsert, selectedImage }: Props) {
       const url = URL.createObjectURL(new Blob([serialized], { type: 'application/json' })), a = document.createElement('a'); a.href = url; a.download = 'knotleaf-paint.kpaint'; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); setDirty(false); setNotice('Editable project saved with all layers.');
     } catch (e) { setError(e instanceof Error ? e.message : 'Could not save this project.'); }
   };
-  const insert = () => { try { const source = composite(doc).toDataURL('image/png'); onInsert(source, doc.width, doc.height); setDirty(false); setNotice('Inserted onto the board. Layers remain available in this Paint workspace.'); } catch (e) { setError(e instanceof Error ? e.message : 'Could not insert image.'); } };
+  const insert = () => { try { const source = composite(doc, null, insertFormat === 'jpeg' ? '#ffffff' : undefined).toDataURL(insertFormat === 'jpeg' ? 'image/jpeg' : 'image/png', 0.92); onInsert(source, doc.width, doc.height); setDirty(false); setNotice('Inserted onto the board. Layers remain available in this Paint workspace.'); } catch (e) { setError(e instanceof Error ? e.message : 'Could not insert image.'); } };
   const close = () => { cancel(); onClose(); };
   if (typeof document === 'undefined') return null;
   return createPortal(<dialog ref={dialog} onCancel={e => { e.preventDefault(); close(); }} onClose={onClose} aria-labelledby="paint-title" className="m-auto h-[min(900px,96dvh)] w-[min(1320px,96vw)] max-w-none overflow-hidden rounded-xl border border-neutral-700 bg-neutral-900 p-0 text-neutral-100 backdrop:bg-black/70">
@@ -190,6 +190,7 @@ export function PaintStudio({ open, onClose, onInsert, selectedImage }: Props) {
         <input ref={file} type="file" accept=".kpaint,image/png,image/jpeg,image/webp,image/bmp,image/gif" aria-label="Import image into Paint" className="hidden" onChange={e => { const image = e.target.files?.[0]; if (image) void importFile(image); e.target.value = ''; }} />
         <button className={button} disabled={busy} onClick={downloadProject}>Save editable project</button>
         <button className={button} disabled={busy} onClick={() => download()}><Download className="mr-1 inline h-3 w-3" />PNG</button><button className={button} disabled={busy} onClick={() => download(true)}>JPEG</button>
+        <label className="text-xs text-neutral-400">Board format <select aria-label="Board image format" className="rounded bg-neutral-800 p-1" value={insertFormat} onChange={e => setInsertFormat(e.target.value)}><option value="png">PNG · transparent</option><option value="jpeg">JPEG · white background</option></select></label>
         <button className={`${button} border-blue-500 bg-blue-600 text-white`} disabled={busy} onClick={insert}>Insert onto board</button><button className={button} onClick={close} aria-label="Close Paint workspace"><X className="h-4 w-4" /></button>
       </header>
       {pendingProject && <div role="alert" className="flex flex-wrap items-center gap-2 border-b border-amber-700 p-2 text-xs">Replace this draft with the imported project? Save this draft first.<button className={button} onClick={() => acceptProject(pendingProject)}>Open imported project</button><button className={button} onClick={() => setPendingProject(null)}>Keep current draft</button></div>}
