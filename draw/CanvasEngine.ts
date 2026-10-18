@@ -627,7 +627,7 @@ export class CanvasEngine {
       zIndex: this.elements.length,
     };
     this.elements = [...this.elements, el];
-    this.selectedIds = new Set([el.id]);
+    this.selectCreatedElement(el.id);
     this.commit();
   }
 
@@ -679,7 +679,7 @@ export class CanvasEngine {
       zIndex: this.elements.length,
     };
     this.elements = [...this.elements, el];
-    this.selectedIds = new Set([el.id]);
+    this.selectCreatedElement(el.id);
     this.commit();
   }
 
@@ -1386,6 +1386,7 @@ export class CanvasEngine {
     }
 
     if (this.tool === "text") {
+      this.setTool("select");
       this.selectedIds.clear();
       this.emitSelection();
       this.updateCursor();
@@ -1408,14 +1409,14 @@ export class CanvasEngine {
 
     if (this.tool === "code") {
       const el = this.remeasureText({ ...this.makeTextElement("", pt.x, pt.y, 14, "mono", "#eeffff", "left", true), isCodeCard: true, codeLanguage: "auto", title: "Code" });
-      this.elements = [...this.elements, el]; this.selectedIds = new Set([el.id]);
+      this.elements = [...this.elements, el]; this.selectCreatedElement(el.id);
       this.commit(); this.editingId = el.id; this.onEditCode?.(el.id); return;
     }
     if (this.tool === "doc") {
       this.updateCursor();
       const docEl = this.remeasureText(this.makeTextElement("", pt.x, pt.y, 15, this.currentStyle.fontFamily, "#FFFFFF", "left", true));
       this.elements = [...this.elements, docEl];
-      this.selectedIds = new Set([docEl.id]);
+      this.selectCreatedElement(docEl.id);
       this.commit();
       this.openEditorFor(docEl);
       return;
@@ -1444,7 +1445,7 @@ export class CanvasEngine {
         zIndex: this.elements.length,
       };
       this.elements = [...this.elements, sticky];
-      this.selectedIds = new Set([sticky.id]);
+      this.selectCreatedElement(sticky.id);
       this.commit();
       this.openEditorFor(sticky);
       return;
@@ -1750,6 +1751,13 @@ export class CanvasEngine {
     return { x: origin.x + Math.cos(angle) * dist, y: origin.y + Math.sin(angle) * dist };
   }
 
+  private selectCreatedElement(id: string) {
+    this.tool = "select";
+    this.selectedIds = new Set([id]);
+    this.updateCursor();
+    this.emitTool();
+  }
+
   private finishDraft() {
     const d = this.draft;
     this.draft = null;
@@ -1770,8 +1778,7 @@ export class CanvasEngine {
 
     if (keep) {
       this.elements = [...this.elements, finalEl];
-      // Keep the newest element outlined without replacing the active tool.
-      this.selectedIds = new Set([finalEl.id]);
+      this.selectCreatedElement(finalEl.id);
     }
     this.commit();
   }
