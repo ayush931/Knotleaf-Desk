@@ -92,7 +92,7 @@ async function captureNotes(board: Board): Promise<string[]> {
 
 export async function exportProjectPdf(board: Board, scope: ExportScope) {
   const includeCanvas = scope !== 'notes', includeNotes = scope !== 'canvas';
-  const canvas = includeCanvas ? await renderToCanvas(board.elements, board.theme, 2, false) : null;
+  const canvas = includeCanvas ? await renderToCanvas(board.elements, board.theme, 2, false, board.elements, board.background) : null;
   const bytes = await createProjectPdf({ title: board.title, includeCanvas, includeNotes, canvas: canvas?.toDataURL('image/png'), notes: includeNotes ? await captureNotes(board) : [] });
   const url = URL.createObjectURL(new Blob([bytes as Uint8Array<ArrayBuffer>], { type: 'application/pdf' }));
   const link = document.createElement('a'); link.href = url; link.download = `${safeFilename(board.title)}-${scope}.pdf`; link.click();

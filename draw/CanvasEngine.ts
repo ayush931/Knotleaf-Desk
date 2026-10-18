@@ -1,3 +1,6 @@
+import { DEFAULT_BACKGROUND, normalizeBackground, isLightBackground } from "@/lib/background.mjs";
+import { drawBackgroundFill } from "./backgroundFill";
+import { isEmbeddedImage } from "./imageResource";
 import { expandCodeTabs } from "@/lib/code";
 import {
   CanvasElement,
@@ -239,6 +242,7 @@ export class CanvasEngine {
   private spaceDown = false;
   private shiftDown = false;
   private altDown = false;
+  private background = { ...DEFAULT_BACKGROUND };
   // Delay click-only tools over existing content so a double-click can select
   // without inserting a note/editor or erasing its intended target first.
   private pendingClick: { event: PointerEvent; released: boolean; timer: ReturnType<typeof setTimeout> } | null = null;
@@ -268,6 +272,7 @@ export class CanvasEngine {
   public onEditCode?: (id: string) => void;
   public onBeforeCreate?: () => void;
   public onStartInlineText?: (state: InlineTextState) => void;
+  public onPickColor?: (color: string) => void;
   public onZoomChange?: (zoom: number) => void;
   public onToolChange?: (tool: Tool) => void;
   public onHistoryChange?: (canUndo: boolean, canRedo: boolean) => void;
@@ -313,6 +318,8 @@ export class CanvasEngine {
     this.emitTool();
     this.requestRender();
   }
+
+  public setBackground(value: unknown) { this.background = normalizeBackground(value); this.requestRender(); }
 
   public getTool(): Tool {
     return this.tool;
@@ -599,6 +606,15 @@ export class CanvasEngine {
     this.commit();
   }
 
+  public addImage(source: string, width: number, height: number, imageName = "Paint image") {
+    if (!isEmbeddedImage(source) || ![width, height].every(n => Number.isFinite(n) && n > 0 && n <= 4096)) throw new Error("Use a PNG, JPEG or WebP image up to 4096 px and 3 MB.");
+    this.onBeforeCreate?.();
+    const center = this.screenToCanvas(this.cssWidth / 2, this.cssHeight / 2);
+    const scale = Math.min(1, 700 / width, 500 / height);
+    const el: CanvasElement = { id: newId(), type: "image", source, imageName, x: center.x - width * scale / 2, y: center.y - height * scale / 2, width: width * scale, height: height * scale, stroke: "transparent", strokeWidth: 0, strokeStyle: "solid", fill: "transparent", fillStyle: "none", roundness: "sharp", opacity: 1, zIndex: this.elements.length };
+    this.elements = [...this.elements, el]; this.selectCreatedElement(el.id); this.commit();
+  }
+
   /** Adds an icon imported from the internet. Its SVG is stored on the element so it works offline. */
   public addOnlineIcon(name: string, id: string, svgMarkup: string, viewBox: string) {
     this.onBeforeCreate?.();
@@ -881,8 +897,9 @@ export class CanvasEngine {
       stroke: color || "#FFFFFF",
       strokeWidth: 1,
       strokeStyle: "solid",
-      fill: isDocCard ? "#18181B" : "transparent",
-      fillStyle: isDocCard ? "solid" : "none",
+      fill: isDocCard ? this.currentStyle.fill === "transparent" ? "#18181B" : this.currentStyle.fill : "transparent",
+      fillStyle: isDocCard ? this.currentStyle.fillStyle === "none" ? "solid" : this.currentStyle.fillStyle : "none",
+      fillOpacity: this.currentStyle.fillOpacity ?? 1,
       roundness: isDocCard ? "rounded" : "sharp",
       opacity: 1,
       zIndex: this.elements.length,
@@ -1015,9 +1032,9 @@ export class CanvasEngine {
     const h = this.cssHeight;
 
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
-    ctx.fillStyle = "#121212";
-    ctx.fillRect(0, 0, w, h);
-    drawGrid(ctx, w, h, this.pan, this.zoom, this.gridType);
+    ctx.clearRect(0, 0, w, h);
+    drawBackgroundFill(ctx, this.background, () => ctx.rect(0, 0, w, h), { x: 0, y: 0, width: w, height: h });
+    drawGrid(ctx, w, h, this.pan, this.zoom, this.gridType, isLightBackground(this.background));
 
     ctx.save();
     ctx.translate(this.pan.x, this.pan.y);
@@ -1168,6 +1185,13 @@ export class CanvasEngine {
       }
       case "pencil": {
         const pts = el.points;
+        if ((this.tool === "fill" || el.fillStyle !== "none") && pts.length >= 3) {
+          let inside = false;
+          for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+            if ((pts[i].y > pt.y) !== (pts[j].y > pt.y) && pt.x < (pts[j].x - pts[i].x) * (pt.y - pts[i].y) / (pts[j].y - pts[i].y) + pts[i].x) inside = !inside;
+          }
+          if (inside) return true;
+        }
         if (pts.length === 1) return Math.hypot(pt.x - pts[0].x, pt.y - pts[0].y) <= tol;
         for (let i = 0; i < pts.length - 1; i++) {
           if (distToSegment(pt, pts[i], pts[i + 1]) <= tol) return true;
@@ -1293,7 +1317,7 @@ export class CanvasEngine {
       }
     }
     this.activePointerId = e.pointerId;
-    if (!this.readOnly && e.button === 0 && !this.spaceDown && !["select", "hand", "eraser"].includes(this.tool)) this.onBeforeCreate?.();
+    if (!this.readOnly && e.button === 0 && !this.spaceDown && !["select", "hand", "eraser", "fill", "eyedropper"].includes(this.tool)) this.onBeforeCreate?.();
     const opensEditor = e.button === 0 && !this.spaceDown && ["text", "doc", "sticky", "code"].includes(this.tool);
     if (opensEditor) {
       // The editor takes focus during this event. A compatibility mousedown on
@@ -1311,6 +1335,22 @@ export class CanvasEngine {
       this.gesture = { kind: "pan", last: sp };
       this.updateCursor();
       return;
+    }
+
+    if (this.tool === "fill" || this.tool === "eyedropper") {
+      const hit = this.hitTest(pt);
+      if (!hit) return;
+      if (this.tool === "eyedropper") {
+        let color = hit.type === "icon" ? hit.iconColor || hit.stroke : hit.fillStyle !== "none" && hit.fill !== "transparent" ? hit.fill : hit.stroke;
+        if (hit.type === "image") {
+          try { const pixel = this.ctx.getImageData(Math.floor(sp.x * this.dpr), Math.floor(sp.y * this.dpr), 1, 1).data; color = `#${[...pixel.slice(0, 3)].map(n => n.toString(16).padStart(2, "0")).join("")}`; } catch { return; }
+        }
+        this.currentStyle = { ...this.currentStyle, stroke: color, fill: color, fillStyle: "solid" }; this.onPickColor?.(color); this.setTool("select"); return;
+      }
+      if (hit.type === "image") return;
+      const color = this.currentStyle.fill === "transparent" ? this.currentStyle.stroke : this.currentStyle.fill;
+      this.elements = this.elements.map(el => el.id !== hit.id ? el : el.type === "icon" ? { ...el, iconColor: color } : ["line", "arrow"].includes(el.type) || el.type === "text" && !el.isDocCard ? { ...el, stroke: color } : el.type === "sticky" ? { ...el, fill: color, color, fillStyle: this.currentStyle.fillStyle === "none" ? "solid" : this.currentStyle.fillStyle, fillOpacity: this.currentStyle.fillOpacity ?? 1 } : { ...el, fill: color, fillStyle: this.currentStyle.fillStyle === "none" ? "solid" : this.currentStyle.fillStyle, fillOpacity: this.currentStyle.fillOpacity ?? 1 });
+      this.selectCreatedElement(hit.id); this.commit(); return;
     }
 
     if (this.tool === "eraser") {
@@ -1432,14 +1472,15 @@ export class CanvasEngine {
         width: 180,
         height: 140,
         text: "",
-        color: "#FEF08A",
+        color: this.currentStyle.fill === "transparent" ? "#FEF08A" : this.currentStyle.fill,
         fontFamily: this.currentStyle.fontFamily,
         fontSize: 15,
         stroke: "#1E293B",
         strokeWidth: 1,
         strokeStyle: "solid",
-        fill: "#FEF08A",
-        fillStyle: "solid",
+        fill: this.currentStyle.fill === "transparent" ? "#FEF08A" : this.currentStyle.fill,
+        fillStyle: this.currentStyle.fillStyle === "none" ? "solid" : this.currentStyle.fillStyle,
+        fillOpacity: this.currentStyle.fillOpacity ?? 1,
         roundness: "rounded",
         opacity: 1,
         zIndex: this.elements.length,
@@ -1659,7 +1700,8 @@ export class CanvasEngine {
       strokeWidth: style.strokeWidth,
       strokeStyle: style.strokeStyle,
       fill: style.fill,
-      fillStyle: style.fill === "transparent" ? ("none" as const) : ("solid" as const),
+      fillStyle: style.fill === "transparent" ? ("none" as const) : style.fillStyle === "none" ? "solid" : style.fillStyle,
+      fillOpacity: style.fillOpacity ?? 1,
       roundness: style.roundness,
       opacity: style.opacity,
       zIndex: this.elements.length,
@@ -1673,7 +1715,7 @@ export class CanvasEngine {
       case "circle":
         return { ...base, type: "circle", x: start.x, y: start.y };
       case "frame":
-        return { ...base, type: "frame", x: start.x, y: start.y, title: "Frame", fill: "transparent", fillStyle: "none" };
+        return { ...base, type: "frame", x: start.x, y: start.y, title: "Frame" };
       case "arrow":
         return {
           ...base,
@@ -2152,6 +2194,12 @@ export class CanvasEngine {
         break;
       case "f":
         this.setTool("frame");
+        break;
+      case "b":
+        this.setTool("fill");
+        break;
+      case "k":
+        this.setTool("eyedropper");
         break;
       case "e":
         this.setTool("eraser");

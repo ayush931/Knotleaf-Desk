@@ -6,7 +6,7 @@ export function boardToDrawio(board: Board, elements: CanvasElement[] = board.el
   const ids = new Set(elements.map(e => e.id));
   const cells = elements.map(el => {
     const r = normalizeRect(el);
-    const style = `strokeColor=${el.stroke};strokeWidth=${el.strokeWidth};fillColor=${el.fillStyle === "none" || el.fill === "transparent" ? "none" : el.fill};opacity=${Math.round(el.opacity * 100)};fontColor=#f4f4f5;whiteSpace=wrap;html=0;${el.strokeStyle === "dashed" || el.strokeStyle === "dotted" ? "dashed=1;" : ""}`;
+    const style = `strokeColor=${el.stroke};strokeWidth=${el.strokeWidth};fillColor=${el.fillStyle === "none" || el.fill === "transparent" ? "none" : el.fill};opacity=${Math.round(el.opacity * 100)};fillOpacity=${Math.round((el.fillOpacity ?? 1) * 100)};fontColor=#f4f4f5;whiteSpace=wrap;html=0;${el.strokeStyle === "dashed" || el.strokeStyle === "dotted" ? "dashed=1;" : ""}`;
     if (el.type === "arrow" || el.type === "line") {
       const info = el.type === "arrow" ? computeArrowPath(el, board.elements) : computeLinePath(el);
       const binding = (b: { elementId: string; anchor: string } | undefined, kind: string) => {
@@ -23,11 +23,12 @@ export function boardToDrawio(board: Board, elements: CanvasElement[] = board.el
       const route = info?.routing === "curved" ? "curved=1;" : info?.routing === "elbow" ? "rounded=1;" : "";
       return `<mxCell id="${xml(el.id)}" value="${xml(el.label || "")}" style="${xml(style + route + `startArrow=${cap(arrow?.arrowHeadStart, "none")};endArrow=${arrow ? cap(arrow.arrowHeadEnd, "classic") : "none"};` + portStyle(arrow?.startBinding?.anchor, "exit") + portStyle(arrow?.endBinding?.anchor, "entry"))}" edge="1" parent="1"${binding(arrow?.startBinding, "source")}${binding(arrow?.endBinding, "target")}><mxGeometry relative="1" as="geometry"><mxPoint x="${el.startX}" y="${el.startY}" as="sourcePoint"/><mxPoint x="${el.endX}" y="${el.endY}" as="targetPoint"/>${info && info.points.length > 2 ? `<Array as="points">${info.points.slice(1, -1).map(p => `<mxPoint x="${p.x}" y="${p.y}"/>`).join("")}</Array>` : info?.cpx !== undefined ? `<Array as="points"><mxPoint x="${info.cpx}" y="${info.cpy}"/></Array>` : ""}</mxGeometry></mxCell>`;
     }
+    if (el.type === "image") return `<mxCell id="${xml(el.id)}" value="" style="${xml(`shape=image;image=${el.source.replace(';base64,', ',')};opacity=${Math.round(el.opacity * 100)};`)}" vertex="1" parent="1"><mxGeometry x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" as="geometry"/></mxCell>`;
     const shape = el.type === "circle" ? "ellipse;" : el.type === "diamond" ? "rhombus;" : el.type === "text" ? "text;strokeColor=none;fillColor=none;align=left;" : el.type === "sticky" ? "shape=note;" : `rounded=${el.roundness === "rounded" ? 1 : 0};`;
     const value = el.type === "text" || el.type === "sticky" ? el.text : el.type === "frame" ? el.title : el.type === "icon" ? el.label || el.iconName : el.label || "";
     return `<mxCell id="${xml(el.id)}" value="${xml(value)}" style="${xml(style + shape + ((el.type === "text" || el.type === "sticky") ? `fontStyle=${(el.bold ? 1 : 0) | (el.italic ? 2 : 0) | (el.underline ? 4 : 0) | (el.strikethrough ? 8 : 0)};fontSize=${el.fontSize};fontColor=${el.stroke};align=${el.textAlign || "left"};` : ""))}" vertex="1" parent="1"><mxGeometry x="${r.x}" y="${r.y}" width="${Math.max(r.w, 1)}" height="${Math.max(r.h, 1)}" as="geometry"/></mxCell>`;
   });
-  return `<?xml version="1.0" encoding="UTF-8"?><mxfile host="Whiteboard"><diagram name="${xml(board.title)}"><mxGraphModel background="#121212"><root><mxCell id="0"/><mxCell id="1" parent="0"/>${cells.join("")}</root></mxGraphModel></diagram></mxfile>`;
+  return `<?xml version="1.0" encoding="UTF-8"?><mxfile host="Whiteboard"><diagram name="${xml(board.title)}"><mxGraphModel background="${xml(board.background?.fill || "#121212")}"><root><mxCell id="0"/><mxCell id="1" parent="0"/>${cells.join("")}</root></mxGraphModel></diagram></mxfile>`;
 }
 export function exportToDrawio(board: Board, elements = board.elements) {
   const url = URL.createObjectURL(new Blob([boardToDrawio(board, elements)], { type: "application/xml" }));

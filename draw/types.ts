@@ -12,7 +12,9 @@ export type Tool =
   | "doc"
   | "sticky"
   | "frame"
-  | "eraser";
+  | "eraser"
+  | "fill"
+  | "eyedropper";
 
 export type BulletVariant =
   | "disc"
@@ -25,7 +27,7 @@ export type BulletVariant =
   | "todo";
 
 export type StrokeStyle = "solid" | "dashed" | "dotted" | "rough";
-export type FillStyle = "solid" | "semi" | "none";
+export type FillStyle = "solid" | "semi" | "none" | "hachure" | "crosshatch" | "dots";
 export type Roundness = "sharp" | "rounded";
 export type FontFamily = "hand" | "sans" | "mono" | "serif" | "rounded" | "condensed" | "print";
 export type TextAlign = "left" | "center" | "right";
@@ -83,6 +85,7 @@ export interface BaseElement {
   strokeStyle: StrokeStyle;
   fill: string;
   fillStyle: FillStyle;
+  fillOpacity?: number;
   roundness: Roundness;
   opacity: number;
   zIndex: number;
@@ -184,6 +187,12 @@ export interface FrameElement extends BaseElement {
   title: string;
 }
 
+export interface ImageElement extends BaseElement {
+  type: "image";
+  source: string;
+  imageName: string;
+}
+
 export type CanvasElement =
   | RectangleElement
   | DiamondElement
@@ -194,11 +203,15 @@ export type CanvasElement =
   | TextElement
   | StickyElement
   | IconElement
-  | FrameElement;
+  | FrameElement
+  | ImageElement;
 
 export interface Workspace { id: string; name: string; createdAt: number }
 
+export interface BackgroundSettings { fill: string; fillStyle: FillStyle; fillOpacity: number }
+
 export interface Board {
+  background?: BackgroundSettings;
   roomExpiresAt?: number;
   workspaceId?: string;
   id: string;
@@ -230,6 +243,7 @@ export interface ElementStyleProps extends TextFormatting {
   strokeStyle: StrokeStyle;
   fill: string;
   fillStyle: FillStyle;
+  fillOpacity?: number;
   roundness: Roundness;
   opacity: number;
   fontSize: number;
@@ -248,6 +262,7 @@ export const DEFAULT_STYLE: ElementStyleProps = {
   strokeStyle: "solid",
   fill: "transparent",
   fillStyle: "none",
+  fillOpacity: 1,
   roundness: "rounded",
   opacity: 1,
   fontSize: 16,

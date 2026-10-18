@@ -1,6 +1,11 @@
 "use client";
 
 import React, { useState } from "react";
+import { parseFillColor } from "@/lib/fillColor";
+import { FillControls } from "./FillControls";
+import { DEFAULT_BACKGROUND } from "@/lib/background.mjs";
+import type { BackgroundSettings } from "@/draw/types";
+import { ColorControl } from "./ColorControl";
 import { FONT_OPTIONS, fontCssStack } from "@/draw/fonts";
 import {
   CanvasElement,
@@ -33,6 +38,8 @@ import {
 
 interface PropertiesPanelProps {
   selectedElement: CanvasElement | null;
+  background?: BackgroundSettings;
+  onBackgroundChange?: (background: BackgroundSettings) => void;
   selectedTool?: Tool;
   topOffset?: number;
   isTextEditing?: boolean;
@@ -63,21 +70,12 @@ const STROKE_COLORS = [
   "#18181B",
 ];
 
-const FILL_COLORS = [
-  "transparent",
-  "#18181B",
-  "#27272A",
-  "rgba(255, 255, 255, 0.12)",
-  "rgba(59, 130, 246, 0.2)",
-  "rgba(16, 185, 129, 0.2)",
-  "rgba(245, 158, 11, 0.2)",
-  "rgba(239, 68, 68, 0.2)",
-  "rgba(168, 85, 247, 0.2)",
-  "#FFFFFF",
-];
+const FILL_COLORS = ["transparent", "#18181B", "#94A3B8", "#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#A855F7", "#EC4899", "#FFFFFF"];
 
 export function PropertiesPanel({
   selectedElement,
+  background = DEFAULT_BACKGROUND,
+  onBackgroundChange,
   selectedTool = "select",
   topOffset = 56,
   isTextEditing = false,
@@ -93,11 +91,11 @@ export function PropertiesPanel({
   onBringToFront,
   onSendToBack,
 }: PropertiesPanelProps) {
-  const [isCollapsed, setIsCollapsed] = useState(!isTextEditing && selectedTool !== "arrow");
+  const [isCollapsed, setIsCollapsed] = useState(!isTextEditing && !["arrow", "fill", "eyedropper"].includes(selectedTool));
   const [lastSelectedTool, setLastSelectedTool] = useState(selectedTool);
   if (selectedTool !== lastSelectedTool) {
     setLastSelectedTool(selectedTool);
-    if (selectedTool === "arrow") setIsCollapsed(false);
+    if (["arrow", "fill", "eyedropper"].includes(selectedTool)) setIsCollapsed(false);
   }
   const [lastTextEditing, setLastTextEditing] = useState(isTextEditing);
   if (isTextEditing !== lastTextEditing) {
@@ -116,10 +114,14 @@ export function PropertiesPanel({
 
   const isArrow = selectedElement?.type === "arrow" || (!selectedElement && selectedTool === "arrow");
   const isIcon = selectedElement?.type === "icon";
+  const isImage = selectedElement?.type === "image";
   const arrowEl = selectedElement?.type === "arrow" ? selectedElement : null;
 
   const activeStroke = selectedElement?.type === "icon" ? selectedElement.iconColor || "#E2E8F0" : selectedElement ? selectedElement.stroke : currentStyle.stroke;
   const activeFill = selectedElement ? selectedElement.fill : currentStyle.fill;
+  const activeFillStyle = selectedElement?.fillStyle ?? currentStyle.fillStyle;
+  const parsedFill = parseFillColor(activeFill);
+  const activeFillOpacity = (selectedElement ? selectedElement.fillOpacity ?? 1 : currentStyle.fillOpacity ?? 1) * parsedFill.opacity * (activeFillStyle === "semi" ? 0.35 : 1);
   const activeStrokeWidth = selectedElement ? selectedElement.strokeWidth : currentStyle.strokeWidth;
   const activeStrokeStyle = selectedElement ? selectedElement.strokeStyle : currentStyle.strokeStyle;
   const activeRoundness = selectedElement ? selectedElement.roundness : currentStyle.roundness;
@@ -141,11 +143,19 @@ export function PropertiesPanel({
   };
 
   const handleFillColor = (f: string) => {
-    const fs: FillStyle = f === "transparent" ? "none" : "solid";
+    const fs: FillStyle = f === "transparent" ? "none" : activeFillStyle === "none" || activeFillStyle === "semi" ? "solid" : activeFillStyle;
+    const fillOpacity = activeFillStyle === "none" || activeFill === "transparent" ? 1 : activeFillOpacity;
     if (selectedElement) {
-      onUpdateElement(selectedElement.type === "sticky" ? { fill: f, color: f, fillStyle: fs, stroke: ["#18181B", "#27272A", "transparent"].includes(f) ? "#f4f4f5" : "#1e293b" } : { fill: f, fillStyle: fs });
+      onUpdateElement(selectedElement.type === "sticky" ? { fill: f, color: f, fillStyle: fs, fillOpacity, stroke: ["#18181B", "#27272A", "transparent"].includes(f) ? "#f4f4f5" : "#1e293b" } : { fill: f, fillStyle: fs, fillOpacity });
     }
-    onUpdateStyle({ fill: f, fillStyle: fs });
+    onUpdateStyle({ fill: f, fillStyle: fs, fillOpacity });
+  };
+
+  const updateFill = (props: Partial<CanvasElement> & Partial<ElementStyleProps>) => {
+    const color = activeFill === "transparent" ? parseFillColor(activeStroke).color : parsedFill.color;
+    const next = { fill: color, fillOpacity: activeFillStyle === "none" ? 1 : activeFillOpacity, fillStyle: activeFillStyle === "none" || activeFillStyle === "semi" ? "solid" as const : activeFillStyle, ...props };
+    if (selectedElement) onUpdateElement(selectedElement.type === "sticky" ? { ...next, color } : next);
+    onUpdateStyle(next);
   };
 
   const handleStrokeWidth = (w: number) => {
@@ -502,8 +512,12 @@ export function PropertiesPanel({
         </div>
       )}
 
+      {selectedTool === "fill" && <p className="text-xs text-neutral-400">Choose a fill color, then click a shape. Lines and arrows change stroke color. Use Paint for pixel fills in images.</p>}
+      {selectedTool === "eyedropper" && <p className="text-xs text-neutral-400">Click an object to use its color for drawing and filling.</p>}
+      {!isImage && <ColorControl label="Custom stroke color" value={activeStroke} onChange={handleStrokeColor} />}
+      {isImage && <p className="text-xs text-neutral-400">Open Paint to edit image pixels, crop, rotate or flip. Use the selection handles to resize this image on the board.</p>}
       {/* Stroke Color */}
-      <div>
+      {!isImage && <div>
         <label className="text-[10px] font-medium text-neutral-400 uppercase tracking-wider block mb-1">
           {isIcon ? "Icon color" : isTextual ? "Text color" : "Stroke color"}
         </label>
@@ -522,14 +536,16 @@ export function PropertiesPanel({
             />
           ))}
         </div>
-      </div>
+      </div>}
 
       {/* Fill Color (hidden for arrows) */}
-      {!isArrow && !isIcon && (!isTextual || selectedElement?.type === "sticky" || (selectedElement?.type === "text" && selectedElement.isDocCard)) && (
+      {!isArrow && !isIcon && !isImage && (!isTextual || selectedElement?.type === "sticky" || (selectedElement?.type === "text" && selectedElement.isDocCard)) && (
         <div>
           <label className="text-[10px] font-medium text-neutral-400 uppercase tracking-wider block mb-1">
             Background Fill
           </label>
+          <ColorControl label="Custom fill color" value={activeFill === "transparent" ? "transparent" : parsedFill.color} onChange={handleFillColor} />
+          <FillControls style={activeFillStyle} opacity={activeFill === "transparent" || activeFillStyle === "none" ? 0 : activeFillOpacity} onStyle={fillStyle => updateFill({ fillStyle })} onOpacity={fillOpacity => updateFill({ fillOpacity })} />
           <div className="flex flex-wrap gap-1.5">
             {(selectedElement?.type === "sticky" ? ["#FEF08A", "#FDBA74", "#F9A8D4", "#C4B5FD", "#93C5FD", "#86EFAC", "#FFFFFF"] : FILL_COLORS).map((color, i) => (
               <button
@@ -552,7 +568,7 @@ export function PropertiesPanel({
         </div>
       )}
 
-      {!isIcon && !isTextual && <details className="border-t border-neutral-800 pt-2 text-xs"><summary className="cursor-pointer py-1 text-neutral-400">Line & corners</summary><div className="mt-3 space-y-3">
+      {!isIcon && !isImage && !isTextual && <details className="border-t border-neutral-800 pt-2 text-xs"><summary className="cursor-pointer py-1 text-neutral-400">Line & corners</summary><div className="mt-3 space-y-3">
       {/* Stroke Style: Clean (Eraser) vs Sketchy (Excalidraw) vs Dashed */}
       <div>
         <label className="text-[10px] font-medium text-neutral-400 uppercase tracking-wider block mb-1">
@@ -811,6 +827,7 @@ export function PropertiesPanel({
         </div>
       )}
 
+      {onBackgroundChange && <details className="border-t border-neutral-800 pt-2"><summary className="cursor-pointer py-1 text-xs text-neutral-400">Canvas background</summary><div className="mt-2 space-y-2"><ColorControl label="Canvas background color" value={background.fill} onChange={fill => onBackgroundChange({ ...background, fill })} /><FillControls prefix="Canvas background" style={background.fillStyle} opacity={background.fillOpacity} onStyle={fillStyle => onBackgroundChange({ ...background, fillStyle })} onOpacity={fillOpacity => onBackgroundChange({ ...background, fillOpacity })} /></div></details>}
       {/* Opacity */}
       <div>
         <div className="flex justify-between items-center text-[10px] text-neutral-400 mb-0.5">

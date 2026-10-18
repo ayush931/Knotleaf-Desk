@@ -21,6 +21,7 @@ let a, b, call, restored;
 try {
   await until(async () => { try { return (await fetch(`http://127.0.0.1:${port}/api/collaboration-health`)).ok; } catch { return false; } });
   const config = await (await fetch(`http://127.0.0.1:${port}/api/collaboration-health`)).json();
+  if (!config.features?.includes('paint-images') || !config.features?.includes('background-fills')) throw new Error('Paint image and background support missing from room server');
   if (config.websocketUrl !== '/collaboration' || config.storage !== 'local') throw new Error('Local room configuration points at the hosted service');
   const home = await fetch(`http://127.0.0.1:${port}/`); if (!home.ok) throw new Error('Home page did not load');
   const manifestResponse=await fetch(`http://127.0.0.1:${port}/manifest.webmanifest`);
@@ -28,10 +29,11 @@ try {
   const manifest=await manifestResponse.json();
   if(manifest.display!=='standalone'||manifest.scope!=='/'||manifest.icons.length<2)throw new Error('Invalid installable web app manifest');
   for(const icon of manifest.icons){const response=await fetch(`http://127.0.0.1:${port}${icon.src}`);if(!response.ok||!response.headers.get('content-type')?.includes('image/png'))throw new Error('Web app install icon did not load');}
-  const created = await fetch(`http://127.0.0.1:${port}/api/rooms`, {method:'POST',headers:{Origin:`http://127.0.0.1:${port}`,'Content-Type':'application/json'},body:JSON.stringify({title:'Smoke class',elements:[],markdownNotes:''})});
+  const created = await fetch(`http://127.0.0.1:${port}/api/rooms`, {method:'POST',headers:{Origin:`http://127.0.0.1:${port}`,'Content-Type':'application/json'},body:JSON.stringify({title:'Smoke class',elements:[{id:'smoke-image',type:'image',source:'data:image/png;base64,cGFpbnQ=',imageName:'Paint',x:0,y:0,width:20,height:20,stroke:'transparent',strokeWidth:0,strokeStyle:'solid',fill:'transparent',fillStyle:'none',roundness:'sharp',opacity:1,zIndex:0}],markdownNotes:'',background:{fill:'#ec4899',fillStyle:'crosshatch',fillOpacity:0.4}})});
   if(created.status!==201) throw new Error('Room creation did not save on the hub: '+await created.text());
   const {id:room}=await created.json();
   const saved = JSON.parse(await readFile(path.join(directory, `${room}.json`), 'utf8'));
+  if (saved.snapshot.background?.fillOpacity !== 0.4 || saved.snapshot.elements[0]?.type !== 'image') throw new Error('Paint image/background did not persist at creation');
   if (saved.shareUrl !== `http://127.0.0.1:${port}/canvas/${room}`) throw new Error('Local room invite points at production');
   const route = await fetch(`http://127.0.0.1:${port}/canvas/${room}`); if (!route.ok) throw new Error('Shared room route did not load');
   const first = new Y.Doc(), second = new Y.Doc();
@@ -50,6 +52,7 @@ try {
   restored = new Y.Doc();
   a = new WebsocketProvider(`ws://127.0.0.1:${port}/collaboration`, room, restored, { WebSocketPolyfill: TestSocket, disableBc: true });
   await until(() => a.synced);
+  if (JSON.parse(restored.getMap('meta').get('background')).fillStyle !== 'crosshatch' || restored.getMap('elements').get('smoke-image')?.type !== 'image') throw new Error('Paint image/background lost after restart');
   if (restored.getText('notes').toString() !== 'Same-origin sharing works') throw new Error('Local room content was lost after restarting');
   console.log('PASS: local mode overrides hosted settings, home, manifest/icons, durable room creation, two-client sync, classroom signaling and room persistence across server restart');
 } catch (error) { console.error(error); process.exitCode = 1; }

@@ -1,5 +1,8 @@
-import type { Board, CanvasElement } from "./types";
+import type { Board, CanvasElement, BackgroundSettings } from "./types";
+import { normalizeBackground } from "@/lib/background.mjs";
+import { drawBackgroundFill } from "./backgroundFill";
 import { drawElement, getElementBounds, unionBounds, loadCanvasFonts } from "./renderer";
+import { isEmbeddedImage } from "./imageResource";
 import { getIconById } from "./iconsData";
 import { normalizeIconSvg } from "./iconSvg";
 
@@ -7,7 +10,7 @@ const esc = (value: unknown) => String(value).replace(/[&<>"']/g, c => ({ "&": "
 interface Paint {
   fillStyle: string; strokeStyle: string; lineWidth: number; globalAlpha: number;
   lineCap: string; lineJoin: string; lineDashOffset: number;
-  font: string; textAlign: string; textBaseline: string; dash: number[]; transform: DOMMatrix;
+  clip?: string; font: string; textAlign: string; textBaseline: string; dash: number[]; transform: DOMMatrix;
 }
 /** Records the same drawing operations as the canvas renderer into portable SVG vectors. */
 class SvgContext {
@@ -64,7 +67,8 @@ class SvgContext {
       this.cursor = q;
     }
   }
-  private attributes() { const m = this.paint.transform; return `opacity="${this.paint.globalAlpha}" transform="matrix(${m.a} ${m.b} ${m.c} ${m.d} ${m.e} ${m.f})"`; }
+  clip() { const id = `paint-clip-${this.output.length}`; this.output.push(`<defs><clipPath id="${id}"><path d="${this.path}"/></clipPath></defs>`); this.paint.clip = id; }
+  private attributes() { const m = this.paint.transform; return `${this.paint.clip ? `clip-path="url(#${this.paint.clip})" ` : ""}opacity="${this.paint.globalAlpha}" transform="matrix(${m.a} ${m.b} ${m.c} ${m.d} ${m.e} ${m.f})"`; }
   fill() { this.output.push(`<path d="${this.path}" fill="${esc(this.paint.fillStyle)}" ${this.attributes()}/>`); }
   stroke() { const p = this.paint; this.output.push(`<path d="${this.path}" fill="none" stroke="${esc(p.strokeStyle)}" stroke-width="${p.lineWidth}" stroke-linecap="${p.lineCap}" stroke-linejoin="${p.lineJoin}" stroke-dasharray="${p.dash.join(" ")}" stroke-dashoffset="${p.lineDashOffset}" ${this.attributes()}/>`); }
   fillRect(x: number, y: number, w: number, h: number) { this.output.push(`<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${esc(this.paint.fillStyle)}" ${this.attributes()}/>`); }
@@ -82,7 +86,7 @@ function safeIcon(markup: string, namespace: string) {
   try { return normalizeIconSvg(markup, undefined, namespace).svgMarkup; } catch { return ""; }
 }
 
-export function boardToSvg(elements: CanvasElement[], transparent = false, scene: CanvasElement[] = elements): string | null {
+export function boardToSvg(elements: CanvasElement[], transparent = false, scene: CanvasElement[] = elements, background?: BackgroundSettings): string | null {
   const bounds = unionBounds(elements.map(el => getElementBounds(el, scene)));
   if (!bounds) return null;
   const width = Math.ceil(bounds.maxX - bounds.minX + 80), height = Math.ceil(bounds.maxY - bounds.minY + 80);
@@ -91,7 +95,12 @@ export function boardToSvg(elements: CanvasElement[], transparent = false, scene
     get(target, key) { if (key in target.state) return target.state[key as keyof Paint]; const value = Reflect.get(target, key); return typeof value === "function" ? value.bind(target) : value; },
     set(target, key, value) { if (key in target.state) Reflect.set(target.state, key, value); return true; },
   }) as unknown as CanvasRenderingContext2D;
+  if (!transparent) drawBackgroundFill(ctx, normalizeBackground(background), () => ctx.rect(bounds.minX - 40, bounds.minY - 40, width, height), { x: bounds.minX - 40, y: bounds.minY - 40, width, height });
   for (const el of elements) {
+    if (el.type === "image") {
+      if (isEmbeddedImage(el.source)) recorder.output.push(`<image x="${el.x}" y="${el.y}" width="${el.width}" height="${el.height}" href="${esc(el.source)}" opacity="${el.opacity}" preserveAspectRatio="none"/>`);
+      continue;
+    }
     // Embed icon glyphs as self-contained SVG; icons have no card or caption.
     drawElement(ctx, el.type === "icon" ? { ...el, svgMarkup: "" } : el, { theme: "dark", scene });
     if (el.type === "icon") {
@@ -102,11 +111,11 @@ export function boardToSvg(elements: CanvasElement[], transparent = false, scene
       }
     }
   }
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="${bounds.minX - 40} ${bounds.minY - 40} ${width} ${height}">${transparent ? "" : `<rect x="${bounds.minX - 40}" y="${bounds.minY - 40}" width="${width}" height="${height}" fill="#121212"/>`}${recorder.output.join("\n")}</svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="${bounds.minX - 40} ${bounds.minY - 40} ${width} ${height}">${recorder.output.join("\n")}</svg>`;
 }
 export async function exportToSvg(board: Board, elements = board.elements, transparent = false) {
   await loadCanvasFonts();
-  const svg = boardToSvg(elements, transparent, board.elements);
+  const svg = boardToSvg(elements, transparent, board.elements, board.background);
   if (!svg) throw new Error("Add something to the canvas before exporting SVG.");
   const url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml" }));
   const link = document.createElement("a"); link.href = url; link.download = `${board.title.replace(/[^a-z0-9_-]/gi, "-") || "board"}.svg`; link.click();

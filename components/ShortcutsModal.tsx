@@ -28,6 +28,8 @@ const GROUPS: { title: string; items: [string, string][] }[] = [
       ["S", "Sticky note"],
       ["F", "Frame"],
       ["E", "Eraser"],
+      ["B", "Fill shape color"],
+      ["K", "Pick object color"],
       ["I", "Insert icon"],
       ["Esc", "Back to select"],
     ],
