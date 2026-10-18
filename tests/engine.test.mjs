@@ -43,6 +43,23 @@ test('straight arrows draw directly and preserve properties through routing chan
   }
   engine.destroy();
 });
+test('Pencil stays active between strokes, cancellation and quick repeated clicks', () => {
+  const { engine, drag, listeners, point } = setup([]);
+  engine.setTool('pencil');
+  drag(100, 100, 140, 130);
+  expect(engine.getTool()).toBe('pencil'); expect(engine.getSelectedElements()).toEqual([]);
+  drag(180, 100, 220, 150);
+  expect(engine.getElements().map(el => el.type)).toEqual(['pencil', 'pencil']);
+  expect(engine.getTool()).toBe('pencil');
+  listeners.dblclick(point(220, 150)); expect(engine.getTool()).toBe('pencil');
+  listeners.pointerdown(point(250, 100)); listeners.pointermove(point(280, 130)); listeners.pointercancel(point(280, 130));
+  expect(engine.getTool()).toBe('pencil'); expect(engine.getElements()).toHaveLength(2);
+  engine.undo(); expect(engine.getElements()).toHaveLength(1);
+  engine.redo(); expect(engine.getElements()).toHaveLength(2);
+  drag(300, 100, 340, 140); expect(engine.getElements()).toHaveLength(3);
+  engine.setTool('select'); expect(engine.getTool()).toBe('select');
+  engine.destroy();
+});
 describe('manual arrow bending', () => {
   const straight = { ...arrow, startX: 100, startY: 200, endX: 500, endY: 200, x: 100, y: 200, width: 400, height: 0, routing: 'straight', startBinding: undefined, endBinding: undefined, label: 'Flow', arrowHeadEnd: 'diamond', animated: true };
   test('dragging the center bends either way, follows the pointer and supports undo/redo', () => {

@@ -1552,7 +1552,7 @@ export class CanvasEngine {
   };
 
   private onDoubleClick = (e: MouseEvent) => {
-    if (this.readOnly || this.tool === "hand" || this.spaceDown || e.button === 2) return;
+    if (this.readOnly || this.tool === "hand" || this.tool === "pencil" || this.spaceDown || e.button === 2) return;
     e.preventDefault();
     this.cancelGesture();
     const sp = this.screenPoint(e), pt = this.screenToCanvas(sp.x, sp.y);
@@ -1718,9 +1718,13 @@ export class CanvasEngine {
 
     if (keep) {
       this.elements = [...this.elements, finalEl];
-      this.selectedIds = new Set([finalEl.id]);
-      this.tool = "select";
-      this.emitTool();
+      if (d.type === "pencil") {
+        this.selectedIds.clear();
+      } else {
+        this.selectedIds = new Set([finalEl.id]);
+        this.tool = "select";
+        this.emitTool();
+      }
     }
     this.commit();
   }
