@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { useAppearanceHidden, setAppearanceHidden } from "@/lib/appearancePreference";
 import { parseFillColor } from "@/lib/fillColor";
 import { FillControls } from "./FillControls";
 import { DEFAULT_BACKGROUND } from "@/lib/background.mjs";
@@ -91,25 +92,26 @@ export function PropertiesPanel({
   onBringToFront,
   onSendToBack,
 }: PropertiesPanelProps) {
+  const userHidden = useAppearanceHidden();
   const [isCollapsed, setIsCollapsed] = useState(!isTextEditing && !["arrow", "fill", "eyedropper"].includes(selectedTool));
   const [lastSelectedTool, setLastSelectedTool] = useState(selectedTool);
   if (selectedTool !== lastSelectedTool) {
     setLastSelectedTool(selectedTool);
-    if (["arrow", "fill", "eyedropper"].includes(selectedTool)) setIsCollapsed(false);
+    if (!userHidden && ["arrow", "fill", "eyedropper"].includes(selectedTool)) setIsCollapsed(false);
   }
   const [lastTextEditing, setLastTextEditing] = useState(isTextEditing);
   if (isTextEditing !== lastTextEditing) {
     setLastTextEditing(isTextEditing);
-    if (isTextEditing) setIsCollapsed(false);
+    if (isTextEditing && !userHidden) setIsCollapsed(false);
   }
 
 
-  // Re-open the panel when a new element is selected (adjusted during render, not in an effect).
+  // New selections can reveal the panel unless the user explicitly hid it.
   const selectedId = selectedElement?.id ?? null;
   const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
   if (selectedId !== lastSelectedId) {
     setLastSelectedId(selectedId);
-    if (selectedId) setIsCollapsed(false);
+    if (selectedId && !userHidden) setIsCollapsed(false);
   }
 
   const isArrow = selectedElement?.type === "arrow" || (!selectedElement && selectedTool === "arrow");
@@ -277,10 +279,10 @@ export function PropertiesPanel({
     onUpdateElement({ text: updated.join("\n") });
   };
 
-  if (isCollapsed) {
+  if (userHidden || isCollapsed) {
     return (
       <button
-        onClick={() => setIsCollapsed(false)}
+        onClick={() => { setAppearanceHidden(false); setIsCollapsed(false); }}
         style={{ top: topOffset }}
         title="Open appearance settings" aria-label="Open appearance settings"
         className="absolute left-2 z-30 p-2 rounded-xl border border-neutral-800 bg-[#18181b]/95 shadow-xl text-neutral-300 hover:text-white backdrop-blur-md transition-all cursor-pointer"
@@ -322,7 +324,7 @@ export function PropertiesPanel({
             </>
           )}
           <button
-            onClick={() => setIsCollapsed(true)}
+            onClick={() => { setAppearanceHidden(true); setIsCollapsed(true); }}
             title="Collapse appearance settings" aria-label="Collapse appearance settings"
             className="p-1 rounded hover:bg-neutral-800 text-neutral-400 hover:text-white transition"
           >

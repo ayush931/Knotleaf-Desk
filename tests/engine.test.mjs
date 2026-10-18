@@ -67,7 +67,7 @@ test('straight arrows draw directly and preserve properties through routing chan
   }
   engine.destroy();
 });
-for (const tool of ['rectangle', 'diamond', 'circle', 'arrow', 'line', 'pencil', 'frame']) {
+for (const tool of ['rectangle', 'diamond', 'circle', 'arrow', 'line', 'frame']) {
   test(`${tool} returns to Select after creation and can be deselected normally`, () => {
     const { engine, drag, listeners, point } = setup([]); const tools = [];
     engine.onToolChange = tool => tools.push(tool);
@@ -834,4 +834,20 @@ test('new shapes inherit patterned fill opacity while stroke opacity remains ind
   expect(engine.getSelectedElements()[0]).toMatchObject({ fill: '#3b82f6', fillStyle: 'dots', fillOpacity: 0.2, opacity: 0.9 });
   engine.updateSelectedElement({ fillOpacity: 0 }); expect(engine.getElements()[0].opacity).toBe(0.9);
   engine.undo(); expect(engine.getElements()[0].fillOpacity).toBe(0.2); engine.destroy();
+});
+
+
+test('Pencil stays active between strokes, pointer departure, cancellation and undo without blue outlines', () => {
+  const { engine, drag, listeners, point } = setup([]); const outlines = [];
+  engine.ctx.strokeRect = (...rect) => outlines.push({ rect, color: engine.ctx.strokeStyle });
+  engine.setTool('pencil'); drag(100, 100, 180, 160); listeners.pointermove(point(900, 650)); engine.draw();
+  expect(engine.getTool()).toBe('pencil'); expect(engine.getSelectedElements()).toEqual([]);
+  expect(outlines.some(outline => outline.color === '#3B82F6')).toBe(false);
+  drag(300, 100, 380, 160); expect(engine.getElements()).toHaveLength(2); expect(engine.getTool()).toBe('pencil');
+  listeners.pointerdown(point(500, 100)); listeners.pointermove(point(580, 160)); listeners.pointercancel(point(580, 160));
+  expect(engine.getElements()).toHaveLength(2); expect(engine.getTool()).toBe('pencil');
+  engine.undo(); expect(engine.getElements()).toHaveLength(1); engine.redo(); expect(engine.getElements()).toHaveLength(2);
+  expect(engine.getSelectedElements()).toEqual([]); expect(engine.getTool()).toBe('pencil');
+  listeners.dblclick(point(140, 130)); expect(engine.getTool()).toBe('select'); expect(engine.getSelectedElements()[0].type).toBe('pencil');
+  engine.destroy();
 });

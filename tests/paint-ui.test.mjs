@@ -1,6 +1,7 @@
 import { test, expect, beforeAll, afterAll, beforeEach, afterEach } from 'bun:test';
 import React, { act } from 'react';
 import { Window } from 'happy-dom';
+import { setAppearanceHidden } from '../lib/appearancePreference.ts';
 import { PaintStudio } from '../components/PaintStudio.tsx';
 import { PropertiesPanel } from '../components/PropertiesPanel.tsx';
 import { DEFAULT_STYLE } from '../draw/types.ts';
@@ -103,4 +104,37 @@ test('raising an old translucent background to 100% normalizes its color without
   const setter = Object.getOwnPropertyDescriptor(browser.HTMLInputElement.prototype, 'value').set;
   await act(async () => { setter.call(slider, '1'); slider.dispatchEvent(new browser.Event('input', { bubbles: true })); slider.dispatchEvent(new browser.Event('change', { bubbles: true })); });
   expect(changed).toMatchObject({ fill: '#3b82f6', fillStyle: 'solid', fillOpacity: 1 }); expect(changed.opacity).toBeUndefined();
+});
+
+
+const inspectorProps = { selectedTool: 'select', currentStyle: DEFAULT_STYLE, selectionCount: 1, onUpdateElement() {}, onUpdateStyle() {}, onSwapArrow() {}, onChangeFontSize() {}, onDuplicate() {}, onDelete() {}, onBringToFront() {}, onSendToBack() {}, theme: 'dark' };
+const inspectorShape = { ...DEFAULT_STYLE, id: 'one', type: 'rectangle', x: 10, y: 20, width: 100, height: 80 };
+test('explicitly hidden Appearance stays hidden for new shapes, tools, text editors and remounts', async () => {
+  const show = props => root.render(React.createElement(PropertiesPanel, { ...inspectorProps, selectedElement: inspectorShape, ...props }));
+  try {
+    await act(async () => { setAppearanceHidden(false); show({}); });
+    expect(document.querySelector('[aria-label="Appearance settings"]')).toBeTruthy();
+    await act(async () => document.querySelector('[aria-label="Collapse appearance settings"]').click());
+    expect(document.querySelector('[aria-label="Appearance settings"]')).toBeNull();
+    for (const props of [{ selectedElement: { ...inspectorShape, id: 'two' } }, { selectedElement: null, selectedTool: 'arrow' }, { selectedTool: 'fill', selectedElement: null }, { selectedTool: 'text', isTextEditing: true, selectedElement: null }]) {
+      await act(async () => show(props)); expect(document.querySelector('[aria-label="Appearance settings"]')).toBeNull(); expect(document.querySelector('[aria-label="Open appearance settings"]')).toBeTruthy();
+    }
+    await act(async () => root.render(null)); await act(async () => show({ selectedTool: 'arrow' }));
+    expect(document.querySelector('[aria-label="Appearance settings"]')).toBeNull();
+    expect(window.localStorage.getItem('knotleaf.appearance.hidden')).toBe('true');
+    await act(async () => document.querySelector('[aria-label="Open appearance settings"]').click());
+    expect(document.querySelector('[aria-label="Appearance settings"]')).toBeTruthy();
+    await act(async () => show({ selectedElement: { ...inspectorShape, id: 'three' } })); expect(document.querySelector('[aria-label="Appearance settings"]')).toBeTruthy();
+  } finally { await act(async () => setAppearanceHidden(false)); }
+});
+test('hidden Appearance works when browser storage cannot save preferences', async () => {
+  const original = window.localStorage.setItem;
+  try {
+    window.localStorage.setItem = () => { throw new Error('Storage blocked'); };
+    await act(async () => root.render(React.createElement(PropertiesPanel, { ...inspectorProps, selectedElement: inspectorShape })));
+    await act(async () => document.querySelector('[aria-label="Collapse appearance settings"]').click());
+    await act(async () => root.render(React.createElement(PropertiesPanel, { ...inspectorProps, selectedTool: 'arrow', selectedElement: { ...inspectorShape, id: 'next' } })));
+    expect(document.querySelector('[aria-label="Appearance settings"]')).toBeNull();
+    await act(async () => document.querySelector('[aria-label="Open appearance settings"]').click()); expect(document.querySelector('[aria-label="Appearance settings"]')).toBeTruthy();
+  } finally { window.localStorage.setItem = original; await act(async () => setAppearanceHidden(false)); }
 });
