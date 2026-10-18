@@ -1,8 +1,9 @@
 import { beforeAll, afterAll, describe, test, expect } from 'bun:test';
 import { CanvasEngine } from '../draw/CanvasEngine.ts';
+import { boardToDrawio } from '../draw/drawioExport.ts';
 import { FONT_OPTIONS, fontCssStack } from '../draw/fonts.ts';
 import { setFont } from '../draw/renderer.ts';
-import { computeArrowPath, drawElement, layoutDocument, drawSelection, drawElementAnchors, getElementAnchors, getElementBounds } from '../draw/renderer.ts';
+import { computeArrowPath, computeLinePath, drawElement, layoutDocument, drawSelection, drawElementAnchors, getElementAnchors, getElementBounds } from '../draw/renderer.ts';
 const savedGlobals = new Map();
 beforeAll(() => {
   for (const [key, value] of Object.entries({
@@ -74,7 +75,7 @@ test('Pencil stays active between strokes, cancellation and quick repeated click
   drag(180, 100, 220, 150);
   expect(engine.getElements().map(el => el.type)).toEqual(['pencil', 'pencil']);
   expect(engine.getTool()).toBe('pencil');
-  listeners.dblclick(point(220, 150)); expect(engine.getTool()).toBe('pencil');
+  listeners.dblclick(point(500, 500)); expect(engine.getTool()).toBe('pencil');
   listeners.pointerdown(point(250, 100)); listeners.pointermove(point(280, 130)); listeners.pointercancel(point(280, 130));
   expect(engine.getTool()).toBe('pencil'); expect(engine.getElements()).toHaveLength(2);
   engine.undo(); expect(engine.getElements()).toHaveLength(1);
@@ -88,7 +89,7 @@ for (const tool of ['rectangle', 'diamond', 'circle', 'arrow', 'line', 'pencil',
     const { engine, drag, listeners, point } = setup([]);
     engine.setTool(tool); drag(100, 100, 180, 160);
     expect(engine.getTool()).toBe(tool); expect(engine.getSelectedElements()).toEqual([]);
-    listeners.dblclick(point(180, 160)); expect(engine.getTool()).toBe(tool);
+    listeners.dblclick(point(500, 500)); expect(engine.getTool()).toBe(tool);
     drag(300, 100, 380, 160);
     expect(engine.getElements().map(el => el.type)).toEqual([tool, tool]);
     listeners.pointerdown(point(500, 100)); listeners.pointermove(point(580, 160)); listeners.pointercancel(point(580, 160));
@@ -117,7 +118,7 @@ test('Code stays active after editing and creates a second independent card', ()
   engine.onEditCode = id => { edited = id; }; engine.onBeforeCreate = () => engine.finishCode();
   engine.setTool('code'); listeners.pointerdown(point(100, 100)); listeners.pointerup(point(100, 100));
   engine.updateCode(edited, 'first()', 'javascript'); engine.finishCode(); expect(engine.getTool()).toBe('code');
-  listeners.pointerdown(point(400, 100)); listeners.pointerup(point(400, 100));
+  listeners.pointerdown(point(700, 100)); listeners.pointerup(point(700, 100));
   engine.updateCode(edited, 'second()', 'javascript'); engine.finishCode();
   expect(engine.getElements().map(el => el.text)).toEqual(['first()', 'second()']); expect(engine.getTool()).toBe('code'); engine.destroy();
 });
@@ -255,7 +256,7 @@ test('a remote addition does not cancel an unfinished eraser deletion', () => {
   const added = { ...source, id: 'peer-added', x: 750 };
   let committed;
   engine.onChange = elements => { committed = elements; };
-  engine.setTool('eraser'); listeners.pointerdown(point(150, 130));
+  engine.setTool('eraser'); listeners.pointerdown(point(150, 130)); listeners.pointermove(point(155, 130));
   expect(engine.getElements().some(e => e.id === source.id)).toBe(false);
   engine.applyRemoteElements([source, target, added]);
   expect(engine.getElements().map(e => e.id).sort()).toEqual(['peer-added', 'target']);
@@ -515,7 +516,7 @@ test('cancelled draft and eraser gestures neither save ghost shapes nor discard 
   const { engine, listeners, point } = setup([source]);
   engine.setTool('rectangle'); listeners.pointerdown(point(400, 300)); listeners.pointermove(point(500, 400)); listeners.pointercancel(point(500, 400));
   expect(engine.getElements()).toEqual([source]); expect(engine.draft).toBeNull();
-  engine.setTool('eraser'); listeners.pointerdown(point(150, 130));
+  engine.setTool('eraser'); listeners.pointerdown(point(150, 130)); listeners.pointermove(point(155, 130));
   expect(engine.getElements()).toHaveLength(0); listeners.pointercancel(point(150, 130));
   expect(engine.getElements()).toEqual([source]); expect(engine.canUndo()).toBe(false); engine.destroy();
 });
@@ -560,7 +561,7 @@ test('inserted icons have compact transparent bounds and no caption editor', () 
   expect(engine.getElements()[0]).toMatchObject({ type: 'icon', width: 48, height: 48, fill: 'transparent', svgMarkup: '<path d="M0 0h24v24z"/>' });
   expect(engine.getElements()[0].label).toBeUndefined();
   let editor; engine.onStartInlineText = state => { editor = state; };
-  listeners.dblclick(point(500, 350)); expect(editor).toMatchObject({ kind: 'new-text', canvasX: 500, canvasY: 350 });
+  listeners.dblclick(point(500, 350)); expect(editor).toBeUndefined(); expect(engine.getSelectedElements()[0].type).toBe('icon');
   engine.addIconElement('arch-client'); expect(engine.getElements()[1]).toMatchObject({ width: 48, height: 48, fill: 'transparent' });
   engine.destroy();
 });
@@ -578,7 +579,7 @@ test('double-click opens writing at the exact pointer on empty canvas, including
 test('double-click writing inside a shape stays attached through moving, resizing, duplicating and undo', () => {
   const { engine, listeners, point, drag } = setup([source]);
   let editor; engine.onStartInlineText = value => { editor = value; };
-  listeners.dblclick(point(130, 120));
+  listeners.dblclick({ ...point(130, 120), altKey: true });
   expect(editor).toMatchObject({ screenX: 130, screenY: 120, canvasX: 130, canvasY: 120, containerId: 'source', containerOffset: { x: 0.25, y: 0.25 } });
   engine.commitInlineText({ ...editor, text: 'Attached' });
   drag(205, 160, 205, 160); drag(205, 160, 255, 200);
@@ -602,10 +603,10 @@ test('double-clicking existing text sets a caret at the click instead of selecti
 test('deleting or erasing a shape also removes its attached text in a single undo step', () => {
   const { engine, listeners, point, drag } = setup([source]);
   let editor; engine.onStartInlineText = value => { editor = value; };
-  listeners.dblclick(point(130, 120)); engine.commitInlineText({ ...editor, text: 'Attached' });
+  listeners.dblclick({ ...point(130, 120), altKey: true }); engine.commitInlineText({ ...editor, text: 'Attached' });
   drag(205, 160, 205, 160); engine.deleteSelected(); expect(engine.getElements()).toHaveLength(0);
   engine.undo(); expect(engine.getElements()).toHaveLength(2);
-  engine.setTool('eraser'); listeners.pointerdown(point(205, 160)); listeners.pointerup(point(205, 160));
+  engine.setTool('eraser'); listeners.pointerdown(point(205, 160)); listeners.pointermove(point(210, 160)); listeners.pointerup(point(210, 160));
   expect(engine.getElements()).toHaveLength(0); engine.undo(); expect(engine.getElements()).toHaveLength(2); engine.destroy();
 });
 
@@ -630,7 +631,7 @@ test('Alt dragging bypasses magnetic alignment while keeping live gap measuremen
 
 test('shape selection exports include attached text, and dragging text away detaches it', () => {
   const { engine, listeners, point, drag } = setup([source]); let editor; engine.onStartInlineText = value => { editor = value; };
-  listeners.dblclick(point(130, 120)); engine.commitInlineText({ ...editor, text: 'Attached' });
+  listeners.dblclick({ ...point(130, 120), altKey: true }); engine.commitInlineText({ ...editor, text: 'Attached' });
   drag(205, 160, 205, 160); expect(engine.getSelectedElements()).toHaveLength(1); expect(engine.getSelectionForExport()).toHaveLength(2);
   engine.copySelection(); expect(engine.clipboard).toHaveLength(2);
   drag(140, 125, 140, 125);
@@ -649,7 +650,7 @@ test('sticky note caret placement accounts for visual wrapping', () => {
 test('double-clicking a legacy shape label opens at the pointer and migrates without losing text', () => {
   const labelled = { ...source, label: 'Existing label' };
   const { engine, listeners, point } = setup([labelled]); let editor; engine.onStartInlineText = value => { editor = value; };
-  listeners.dblclick(point(140, 130));
+  listeners.dblclick({ ...point(140, 130), altKey: true });
   expect(editor).toMatchObject({ kind: 'new-text', text: 'Existing label', canvasX: 140, canvasY: 130, screenX: 140, screenY: 130, replaceLabelId: source.id });
   engine.commitInlineText(editor);
   expect(engine.getElements().find(el => el.id === source.id).label).toBeUndefined();
@@ -694,3 +695,92 @@ test('document title cannot overlap the first line and list text resets inherite
  const doc={...base,id:'doc',type:'text',isDocCard:true,title:'Document Note',fill:'#18181B',x:100,y:100,width:240,height:100,fontSize:15,fontFamily:'sans',textAlign:'center',text:'Heading\n- list\n> quote'};
  drawElement(ctx,doc,{theme:'dark'});expect(calls.some(c=>c.text==='DOCUMENT NOTE')).toBe(false);expect(calls.find(c=>c.text==='list').align).toBe('left');expect(calls.find(c=>c.text==='quote').align).toBe('left');
 });
+
+
+for (const tool of ['select', 'hand', 'rectangle', 'diamond', 'circle', 'arrow', 'line', 'pencil', 'frame', 'text', 'doc', 'sticky', 'code', 'eraser']) {
+  test(`double-click selects existing content with ${tool} active`, () => {
+    const { engine, listeners, point } = setup([source]);
+    let editor; engine.onStartInlineText = state => { editor = state; };
+    engine.setTool(tool);
+    for (let i = 0; i < 2; i++) { listeners.pointerdown(point(130, 120)); listeners.pointerup(point(130, 120)); }
+    listeners.dblclick(point(130, 120));
+    expect(engine.getTool()).toBe('select');
+    expect(engine.getSelectedElements().map(el => el.id)).toEqual(['source']);
+    expect(engine.getElements()).toEqual([source]); expect(editor).toBeUndefined(); engine.destroy();
+  });
+}
+
+test('line midpoint bending follows the pointer, hits the curve, and supports undo and reset', () => {
+  const line = { ...base, id: 'line', type: 'line', x: 100, y: 100, width: 200, height: 0, startX: 100, startY: 100, endX: 300, endY: 100 };
+  const { engine, listeners, point, drag } = setup([line]);
+  listeners.dblclick(point(150, 100));
+  drag(200, 100, 200, 160);
+  let bent = engine.getElements()[0]; expect(bent.bendOffset).toBe(120);
+  expect(computeLinePath(bent).midPt).toEqual({ x: 200, y: 160 });
+  expect(getElementBounds(bent).maxY).toBeGreaterThanOrEqual(160);
+  engine.setTool('pencil'); listeners.dblclick(point(200, 160));
+  expect(engine.getSelectedElements()[0].id).toBe('line');
+  drag(200, 160, 200, 60); expect(engine.getElements()[0].bendOffset).toBe(-80);
+  engine.undo(); expect(engine.getElements()[0].bendOffset).toBe(120);
+  engine.redo(); expect(engine.getElements()[0].bendOffset).toBe(-80);
+  engine.updateSelectedElement({ bendOffset: 0 });
+  expect(computeLinePath(engine.getElements()[0]).routing).toBe('straight');
+  engine.destroy();
+});
+
+test('line bend survives moving endpoints and cancellation restores it', () => {
+  const line = { ...base, id: 'line', type: 'line', x: 100, y: 100, width: 200, height: 0, startX: 100, startY: 100, endX: 300, endY: 100, bendOffset: 100 };
+  const { engine, listeners, point, drag } = setup([line]); listeners.dblclick(point(200, 150));
+  drag(300, 100, 350, 200); expect(engine.getElements()[0]).toMatchObject({ endX: 350, endY: 200, bendOffset: 100 });
+  const mid = computeLinePath(engine.getElements()[0]).midPt;
+  listeners.pointerdown(point(mid.x, mid.y)); listeners.pointermove(point(mid.x, mid.y + 70)); listeners.pointercancel(point(mid.x, mid.y + 70));
+  expect(engine.getElements()[0].bendOffset).toBe(100); engine.destroy();
+});
+
+
+test('click-only tools still work over content after a single click', async () => {
+  for (const tool of ['doc', 'sticky', 'code', 'text', 'eraser']) {
+    const { engine, listeners, point } = setup([source]); let editor;
+    engine.onStartInlineText = state => { editor = state; };
+    engine.setTool(tool); listeners.pointerdown(point(130, 120)); listeners.pointerup(point(130, 120));
+    expect(engine.getElements()).toEqual([source]);
+    await new Promise(resolve => setTimeout(resolve, 520));
+    if (tool === 'eraser') expect(engine.getElements()).toEqual([]);
+    else if (tool === 'text') expect(editor.kind).toBe('new-text');
+    else expect(engine.getElements()).toHaveLength(2);
+    expect(engine.getTool()).toBe(tool); engine.destroy();
+  }
+});
+
+test('cancelled deferred clicks cannot create or erase content later', async () => {
+  const { engine, listeners, point } = setup([source]);
+  engine.setTool('eraser'); listeners.pointerdown(point(130, 120)); listeners.pointercancel(point(130, 120));
+  await new Promise(resolve => setTimeout(resolve, 520));
+  expect(engine.getElements()).toEqual([source]); expect(engine.canUndo()).toBe(false); engine.destroy();
+});
+
+
+test('bent lines paint and export their curve without arrowheads', () => {
+  const line = { ...base, id: 'line', type: 'line', x: 100, y: 100, width: 200, height: 0, startX: 100, startY: 100, endX: 300, endY: 100, bendOffset: -80 };
+  const curves = [];
+  const ctx = new Proxy({ quadraticCurveTo: (...args) => curves.push(args) }, { get: (obj, key) => key in obj ? obj[key] : () => {} });
+  drawElement(ctx, line, { theme: 'dark' }); expect(curves).toContainEqual([200, 20, 300, 100]);
+  const xml = boardToDrawio({ title: 'Curves', elements: [line] });
+  expect(xml).toContain('curved=1;'); expect(xml).toContain('endArrow=none;'); expect(xml).toContain('<mxPoint x="200" y="20"/>');
+});
+
+for (const [type, extra, x, y] of [
+  ['rectangle', {}, 130, 120], ['diamond', {}, 160, 140], ['circle', {}, 160, 140],
+  ['frame', { title: 'Frame' }, 100, 150], ['sticky', { text: '', color: '#fff', fontSize: 20, fontFamily: 'sans' }, 130, 120],
+  ['text', { text: 'Hello', fontSize: 20, fontFamily: 'sans', textAlign: 'left' }, 130, 120],
+  ['pencil', { points: [{ x: 100, y: 100 }, { x: 200, y: 180 }] }, 150, 140],
+  ['line', { startX: 100, startY: 100, endX: 220, endY: 180 }, 160, 140],
+  ['arrow', { startX: 100, startY: 100, endX: 220, endY: 180, routing: 'straight' }, 160, 140],
+  ['icon', { iconName: 'cloud' }, 130, 120],
+]) {
+  test(`double-click selects ${type} elements from Pencil`, () => {
+    const el = { ...source, ...extra, type };
+    const { engine, listeners, point } = setup([el]); engine.setTool('pencil'); listeners.dblclick(point(x, y));
+    expect(engine.getSelectedElements().map(el => el.id)).toEqual([source.id]); expect(engine.getTool()).toBe('select'); engine.destroy();
+  });
+}

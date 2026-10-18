@@ -20,6 +20,7 @@ import {
   Bounds,
   ACCENT,
   computeArrowPath,
+  computeLinePath,
   drawBoundsOutline,
   drawElement,
   drawElementAnchors,
@@ -238,6 +239,11 @@ export class CanvasEngine {
   private spaceDown = false;
   private shiftDown = false;
   private altDown = false;
+  // Delay click-only tools over existing content so a double-click can select
+  // without inserting a note/editor or erasing its intended target first.
+  private pendingClick: { event: PointerEvent; released: boolean; timer: ReturnType<typeof setTimeout> } | null = null;
+  private replayingClick = false;
+
   private guides: Guide[] = [];
 
   // Animation & render scheduling
@@ -296,6 +302,7 @@ export class CanvasEngine {
   // --- Configuration -----------------------------------------------------------
 
   public setTool(tool: Tool) {
+    this.clearPendingClick();
     if (this.gesture) this.cancelGesture();
     this.tool = tool;
     if (tool !== "select") {
@@ -1134,8 +1141,9 @@ export class CanvasEngine {
 
   private hitElement(el: CanvasElement, pt: Point, tol: number): boolean {
     switch (el.type) {
-      case "arrow": {
-        const info = computeArrowPath(el, this.elements);
+      case "arrow":
+      case "line": {
+        const info = el.type === "arrow" ? computeArrowPath(el, this.elements) : computeLinePath(el);
         if (el.label) {
           const lw = (el.label.length * 7 + 16) / this.zoom / 2;
           const lh = 12 / this.zoom;
@@ -1158,8 +1166,6 @@ export class CanvasEngine {
         }
         return false;
       }
-      case "line":
-        return distToSegment(pt, { x: el.startX, y: el.startY }, { x: el.endX, y: el.endY }) <= tol;
       case "pencil": {
         const pts = el.points;
         if (pts.length === 1) return Math.hypot(pt.x - pts[0].x, pt.y - pts[0].y) <= tol;
@@ -1209,16 +1215,11 @@ export class CanvasEngine {
     const tol = 9 / this.zoom;
     const near = (x: number, y: number) => Math.hypot(pt.x - x, pt.y - y) <= tol;
 
-    if (el.type === "arrow") {
+    if (el.type === "arrow" || el.type === "line") {
       if (near(el.startX, el.startY)) return "start";
       if (near(el.endX, el.endY)) return "end";
-      const mid = computeArrowPath(el, this.elements).midPt;
+      const mid = (el.type === "arrow" ? computeArrowPath(el, this.elements) : computeLinePath(el)).midPt;
       if (near(mid.x, mid.y)) return "mid";
-      return null;
-    }
-    if (el.type === "line") {
-      if (near(el.startX, el.startY)) return "start";
-      if (near(el.endX, el.endY)) return "end";
       return null;
     }
 
@@ -1253,8 +1254,44 @@ export class CanvasEngine {
     return { x: e.clientX - rect.left, y: e.clientY - rect.top };
   }
 
+  private clearPendingClick() {
+    if (this.pendingClick) clearTimeout(this.pendingClick.timer);
+    this.pendingClick = null;
+  }
+
+  private flushPendingClick() {
+    const pending = this.pendingClick;
+    if (!pending) return;
+    this.clearPendingClick();
+    this.replayingClick = true;
+    this.onPointerDown(pending.event);
+    this.replayingClick = false;
+    if (pending.released) this.onPointerUp(pending.event);
+  }
+
   private onPointerDown = (e: PointerEvent) => {
     if (e.button === 2 || e.isPrimary === false || this.gesture) return;
+    if (!this.replayingClick && !this.readOnly && e.button === 0 && !this.spaceDown) {
+      const screen = this.screenPoint(e);
+      const pt = this.screenToCanvas(screen.x, screen.y);
+      const pending = this.pendingClick;
+      if (pending) {
+        if (pending.event.pointerId !== e.pointerId) return;
+        if (Math.hypot(e.clientX - pending.event.clientX, e.clientY - pending.event.clientY) <= 6) {
+          this.clearPendingClick();
+          this.onDoubleClick(e);
+          return;
+        }
+        this.flushPendingClick();
+      }
+      if (["text", "doc", "sticky", "code", "eraser"].includes(this.tool) && this.hitTest(pt)) {
+        e.preventDefault();
+        this.activePointerId = e.pointerId;
+        this.canvas.setPointerCapture?.(e.pointerId);
+        this.pendingClick = { event: e, released: false, timer: setTimeout(() => this.flushPendingClick(), 500) };
+        return;
+      }
+    }
     this.activePointerId = e.pointerId;
     if (!this.readOnly && e.button === 0 && !this.spaceDown && !["select", "hand", "eraser"].includes(this.tool)) this.onBeforeCreate?.();
     const opensEditor = e.button === 0 && !this.spaceDown && ["text", "doc", "sticky", "code"].includes(this.tool);
@@ -1262,7 +1299,7 @@ export class CanvasEngine {
       // The editor takes focus during this event. A compatibility mousedown on
       // the canvas would blur it and immediately commit/discard an empty draft.
       e.preventDefault();
-    } else {
+    } else if (!this.replayingClick) {
       this.canvas.setPointerCapture?.(e.pointerId);
     }
     this.shiftDown = e.shiftKey;
@@ -1427,6 +1464,11 @@ export class CanvasEngine {
   };
 
   private onPointerMove = (e: PointerEvent) => {
+    if (this.pendingClick) {
+      if (e.pointerId !== this.pendingClick.event.pointerId) return;
+      if (Math.hypot(e.clientX - this.pendingClick.event.clientX, e.clientY - this.pendingClick.event.clientY) <= 4) return;
+      this.flushPendingClick();
+    }
     if (e.isPrimary === false || (this.activePointerId !== null && e.pointerId !== this.activePointerId)) return;
     this.shiftDown = e.shiftKey;
     this.altDown = !!e.altKey;
@@ -1474,6 +1516,7 @@ export class CanvasEngine {
   }
 
   private cancelGesture = () => {
+    this.clearPendingClick();
     if (this.gesture) {
       // This baseline includes remote updates received during the drag.
       this.elements = pruneBindings([...this.committedElements]);
@@ -1490,7 +1533,7 @@ export class CanvasEngine {
   };
 
   private onPointerCancel = (e: PointerEvent) => {
-    if (e.pointerId === this.activePointerId) this.cancelGesture();
+    if (e.pointerId === this.activePointerId || e.pointerId === this.pendingClick?.event.pointerId) this.cancelGesture();
   };
 
   private onLostPointerCapture = (e: PointerEvent) => {
@@ -1504,6 +1547,13 @@ export class CanvasEngine {
   };
 
   private onPointerUp = (e?: PointerEvent) => {
+    if (this.pendingClick) {
+      if (!e || e.pointerId === this.pendingClick.event.pointerId) {
+        this.pendingClick.released = true;
+        this.releasePointer();
+      }
+      return;
+    }
     if (e && this.activePointerId !== null && e.pointerId !== this.activePointerId) return;
     const g = this.gesture;
     this.gesture = null;
@@ -1544,14 +1594,24 @@ export class CanvasEngine {
   };
 
   private onDoubleClick = (e: MouseEvent) => {
-    if (this.readOnly || this.tool !== "select" || this.spaceDown || e.button === 2) return;
+    if (this.readOnly || this.spaceDown || e.button !== 0) return;
     e.preventDefault();
     this.cancelGesture();
     const sp = this.screenPoint(e), pt = this.screenToCanvas(sp.x, sp.y);
     const hit = this.hitTest(pt);
+    const wasSelect = this.tool === "select";
+    if (hit && !e.altKey) {
+      this.onBeforeCreate?.();
+      this.setTool("select");
+      this.selectedIds = new Set([hit.id]);
+      this.emitSelection();
+      this.requestRender();
+      if (!wasSelect || !["text", "sticky", "arrow", "frame"].includes(hit.type)) return;
+    } else if (!wasSelect) return;
     if (hit?.type === "arrow" && hit.label) { this.openEditorFor(hit); return; }
     if (hit?.type === "frame" && pt.y < hit.y + 8 / this.zoom) { this.openEditorFor(hit); return; }
     if (hit?.type === "text" || hit?.type === "sticky") { this.openEditorFor(hit, pt); return; }
+    if (hit && !e.altKey) return;
     this.tool = "select"; this.emitTool(); this.selectedIds.clear(); this.emitSelection();
     const frame = !hit ? [...this.elements].reverse().find(el => el.type === "frame" && pt.x >= el.x && pt.x <= el.x + el.width && pt.y >= el.y && pt.y <= el.y + el.height) : null;
     const container = hit && ["rectangle", "diamond", "circle", "frame"].includes(hit.type) ? hit : frame;
@@ -1784,8 +1844,7 @@ export class CanvasEngine {
     const id = el.id;
 
     if (g.handle === "mid") {
-      if (el.type !== "arrow") return;
-      const routing = el.routing || el.elbow || "straight";
+      const routing = el.type === "arrow" ? el.routing || el.elbow || "straight" : "straight";
       let bendOffset = el.bendOffset;
       if (routing === "curved" || routing === "straight") {
         const mx = (el.startX + el.endX) / 2;
@@ -1801,7 +1860,7 @@ export class CanvasEngine {
         bendOffset = horizontal ? pt.x - el.startX : pt.y - el.startY;
       }
       const nextRouting = routing === "straight" ? "curved" : routing;
-      this.elements = this.elements.map((e) => (e.id === id ? ({ ...e, routing: nextRouting, elbow: nextRouting, bendOffset } as CanvasElement) : e));
+      this.elements = this.elements.map((e) => (e.id === id ? (e.type === "line" ? { ...e, bendOffset } : { ...e, routing: nextRouting, elbow: nextRouting, bendOffset } as CanvasElement) : e));
       return;
     }
 
@@ -2201,6 +2260,7 @@ export class CanvasEngine {
 
   public destroy() {
     this.destroyed = true;
+    this.clearPendingClick();
     this.gesture = null;
     this.releasePointer();
     if (this.animFrameId !== null) cancelAnimationFrame(this.animFrameId);

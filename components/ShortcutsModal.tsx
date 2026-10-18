@@ -49,7 +49,10 @@ const GROUPS: { title: string; items: [string, string][] }[] = [
   {
     title: "Canvas & Document",
     items: [
-      ["Double-click", "Write here; edit existing text"],
+      ["Double-click element", "Select; edit text in Select mode"],
+      ["Double-click blank space", "Write here in Select mode"],
+      ["Alt+double-click shape", "Write inside shape in Select mode"],
+      ["Drag center diamond", "Bend selected line or arrow"],
       ["Alt+drag", "Move without alignment snapping"],
       ["Click Checkbox", "Toggle checklist directly on canvas"],
       ["Enter", "Continue list / checklist bullet"],
