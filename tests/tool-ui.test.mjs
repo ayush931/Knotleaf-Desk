@@ -64,3 +64,9 @@ test('Appearance separates shape fill opacity from whole-object and canvas opaci
   expect(html).toContain('aria-label="Background opacity"'); expect(html).toContain('aria-label="Canvas background opacity"'); expect(html).toContain('aria-label="Opacity"');
   expect(html).toContain('Custom fill color'); expect(html).toContain('Crosshatch'); expect(html).toContain('Transparent'); expect(html).toContain('Opaque');
 });
+
+
+test('legacy translucent swatches report their effective fill opacity', () => {
+  const html = renderToStaticMarkup(React.createElement(PropertiesPanel, { ...props, selectedElement: { ...DEFAULT_STYLE, type: 'rectangle', id: 'legacy-alpha', fill: 'rgba(59, 130, 246, 0.2)', fillStyle: 'solid' } }));
+  expect(html).toMatch(/aria-label="Background opacity"[^>]*value="0.2"/); expect(html).toContain('value="#3b82f6"');
+});

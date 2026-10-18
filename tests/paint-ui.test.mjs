@@ -2,6 +2,8 @@ import { test, expect, beforeAll, afterAll, beforeEach, afterEach } from 'bun:te
 import React, { act } from 'react';
 import { Window } from 'happy-dom';
 import { PaintStudio } from '../components/PaintStudio.tsx';
+import { PropertiesPanel } from '../components/PropertiesPanel.tsx';
+import { DEFAULT_STYLE } from '../draw/types.ts';
 import { FillControls } from '../components/FillControls.tsx';
 import { ColorControl } from '../components/ColorControl.tsx';
 const saved = new Map(), contexts = new WeakMap(), captures = new WeakMap(), exports = [];
@@ -91,4 +93,14 @@ test('photo insertion offers JPEG explicitly while PNG remains the transparent d
   await small(); expect(document.querySelector('[aria-label="Board image format"]').value).toBe('png');
   await input('Board format', 'jpeg', 'select'); await click('Insert onto board');
   expect(inserted[0]).toEqual(['data:image/jpeg;base64,cGFpbnQ=', 16, 12]); expect(exports.at(-1).type).toBe('image/jpeg');
+});
+
+
+test('raising an old translucent background to 100% normalizes its color without fading its outline', async () => {
+  let changed; const noop = () => {};
+  await act(async () => root.render(React.createElement(PropertiesPanel, { selectedElement: { ...DEFAULT_STYLE, type: 'rectangle', id: 'alpha', fill: 'rgba(59, 130, 246, 0.2)', fillStyle: 'solid', opacity: 0.8 }, currentStyle: DEFAULT_STYLE, selectedTool: 'select', selectionCount: 1, onUpdateElement: props => { changed = props; }, onUpdateStyle: noop, onSwapArrow: noop, onChangeFontSize: noop, onDuplicate: noop, onDelete: noop, onBringToFront: noop, onSendToBack: noop, theme: 'dark' })));
+  const slider = document.querySelector('[aria-label="Background opacity"]'); expect(slider.value).toBe('0.2');
+  const setter = Object.getOwnPropertyDescriptor(browser.HTMLInputElement.prototype, 'value').set;
+  await act(async () => { setter.call(slider, '1'); slider.dispatchEvent(new browser.Event('input', { bubbles: true })); slider.dispatchEvent(new browser.Event('change', { bubbles: true })); });
+  expect(changed).toMatchObject({ fill: '#3b82f6', fillStyle: 'solid', fillOpacity: 1 }); expect(changed.opacity).toBeUndefined();
 });

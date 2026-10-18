@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { parseFillColor } from "@/lib/fillColor";
 import { FillControls } from "./FillControls";
 import { DEFAULT_BACKGROUND } from "@/lib/background.mjs";
 import type { BackgroundSettings } from "@/draw/types";
@@ -69,18 +70,7 @@ const STROKE_COLORS = [
   "#18181B",
 ];
 
-const FILL_COLORS = [
-  "transparent",
-  "#18181B",
-  "#27272A",
-  "rgba(255, 255, 255, 0.12)",
-  "rgba(59, 130, 246, 0.2)",
-  "rgba(16, 185, 129, 0.2)",
-  "rgba(245, 158, 11, 0.2)",
-  "rgba(239, 68, 68, 0.2)",
-  "rgba(168, 85, 247, 0.2)",
-  "#FFFFFF",
-];
+const FILL_COLORS = ["transparent", "#18181B", "#94A3B8", "#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#A855F7", "#EC4899", "#FFFFFF"];
 
 export function PropertiesPanel({
   selectedElement,
@@ -130,7 +120,8 @@ export function PropertiesPanel({
   const activeStroke = selectedElement?.type === "icon" ? selectedElement.iconColor || "#E2E8F0" : selectedElement ? selectedElement.stroke : currentStyle.stroke;
   const activeFill = selectedElement ? selectedElement.fill : currentStyle.fill;
   const activeFillStyle = selectedElement?.fillStyle ?? currentStyle.fillStyle;
-  const activeFillOpacity = selectedElement?.fillOpacity ?? currentStyle.fillOpacity ?? 1;
+  const parsedFill = parseFillColor(activeFill);
+  const activeFillOpacity = (selectedElement ? selectedElement.fillOpacity ?? 1 : currentStyle.fillOpacity ?? 1) * parsedFill.opacity * (activeFillStyle === "semi" ? 0.35 : 1);
   const activeStrokeWidth = selectedElement ? selectedElement.strokeWidth : currentStyle.strokeWidth;
   const activeStrokeStyle = selectedElement ? selectedElement.strokeStyle : currentStyle.strokeStyle;
   const activeRoundness = selectedElement ? selectedElement.roundness : currentStyle.roundness;
@@ -152,16 +143,17 @@ export function PropertiesPanel({
   };
 
   const handleFillColor = (f: string) => {
-    const fs: FillStyle = f === "transparent" ? "none" : activeFillStyle === "none" ? "solid" : activeFillStyle;
+    const fs: FillStyle = f === "transparent" ? "none" : activeFillStyle === "none" || activeFillStyle === "semi" ? "solid" : activeFillStyle;
+    const fillOpacity = activeFillStyle === "none" || activeFill === "transparent" ? 1 : activeFillOpacity;
     if (selectedElement) {
-      onUpdateElement(selectedElement.type === "sticky" ? { fill: f, color: f, fillStyle: fs, stroke: ["#18181B", "#27272A", "transparent"].includes(f) ? "#f4f4f5" : "#1e293b" } : { fill: f, fillStyle: fs });
+      onUpdateElement(selectedElement.type === "sticky" ? { fill: f, color: f, fillStyle: fs, fillOpacity, stroke: ["#18181B", "#27272A", "transparent"].includes(f) ? "#f4f4f5" : "#1e293b" } : { fill: f, fillStyle: fs, fillOpacity });
     }
-    onUpdateStyle({ fill: f, fillStyle: fs });
+    onUpdateStyle({ fill: f, fillStyle: fs, fillOpacity });
   };
 
   const updateFill = (props: Partial<CanvasElement> & Partial<ElementStyleProps>) => {
-    const color = activeFill === "transparent" ? activeStroke : activeFill;
-    const next = { fill: color, fillStyle: activeFillStyle === "none" ? "solid" as const : activeFillStyle, ...props };
+    const color = activeFill === "transparent" ? parseFillColor(activeStroke).color : parsedFill.color;
+    const next = { fill: color, fillOpacity: activeFillStyle === "none" ? 1 : activeFillOpacity, fillStyle: activeFillStyle === "none" || activeFillStyle === "semi" ? "solid" as const : activeFillStyle, ...props };
     if (selectedElement) onUpdateElement(selectedElement.type === "sticky" ? { ...next, color } : next);
     onUpdateStyle(next);
   };
@@ -552,7 +544,7 @@ export function PropertiesPanel({
           <label className="text-[10px] font-medium text-neutral-400 uppercase tracking-wider block mb-1">
             Background Fill
           </label>
-          <ColorControl label="Custom fill color" value={activeFill} onChange={handleFillColor} />
+          <ColorControl label="Custom fill color" value={activeFill === "transparent" ? "transparent" : parsedFill.color} onChange={handleFillColor} />
           <FillControls style={activeFillStyle} opacity={activeFill === "transparent" || activeFillStyle === "none" ? 0 : activeFillOpacity} onStyle={fillStyle => updateFill({ fillStyle })} onOpacity={fillOpacity => updateFill({ fillOpacity })} />
           <div className="flex flex-wrap gap-1.5">
             {(selectedElement?.type === "sticky" ? ["#FEF08A", "#FDBA74", "#F9A8D4", "#C4B5FD", "#93C5FD", "#86EFAC", "#FFFFFF"] : FILL_COLORS).map((color, i) => (

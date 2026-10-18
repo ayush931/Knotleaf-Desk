@@ -1,4 +1,5 @@
 import { test, expect } from 'bun:test';
+import { parseFillColor } from '../lib/fillColor.ts';
 import { drawBackgroundFill } from '../draw/backgroundFill.ts';
 import { drawElement } from '../draw/renderer.ts';
 import { normalizeBackground, DEFAULT_BACKGROUND, isLightBackground } from '../lib/background.mjs';
@@ -37,4 +38,10 @@ test('canvas background normalization is bounded and portable files preserve bot
   for (const invalid of [null, '{bad', { ...background, fill: 'url(https://example.com)' }, { ...background, fillOpacity: 2 }]) expect(normalizeBackground(invalid)).toEqual(DEFAULT_BACKGROUND);
   const parsed = readProjectPayload(serializeProject({ title: 'Background', elements: [rect], background, markdownNotes: '' })); expect(parsed.background).toEqual(background); expect(parsed.elements[0].fillOpacity).toBe(0.25);
   expect(isLightBackground({ ...background, fill: '#ffffff', fillOpacity: 1 })).toBe(true); expect(isLightBackground(DEFAULT_BACKGROUND)).toBe(false); expect(isLightBackground({ ...background, fillOpacity: 0 })).toBe(true);
+});
+
+
+test('legacy RGBA fill colors separate intrinsic alpha so sliders can reach full opacity', () => {
+  expect(parseFillColor('rgba(59, 130, 246, 0.2)')).toEqual({ color: '#3b82f6', opacity: 0.2 });
+  expect(parseFillColor('#fff')).toEqual({ color: '#ffffff', opacity: 1 }); expect(parseFillColor('transparent').opacity).toBe(0);
 });
