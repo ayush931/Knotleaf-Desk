@@ -11,7 +11,7 @@ import { useCanvasFocus } from "@/lib/useCanvasFocus";
 import { Classroom } from "./Classroom";
 import { CollaborationPanel } from "./CollaborationPanel";
 import { CanvasEngine } from "@/draw/CanvasEngine";
-import { setFont } from "@/draw/renderer";
+import { loadCanvasFonts, setFont } from "@/draw/renderer";
 import { fontCssStack } from "@/draw/fonts";
 import { inlineEditorLayout } from "@/draw/inlineEditorLayout";
 import {
@@ -402,42 +402,34 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
     refreshBoardsList();
   };
 
-  const handleSelectTemplate = (template: TemplateDefinition, replace: boolean) => {
-    const fresh = JSON.parse(JSON.stringify(template.elements)) as CanvasElement[];
+  const commitInline = useCallback(() => {
+    const current = inlineTextStateRef.current;
+    inlineTextStateRef.current = null;
+    if (current && engineRef.current) engineRef.current.commitInlineText(current);
+    setInlineText(null);
+  }, [setInlineText]);
 
-    // If template has documentation notes, render it directly on the canvas as a sleek Doc Card
-    if (template.markdownNotes && template.markdownNotes.trim()) {
-      const docCard: CanvasElement = {
-        id: "doc-tmpl-" + Math.random().toString(36).substring(2, 9),
-        type: "text",
-        x: 40,
-        y: 80,
-        width: 380,
-        height: 480,
-        text: template.markdownNotes.trim(),
-        fontSize: 14,
-        fontFamily: "sans",
-        textAlign: "left",
-        stroke: "#FFFFFF",
-        fill: "#18181B",
-        fillStyle: "solid",
-        strokeWidth: 1,
-        strokeStyle: "solid",
-        roundness: "rounded",
-        opacity: 1,
-        zIndex: 100,
-        isDocCard: true,
-        title: `${template.name} Architecture Doc`,
-      };
-      fresh.unshift(docCard);
-    }
-
+  const handleSelectTemplate = async (template: TemplateDefinition, replace: boolean) => {
+    await loadCanvasFonts().catch(() => undefined);
+    const engine = engineRef.current;
+    if (!engine) throw new Error("The canvas is not ready. Please try again.");
+    commitInline(); engine.finishCode(); setCodeId(null);
     const current = boardRef.current;
-    const elements = replace ? fresh : [...current.elements, ...fresh];
-    const markdownNotes = replace ? template.markdownNotes : `${current.markdownNotes}\n\n${template.markdownNotes}`;
-    engineRef.current?.setElements(elements, true);
-    persist({ ...boardRef.current, elements, markdownNotes });
+    const starterNotes = template.markdownNotes.trim();
+    const markdownNotes = [current.markdownNotes?.trimEnd(), starterNotes].filter(Boolean).join("\n\n");
+    // Template notes belong in Notes, not in an overlapping canvas document card.
+    boardRef.current = { ...current, markdownNotes, viewMode: current.viewMode === "notes" ? "canvas" : current.viewMode };
+    let ids: string[];
+    try { ids = engine.insertTemplate(template.elements, replace); }
+    catch (error) { boardRef.current = current; throw error; }
     refreshBoardsList();
+    requestAnimationFrame(() => {
+      const container = containerRef.current;
+      if (!container || engineRef.current !== engine) return;
+      engine.resize(container.clientWidth, container.clientHeight);
+      const left = appearanceOpen && container.clientWidth >= 640 ? 320 : 48;
+      engine.focusElements(ids, false, { left, right: 48, top: Math.max(80, toolbarHeight + 24), bottom: 80 });
+    });
   };
 
   const handleChangeGridType = (g: GridType) => {
@@ -465,13 +457,6 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
   };
 
   // Inline text editing
-  const commitInline = useCallback(() => {
-    const current = inlineTextStateRef.current;
-    inlineTextStateRef.current = null;
-    if (current && engineRef.current) engineRef.current.commitInlineText(current);
-    setInlineText(null);
-  }, [setInlineText]);
-
   const adjustInlineFontSize = (delta: number) => {
     setInlineText((prev) => (prev ? { ...prev, fontSize: Math.max(8, Math.min(96, prev.fontSize + delta)) } : prev));
   };

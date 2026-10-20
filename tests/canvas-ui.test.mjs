@@ -8,6 +8,8 @@ import { createBoard, setActiveBoardId, getOrCreateDefaultBoard, getBoard } from
 import { PropertiesPanel } from '../components/PropertiesPanel.tsx';
 import { STROKE_SHADES, BACKGROUND_SHADES } from '../lib/colorPalettes.ts';
 import { DEFAULT_STYLE } from '../draw/types.ts';
+import { TemplatesModal } from '../components/TemplatesModal.tsx';
+import { BugReportForm } from '../components/BugReportForm.tsx';
 import { ColorControl } from '../components/ColorControl.tsx';
 const saved = new Map(), contexts = new WeakMap(), captures = new WeakMap(), exports = [];
 let browser, root, createRoot;
@@ -171,4 +173,81 @@ test('double-click inside a shape focuses attached text while border double-clic
 test('notes-only layout fills the available main area instead of collapsing on narrow screens', async () => {
   await renderBoard('notes');expect(named('Board notes').classList.contains('flex-1')).toBe(true);
   expect(named('Board notes in Markdown')).toBeTruthy();
+});
+
+
+test('template picker searches, clears, filters and recovers from insertion errors without duplicate submissions', async () => {
+  let calls = 0, closeCount = 0, release;
+  await act(async () => root.render(React.createElement(TemplatesModal, { isOpen: true, theme: 'dark', onClose: () => closeCount++, onSelectTemplate: async () => { calls++; await new Promise(resolve => { release = resolve; }); throw new Error('Test insertion failure'); } })));
+  expect(document.activeElement).toBe(named('Search templates'));
+  expect(document.querySelectorAll('article')).toHaveLength(12);
+  const setter = Object.getOwnPropertyDescriptor(browser.HTMLInputElement.prototype, 'value').set;
+  await act(async () => { setter.call(named('Search templates'), 'no matching diagram'); named('Search templates').dispatchEvent(new browser.Event('input', { bubbles: true })); });
+  expect(document.querySelectorAll('article')).toHaveLength(0); expect(document.body.textContent).toContain('No matching templates');
+  await clickNamed('Clear template search'); expect(document.querySelectorAll('article')).toHaveLength(12);
+  await act(async () => [...document.querySelectorAll('button')].find(button => button.textContent === 'Planning').click());
+  expect(document.querySelectorAll('article')).toHaveLength(5);
+  const add = document.querySelector('article button');
+  await act(async () => { add.click(); add.click(); }); expect(calls).toBe(1); expect(named('Close templates').disabled).toBe(true);
+  await act(async () => document.querySelector('dialog').dispatchEvent(new browser.Event('cancel', { cancelable: true })));
+  expect(closeCount).toBe(0);
+  await act(async () => release());
+  expect(document.querySelector('[role="alert"]').textContent).toBe('Test insertion failure'); expect(named('Close templates').disabled).toBe(false);
+  await clickNamed('Close templates'); expect(closeCount).toBe(1);
+});
+for (const mode of ['canvas', 'notes', 'split']) {
+  test(`template insertion from ${mode} view keeps notes and original artwork and does not open Appearance`, async () => {
+    const id = await renderBoard(mode);
+    await clickNamed('Browse diagram templates');
+    expect(document.querySelector('dialog[open]')).toBeTruthy();
+    expect(document.querySelector('dialog[open] input[type="checkbox"]').checked).toBe(false);
+    await clickNamed('Add template: Cloud web application');
+    expect(document.querySelector('[aria-labelledby="template-title"]')).toBeNull();
+    let board = getBoard(id), original = structuredClone(board.elements);
+    expect(board.elements.length).toBeGreaterThan(10); expect(board.markdownNotes).toContain('# Cloud web application');
+    expect(board.elements.some(el => el.type === 'text' && el.fill !== 'transparent')).toBe(false);
+    expect(board.viewMode).toBe(mode === 'notes' ? 'canvas' : mode); expect(named('Appearance settings')).toBeNull();
+    await clickNamed('Browse diagram templates'); await clickNamed('Add template: Team retrospective');
+    board = getBoard(id); expect(board.elements.slice(0, original.length)).toEqual(original);
+    expect(board.markdownNotes).toContain('# Cloud web application'); expect(board.markdownNotes).toContain('# Team retrospective');
+    expect(new Set(board.elements.map(el => el.id)).size).toBe(board.elements.length);
+    await clickNamed('Browse diagram templates');
+    await act(async () => document.querySelector('dialog[open] input[type="checkbox"]').click());
+    await clickNamed('Add template: Mind map');
+    board = getBoard(id); expect(board.elements.some(el => original.some(item => item.id === el.id))).toBe(false);
+    expect(board.markdownNotes).toContain('# Cloud web application'); expect(board.markdownNotes).toContain('# Mind map');
+  });
+}
+test('bug reporting prepares a reviewable public issue, excludes private context and supports copy fallback', async () => {
+  await act(async () => root.render(React.createElement(BugReportForm)));
+  const inputSetter = Object.getOwnPropertyDescriptor(browser.HTMLInputElement.prototype, 'value').set;
+  expect([...document.querySelectorAll('button')].find(button => button.textContent === 'Copy report').disabled).toBe(true);
+  await act(async () => { inputSetter.call(named('Bug summary'), 'Template placement'); named('Bug summary').dispatchEvent(new browser.Event('input', { bubbles: true })); });
+  await typeText(named('Steps to reproduce'), 'Open templates and add a diagram');
+  await typeText(named('Expected behavior'), 'A centered diagram'); await typeText(named('Actual behavior'), 'It is outside the viewport');
+  const link = document.querySelector('a'), url = new URL(link.href);
+  expect(url.origin).toBe('https://github.com'); expect(url.pathname).toBe('/ayush931/Knotleaf-Desk/issues/new');
+  expect(url.searchParams.get('title')).toBe('Template placement'); expect(url.searchParams.get('body')).toContain('Open templates and add a diagram');
+  expect(url.searchParams.get('body')).toContain('## Environment'); expect(link.rel).toBe('noopener noreferrer');
+  await act(async () => document.querySelector('input[type="checkbox"]').click());
+  expect(new URL(document.querySelector('a').href).searchParams.get('body')).not.toContain('## Environment');
+  const originalClipboard = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
+  Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async () => { throw new Error('Denied'); } } });
+  try {
+    await act(async () => [...document.querySelectorAll('button')].find(button => button.textContent === 'Copy report').click());
+    expect(document.querySelector('details').open).toBe(true); expect(document.activeElement).toBe(named('Bug report preview'));
+    expect(document.body.textContent).toContain('copy it manually');
+  } finally { if (originalClipboard) Object.defineProperty(navigator, 'clipboard', originalClipboard); else delete navigator.clipboard; }
+});
+test('Report bug is available within Board tools without adding canvas chrome and retains a draft', async () => {
+  await renderBoard(); await clickNamed('Board tools: find, history, templates and report a bug');
+  await act(async () => new Promise(resolve => setTimeout(resolve, 5)));
+  await act(async () => [...document.querySelectorAll('button')].find(button => button.textContent === 'Report bug').click());
+  expect(named('Bug report').closest('[hidden]')).toBeNull();
+  const setter = Object.getOwnPropertyDescriptor(browser.HTMLInputElement.prototype, 'value').set;
+  await act(async () => { setter.call(named('Bug summary'), 'My draft'); named('Bug summary').dispatchEvent(new browser.Event('input', { bubbles: true })); });
+  await clickNamed('Close board tools'); await clickNamed('Board tools: find, history, templates and report a bug');
+  await act(async () => new Promise(resolve => setTimeout(resolve, 5)));
+  await act(async () => [...document.querySelectorAll('button')].find(button => button.textContent === 'Report bug').click());
+  expect(named('Bug summary').value).toBe('My draft');
 });

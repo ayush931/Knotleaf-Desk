@@ -2,6 +2,9 @@ import { beforeAll, afterAll, describe, test, expect } from 'bun:test';
 import { CanvasEngine } from '../draw/CanvasEngine.ts';
 import { boardToDrawio } from '../draw/drawioExport.ts';
 import { FONT_OPTIONS, fontCssStack } from '../draw/fonts.ts';
+import { TEMPLATES } from '../draw/templatesData.ts';
+import { isValidElement } from '../lib/elementValidation.mjs';
+import { unionBounds } from '../draw/renderer.ts';
 import { setFont } from '../draw/renderer.ts';
 import { computeArrowPath, computeLinePath, drawElement, layoutDocument, drawSelection, drawElementAnchors, getElementAnchors, getElementBounds } from '../draw/renderer.ts';
 const savedGlobals = new Map();
@@ -914,4 +917,74 @@ test('physical Shift+1 and Shift+2 keys fit content or selection without alterin
   let prevented=0;engine.onKeyDown({key:'@',code:'Digit2',shiftKey:true,preventDefault(){prevented++;}});
   const zoom=engine.getZoom();expect(zoom).toBeGreaterThan(1);expect(engine.getSelectedElements()).toEqual(selected);expect(engine.getTool()).toBe('select');
   engine.onKeyDown({key:'!',code:'Digit1',shiftKey:true,preventDefault(){prevented++;}});expect(engine.getZoom()).toBeLessThan(zoom);expect(prevented).toBe(2);expect(engine.getElements()).toEqual(elements);engine.destroy();
+});
+
+
+for (const template of TEMPLATES) {
+  test(`template ${template.id} fits centered, with attached labels and valid connections`, () => {
+    const original = JSON.stringify(template);
+    const { engine } = setup([]);
+    engine.restoreViewport({ zoom: 3, pan: { x: -12000, y: 6400 } });
+    const ids = engine.insertTemplate(template.elements);
+    const elements = engine.getElements();
+    expect(ids).toHaveLength(template.elements.length);
+    expect(elements.every(isValidElement)).toBe(true);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(ids.some(id => template.elements.some(el => el.id === id))).toBe(false);
+    for (const element of elements) {
+      for (const binding of [element.startBinding, element.endBinding]) if (binding) expect(ids).toContain(binding.elementId);
+      if (element.type === 'text' && element.containerId) {
+        const parent = elements.find(el => el.id === element.containerId);
+        expect(parent).toBeTruthy(); expect(element.fill).toBe('transparent');
+        expect(element.x + element.width / 2).toBeCloseTo(parent.x + parent.width / 2, 5);
+        expect(element.y + element.height / 2).toBeCloseTo(parent.y + parent.height / 2, 5);
+        expect(element.width).toBeLessThanOrEqual(parent.width - 16);
+        expect(element.height).toBeLessThanOrEqual(parent.height - 16);
+      }
+    }
+    const bounds = unionBounds(elements.map(el => getElementBounds(el, elements)));
+    const { zoom, pan } = engine.getViewport();
+    expect((bounds.minX + bounds.maxX) / 2 * zoom + pan.x).toBeCloseTo(500, 5);
+    expect((bounds.minY + bounds.maxY) / 2 * zoom + pan.y).toBeCloseTo(350, 5);
+    expect(bounds.minX * zoom + pan.x).toBeGreaterThanOrEqual(47.99);
+    expect(bounds.maxX * zoom + pan.x).toBeLessThanOrEqual(952.01);
+    expect(bounds.minY * zoom + pan.y).toBeGreaterThanOrEqual(79.99);
+    expect(bounds.maxY * zoom + pan.y).toBeLessThanOrEqual(620.01);
+    expect(JSON.stringify(template)).toBe(original);
+    engine.undo(); expect(engine.getElements()).toHaveLength(0);
+    engine.redo(); expect(engine.getElements()).toEqual(elements); engine.destroy();
+  });
+}
+test('repeated template insertion preserves existing artwork, creates isolated bindings, and replaces in one undo step', () => {
+  const { engine } = setup([source]);
+  const template = TEMPLATES[0];
+  const first = engine.insertTemplate(template.elements);
+  const before = structuredClone(engine.getElements());
+  const second = engine.insertTemplate(template.elements);
+  const all = engine.getElements();
+  expect(all.slice(0, before.length)).toEqual(before);
+  expect(second.some(id => first.includes(id))).toBe(false);
+  const existing = unionBounds(before.map(el => getElementBounds(el, before)));
+  const added = all.filter(el => second.includes(el.id));
+  const bounds = unionBounds(added.map(el => getElementBounds(el, all)));
+  expect(bounds.minX - existing.maxX).toBeCloseTo(96, 5);
+  for (const el of added) for (const binding of [el.startBinding, el.endBinding]) if (binding) expect(second).toContain(binding.elementId);
+  const replaced = engine.insertTemplate(TEMPLATES[2].elements, true);
+  expect(engine.getElements().map(el => el.id)).toEqual(replaced);
+  engine.undo(); expect(engine.getElements()).toEqual(all);
+  engine.redo(); expect(engine.getElements().map(el => el.id)).toEqual(replaced);
+  engine.destroy();
+});
+test('template fitting honors narrow screens and explicitly opened inspector space', () => {
+  const { engine } = setup([]);
+  const ids = engine.insertTemplate(TEMPLATES[0].elements);
+  for (const [width, height, left] of [[390, 750, 48], [1280, 750, 320]]) {
+    engine.resize(width, height); engine.focusElements(ids, false, { left, right: 48, top: 90, bottom: 80 });
+    const all = engine.getElements(), bounds = unionBounds(all.map(el => getElementBounds(el, all)));
+    const { zoom, pan } = engine.getViewport();
+    expect(bounds.minX * zoom + pan.x).toBeGreaterThanOrEqual(left - .01);
+    expect(bounds.maxX * zoom + pan.x).toBeLessThanOrEqual(width - 47.99);
+    expect((bounds.minX + bounds.maxX) / 2 * zoom + pan.x).toBeCloseTo((width + left - 48) / 2, 5);
+  }
+  engine.destroy();
 });
