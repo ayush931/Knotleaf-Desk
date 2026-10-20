@@ -26,7 +26,7 @@ function context(canvas) {
   entry = new Proxy(ctx, { get: (obj, key) => key in obj ? obj[key] : () => {} }); contexts.set(canvas, entry); return entry;
 }
 beforeAll(async () => {
-  browser = new Window();
+  browser = new Window({ url: 'http://localhost:3000' });
   for (const [key, value] of Object.entries({ window: browser, document: browser.document, navigator: browser.navigator, HTMLElement: browser.HTMLElement, HTMLCanvasElement: browser.HTMLCanvasElement, localStorage: browser.localStorage, getComputedStyle: browser.getComputedStyle.bind(browser), requestAnimationFrame: browser.requestAnimationFrame.bind(browser), cancelAnimationFrame: browser.cancelAnimationFrame.bind(browser), ResizeObserver: class { constructor(callback) { this.callback = callback; } observe() { this.callback(); } disconnect() {} }, IS_REACT_ACT_ENVIRONMENT: true })) { saved.set(key, Object.getOwnPropertyDescriptor(globalThis, key)); Object.defineProperty(globalThis, key, { configurable: true, writable: true, value }); }
   browser.HTMLCanvasElement.prototype.getContext = function () { return context(this); };
   browser.HTMLCanvasElement.prototype.toDataURL = function (type) { exports.push({ type, width: this.width, height: this.height, pixels: context(this).data.slice() }); return type === 'image/jpeg' ? 'data:image/jpeg;base64,cGFpbnQ=' : 'data:image/png;base64,cGFpbnQ='; };
@@ -35,7 +35,7 @@ beforeAll(async () => {
   browser.HTMLDialogElement.prototype.showModal = function () { this.open = true; }; browser.HTMLDialogElement.prototype.close = function () { this.open = false; };
   ({ createRoot } = await import('react-dom/client'));
 });
-beforeEach(() => { document.body.innerHTML = '<div id="root"></div>'; root = createRoot(document.getElementById('root')); exports.length = 0; });
+beforeEach(() => { browser.localStorage.removeItem('knotleaf.preferences.v1'); document.body.innerHTML = '<div id="root"></div>'; root = createRoot(document.getElementById('root')); exports.length = 0; });
 afterEach(async () => { await act(async () => root.unmount()); await browser.happyDOM.abort(); });
 afterAll(() => { browser.close(); for (const [key, old] of saved) if (old) Object.defineProperty(globalThis, key, old); else delete globalThis[key]; });
 test('custom color validation preserves input and allows correcting hex colors', async () => {
@@ -250,4 +250,12 @@ test('Report bug opens directly from the visible screen action and retains a dra
   await act(async () => new Promise(resolve => setTimeout(resolve, 5)));
   await act(async () => [...document.querySelectorAll('dialog[open] button')].find(button => button.textContent === 'Report bug').click());
   expect(named('Bug summary').value).toBe('My draft');
+});
+
+test('uploads have one toolbar action and eraser exposes uncapped numeric size and filtering',async()=>{
+ await act(async()=>root.render(React.createElement(AppRouterContext.Provider,{value:{push(){},replace(){},refresh(){},back(){},forward(){},prefetch(){}}},React.createElement(SearchParamsContext.Provider,{value:new URLSearchParams()},React.createElement(Canvas)))));
+ expect(document.querySelectorAll('[aria-label="Upload image or file"]')).toHaveLength(1);expect(document.querySelector('[aria-label="Drawing tools"] [aria-label="Upload image or file"]')).toBeTruthy();expect(document.querySelector('[aria-label="Upload images or assets"]')).toBeNull();
+ await act(async()=>document.querySelector('[aria-label="Eraser (E)"]').click());const size=document.getElementById('eraser-size');expect(size.getAttribute('max')).toBeNull();expect(size.value).toBe('24');
+ await act(async()=>document.querySelector('[aria-label="Increase eraser size"]').click());expect(size.value).toBe('30');expect([...document.querySelector('[aria-label="Erase"]').options].map(o=>o.value)).toEqual(['all','drawings','objects']);
+ expect(document.querySelector('[aria-label="Appearance settings"]')).toBeNull();
 });

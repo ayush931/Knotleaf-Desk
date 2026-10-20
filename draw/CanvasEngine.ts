@@ -1,5 +1,8 @@
+import { isLocalAsset } from "@/lib/localAssets.mjs";
 import { DEFAULT_BACKGROUND, normalizeBackground, isLightBackground } from "@/lib/background.mjs";
-import { drawCanvasBackground } from "./backgroundFill";
+import { drawCanvasBackground, drawBackgroundFill } from "./backgroundFill";
+import { isValidAttachment } from "@/lib/attachments.mjs";
+import type { PreparedAsset } from "@/lib/assetUpload";
 import { isEmbeddedImage } from "./imageResource";
 import { expandCodeTabs } from "@/lib/code";
 import {
@@ -77,7 +80,7 @@ const HANDLE_CURSOR: Record<Handle, string> = {
 
 type Gesture =
   | { kind: "pan"; last: Point }
-  | { kind: "erase"; erased: boolean }
+  | { kind: "erase"; erased: boolean; last: Point }
   | {
       kind: "move";
       origin: Point;
@@ -230,10 +233,23 @@ export class CanvasEngine {
   private cssHeight = 0;
   private destroyed = false;
   private readOnly = false;
+  private presentationFrameId: string | null = null;
 
   private elements: CanvasElement[] = [];
   private committedElements: CanvasElement[] = [];
   private collaborators: { name: string; color: string; cursor?: Point }[] = [];
+  private eraserSize = 24;
+  private eraserMode: "all" | "drawings" | "objects" = "all";
+  private eraserPointer: Point | null = null;
+  public collaborativeLocalHistory?: { state: () => { undo: number; redo: number }; stop: () => void; clearRedo: () => void };
+  private localAssetUndo: { before: string; after: string; depth: number; shared: boolean }[] = [];
+  private localAssetRedo: { before: string; after: string; depth: number; shared: boolean }[] = [];
+  public hasLocalAssetUndo() { return this.localAssetUndo.length > 0; }
+  public hasLocalAssetRedo() { return this.localAssetRedo.length > 0; }
+  public setEraserOptions(size: number, mode: "all" | "drawings" | "objects") {
+    if (!Number.isFinite(size) || size <= 0) return;
+    this.eraserSize = size; this.eraserMode = mode; this.requestRender();
+  }
   public collaborativeUndo?: () => void;
   public collaborativeRedo?: () => void;
   public onCursorChange?: (point: Point) => void;
@@ -388,12 +404,18 @@ export class CanvasEngine {
     this.onZoomChange?.(this.zoom); this.requestRender();
   }
   public setReadOnly(value: boolean) { this.cancelGesture(); this.readOnly = value; this.selectedIds.clear(); this.emitSelection(); this.updateCursor(); }
+  public setPresentationFrame(id: string | null) {
+    const frame = this.elements.find(el => el.id === id && el.type === "frame");
+    this.presentationFrameId = frame?.id ?? null;
+    if (frame) this.focusElements([frame.id], false, { left: 24, right: 24, top: 24, bottom: 88 });
+    else this.requestRender();
+  }
   public focusElements(ids: string[], select = true, insets = { left: 48, right: 48, top: 60, bottom: 60 }) {
     const elements = this.elements.filter(el => ids.includes(el.id));
     const bounds = unionBounds(elements.map(el => getElementBounds(el, this.elements))); if (!bounds) return;
     const width = Math.max(1, bounds.maxX - bounds.minX), height = Math.max(1, bounds.maxY - bounds.minY);
     const availableWidth = Math.max(1, this.cssWidth - insets.left - insets.right), availableHeight = Math.max(1, this.cssHeight - insets.top - insets.bottom);
-    this.zoom = Math.max(0.1, Math.min(2, availableWidth / width, availableHeight / height));
+    this.zoom = Math.max(this.presentationFrameId ? Number.EPSILON : 0.1, Math.min(this.presentationFrameId ? 4 : 2, availableWidth / width, availableHeight / height));
     this.pan = { x: insets.left + availableWidth / 2 - (bounds.minX + bounds.maxX) / 2 * this.zoom, y: insets.top + availableHeight / 2 - (bounds.minY + bounds.maxY) / 2 * this.zoom };
     if (select) { this.cancelGesture(); this.tool = "select"; this.emitTool(); this.selectedIds = new Set(elements.map(el => el.id)); this.emitSelection(); this.updateCursor(); }
     this.onZoomChange?.(this.zoom); this.requestRender();
@@ -466,6 +488,8 @@ export class CanvasEngine {
       this.commit();
     } else {
       this.editingId = null;
+      this.localAssetUndo = [];
+      this.localAssetRedo = [];
       this.committedElements = [...this.elements];
       this.undoStack = [JSON.stringify(this.elements)];
       this.redoStack = [];
@@ -593,6 +617,7 @@ export class CanvasEngine {
   }
 
   private remeasureText(el: TextElement): TextElement {
+    if (el.attachment) return el;
     if (el.isCodeCard) {
       setFont(this.ctx, el.fontSize, "mono");
       return { ...el, width: Math.max(280, ...expandCodeTabs(el.text).split("\n").map(line => this.ctx.measureText(line).width)) + 24, height: Math.max(100, el.text.split("\n").length * el.fontSize * 1.5 + 36) };
@@ -626,6 +651,32 @@ export class CanvasEngine {
       return el;
     });
     this.commit();
+  }
+
+  /** Stage validated assets together so upload is one undo step. */
+  public addAssets(assets: PreparedAsset[], position?: Point, beforeCommit?: (elements: CanvasElement[]) => void) {
+    if (this.readOnly) throw new Error("Exit presentation before uploading files.");
+    if (!assets.length) return [];
+    for (const asset of assets) {
+      if (asset.kind === "image" ? !isEmbeddedImage(asset.source,Infinity) || ![asset.width,asset.height].every(n=>Number.isFinite(n)&&n>0) : !isValidAttachment(asset.attachment)) throw new Error("One of these files is invalid. Upload the original file again.");
+    }
+    this.cancelGesture();this.onBeforeCreate?.();
+    const center=position||this.screenToCanvas(this.cssWidth/2,this.cssHeight/2);
+    const sizes=assets.map(asset=>{
+      if(asset.kind==="attachment")return {width:312,height:120,pad:16};
+      const scale=Math.min(1,(assets.length===1?700:500)/asset.width,(assets.length===1?500:360)/asset.height);
+      return {width:asset.width*scale,height:asset.height*scale,pad:0};
+    });
+    const columns=Math.ceil(Math.sqrt(assets.length)),rows=Math.ceil(assets.length/columns),cellW=Math.max(...sizes.map(s=>s.width)),cellH=Math.max(...sizes.map(s=>s.height));
+    const totalW=columns*cellW+(columns-1)*48,totalH=rows*cellH+(rows-1)*48;
+    const copies:CanvasElement[]=assets.map((asset,index)=>{
+      const box=sizes[index],x=center.x-totalW/2+(index%columns)*(cellW+48)+(cellW-box.width)/2+box.pad,y=center.y-totalH/2+Math.floor(index/columns)*(cellH+48)+(cellH-box.height)/2+box.pad;
+      if(asset.kind==="image")return {...DEFAULT_STYLE,id:newId(),type:"image",localOnly:true,source:asset.source,imageName:asset.name,x,y,width:box.width,height:box.height,stroke:"transparent",fill:"transparent",fillStyle:"none",opacity:1,zIndex:this.elements.length+index};
+      return {...DEFAULT_STYLE,id:newId(),type:"text",localOnly:true,isDocCard:true,attachment:structuredClone(asset.attachment),text:asset.attachment.name,fontSize:14,fontFamily:"sans",textAlign:"left",x,y,width:280,height:88,stroke:"#E4E4E7",fill:"#18181B",fillStyle:"solid",opacity:1,zIndex:this.elements.length+index};
+    });
+    const next=[...this.elements,...copies];beforeCommit?.(next);
+    this.elements=next;this.tool="select";this.emitTool();this.selectedIds=new Set(copies.map(el=>el.id));this.commit();
+    return copies.map(el=>el.id);
   }
 
   public addImage(source: string, width: number, height: number, imageName = "Paint image") {
@@ -964,6 +1015,7 @@ export class CanvasEngine {
 
   /** Opens the in-place editor for the element under a double-click. */
   private openEditorFor(el: CanvasElement, click?: Point) {
+    if (el.type === "text" && el.attachment) return;
     if (el.type === "text" && el.isCodeCard) { this.editingId = el.id; this.requestRender(); this.onEditCode?.(el.id); return; }
     let state: InlineTextState | null = null;
     switch (el.type) {
@@ -1088,16 +1140,22 @@ export class CanvasEngine {
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     ctx.clearRect(0, 0, w, h);
     drawCanvasBackground(ctx, this.background, () => ctx.rect(0, 0, w, h), { x: 0, y: 0, width: w, height: h });
-    drawGrid(ctx, w, h, this.pan, this.zoom, this.gridType, isLightBackground(this.background));
+    const slide = this.elements.find(el => el.id === this.presentationFrameId && el.type === "frame");
+    if (!slide) drawGrid(ctx, w, h, this.pan, this.zoom, this.gridType, isLightBackground(this.background));
 
     ctx.save();
     ctx.translate(this.pan.x, this.pan.y);
     ctx.scale(this.zoom, this.zoom);
 
+    if (slide) {
+      ctx.beginPath(); ctx.rect(slide.x, slide.y, slide.width, slide.height); ctx.clip();
+      drawBackgroundFill(ctx, slide, () => ctx.rect(slide.x, slide.y, slide.width, slide.height), { x:slide.x, y:slide.y, width:slide.width, height:slide.height });
+    }
     const selected = this.getSelectedElements();
     const single = selected.length === 1 ? selected[0] : null;
 
     for (const el of this.elements) {
+      if (slide && el.type === "frame") continue;
       if (el.id === this.editingId) {
         // Text and sticky content is being typed into the overlay, so skip it.
         // Shapes keep their outline and only lose the label being edited.
@@ -1144,7 +1202,7 @@ export class CanvasEngine {
       drawMarquee(ctx, this.marqueeRect, this.zoom);
     }
 
-    for (const person of this.collaborators) {
+    for (const person of slide ? [] : this.collaborators) {
       if (!person.cursor) continue;
       const { x, y } = person.cursor;
       ctx.save(); ctx.translate(x, y); ctx.scale(1 / this.zoom, 1 / this.zoom);
@@ -1153,6 +1211,10 @@ export class CanvasEngine {
       ctx.fillRect(10, 18, ctx.measureText(person.name).width + 12, 22); ctx.fillStyle = "#121212"; ctx.fillText(person.name, 16, 23); ctx.restore();
     }
     ctx.restore();
+    if(this.tool==="eraser"&&this.eraserPointer&&!this.readOnly&&!this.spaceDown){
+      const p=this.eraserPointer,r=this.eraserSize/2;ctx.save();ctx.fillStyle="rgba(59,130,246,0.07)";ctx.strokeStyle="rgba(59,130,246,0.8)";ctx.lineWidth=1;
+      if(r>Math.hypot(w,h)*2)ctx.fillRect(0,0,w,h);else{ctx.beginPath();ctx.arc(p.x,p.y,r,0,Math.PI*2);ctx.fill();ctx.stroke();}ctx.restore();
+    }
     this.syncAnimation();
   }
 
@@ -1412,7 +1474,7 @@ export class CanvasEngine {
     }
 
     if (this.tool === "eraser") {
-      this.gesture = { kind: "erase", erased: false };
+      this.gesture = { kind: "erase", erased: false, last: pt };
       this.eraseAt(pt);
       return;
     }
@@ -1563,6 +1625,8 @@ export class CanvasEngine {
     this.requestRender();
   };
 
+  private onPointerLeave = () => { this.eraserPointer=null;this.requestRender(); };
+
   private onPointerMove = (e: PointerEvent) => {
     if (this.pendingClick) {
       if (e.pointerId !== this.pendingClick.event.pointerId) return;
@@ -1573,6 +1637,7 @@ export class CanvasEngine {
     this.shiftDown = e.shiftKey;
     this.altDown = !!e.altKey;
     const sp = this.screenPoint(e);
+    this.eraserPointer=sp;
     const pt = this.screenToCanvas(sp.x, sp.y);
     const g = this.gesture;
     this.onCursorChange?.(pt);
@@ -1975,6 +2040,11 @@ export class CanvasEngine {
         }
         return { ...text, x: g.handle.includes("w") ? r.x + r.w - text.width : r.x, y: g.handle.includes("n") ? r.y + r.h - text.height : r.y };
       }
+      if (snapshot.type === "image" && !this.shiftDown) {
+        const horizontal=g.handle.includes("w")||g.handle.includes("e"),vertical=g.handle.includes("n")||g.handle.includes("s");
+        const scale=horizontal&&vertical?Math.max(rect.width/Math.max(r.w,1),rect.height/Math.max(r.h,1)):horizontal?rect.width/Math.max(r.w,1):rect.height/Math.max(r.h,1),width=r.w*scale,height=r.h*scale;
+        return {...snapshot,width,height,x:g.handle.includes("w")?r.x+r.w-width:r.x,y:g.handle.includes("n")?r.y+r.h-height:r.y};
+      }
       if (snapshot.type === "sticky") return this.fitSticky({ ...snapshot, ...rect });
       return { ...snapshot, ...rect };
     });
@@ -2066,12 +2136,24 @@ export class CanvasEngine {
 
   private eraseAt(pt: Point) {
     const g = this.gesture;
-    const target = this.hitTest(pt);
-    if (!target) return;
-    const ids = this.withContainedText(new Set([target.id]));
-    this.elements = pruneBindings(this.elements.filter((el) => !ids.has(el.id)));
-    for (const id of ids) this.selectedIds.delete(id);
-    if (g && g.kind === "erase") g.erased = true;
+    if(!g||g.kind!=="erase")return;
+    const radius=Math.min(Number.MAX_VALUE/4,this.eraserSize/(2*this.zoom)),distance=Math.hypot(pt.x-g.last.x,pt.y-g.last.y);
+    const steps=Math.max(1,Math.ceil(distance/Math.max(2/this.zoom,Math.min(radius/2,16/this.zoom))));
+    const ids=new Set<string>();
+    for(const el of this.elements){
+      if(el.isLocked)continue;
+      const drawing=["pencil","line","arrow"].includes(el.type);
+      if(this.eraserMode==="drawings"&&!drawing||this.eraserMode==="objects"&&drawing)continue;
+      for(let i=0;i<=steps;i++){
+        const p={x:g.last.x+(pt.x-g.last.x)*i/steps,y:g.last.y+(pt.y-g.last.y)*i/steps};
+        if(this.hitElement(el,p,radius)){ids.add(el.id);break;}
+      }
+    }
+    g.last=pt;if(!ids.size)return;
+    const removing=this.withContainedText(ids);
+    this.elements=pruneBindings(this.elements.filter(el=>!removing.has(el.id)||el.isLocked));
+    for(const id of removing)this.selectedIds.delete(id);
+    g.erased=true;
     this.emitSelection();
     this.requestRender();
   }
@@ -2114,7 +2196,7 @@ export class CanvasEngine {
         this.canvas.style.cursor = "grab";
         break;
       case "eraser":
-        this.canvas.style.cursor = "cell";
+        this.canvas.style.cursor = "none";
         break;
       case "text":
         this.canvas.style.cursor = "text";
@@ -2339,9 +2421,16 @@ export class CanvasEngine {
 
   /** Finishes a user edit: records history, persists, and refreshes the UI. */
   private commit() {
+    const trackingLocal=!!this.collaborativeLocalHistory;
+    const localBefore=trackingLocal?JSON.stringify(this.committedElements.filter(isLocalAsset)):"",localAfter=trackingLocal?JSON.stringify(this.elements.filter(isLocalAsset)):"";
+    const localChanged=!!this.collaborativeLocalHistory&&localBefore!==localAfter;
+    const sharedChanged=trackingLocal&&JSON.stringify(this.committedElements.filter(el=>!isLocalAsset(el)))!==JSON.stringify(this.elements.filter(el=>!isLocalAsset(el)));
+    if(localChanged){this.collaborativeLocalHistory?.stop();this.collaborativeLocalHistory?.clearRedo();}
     this.committedElements = [...this.elements];
     const changed = this.pushHistory();
     if (changed) this.onChange?.(this.elements);
+    if(changed&&localChanged){this.localAssetUndo.push({before:localBefore,after:localAfter,depth:this.collaborativeLocalHistory!.state().undo,shared:sharedChanged});if(this.localAssetUndo.length>HISTORY_LIMIT)this.localAssetUndo.shift();this.localAssetRedo=[];this.collaborativeLocalHistory?.stop();}
+    else if(changed)this.localAssetRedo=[];
     this.emitSelection();
     this.emitHistory();
     this.requestRender();
@@ -2349,7 +2438,11 @@ export class CanvasEngine {
 
   public undo() {
     if (this.gesture) this.cancelGesture();
-    if (this.collaborativeUndo) { this.collaborativeUndo(); return; }
+    if (this.collaborativeUndo) {
+      const action=this.localAssetUndo.at(-1);
+      if(action&&this.collaborativeLocalHistory&&this.collaborativeLocalHistory.state().undo<=action.depth){this.localAssetUndo.pop();this.localAssetRedo.push(action);this.restoreLocalAssets(action.before);if(action.shared)this.collaborativeUndo();}
+      else this.collaborativeUndo();return;
+    }
     if (this.undoStack.length <= 1) return;
     this.redoStack.push(this.undoStack.pop()!);
     this.restoreSnapshot(this.undoStack[this.undoStack.length - 1]);
@@ -2357,11 +2450,19 @@ export class CanvasEngine {
 
   public redo() {
     if (this.gesture) this.cancelGesture();
-    if (this.collaborativeRedo) { this.collaborativeRedo(); return; }
+    if (this.collaborativeRedo) {
+      const action=this.localAssetRedo.at(-1),priorDepth=action? action.depth-(action.shared?1:0):0;
+      if(action&&this.collaborativeLocalHistory&&this.collaborativeLocalHistory.state().undo>=priorDepth){this.localAssetRedo.pop();this.localAssetUndo.push(action);this.restoreLocalAssets(action.after);if(action.shared)this.collaborativeRedo();}
+      else this.collaborativeRedo();return;
+    }
     const next = this.redoStack.pop();
     if (next === undefined) return;
     this.undoStack.push(next);
     this.restoreSnapshot(next);
+  }
+
+  private restoreLocalAssets(snapshot: string) {
+    this.collaborativeLocalHistory?.stop();this.elements=[...this.elements.filter(el=>!isLocalAsset(el)),...JSON.parse(snapshot)].sort((a,b)=>a.zIndex-b.zIndex||a.id.localeCompare(b.id));this.committedElements=[...this.elements];this.selectedIds.clear();this.onChange?.(this.elements);this.emitSelection();this.emitHistory();this.requestRender();
   }
 
   private restoreSnapshot(snapshot: string) {
@@ -2401,6 +2502,7 @@ export class CanvasEngine {
   private attachEventListeners() {
     this.canvas.addEventListener("pointerdown", this.onPointerDown);
     this.canvas.addEventListener("pointermove", this.onPointerMove);
+    this.canvas.addEventListener("pointerleave", this.onPointerLeave);
     this.canvas.addEventListener("pointerup", this.onPointerUp);
     this.canvas.addEventListener("pointercancel", this.onPointerCancel);
     this.canvas.addEventListener("lostpointercapture", this.onLostPointerCapture);
@@ -2420,6 +2522,7 @@ export class CanvasEngine {
     this.animFrameId = null;
     this.canvas.removeEventListener("pointerdown", this.onPointerDown);
     this.canvas.removeEventListener("pointermove", this.onPointerMove);
+    this.canvas.removeEventListener("pointerleave", this.onPointerLeave);
     this.canvas.removeEventListener("pointerup", this.onPointerUp);
     this.canvas.removeEventListener("pointercancel", this.onPointerCancel);
     this.canvas.removeEventListener("lostpointercapture", this.onLostPointerCapture);

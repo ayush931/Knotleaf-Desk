@@ -74,6 +74,7 @@ export interface Point {
 }
 
 export interface BaseElement {
+  localOnly?: boolean;
   id: string;
   type: string;
   x: number;
@@ -147,7 +148,10 @@ export interface PencilElement extends BaseElement {
   points: Point[];
 }
 
+export interface AttachmentData { name: string; mimeType: string; size: number; source: string }
+
 export interface TextElement extends BaseElement, TextFormatting {
+  attachment?: AttachmentData;
   containerId?: string;
   containerOffset?: Point;
   type: "text";

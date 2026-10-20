@@ -1,9 +1,12 @@
 "use client";
 
-import { Heading1, List, CheckSquare, Quote, Check, PanelsTopLeft, Bug } from "lucide-react";
+import { Heading1, List, CheckSquare, Quote, Check, PanelsTopLeft, Bug, Download, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import React, { useCallback, useEffect, useMemo, useRef, useState, useLayoutEffect } from "react";
 import type { RoomMessage, RoomChatProps } from "@/lib/roomChat";
+import { loadPreferences, savePreferences } from "@/lib/preferences";
+import { isLocalAsset } from "@/lib/localAssets.mjs";
+import { prepareAssets, downloadAttachment } from "@/lib/assetUpload";
 import { RoomSession, type Collaborator } from "@/lib/collaboration";
 import { getRoomServerUrl, checkRoomAvailable, RoomExpiredError } from "@/lib/roomConnection";
 import { createRoomFromBoard } from "@/lib/roomCreation";
@@ -25,7 +28,6 @@ import {
   BoardSummary,
   ElementStyleProps,
   InlineTextState,
-  DEFAULT_STYLE,
 } from "@/draw/types";
 import {
   getWorkspaces,
@@ -46,10 +48,11 @@ import {
 } from "@/lib/storage";
 import { exportToSvg } from "@/draw/svgExport";
 import { exportToDrawio } from "@/draw/drawioExport";
-import { exportToPng, copyPngToClipboard, exportToJson, exportNotesToMarkdown, exportProjectFile } from "@/draw/export";
+import { exportToRaster, type RasterFormat, copyPngToClipboard, exportToJson, exportNotesToMarkdown, exportProjectFile } from "@/draw/export";
 import { TemplateDefinition } from "@/draw/templatesData";
 import { BoardHeader } from "./BoardHeader";
 import { DocEditor } from "./DocEditor";
+import { EraserControls, type EraserMode } from "./EraserControls";
 import { TopToolbar } from "./TopToolbar";
 import { PropertiesPanel } from "./PropertiesPanel";
 import { IconPickerModal } from "./IconPickerModal";
@@ -67,7 +70,16 @@ const isEditableTarget = (t: EventTarget | null) =>
 
 export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
   const router = useRouter();
+  const [preferences] = useState(loadPreferences);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const assetInputRef = useRef<HTMLInputElement>(null);
+  const assetPending = useRef(false);
+  const [assetBusy,setAssetBusy] = useState(false), [assetError,setAssetError] = useState(""), [assetNotice,setAssetNotice] = useState(""), [dragFiles,setDragFiles] = useState(false);
+  useEffect(() => {
+    if (!assetNotice) return;
+    const timer = setTimeout(() => setAssetNotice(""), 2000);
+    return () => clearTimeout(timer);
+  }, [assetNotice]);
   const containerRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<CanvasEngine | null>(null);
   const inlineTextareaRef = useRef<HTMLTextAreaElement>(null);
@@ -93,8 +105,8 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
   const [workspaces, setWorkspaces] = useState(getWorkspaces);
   const [workspaceId, setWorkspaceId] = useState(board.workspaceId || "personal");
   const viewMode = board.viewMode || "canvas";
-  const [notesWidth, setNotesWidth] = useState(360);
-  const [notesHeight, setNotesHeight] = useState(300);
+  const [notesWidth, setNotesWidth] = useState(preferences.notesWidth);
+  const [notesHeight, setNotesHeight] = useState(preferences.notesHeight);
   const [splitBounds, setSplitBounds] = useState({ width: 900, height: 700 });
   const narrowSplit = splitBounds.width < 640;
   const splitRef = useRef<HTMLElement>(null);
@@ -111,6 +123,8 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
   const [boardsList, setBoardsList] = useState<BoardSummary[]>(() => getAllBoards());
   const [appearanceOpen, setAppearanceOpen] = useState(false);
   const [selectedTool, setSelectedTool] = useState<Tool>("select");
+  const [eraserSize, setEraserSize] = useState(preferences.eraserSize);
+  const [eraserMode, setEraserMode] = useState<EraserMode>(preferences.eraserMode);
   const [toolbarHeight, setToolbarHeight] = useState(44);
   const [selectedElements, setSelectedElements] = useState<CanvasElement[]>([]);
   const [zoom, setZoom] = useState(1);
@@ -146,7 +160,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
     inlineTextStateRef.current = next;
     renderInlineText(next);
   }, []);
-  const [currentStyle, setCurrentStyle] = useState<ElementStyleProps>({ ...DEFAULT_STYLE });
+  const [currentStyle, setCurrentStyle] = useState<ElementStyleProps>(() => ({ ...preferences.style }));
 
   const selectedElement = selectedElements.length === 1 ? selectedElements[0] : null;
   const librarySelection = useMemo(() => { if (!selectedElements.length) return []; const ids = new Set(selectedElements.map(el => el.id)); return board.elements.filter(el => ids.has(el.id) || el.type === "text" && !!el.containerId && ids.has(el.containerId)); }, [selectedElements, board.elements]);
@@ -230,7 +244,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
     engine.onZoomChange = (z) => setZoom(z);
     engine.onToolChange = (t) => setSelectedTool(t);
     engine.onHistoryChange = (u, r) => {
-      if (!sessionRef.current) { setCanUndo(u); setCanRedo(r); }
+      if (!sessionRef.current) { setCanUndo(u); setCanRedo(r); } else {setCanUndo(sessionRef.current.undo.undoStack.length>0||engine.hasLocalAssetUndo());setCanRedo(sessionRef.current.undo.redoStack.length>0||engine.hasLocalAssetRedo());}
     };
 
     return () => {
@@ -262,14 +276,16 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
       session.onStatus = setRoomStatus;
       session.onRemote = (elements, markdownNotes, title, background) => {
         clearTimeout(timer); setRoomError("");
+        elements = [...elements, ...boardRef.current.elements.filter(isLocalAsset)].sort((a,b)=>a.zIndex-b.zIndex||a.id.localeCompare(b.id));
         const next = { ...boardRef.current, elements, markdownNotes, title, background, roomExpiresAt: session?.expiresAt };
         boardRef.current = next; setBoard(next); setSaveError(!saveBoard(next));
         engine?.applyRemoteElements(elements); setRoomReady(true); refreshBoardsList();
       };
       session.onPresence = people => { setPeople(people); engine?.setCollaborators(people); };
-      session.onHistory = (undo, redo) => { setCanUndo(undo); setCanRedo(redo); };
+      session.onHistory = (undo, redo) => { setCanUndo(undo||!!engine?.hasLocalAssetUndo()); setCanRedo(redo||!!engine?.hasLocalAssetRedo()); };
       let lastCursor = 0;
       if (engine) {
+        engine.collaborativeLocalHistory={state:()=>({undo:session!.undo.undoStack.length,redo:session!.undo.redoStack.length}),stop:()=>session!.undo.stopCapturing(),clearRedo:()=>session!.undo.clear(false,true)};
         engine.collaborativeUndo = () => session?.undo.undo(); engine.collaborativeRedo = () => session?.undo.redo();
         engine.onCursorChange = point => { if (Date.now() - lastCursor > 50) { lastCursor = Date.now(); session?.cursor(point); } };
       }
@@ -286,9 +302,17 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
     });
     return () => {
       controller.abort(); clearTimeout(timer); session?.destroy(); sessionRef.current = null;
-      if (engine) { engine.collaborativeUndo = undefined; engine.collaborativeRedo = undefined; engine.onCursorChange = undefined; }
+      if (engine) { engine.collaborativeLocalHistory=undefined; engine.collaborativeUndo = undefined; engine.collaborativeRedo = undefined; engine.onCursorChange = undefined; }
     };
   }, [initialRoomId, refreshBoardsList, roomAttempt]);
+
+  useEffect(() => {
+    if (engineRef.current) {
+      engineRef.current.currentStyle = { ...currentStyle };
+      engineRef.current.setEraserOptions(eraserSize, eraserMode);
+    }
+    savePreferences({ style:currentStyle, eraserSize, eraserMode, notesWidth, notesHeight });
+  }, [currentStyle, eraserSize, eraserMode, notesWidth, notesHeight]);
 
   // Keep engine settings in sync with React state.
   useEffect(() => {
@@ -336,7 +360,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
     const engine = engineRef.current;
     if (engine) {
       engine.onCursorChange = undefined;
-      engine.collaborativeUndo = undefined; engine.collaborativeRedo = undefined;
+      engine.collaborativeLocalHistory=undefined; engine.collaborativeUndo = undefined; engine.collaborativeRedo = undefined;
       engine.setCollaborators([]);
     }
     getOrCreatePersonalBoard();
@@ -344,18 +368,18 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
   };
 
   const beginPresentation = () => {
-    engineRef.current?.finishCode(); setCodeId(null);
+    commitInline(); engineRef.current?.finishCode(); setCodeId(null);
     presentationViewport.current = engineRef.current?.getViewport() || null;
     setPresentationIndex(0); setIsPresentationOpen(true); engineRef.current?.setReadOnly(true);
   };
   const endPresentation = () => {
-    setIsPresentationOpen(false); engineRef.current?.setReadOnly(false);
+    setIsPresentationOpen(false); engineRef.current?.setPresentationFrame(null); engineRef.current?.setReadOnly(false);
     const view = presentationViewport.current; presentationViewport.current = null;
     if (view) requestAnimationFrame(() => engineRef.current?.restoreViewport(view));
   };
   useEffect(() => {
     if (!isPresentationOpen || !containerRef.current) return;
-    const focus = () => { const element = containerRef.current; if (element) engineRef.current?.resize(element.clientWidth, element.clientHeight); const ordered = JSON.parse(presentationFrames) as { id: string }[]; const frame = ordered[Math.min(presentationIndex, Math.max(0, ordered.length - 1))]; if (frame) engineRef.current?.focusElements([frame.id], false); else engineRef.current?.fitToContent(); };
+    const focus = () => { const element = containerRef.current; if (element) engineRef.current?.resize(element.clientWidth, element.clientHeight); const ordered = JSON.parse(presentationFrames) as { id: string }[]; const frame = ordered[Math.min(presentationIndex, Math.max(0, ordered.length - 1))]; engineRef.current?.setPresentationFrame(frame?.id ?? null); if (!frame) engineRef.current?.fitToContent(); };
     const timer = requestAnimationFrame(focus);
     const observer = new ResizeObserver(focus); observer.observe(containerRef.current);
     return () => { cancelAnimationFrame(timer); observer.disconnect(); };
@@ -419,6 +443,30 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
     setInlineText(null);
   }, [setInlineText]);
 
+  const uploadAssets = async (files: File[], point?: { x:number; y:number }) => {
+    if (!files.length || assetPending.current) return;
+    if (!roomReady) { setAssetError("Wait for the room to connect before uploading files."); return; }
+    assetPending.current=true;setAssetBusy(true);setAssetError("");setAssetNotice("");
+    const boardId=boardRef.current.id,engine=engineRef.current;
+    try {
+      const assets=await prepareAssets(files);
+      if (!engine || engineRef.current!==engine || boardRef.current.id!==boardId) throw new Error("The board changed. Upload these files again on the current board.");
+      commitInline();engine.finishCode();setCodeId(null);
+      const current=boardRef.current;
+      boardRef.current={...current,viewMode:current.viewMode==="notes"?"canvas":current.viewMode};
+      let ids:string[];
+      try { ids=engine.addAssets(assets,point?engine.screenToCanvas(point.x,point.y):undefined,elements=>{if(!saveBoard({...boardRef.current,elements}))throw new Error("Your browser’s local storage is full or unavailable. Free space or use another board, then upload again. No files were added.");}); }
+      catch(error){boardRef.current=current;throw error;}
+      setAssetNotice(`${files.length} ${files.length===1?'file':'files'} added. Saved only in this browser. Images appear on the canvas; select a file card to download it.`);
+      requestAnimationFrame(()=>{const container=containerRef.current;if(container&&engineRef.current===engine){engine.resize(container.clientWidth,container.clientHeight);engine.focusElements(ids,false,{left:appearanceOpen&&container.clientWidth>=640?320:48,right:48,top:80,bottom:80});}});
+    } catch(error) { setAssetError(error instanceof Error?error.message:"Could not upload these files. Try again."); }
+    finally {assetPending.current=false;setAssetBusy(false);}
+  };
+  const downloadSelectedAttachment = () => {
+    if(selectedElement?.type!=="text"||!selectedElement.attachment)return;
+    try{downloadAttachment(selectedElement.attachment);}catch(error){setAssetError(error instanceof Error?error.message:"Could not download this attachment.");}
+  };
+
   const handleSelectTemplate = async (template: TemplateDefinition, replace: boolean) => {
     await loadCanvasFonts().catch(() => undefined);
     const engine = engineRef.current;
@@ -455,9 +503,9 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
 
   // Export
   const exportElements = (selection: boolean) => selection ? engineRef.current?.getSelectionForExport() || [] : engineRef.current?.getElements() || [];
-  const handleExportPng = (selection: boolean, transparent: boolean, scale: number) => exportToPng(exportElements(selection), theme, transparent, scale, boardRef.current.elements, boardRef.current.background);
+  const handleExportImage = (format: RasterFormat, selection: boolean, transparent: boolean, scale: number) => exportToRaster(exportElements(selection), theme, format, transparent, scale, boardRef.current.elements, boardRef.current.background, boardRef.current.gridType || "dot");
   const handleCopyClipboard = async () => {
-    return engineRef.current ? await copyPngToClipboard(engineRef.current.getElements(), theme, boardRef.current.background) : false;
+    return engineRef.current ? await copyPngToClipboard(engineRef.current.getElements(), theme, boardRef.current.background, boardRef.current.gridType || "dot") : false;
   };
   const handleExportJson = () => exportToJson(boardRef.current);
   const handleExportMarkdown = () => exportNotesToMarkdown(boardRef.current);
@@ -623,7 +671,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
           onFocusCanvas={toggleFocus}
           onBeforeRefresh={prepareRefresh}
           recording={recording}
-          collaboration={<><Classroom key={initialRoomId || "personal"} roomId={initialRoomId} roomChat={initialRoomId ? roomChat : undefined} onName={name => sessionRef.current?.setName(name)} onRecordingChange={setRecording} uiHidden={focusMode} onCreateRoom={() => createSharedRoom(true)} /><CollaborationPanel key={initialRoomId || "personal"} roomChat={roomChat} roomId={initialRoomId} onLeave={handleLeaveRoom} status={roomStatus} people={people} onName={name => sessionRef.current?.setName(name)} onJoin={id => router.push(`/canvas/${id}`)} onCreate={() => createSharedRoom()} /></>}
+          collaboration={<><Classroom key={`classroom:${initialRoomId || "personal"}`} roomId={initialRoomId} roomChat={initialRoomId ? roomChat : undefined} onName={name => sessionRef.current?.setName(name)} onRecordingChange={setRecording} uiHidden={focusMode} onCreateRoom={() => createSharedRoom(true)} /><CollaborationPanel key={`collaboration:${initialRoomId || "personal"}`} roomChat={roomChat} roomId={initialRoomId} onLeave={handleLeaveRoom} status={roomStatus} people={people} onName={name => sessionRef.current?.setName(name)} onJoin={id => router.push(`/canvas/${id}`)} onCreate={() => createSharedRoom()} /></>}
           title={board.title}
           saveError={saveError}
           onRetrySave={() => persist(boardRef.current)}
@@ -641,7 +689,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
           selectionCount={selectedElements.length}
           onExportSvg={(selection, transparent) => exportToSvg(boardRef.current, exportElements(selection), transparent)}
           onExportDrawio={selection => exportToDrawio(boardRef.current, exportElements(selection))}
-          onExportPng={handleExportPng}
+          onExportImage={handleExportImage}
           onExportProject={scope => exportProjectFile(boardRef.current, scope)}
           onExportPdf={async scope => { const snapshot = structuredClone(boardRef.current); const { exportProjectPdf } = await import("@/draw/projectPdf"); await exportProjectPdf(snapshot, scope); }}
           onImportFile={handleImportJson}
@@ -664,8 +712,12 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
 
         <div
           ref={containerRef}
+          onDragOver={event=>{if(event.dataTransfer.types.includes("Files")){event.preventDefault();event.dataTransfer.dropEffect="copy";setDragFiles(true);}}}
+          onDragLeave={event=>{if(!event.currentTarget.contains(event.relatedTarget as Node|null))setDragFiles(false);}}
+          onDrop={event=>{if(!event.dataTransfer.files.length)return;event.preventDefault();setDragFiles(false);const r=canvasRef.current?.getBoundingClientRect();void uploadAssets(Array.from(event.dataTransfer.files),r?{x:event.clientX-r.left,y:event.clientY-r.top}:undefined);}}
           className={`relative min-h-0 min-w-0 flex-1 h-full overflow-hidden bg-[#121212] ${viewMode === "notes" && !isPresentationOpen && !focusMode ? "hidden" : ""}`}
         >
+            {dragFiles&&<div aria-hidden="true" className="pointer-events-none absolute inset-2 z-40 flex items-center justify-center rounded-xl border-2 border-dashed border-blue-400 bg-blue-500/10 text-sm text-blue-200">Drop images or files onto this board</div>}
             <canvas ref={canvasRef} className="block touch-none" style={{ backgroundColor: "#fafafa", backgroundImage: "conic-gradient(#d4d4d8 25%, transparent 0 50%, #d4d4d8 0 75%, transparent 0)", backgroundSize: "16px 16px" }} />
 
             {codeElement?.type === "text" && <CodeEditor background={codeElement} key={codeElement.id} value={codeElement.text} language={codeElement.codeLanguage || "auto"} fontSize={codeElement.fontSize} zoom={codeViewport.zoom} x={(codeElement.x - 16) * codeViewport.zoom + codeViewport.pan.x} y={(codeElement.y - 16) * codeViewport.zoom + codeViewport.pan.y} width={codeElement.width} height={codeElement.height} onChange={(text, language) => engineRef.current?.updateCode(codeElement.id, text, language)} onClose={() => { engineRef.current?.finishCode(); setCodeId(null); }} />}
@@ -843,6 +895,8 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
 
             {!isPresentationOpen && !focusMode && (
               <TopToolbar
+                onUploadAssets={() => assetInputRef.current?.click()}
+                uploadingAssets={assetBusy}
                 onHeightChange={setToolbarHeight}
                 selectedTool={selectedTool}
                 setSelectedTool={tool => { engineRef.current?.setTool(tool); setSelectedTool(tool); }}
@@ -854,6 +908,8 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
                 theme={theme}
               />
             )}
+
+            {!isPresentationOpen && !focusMode && selectedTool === "eraser" && <EraserControls size={eraserSize} mode={eraserMode} top={toolbarHeight+12} onChange={(size,mode)=>{setEraserSize(size);setEraserMode(mode);engineRef.current?.setEraserOptions(size,mode);}}/>}
 
             {!isPresentationOpen && !focusMode && (
               <div data-text-controls onBlur={event => {
@@ -921,6 +977,9 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
 
       {initialRoomId && !roomReady && <div role="status" className="fixed left-1/2 top-20 z-40 w-[min(400px,90vw)] -translate-x-1/2 rounded-xl border border-amber-500/30 bg-neutral-900 p-4 text-center text-sm text-neutral-300"><p>{roomError || "Connecting to your room…"}</p><p className="mt-2 text-xs text-neutral-500">Start the collaboration server or check your connection. Drawing unlocks after the room syncs.</p><div className="mt-3 flex justify-center gap-4">{roomError && roomStatus !== "expired" && <button onClick={() => { setRoomError(""); setRoomStatus("connecting"); setRoomAttempt(attempt => attempt + 1); }} className="text-xs text-blue-400 underline">Retry connection</button>}<button onClick={handleLeaveRoom} className="text-xs text-blue-400 underline">Leave room</button></div></div>}
       {focusMode && <button onClick={exitFocus} aria-label="Show controls" aria-keyshortcuts="Escape Shift+Z" title="Show controls · Escape or Shift+Z" className="absolute right-2 top-2 z-40 flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-700 bg-neutral-900/80 text-neutral-400 transition-colors hover:bg-neutral-800 hover:text-white focus-visible:outline-2 focus-visible:outline-blue-500"><PanelsTopLeft className="h-4 w-4" /></button>}
+      <input ref={assetInputRef} type="file" multiple aria-label="Upload files" className="hidden" onChange={event=>{const files=Array.from(event.target.files||[]);event.target.value="";void uploadAssets(files);}}/>
+      {!isPresentationOpen&&!focusMode&&(assetBusy||assetError||assetNotice)&&<div role={assetError?"alert":"status"} className="absolute right-3 top-24 z-50 max-w-[min(360px,calc(100vw-24px))] rounded-xl border border-neutral-700 bg-neutral-900 p-3 text-xs text-neutral-300 shadow-sm"><div className="flex items-start gap-3"><p className={assetError?"text-blue-300":""}>{assetBusy?"Uploading files…":assetError||assetNotice}</p>{!assetBusy&&<button type="button" aria-label="Dismiss upload message" className="note-tool shrink-0" onClick={()=>{setAssetError("");setAssetNotice("");}}><X className="h-3.5 w-3.5"/></button>}</div><p className="mt-2 text-[11px] text-neutral-500">Files stay on this device. Available space depends on your browser.</p></div>}
+      {!isPresentationOpen&&!focusMode&&selectedElement?.type==="text"&&selectedElement.attachment&&<div className="absolute bottom-16 left-1/2 z-30 flex max-w-[calc(100%-1rem)] -translate-x-1/2 items-center gap-2 rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-xs"><span className="max-w-48 truncate" title={selectedElement.attachment.name}>{selectedElement.attachment.name}</span><button type="button" aria-label="Download attachment" onClick={downloadSelectedAttachment} className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-blue-300 hover:bg-neutral-800"><Download className="h-3.5 w-3.5"/>Download</button></div>}
       <PresentationMode isActive={isPresentationOpen} onExit={endPresentation} title={board.title} theme={theme} frames={frames} index={presentationIndex} onIndex={setPresentationIndex} />
       {!isPresentationOpen && !focusMode && <button type="button" aria-label="Report bug" title="Report a bug" onClick={() => { setBoardToolsSection("report"); setBoardToolsOpen(true); }} className="absolute bottom-3 left-2 z-30 inline-flex h-8 items-center gap-1 rounded-lg border border-neutral-700 bg-neutral-900/95 px-1.5 text-[11px] text-neutral-400 hover:bg-neutral-800 hover:text-white focus-visible:outline-2 focus-visible:outline-blue-500"><Bug aria-hidden="true" className="h-3 w-3"/>Report bug</button>}
       <BoardTools initialSection={boardToolsSection} open={boardToolsOpen} onClose={() => setBoardToolsOpen(false)} board={board} selection={librarySelection} historyError={historyError} onHistorySaved={() => setHistoryError("")} onOpenCopy={(source, title) => { const copy = importBoardFile(JSON.stringify({ ...source, title })); if (!copy) throw new Error("Could not create a board. Check available browser storage."); copy.title = title; if (!saveBoard(copy)) throw new Error("Could not save the new board."); moveBoardToWorkspace(copy.id, workspaceId); handleSelectBoard(copy.id); }} onFind={(id, index, length) => {

@@ -48,3 +48,9 @@ test('legacy boards without notes can create durable local rooms', async () => {
   expect((await store.load(room.id)).snapshot.markdownNotes).toBe('');
  } finally { await rm(directory, { recursive: true, force: true }); }
 });
+
+test('room persistence strips browser-only assets before creating a database snapshot',async()=>{
+ const directory=await mkdtemp(path.join(os.tmpdir(),'knotleaf-private-assets-'));
+ try{const store=createRoomStore('',directory);const room=await createStoredRoom(store,{title:'Private files',elements:[{id:'local',type:'image',localOnly:true,source:'data:image/png;base64,aGVsbG8=',imageName:'private.png',x:0,y:0,width:10,height:10,stroke:'#fff',strokeWidth:1,strokeStyle:'solid',fill:'transparent',fillStyle:'none',roundness:'sharp',opacity:1,zIndex:0}],markdownNotes:''},'http://localhost:3000');
+ const record=await store.load(room.id);expect(record.snapshot.elements).toEqual([]);const doc=new Y.Doc();Y.applyUpdate(doc,new Uint8Array(Buffer.from(record.state,'base64')));expect(doc.getMap('elements').size).toBe(0);doc.destroy();}finally{await rm(directory,{recursive:true,force:true});}
+});

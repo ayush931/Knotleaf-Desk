@@ -1,3 +1,4 @@
+import { sharedElements } from "./localAssets.mjs";
 import type { Board } from "@/draw/types";
 import { isRoomBoardId, saveBoard } from "./storage";
 
@@ -6,7 +7,7 @@ export async function createRoomFromBoard(board: Board): Promise<{ id: string; s
   try {
     response = await fetch("/api/rooms", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...board, markdownNotes: board.markdownNotes ?? "" }),
+      body: JSON.stringify({ ...board, elements: sharedElements(board.elements), markdownNotes: board.markdownNotes ?? "" }),
       signal: AbortSignal.timeout(65000),
     });
   } catch {

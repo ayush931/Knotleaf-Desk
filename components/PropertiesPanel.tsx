@@ -96,11 +96,12 @@ export function PropertiesPanel({
   const closeButton = useRef<HTMLButtonElement>(null);
   useLayoutEffect(() => { if (isOpen && !preserveTextFocus) closeButton.current?.focus({ preventScroll: true }); }, [isOpen, preserveTextFocus]);
   const close = () => { onOpenChange(false); window.requestAnimationFrame(() => openButton.current?.focus({ preventScroll: true })); };
-  const context = selectionCount > 1 ? `${selectionCount} elements selected` : selectedElement ? `${selectedElement.type === "text" && selectedElement.isCodeCard ? "Code card" : selectedElement.type === "text" && selectedElement.isDocCard ? "Document card" : selectedElement.type.charAt(0).toUpperCase() + selectedElement.type.slice(1)} selected` : isTextEditing ? "Text formatting" : "Style for new elements";
+  const context = selectionCount > 1 ? `${selectionCount} elements selected` : selectedElement ? `${selectedElement.type === "text" && selectedElement.attachment ? "Attachment" : selectedElement.type === "text" && selectedElement.isCodeCard ? "Code card" : selectedElement.type === "text" && selectedElement.isDocCard ? "Document card" : selectedElement.type.charAt(0).toUpperCase() + selectedElement.type.slice(1)} selected` : isTextEditing ? "Text formatting" : "Style for new elements";
 
   const isArrow = selectedElement?.type === "arrow" || (!selectedElement && selectedTool === "arrow");
   const isIcon = selectedElement?.type === "icon";
-  const isImage = selectedElement?.type === "image";
+  const isAttachment = selectedElement?.type === "text" && !!selectedElement.attachment;
+  const isImage = selectedElement?.type === "image" || isAttachment;
   const arrowEl = selectedElement?.type === "arrow" ? selectedElement : null;
 
   const activeStroke = selectedElement?.type === "icon" ? selectedElement.iconColor || "#E2E8F0" : selectedElement ? selectedElement.stroke : currentStyle.stroke;
@@ -192,7 +193,7 @@ export function PropertiesPanel({
     if (arrowEl) onSwapArrow();
   };
 
-  const isTextual = isTextEditing || selectedElement?.type === "text" || selectedElement?.type === "sticky" || (!selectedElement && ["text", "doc", "sticky"].includes(selectedTool));
+  const isTextual = !isAttachment && (isTextEditing || selectedElement?.type === "text" || selectedElement?.type === "sticky" || (!selectedElement && ["text", "doc", "sticky"].includes(selectedTool)));
   const hasBackground = !isImage && !isIcon && !isArrow && selectedElement?.type !== "line" && selectedTool !== "line" && selectedTool !== "pencil" && (!isTextual || selectedElement?.type === "sticky" || selectedElement?.type === "text" && selectedElement.isDocCard || selectedTool === "doc" || selectedTool === "sticky");
   const textEl = selectedElement && (selectedElement.type === "text" || selectedElement.type === "sticky") ? selectedElement : null;
   const activeFontSize = textEl ? textEl.fontSize : currentStyle.fontSize;
@@ -458,7 +459,7 @@ export function PropertiesPanel({
 
       {selectedTool === "eyedropper" && <p className="text-xs text-neutral-400">Click an object to use its color for drawing.</p>}
       {!isImage && <ColorControl label="Custom stroke color" value={activeStroke} onChange={handleStrokeColor} />}
-      {isImage && <p className="text-xs text-neutral-400">Drag to move this image. Use the selection handles to resize it.</p>}
+      {isImage && <p className="text-xs text-neutral-400">{isAttachment ? "File attachment. Select its Download button to save the original file." : "Drag to move this image. Use the selection handles to resize it."}</p>}
       {/* Stroke Color */}
       {!isImage && <div>
         <label className="text-[11px] font-medium text-neutral-400 tracking-wide block mb-1">

@@ -1,7 +1,7 @@
-import type { Board, CanvasElement, BackgroundSettings } from "./types";
-import { normalizeBackground } from "@/lib/background.mjs";
+import type { Board, CanvasElement, BackgroundSettings, GridType } from "./types";
+import { normalizeBackground, isLightBackground } from "@/lib/background.mjs";
 import { drawCanvasBackground } from "./backgroundFill";
-import { drawElement, getElementBounds, unionBounds, loadCanvasFonts } from "./renderer";
+import { drawElement, getElementBounds, unionBounds, loadCanvasFonts, gridAppearance } from "./renderer";
 import { isEmbeddedImage } from "./imageResource";
 import { getIconById } from "./iconsData";
 import { normalizeIconSvg } from "./iconSvg";
@@ -86,7 +86,7 @@ function safeIcon(markup: string, namespace: string) {
   try { return normalizeIconSvg(markup, undefined, namespace).svgMarkup; } catch { return ""; }
 }
 
-export function boardToSvg(elements: CanvasElement[], transparent = false, scene: CanvasElement[] = elements, background?: BackgroundSettings): string | null {
+export function boardToSvg(elements: CanvasElement[], transparent = false, scene: CanvasElement[] = elements, background?: BackgroundSettings, gridType: GridType = "dot"): string | null {
   const bounds = unionBounds(elements.map(el => getElementBounds(el, scene)));
   if (!bounds) return null;
   const width = Math.ceil(bounds.maxX - bounds.minX + 80), height = Math.ceil(bounds.maxY - bounds.minY + 80);
@@ -96,9 +96,15 @@ export function boardToSvg(elements: CanvasElement[], transparent = false, scene
     set(target, key, value) { if (key in target.state) Reflect.set(target.state, key, value); return true; },
   }) as unknown as CanvasRenderingContext2D;
   if (!transparent) drawCanvasBackground(ctx, normalizeBackground(background), () => ctx.rect(bounds.minX - 40, bounds.minY - 40, width, height), { x: bounds.minX - 40, y: bounds.minY - 40, width, height });
+  if (!transparent && gridType !== "none") {
+    const { spacing, radius, dotColor, lineColor } = gridAppearance(1, isLightBackground(background));
+    const marks = gridType === "dot" ? `<circle cx="${spacing/2}" cy="${spacing/2}" r="${radius}" fill="${dotColor}"/>` : `<path d="M0.5 0V${spacing}M0 0.5H${spacing}" fill="none" stroke="${lineColor}" stroke-width="1"/>`;
+    const offset = gridType === "dot" ? -spacing/2 : 0;
+    recorder.output.push(`<defs><pattern id="knotleaf-editor-grid" x="${offset}" y="${offset}" width="${spacing}" height="${spacing}" patternUnits="userSpaceOnUse">${marks}</pattern></defs><rect x="${bounds.minX-40}" y="${bounds.minY-40}" width="${width}" height="${height}" fill="url(#knotleaf-editor-grid)"/>`);
+  }
   for (const el of elements) {
     if (el.type === "image") {
-      if (isEmbeddedImage(el.source)) recorder.output.push(`<image x="${el.x}" y="${el.y}" width="${el.width}" height="${el.height}" href="${esc(el.source)}" opacity="${el.opacity}" preserveAspectRatio="none"/>`);
+      if (isEmbeddedImage(el.source, el.localOnly ? Infinity : 4_000_000)) recorder.output.push(`<image x="${el.x}" y="${el.y}" width="${el.width}" height="${el.height}" href="${esc(el.source)}" opacity="${el.opacity}" preserveAspectRatio="none"/>`);
       continue;
     }
     // Embed icon glyphs as self-contained SVG; icons have no card or caption.
@@ -115,7 +121,7 @@ export function boardToSvg(elements: CanvasElement[], transparent = false, scene
 }
 export async function exportToSvg(board: Board, elements = board.elements, transparent = false) {
   await loadCanvasFonts();
-  const svg = boardToSvg(elements, transparent, board.elements, board.background);
+  const svg = boardToSvg(elements, transparent, board.elements, board.background, board.gridType || "dot");
   if (!svg) throw new Error("Add something to the canvas before exporting SVG.");
   const url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml" }));
   const link = document.createElement("a"); link.href = url; link.download = `${board.title.replace(/[^a-z0-9_-]/gi, "-") || "board"}.svg`; link.click();

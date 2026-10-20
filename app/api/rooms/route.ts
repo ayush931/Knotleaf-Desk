@@ -1,3 +1,4 @@
+import { sharedElements } from '@/lib/localAssets.mjs';
 import { NextRequest, NextResponse } from 'next/server';
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -15,7 +16,10 @@ export async function POST(request: NextRequest) {
     const url = new URL(endpoint);
     if (!['ws:','wss:'].includes(url.protocol)) throw new Error('Invalid room endpoint');
     url.protocol=url.protocol==='wss:'?'https:':'http:'; url.pathname='/api/rooms'; url.search=''; url.hash='';
-    const body = await request.text(); if (Buffer.byteLength(body)>6_000_000) return NextResponse.json({error:'Board is too large to share.'},{status:413});
+    const raw = await request.text();
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed?.elements)) parsed.elements = sharedElements(parsed.elements);
+    const body = JSON.stringify(parsed); if (Buffer.byteLength(body)>6_000_000) return NextResponse.json({error:'Board is too large to share.'},{status:413});
     const response=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json',Origin:origin},body,signal:AbortSignal.timeout(55000)});
     const data = await response.json().catch(() => null);
     if (!data) return NextResponse.json({error:'The room host is unavailable or starting up. Your board is safe; retry shortly.'},{status:503});
