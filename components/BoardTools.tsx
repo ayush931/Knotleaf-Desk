@@ -5,7 +5,7 @@ import { BugReportForm } from './BugReportForm';
 import type { Board, CanvasElement } from '@/draw/types';
 import { listVersions, saveVersion, removeVersion, listCustomTemplates, saveCustomTemplate, removeCustomTemplate, searchBoard, type BoardVersion } from '@/lib/boardLibrary';
 import { exportProjectFile } from '@/draw/export';
-interface Props { onHistorySaved?: () => void; historyError?: string; open: boolean; onClose: () => void; board: Board; selection: CanvasElement[]; onOpenCopy: (board: Board, title: string) => void; onFind: (id: string, index?: number, length?: number) => void }
+interface Props { initialSection?: "find" | "report"; onHistorySaved?: () => void; historyError?: string; open: boolean; onClose: () => void; board: Board; selection: CanvasElement[]; onOpenCopy: (board: Board, title: string) => void; onFind: (id: string, index?: number, length?: number) => void }
 export function BoardTools(p: Props) {
   const dialog = useRef<HTMLDialogElement>(null), input = useRef<HTMLInputElement>(null);
   const [tab, setTab] = useState('find'), [query, setQuery] = useState(''), [name, setName] = useState(''), [error, setError] = useState(''), [notice, setNotice] = useState('');
@@ -13,13 +13,18 @@ export function BoardTools(p: Props) {
   const [onlySelection, setOnlySelection] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
   useEffect(() => {
-    let timer: ReturnType<typeof setTimeout> | undefined, frame: number | undefined;
+    let timer: ReturnType<typeof setTimeout> | undefined;
     if (p.open) {
       dialog.current?.showModal();
-      timer = setTimeout(() => { setTab('find'); setError(''); setNotice(''); setDeleting(null); setVersions(listVersions(p.board.id)); setTemplates(listCustomTemplates()); frame = requestAnimationFrame(() => input.current?.focus()); }, 0);
+      timer = setTimeout(() => { setTab(p.initialSection || 'find'); if (dialog.current) dialog.current.scrollTop = 0; setError(''); setNotice(''); setDeleting(null); setVersions(listVersions(p.board.id)); setTemplates(listCustomTemplates()); }, 0);
     } else dialog.current?.close();
-    return () => { clearTimeout(timer); if (frame !== undefined) cancelAnimationFrame(frame); };
-  }, [p.open, p.board.id]);
+    return () => { clearTimeout(timer); };
+  }, [p.open, p.board.id, p.initialSection]);
+  useEffect(() => {
+    if (!p.open) return;
+    if (tab === 'report') dialog.current?.querySelector<HTMLInputElement>('[aria-label="Bug summary"]')?.focus({ preventScroll: true });
+    else if (tab === 'find') input.current?.focus();
+  }, [p.open, tab]);
   const close = () => { dialog.current?.close(); p.onClose(); };
   const matches = useMemo(() => p.open ? searchBoard(p.board.elements, p.board.markdownNotes, query) : [], [p.open, p.board.elements, p.board.markdownNotes, query]);
   const run = (action: () => void) => { setError(''); setNotice(''); try { action(); } catch (error) { setError(error instanceof Error ? error.message : 'Could not complete this action.'); } };

@@ -239,15 +239,15 @@ test('bug reporting prepares a reviewable public issue, excludes private context
     expect(document.body.textContent).toContain('copy it manually');
   } finally { if (originalClipboard) Object.defineProperty(navigator, 'clipboard', originalClipboard); else delete navigator.clipboard; }
 });
-test('Report bug is available within Board tools without adding canvas chrome and retains a draft', async () => {
-  await renderBoard(); await clickNamed('Board tools: find, history, templates and report a bug');
+test('Report bug opens directly from the visible screen action and retains a draft in Board tools', async () => {
+  await renderBoard(); await clickNamed('Report bug');
   await act(async () => new Promise(resolve => setTimeout(resolve, 5)));
-  await act(async () => [...document.querySelectorAll('button')].find(button => button.textContent === 'Report bug').click());
+  expect(document.activeElement === named('Bug summary')).toBe(true);
   expect(named('Bug report').closest('[hidden]')).toBeNull();
   const setter = Object.getOwnPropertyDescriptor(browser.HTMLInputElement.prototype, 'value').set;
   await act(async () => { setter.call(named('Bug summary'), 'My draft'); named('Bug summary').dispatchEvent(new browser.Event('input', { bubbles: true })); });
   await clickNamed('Close board tools'); await clickNamed('Board tools: find, history, templates and report a bug');
   await act(async () => new Promise(resolve => setTimeout(resolve, 5)));
-  await act(async () => [...document.querySelectorAll('button')].find(button => button.textContent === 'Report bug').click());
+  await act(async () => [...document.querySelectorAll('dialog[open] button')].find(button => button.textContent === 'Report bug').click());
   expect(named('Bug summary').value).toBe('My draft');
 });

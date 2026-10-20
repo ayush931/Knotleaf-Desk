@@ -26,7 +26,7 @@ export function ZoomBar({
 }: ZoomBarProps) {
   return (
     <div
-      className="fixed bottom-5 right-5 z-40 flex items-center gap-1 px-2 py-1.5 rounded-2xl border border-[#27272a] bg-[#18181b]/95 text-neutral-300 shadow-sm shadow-black/10 backdrop-blur-md select-none transition-all"
+      className="fixed bottom-5 right-5 z-40 flex items-center gap-1 max-[360px]:right-2 max-[360px]:gap-0 px-2 py-1.5 rounded-2xl border border-[#27272a] bg-[#18181b]/95 text-neutral-300 shadow-sm shadow-black/10 backdrop-blur-md select-none transition-all"
     >
       <button
         onClick={onZoomOut}

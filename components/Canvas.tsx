@@ -1,6 +1,6 @@
 "use client";
 
-import { Heading1, List, CheckSquare, Quote, Check, PanelsTopLeft } from "lucide-react";
+import { Heading1, List, CheckSquare, Quote, Check, PanelsTopLeft, Bug } from "lucide-react";
 import { useRouter } from "next/navigation";
 import React, { useCallback, useEffect, useMemo, useRef, useState, useLayoutEffect } from "react";
 import { RoomSession, type Collaborator } from "@/lib/collaboration";
@@ -125,6 +125,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
   const [presentationIndex, setPresentationIndex] = useState(0);
   const presentationViewport = useRef<{ zoom: number; pan: { x: number; y: number } } | null>(null);
   const [boardToolsOpen, setBoardToolsOpen] = useState(false);
+  const [boardToolsSection, setBoardToolsSection] = useState<"find" | "report">("find");
   const [historyError, setHistoryError] = useState("");
   const [noteFocus, setNoteFocus] = useState<{ start: number; end: number; token: number } | undefined>();
   const frames = useMemo(() => board.elements.filter(el => el.type === "frame"), [board.elements]);
@@ -303,7 +304,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.isComposing) return;
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f" && !document.querySelector("dialog[open]")) { e.preventDefault(); setBoardToolsOpen(true); return; }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f" && !document.querySelector("dialog[open]")) { e.preventDefault(); setBoardToolsSection("find"); setBoardToolsOpen(true); return; }
       if (isEditableTarget(e.target) || document.querySelector("dialog[open]")) return;
       if (e.key === "?" || (e.key === "/" && (e.ctrlKey || e.metaKey))) {
         e.preventDefault();
@@ -622,7 +623,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
           onRenameTitle={handleRenameTitle}
           onToggleSidebar={() => setIsSidebarOpen(true)}
           onOpenTemplates={() => setIsTemplatesOpen(true)}
-          onOpenBoardTools={() => setBoardToolsOpen(true)}
+          onOpenBoardTools={() => { setBoardToolsSection("find"); setBoardToolsOpen(true); }}
           onClearBoard={handleClearBoard}
           gridType={gridType}
           onChangeGridType={handleChangeGridType}
@@ -912,7 +913,8 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
       {initialRoomId && !roomReady && <div role="status" className="fixed left-1/2 top-20 z-40 w-[min(400px,90vw)] -translate-x-1/2 rounded-xl border border-amber-500/30 bg-neutral-900 p-4 text-center text-sm text-neutral-300"><p>{roomError || "Connecting to your room…"}</p><p className="mt-2 text-xs text-neutral-500">Start the collaboration server or check your connection. Drawing unlocks after the room syncs.</p><div className="mt-3 flex justify-center gap-4">{roomError && roomStatus !== "expired" && <button onClick={() => { setRoomError(""); setRoomStatus("connecting"); setRoomAttempt(attempt => attempt + 1); }} className="text-xs text-blue-400 underline">Retry connection</button>}<button onClick={handleLeaveRoom} className="text-xs text-blue-400 underline">Leave room</button></div></div>}
       {focusMode && <button onClick={exitFocus} aria-label="Show controls" aria-keyshortcuts="Escape Shift+Z" title="Show controls · Escape or Shift+Z" className="absolute right-2 top-2 z-40 flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-700 bg-neutral-900/80 text-neutral-400 transition-colors hover:bg-neutral-800 hover:text-white focus-visible:outline-2 focus-visible:outline-blue-500"><PanelsTopLeft className="h-4 w-4" /></button>}
       <PresentationMode isActive={isPresentationOpen} onExit={endPresentation} title={board.title} theme={theme} frames={frames} index={presentationIndex} onIndex={setPresentationIndex} />
-      <BoardTools open={boardToolsOpen} onClose={() => setBoardToolsOpen(false)} board={board} selection={librarySelection} historyError={historyError} onHistorySaved={() => setHistoryError("")} onOpenCopy={(source, title) => { const copy = importBoardFile(JSON.stringify({ ...source, title })); if (!copy) throw new Error("Could not create a board. Check available browser storage."); copy.title = title; if (!saveBoard(copy)) throw new Error("Could not save the new board."); moveBoardToWorkspace(copy.id, workspaceId); handleSelectBoard(copy.id); }} onFind={(id, index, length) => {
+      {!isPresentationOpen && !focusMode && <button type="button" aria-label="Report bug" title="Report a bug" onClick={() => { setBoardToolsSection("report"); setBoardToolsOpen(true); }} className="absolute bottom-3 left-2 z-30 inline-flex h-8 items-center gap-1 rounded-lg border border-neutral-700 bg-neutral-900/95 px-1.5 text-[11px] text-neutral-400 hover:bg-neutral-800 hover:text-white focus-visible:outline-2 focus-visible:outline-blue-500"><Bug aria-hidden="true" className="h-3 w-3"/>Report bug</button>}
+      <BoardTools initialSection={boardToolsSection} open={boardToolsOpen} onClose={() => setBoardToolsOpen(false)} board={board} selection={librarySelection} historyError={historyError} onHistorySaved={() => setHistoryError("")} onOpenCopy={(source, title) => { const copy = importBoardFile(JSON.stringify({ ...source, title })); if (!copy) throw new Error("Could not create a board. Check available browser storage."); copy.title = title; if (!saveBoard(copy)) throw new Error("Could not save the new board."); moveBoardToWorkspace(copy.id, workspaceId); handleSelectBoard(copy.id); }} onFind={(id, index, length) => {
         if (index !== undefined) {
           persist({ ...boardRef.current, viewMode: "notes" });
           setNoteFocus(previous => ({ start: index, end: index + (length || 0), token: (previous?.token || 0) + 1 }));
