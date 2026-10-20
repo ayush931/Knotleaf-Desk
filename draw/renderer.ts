@@ -633,6 +633,41 @@ function roundedOutline(x: number, y: number, width: number, height: number, rad
   return points.slice(0, -1); // Closing the path supplies the final shared tangent.
 }
 
+/** Circular fillets with one radius, reduced uniformly when a corner is acute. */
+function roundedPolygon(points: Point[], requestedRadius: number) {
+  const vertices = points.map((point, i) => {
+    const previous = points[(i + points.length - 1) % points.length], next = points[(i + 1) % points.length];
+    const before = Math.max(1e-6, Math.hypot(previous.x - point.x, previous.y - point.y));
+    const after = Math.max(1e-6, Math.hypot(next.x - point.x, next.y - point.y));
+    const u = { x: (previous.x - point.x) / before, y: (previous.y - point.y) / before };
+    const v = { x: (next.x - point.x) / after, y: (next.y - point.y) / after };
+    const angle = Math.acos(Math.max(-0.999999, Math.min(0.999999, u.x * v.x + u.y * v.y)));
+    return { point, before, after, u, v, angle };
+  });
+  const radius = Math.min(requestedRadius, ...vertices.map(v => Math.min(Math.min(v.before, v.after) * 0.4 * Math.tan(v.angle / 2), requestedRadius * Math.sin(v.angle / 2) / (1 - Math.sin(v.angle / 2)))));
+  const corners = vertices.map(({ point, u, v, angle }) => {
+    const distance = radius / Math.tan(angle / 2), bisector = Math.hypot(u.x + v.x, u.y + v.y);
+    const centerDistance = radius / Math.sin(angle / 2);
+    const center = { x: point.x + (u.x + v.x) / bisector * centerDistance, y: point.y + (u.y + v.y) / bisector * centerDistance };
+    const entry = { x: point.x + u.x * distance, y: point.y + u.y * distance };
+    const exit = { x: point.x + v.x * distance, y: point.y + v.y * distance };
+    return { point, entry, exit, center };
+  });
+  const samples: Point[] = [];
+  for (const corner of corners) {
+    samples.push(corner.entry);
+    const start = Math.atan2(corner.entry.y - corner.center.y, corner.entry.x - corner.center.x);
+    const end = Math.atan2(corner.exit.y - corner.center.y, corner.exit.x - corner.center.x);
+    const sweep = (end - start + Math.PI * 2) % (Math.PI * 2);
+    const steps = Math.max(4, Math.ceil(sweep / (Math.PI / 16)));
+    for (let i = 1; i <= steps; i++) {
+      const angle = start + sweep * i / steps;
+      samples.push(i === steps ? corner.exit : { x: corner.center.x + Math.cos(angle) * radius, y: corner.center.y + Math.sin(angle) * radius });
+    }
+  }
+  return { corners, samples, radius };
+}
+
 function smoothPath(ctx: CanvasRenderingContext2D, pts: Point[]) {
   if (pts.length < 3) {
     if (pts.length === 2) {
@@ -709,15 +744,24 @@ function drawDiamond(ctx: CanvasRenderingContext2D, el: CanvasElement) {
     { x: cx, y: y + h },
     { x, y: cy },
   ];
+  const rounded = el.roundness === "rounded" && w > 0 && h > 0 ? roundedPolygon(pts, Math.min(12, w / 4, h / 4)) : null;
   paintShape(
     ctx,
     el,
     () => {
-      ctx.moveTo(pts[0].x, pts[0].y);
-      pts.slice(1).forEach((p) => ctx.lineTo(p.x, p.y));
+      if (rounded) {
+        ctx.moveTo(rounded.corners[0].entry.x, rounded.corners[0].entry.y);
+        for (const corner of rounded.corners) {
+          ctx.lineTo(corner.entry.x, corner.entry.y);
+          ctx.arcTo(corner.point.x, corner.point.y, corner.exit.x, corner.exit.y, rounded.radius);
+        }
+      } else {
+        ctx.moveTo(pts[0].x, pts[0].y);
+        pts.slice(1).forEach((p) => ctx.lineTo(p.x, p.y));
+      }
       ctx.closePath();
     },
-    pts
+    rounded?.samples || pts
   );
   drawShapeLabel(ctx, el, { x, y, w, h });
 }

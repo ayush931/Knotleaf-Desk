@@ -115,3 +115,5 @@ Collaboration exposes Chat in its room actions; Classroom exposes a visible Chat
 
 
 Free-text selection uses measured ink bounds rather than a saved alignment box or minimum two-character width. Visible glyphs, rich-text markers, italic overhangs and underlines remain inside it; trailing empty lines and unused saved width/height do not expand it. Left/center/right text keeps its rendered position. Its outline has only a 2-unit clearance, with connector ports 8 units outside content. Existing document/code/sticky card containers retain their layout padding. Hit testing, selection, resize handles and fitting use the same content bounds; resizing preserves the opposite content edge and connector endpoints realign after font loading.
+
+Diamond/kite roundness is functional: Rounded renders four equal-radius circular fillets in both Clean and Rough styles, with uniform radius reduction for acute/tiny aspect ratios. Sharp preserves the original vertices. Fill clipping and exported vectors follow the chosen corner geometry.

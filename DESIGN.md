@@ -127,3 +127,5 @@ RoomChat is the shared conversation UI for CollaborationPanel and Classroom. A r
 
 
 Free-text selection follows measured visible glyphs, including italic overhangs, underline, line alignment and rich-text markers. It excludes unused stored width/height and trailing blank lines. Logical alignment boxes stay unchanged so older text keeps its visible position. Measurement removes the old two-character minimum and hidden 12-unit margin. A 2-unit selection inset protects the glyph edge; connection ports remain 8 units outside content. Cards keep their intentional container padding. Font completion invalidates text-bound caches and realigns text connectors.
+
+Diamond (kite) shapes honor Sharp/Rounded in Clean and Rough strokes. Rounded diamonds use four circular corner fillets with a shared radius, reduced uniformly for thin or tiny diamonds; rough samples follow those same arcs. Fill boundaries and strokes share the rounded geometry.

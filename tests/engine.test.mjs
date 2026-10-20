@@ -1053,3 +1053,25 @@ test('visible text bounds ignore oversized alignment boxes, empty lines and line
   expect(textContentBounds(ctx,{...el,text:'Hi',textAlign:'right'})).toEqual({minX:878,maxX:901,minY:204,maxY:221});
   expect(textContentBounds(ctx,{...el,text:'Hi',underline:true}).maxY).toBeGreaterThan(225);
 });
+
+
+test('Rounded works for kite/diamond shapes in Clean and Rough styles at every aspect ratio', () => {
+  for(const [width,height] of [[200,120],[120,200],[300,24],[24,300],[8,8],[-200,-120]]) {
+    const el={...base,id:'kite',type:'diamond',x:300,y:300,width,height,roundness:'rounded'};
+    const arcs=[];const ctx=new Proxy({arcTo(...args){arcs.push(args);},measureText:()=>({width:0})},{get:(obj,key)=>key in obj?obj[key]:()=>{}});
+    drawElement(ctx,el,{theme:'dark'});expect(arcs).toHaveLength(4);
+    expect(arcs.every(arc=>arc.every(Number.isFinite)&&arc[4]>0&&arc[4]<=12)).toBe(true);
+    expect(new Set(arcs.map(arc=>arc[4])).size).toBe(1);
+    const rough={...el,strokeStyle:'rough'},paths=recordedShape(rough),sharp=recordedShape({...rough,roundness:'sharp'});
+    expect(paths).not.toEqual(sharp);expect(paths).toHaveLength(2);
+    const x=Math.min(el.x,el.x+width),y=Math.min(el.y,el.y+height),w=Math.abs(width),h=Math.abs(height);
+    for(const path of paths){
+      const endpoints=path.filter(op=>op[0]==='M'||op[0]==='Q').map(op=>op.slice(-2));
+      for(const [vx,vy]of[[x+w/2,y],[x+w,y+h/2],[x+w/2,y+h],[x,y+h/2]])expect(endpoints.some(p=>Math.hypot(p[0]-vx,p[1]-vy)<1e-6)).toBe(false);
+      const inset=Math.min(12,w/4,h/4);
+      expect(Math.max(...endpoints.map(p=>p[0]))).toBeGreaterThanOrEqual(x+w-inset-1e-5);
+      expect(Math.min(...endpoints.map(p=>p[0]))).toBeLessThanOrEqual(x+inset+1e-5);
+      expect(path.at(-1)).toEqual(['Z']);expect(path.flat().filter(v=>typeof v==='number').every(Number.isFinite)).toBe(true);
+    }
+  }
+});
