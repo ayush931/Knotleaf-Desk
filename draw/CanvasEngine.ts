@@ -316,7 +316,7 @@ export class CanvasEngine {
     if (typeof document !== "undefined" && document.fonts) {
       loadCanvasFonts()
         .catch(() => undefined)
-        .finally(() => this.requestRender());
+        .finally(() => { if (!this.destroyed) { this.elements = alignTextPorts(this.elements); this.requestRender(); } });
     }
   }
 
@@ -1281,6 +1281,10 @@ export class CanvasEngine {
         const onTag = pt.x >= r.x + 12 && pt.x <= r.x + 12 + tagW && Math.abs(pt.y - r.y) <= 12 / this.zoom;
         return (inside && !deep) || onTag;
       }
+      case "text": {
+        const b = getElementBounds(el);
+        return pt.x >= b.minX - tol && pt.x <= b.maxX + tol && pt.y >= b.minY - tol && pt.y <= b.maxY + tol;
+      }
       default: {
         const r = normalizeRect(el);
         return pt.x >= r.x - tol && pt.x <= r.x + r.w + tol && pt.y >= r.y - tol && pt.y <= r.y + r.h + tol;
@@ -1943,7 +1947,8 @@ export class CanvasEngine {
     if (!g || g.kind !== "resize") return;
     const snapshot = g.snapshot;
     const bounds = getElementBounds(snapshot);
-    const r = snapshot.type === "pencil" ? { x: bounds.minX, y: bounds.minY, w: bounds.maxX - bounds.minX, h: bounds.maxY - bounds.minY } : normalizeRect(snapshot);
+    const tightText = snapshot.type === "text" && !snapshot.isDocCard && !snapshot.isCodeCard && snapshot.fill === "transparent";
+    const r = snapshot.type === "pencil" || tightText ? { x: bounds.minX, y: bounds.minY, w: bounds.maxX - bounds.minX, h: bounds.maxY - bounds.minY } : normalizeRect(snapshot);
     const dx = pt.x - g.origin.x, dy = pt.y - g.origin.y;
     let x0 = r.x, y0 = r.y, x1 = r.x + r.w, y1 = r.y + r.h;
     if (g.handle.includes("w")) x0 = Math.min(this.snapPoint({ x: r.x + dx, y: r.y }).x, x1 - MIN_SIZE);
@@ -1962,6 +1967,12 @@ export class CanvasEngine {
         const vertical = g.handle.includes("n") || g.handle.includes("s");
         const scale = horizontal && vertical ? Math.max(rect.width / Math.max(r.w, 1), rect.height / Math.max(r.h, 1)) : horizontal ? rect.width / Math.max(r.w, 1) : rect.height / Math.max(r.h, 1);
         const text = this.remeasureText({ ...snapshot, fontSize: Math.max(8, Math.min(512, snapshot.fontSize * scale)) });
+        if (tightText) {
+          const ink = getElementBounds(text);
+          const x = g.handle.includes("w") ? r.x + r.w - (ink.maxX - ink.minX) : r.x;
+          const y = g.handle.includes("n") ? r.y + r.h - (ink.maxY - ink.minY) : r.y;
+          return { ...text, x: text.x + x - ink.minX, y: text.y + y - ink.minY };
+        }
         return { ...text, x: g.handle.includes("w") ? r.x + r.w - text.width : r.x, y: g.handle.includes("n") ? r.y + r.h - text.height : r.y };
       }
       if (snapshot.type === "sticky") return this.fitSticky({ ...snapshot, ...rect });

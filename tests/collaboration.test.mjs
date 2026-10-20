@@ -135,3 +135,50 @@ test('canvas backgrounds, patterned shape fills and embedded images sync and bac
     const restored = new Y.Doc(); Y.applyUpdate(restored, new Uint8Array(await readFile(path.join(directory, `${room}.bin`)))); expect(JSON.parse(restored.getMap('meta').get('background'))).toEqual(background); restored.destroy();
   } finally { a.destroy(); b.destroy(); await service.close(); await rm(directory, { recursive: true, force: true }); }
 }, 10000);
+
+test('room chat syncs across clients and reconnects, preserves room isolation, and stays outside board undo', async () => {
+  const { RoomSession } = await import('../lib/collaboration.ts');
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'knotleaf-chat-'));
+  const server = createCollaborationServer({ port: 0, directory, roomStore: null });
+  const address = await server.listen(), url = `ws://127.0.0.1:${address.port}`;
+  const room = crypto.randomUUID(), a = new RoomSession(url, room), b = new RoomSession(url, room), c = new RoomSession(url, crypto.randomUUID());
+  let first = [], second = [], separate = [], boardEvents = 0;
+  a.onChat = messages => { first = messages; }; b.onChat = messages => { second = messages; }; c.onChat = messages => { separate = messages; };
+  try {
+    expect(() => a.sendChat('Not connected')).toThrow('disconnected');
+    a.connect(); b.connect(); c.connect(); await until(() => a.synced && b.synced && c.synced);
+    await new Promise(resolve => setTimeout(resolve, 100)); b.onRemote = () => boardEvents++;
+    a.setName('Alice'); b.setName('Bob'); a.sendChat('Hello from collaboration');
+    await until(() => second.length === 1); expect(second[0]).toMatchObject({ name: 'Alice', text: 'Hello from collaboration' });
+    expect(boardEvents).toBe(0); expect(a.undo.undoStack).toHaveLength(0);
+    b.sendChat('Reply from the call'); await until(() => first.length === 2);
+    expect(first).toEqual(second); expect(separate).toEqual([]);
+    a.undo.undo(); expect(a.chat.length).toBe(2);
+    b.provider.disconnect(); a.sendChat('While you reconnect'); b.provider.connect();
+    await until(() => second.length === 3);
+    expect(second[2].text).toBe('While you reconnect');
+    await new Promise(resolve => setTimeout(resolve, 250));
+    const restored = new Y.Doc(); Y.applyUpdate(restored, new Uint8Array(await readFile(path.join(directory, `${room}.bin`))));
+    expect(restored.getArray('chat').toArray()).toEqual(second); restored.destroy();
+    expect(() => a.sendChat('x'.repeat(2001))).toThrow('2000');
+    b.provider.disconnect(); expect(() => b.sendChat('Keep this draft')).toThrow('disconnected');
+    expect(first).toHaveLength(3);
+  } finally { a.destroy(); b.destroy(); c.destroy(); await server.close(); await rm(directory, { recursive: true, force: true }); }
+}, 10000);
+test('room chat bounds history, rejects malformed entries, and prevents rapid accidental sending', async () => {
+  const { RoomSession } = await import('../lib/collaboration.ts');
+  const { isRoomMessage } = await import('../lib/roomChat.ts');
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'knotleaf-chat-limit-'));
+  const server = createCollaborationServer({ port: 0, directory, roomStore: null }); const address=await server.listen();
+  const session = new RoomSession(`ws://127.0.0.1:${address.port}`, crypto.randomUUID()); let messages=[];
+  session.onChat = next => { messages=next; };
+  try {
+    session.connect(); await until(() => session.synced);
+    session.chat.push(Array.from({length:105},(_,i)=>({id:`seed-${i}`,author:1,name:'Alice',text:`Message ${i}`,at:Date.now()})));
+    session.sendChat('Latest'); expect(session.chat.length).toBe(100); expect(messages.at(-1).text).toBe('Latest');
+    for(let i=0;i<9;i++)session.sendChat(`Quick message ${i}`);
+    expect(() => session.sendChat('One too many')).toThrow('quickly');
+    const valid=messages.at(-1); for(const extra of [{at:1e100},{text:' '},{name:''},{text:'x'.repeat(2001)},{author:NaN},{id:''}])expect(isRoomMessage({...valid,...extra})).toBe(false);
+    session.chat.push([{...valid,id:'malformed',at:1e100}]); expect(messages.some(message=>message.id==='malformed')).toBe(false);
+  } finally { session.destroy(); await server.close(); await rm(directory,{recursive:true,force:true}); }
+},10000);

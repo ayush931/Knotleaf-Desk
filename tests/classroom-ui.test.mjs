@@ -6,6 +6,8 @@ import {ClassroomAudioSource} from '../components/ClassroomAudioSource.tsx';
 import {InstallWebApp} from '../components/InstallWebApp.tsx';
 import {RefreshWebApp} from '../components/RefreshWebApp.tsx';
 import manifest from '../app/manifest.ts';
+import { RoomChat } from '../components/RoomChat.tsx';
+import { CollaborationPanel } from '../components/CollaborationPanel.tsx';
 import {Classroom} from '../components/Classroom.tsx';
 let browser,root,createRoot;const previous=new Map();
 beforeAll(async()=>{
@@ -113,4 +115,38 @@ test('web app provides manual installation instructions and a scoped standalone 
  const dialog=document.querySelector('dialog');expect(dialog.open).toBe(true);expect(dialog.parentElement).toBe(document.body);expect(dialog.textContent).toContain('Add to Home Screen');
  await act(async()=>document.querySelector('[aria-label="Close installation instructions"]').click());expect(dialog.open).toBe(false);
  const config=manifest();expect(config.start_url).toBe('/');expect(config.scope).toBe('/');expect(config.display).toBe('standalone');expect(config.icons.map(i=>i.sizes)).toEqual(['192x192','512x512']);
+});
+
+
+test('room chat preserves drafts on failed or disconnected sends, handles IME and Shift+Enter, and renders plain text',async()=>{
+ let connected=true, fail=true, sent=[];
+ const message={id:'one',author:1,name:'Alice',text:'<script>alert(1)</script>\nHello',at:Date.now()};
+ const show=()=>root.render(React.createElement(RoomChat,{messages:[message],connected,onSend:text=>{if(fail)throw new Error('Send failed');sent.push(text);}}));
+ await act(async()=>show());expect(document.querySelector('script')).toBeNull();expect(document.body.textContent).toContain('<script>');
+ const input=document.querySelector('textarea'),setter=Object.getOwnPropertyDescriptor(browser.HTMLTextAreaElement.prototype,'value').set;
+ await act(async()=>{setter.call(input,'My draft');input.dispatchEvent(new window.Event('input',{bubbles:true}));});
+ await act(async()=>input.dispatchEvent(new window.KeyboardEvent('keydown',{bubbles:true,key:'Enter',isComposing:true})));expect(sent).toEqual([]);expect(input.value).toBe('My draft');
+ await act(async()=>input.dispatchEvent(new window.KeyboardEvent('keydown',{bubbles:true,key:'Enter',shiftKey:true})));expect(sent).toEqual([]);
+ await act(async()=>document.querySelector('form').dispatchEvent(new window.Event('submit',{bubbles:true,cancelable:true})));expect(input.value).toBe('My draft');expect(document.querySelector('[role="alert"]').textContent).toBe('Send failed');
+ connected=false;await act(async()=>show());expect(button('Send').disabled).toBe(true);expect(input.value).toBe('My draft');
+ fail=false;connected=true;await act(async()=>show());await act(async()=>input.dispatchEvent(new window.KeyboardEvent('keydown',{key:'Enter',bubbles:true})));expect(sent).toEqual(['My draft']);expect(input.value).toBe('');
+});
+test('collaboration and call chat share one conversation without joining media, with focus and drafts preserved',async()=>{
+ const roomId=crypto.randomUUID();let sent=[];
+ function App(){const[messages,setMessages]=React.useState([]);const roomChat={messages,connected:true,onSend:text=>{sent.push(text);setMessages(current=>[...current,{id:crypto.randomUUID(),name:'Alice',author:1,text,at:Date.now()}]);}};return React.createElement(React.Fragment,null,React.createElement(Classroom,{roomId,roomChat}),React.createElement(CollaborationPanel,{roomId,roomChat,status:'connected',people:[],onCreate:async()=>{},onJoin(){},onName(){},onLeave(){}}));}
+ await act(async()=>root.render(React.createElement(SearchParamsContext.Provider,{value:new URLSearchParams()},React.createElement(App))));
+ const inputSetter=Object.getOwnPropertyDescriptor(browser.HTMLTextAreaElement.prototype,'value').set;
+ await act(async()=>document.querySelector('[aria-label="Open room chat"]').click());
+ let input=document.querySelector('[aria-label="Room chat message"]');expect(document.activeElement===input).toBe(true);
+ await act(async()=>{inputSetter.call(input,'Hello room');input.dispatchEvent(new window.Event('input',{bubbles:true}));});
+ await act(async()=>input.closest('form').dispatchEvent(new window.Event('submit',{bubbles:true,cancelable:true})));
+ await act(async()=>document.querySelector('[aria-label="Close collaboration"]').click());
+ await act(async()=>trigger().click());await act(async()=>document.querySelector('[aria-label="Show call chat"]').click());
+ input=document.querySelector('[aria-label="Call chat message"]');expect(document.activeElement===input).toBe(true);expect(panel().querySelector('[aria-label="Call chat messages"]').textContent).toContain('Hello room');
+ expect(button('Join class')).toBeDefined();
+ await act(async()=>{inputSetter.call(input,'Reply from call');input.dispatchEvent(new window.Event('input',{bubbles:true}));});
+ await act(async()=>input.closest('form').dispatchEvent(new window.Event('submit',{bubbles:true,cancelable:true})));
+ expect(sent).toEqual(['Hello room','Reply from call']);expect(document.querySelector('[aria-label="Room chat messages"]').textContent).toContain('Reply from call');
+ await act(async()=>{inputSetter.call(input,'Unsent draft');input.dispatchEvent(new window.Event('input',{bubbles:true}));});
+ await act(async()=>document.querySelector('[aria-label="Hide call chat"]').click());await act(async()=>document.querySelector('[aria-label="Show call chat"]').click());expect(input.value).toBe('Unsent draft');
 });

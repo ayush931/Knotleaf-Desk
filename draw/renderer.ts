@@ -11,6 +11,7 @@ import {
   ArrowHead,
   AnchorPosition,
   FontFamily,
+  TextElement,
   TextFormatting,
 } from "./types";
 import { getIconById } from "./iconsData";
@@ -61,6 +62,7 @@ export function fontStack(family: FontFamily): string {
 export async function loadCanvasFonts(): Promise<void> {
   if (typeof document === "undefined" || !document.fonts) return;
   await Promise.all(FONT_OPTIONS.flatMap(font => ["400", "700", "italic 400", "italic 700"].map(style => document.fonts.load(`${style} 16px ${fontStack(font.id)}`))));
+  textBoundsContexts.get(document)?.cache.clear();
 }
 
 export function setFont(
@@ -112,11 +114,15 @@ export function getElementBounds(el: CanvasElement, scene: CanvasElement[] = [])
   }
   if (el.type === "text") {
     const isDocCard = el.isDocCard || (el.fill && el.fill !== "transparent");
+    if (!isDocCard && !el.isCodeCard) {
+      const ink = cachedTextContentBounds(el);
+      if (ink) return ink;
+    }
     const pad = isDocCard ? 16 : 0;
     return {
       minX: el.x - pad,
       minY: el.y - pad,
-      maxX: el.x + Math.max(el.width, 24) + pad,
+      maxX: el.x + Math.max(el.width, isDocCard ? 24 : 1) + pad,
       maxY: el.y + Math.max(el.height, el.fontSize * 1.35) + pad,
     };
   }
@@ -138,7 +144,7 @@ function pointsBounds(pts: Point[]): Bounds {
 
 /** Text ports and its selection outline share stable, outside-glyph padding. */
 export const TEXT_PORT_PADDING = 8;
-export function selectionPadding(el: CanvasElement, zoom: number) { return el.type === "text" ? TEXT_PORT_PADDING : 5 / zoom; }
+export function selectionPadding(el: CanvasElement, zoom: number) { return el.type === "text" ? el.isDocCard || el.isCodeCard || el.fill !== "transparent" ? TEXT_PORT_PADDING : 2 : 5 / zoom; }
 
 export function getElementAnchors(el: CanvasElement): { anchor: AnchorPosition; x: number; y: number }[] {
   if (el.type === "arrow" || el.type === "line" || el.type === "pencil" || el.type === "frame") return [];
@@ -378,7 +384,62 @@ export function measureTextBlock(
   formatting: TextFormatting = {}
 ): { width: number; height: number } {
   const layout = layoutDocument(ctx, text, fontSize, family, formatting);
-  return { width: Math.ceil(layout.totalWidth), height: Math.ceil(layout.totalHeight) };
+  return { width: Math.ceil(Math.max(1, ...layout.lines.map(line => line.width))), height: Math.ceil(layout.totalHeight) };
+}
+
+/** Visible glyph bounds for free text; stored alignment boxes need not be resized. */
+export function textContentBounds(ctx: CanvasRenderingContext2D, el: TextElement): Bounds | null {
+  const layout = layoutDocument(ctx, el.text, el.fontSize, el.fontFamily, el);
+  const boxes: Bounds[] = [];
+  ctx.save(); ctx.textBaseline = "top";
+  for (const line of layout.lines) {
+    const ly = line.yOffset, indent = line.indentLevel * 18;
+    if (line.type === "divider") {
+      boxes.push({ minX: el.x, maxX: el.x + Math.max(el.width, layout.totalWidth, 120), minY: el.y + ly + 7.5, maxY: el.y + ly + 8.5 });
+      continue;
+    }
+    const list = line.type.startsWith("bullet-") || line.type === "number" || line.type.startsWith("todo-");
+    if (line.type === "quote") boxes.push({ minX: el.x, maxX: el.x + 3, minY: el.y + ly, maxY: el.y + ly + line.lineHeight - 2 });
+    if (line.type.startsWith("todo-")) { const top = el.y + ly + (line.lineHeight - 14) / 2; boxes.push({ minX: el.x + indent, maxX: el.x + indent + 14, minY: top, maxY: top + 14 }); }
+    else if (line.type === "number") {
+      setFont(ctx, Math.max(10, line.fontSize - 1), el.fontFamily, 600); ctx.textAlign = "right";
+      const prefix = ctx.measureText(line.prefix || "1.");
+      if (![prefix.actualBoundingBoxLeft, prefix.actualBoundingBoxRight, prefix.actualBoundingBoxAscent, prefix.actualBoundingBoxDescent].every(Number.isFinite)) { ctx.restore(); return null; }
+      boxes.push({ minX: el.x + indent + 16 - prefix.actualBoundingBoxLeft, maxX: el.x + indent + 16 + prefix.actualBoundingBoxRight, minY: el.y + ly + 1 - prefix.actualBoundingBoxAscent, maxY: el.y + ly + 1 + prefix.actualBoundingBoxDescent });
+    }
+    else if (list) boxes.push({ minX: el.x + indent, maxX: el.x + indent + 18, minY: el.y + ly + line.lineHeight / 2 - 5, maxY: el.y + ly + line.lineHeight / 2 + 5 });
+    if (!line.content.trim()) continue;
+    setFont(ctx, line.fontSize, el.fontFamily, line.fontWeight, line.isItalic);
+    const align = list || line.type === "quote" ? "left" : el.textAlign || "left";
+    ctx.textAlign = align;
+    const metrics = ctx.measureText(line.content);
+    if (![metrics.actualBoundingBoxLeft, metrics.actualBoundingBoxRight, metrics.actualBoundingBoxAscent, metrics.actualBoundingBoxDescent].every(Number.isFinite)) { ctx.restore(); return null; }
+    const anchor = list ? indent + 22 : line.type === "quote" ? 14 : align === "center" ? el.width / 2 : align === "right" ? el.width : indent;
+    const textY = ly + (line.type === "quote" ? 1 : 0);
+    let bottom = textY + metrics.actualBoundingBoxDescent;
+    let left = anchor - metrics.actualBoundingBoxLeft, right = anchor + metrics.actualBoundingBoxRight;
+    if (el.underline || el.strikethrough) {
+      const start = align === "center" ? anchor - metrics.width / 2 : align === "right" ? anchor - metrics.width : anchor;
+      left = Math.min(left, start); right = Math.max(right, start + metrics.width);
+      if (el.underline) bottom = Math.max(bottom, textY + line.fontSize * 1.05 + Math.max(1, line.fontSize / 16) / 2);
+    }
+    boxes.push({ minX: el.x + left, maxX: el.x + right, minY: el.y + textY - metrics.actualBoundingBoxAscent, maxY: el.y + bottom });
+  }
+  ctx.restore(); return boxes.length ? unionBounds(boxes) : null;
+}
+
+const textBoundsContexts = new WeakMap<Document, { ctx: CanvasRenderingContext2D; cache: Map<string, Bounds | null> }>();
+function cachedTextContentBounds(el: TextElement): Bounds | null {
+  if (typeof document === "undefined" || typeof document.createElement !== "function") return null;
+  let entry = textBoundsContexts.get(document);
+  if (!entry) { const ctx = document.createElement("canvas").getContext("2d"); if (!ctx) return null; entry = { ctx, cache: new Map() }; textBoundsContexts.set(document, entry); }
+  const key = JSON.stringify([el.text, el.width, el.fontSize, el.fontFamily, el.textAlign, el.bold, el.italic, el.underline, el.strikethrough]);
+  if (!entry.cache.has(key)) {
+    if (entry.cache.size >= 1000) entry.cache.clear();
+    entry.cache.set(key, textContentBounds(entry.ctx, { ...el, x: 0, y: 0 }));
+  }
+  const b = entry.cache.get(key);
+  return b ? { minX: b.minX + el.x, maxX: b.maxX + el.x, minY: b.minY + el.y, maxY: b.maxY + el.y } : null;
 }
 
 // --- Grid -------------------------------------------------------------------
@@ -516,7 +577,7 @@ function mulberry(seed: number) {
   };
 }
 
-/** Hand-drawn stroke: jittered segments drawn twice with different noise. */
+/** Perturb each edge without moving its endpoints or smoothing across corners. */
 function strokeSketch(
   ctx: CanvasRenderingContext2D,
   pts: Point[],
@@ -524,38 +585,52 @@ function strokeSketch(
   seed: number,
   width: number
 ) {
+  if (pts.length < 2) return;
   const ring = closed ? [...pts, pts[0]] : pts;
   const rand = mulberry(seed);
-  const amp = Math.max(0.8, Math.min(2, width * 0.6));
-
+  const amplitude = Math.min(1.6, Math.max(0.4, width * 0.5));
   for (let pass = 0; pass < 2; pass++) {
-    const sketch: Point[] = [];
+    ctx.save();
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    if (pass === 1) { ctx.globalAlpha *= 0.55; ctx.lineWidth *= 0.7; }
+    ctx.beginPath();
+    ctx.moveTo(ring[0].x, ring[0].y);
     for (let i = 0; i < ring.length - 1; i++) {
-      const a = ring[i];
-      const b = ring[i + 1];
-      const len = Math.hypot(b.x - a.x, b.y - a.y);
-      const steps = Math.max(1, Math.round(len / 40));
-      for (let s = 0; s < steps; s++) {
-        const t = s / steps;
-        sketch.push({
-          x: a.x + (b.x - a.x) * t + (rand() - 0.5) * 2 * amp,
-          y: a.y + (b.y - a.y) * t + (rand() - 0.5) * 2 * amp,
-        });
+      const a = ring[i], b = ring[i + 1];
+      const dx = b.x - a.x, dy = b.y - a.y, length = Math.hypot(dx, dy);
+      if (!length) continue;
+      const steps = Math.max(1, Math.ceil(length / 48));
+      // Short arc samples and tiny shapes need proportionally less variation.
+      const amount = Math.min(amplitude, length * 0.06);
+      for (let step = 0; step < steps; step++) {
+        const mid = (step + 0.5) / steps, end = (step + 1) / steps;
+        const offset = (rand() - 0.5) * 2 * amount;
+        ctx.quadraticCurveTo(a.x + dx * mid - dy / length * offset, a.y + dy * mid + dx / length * offset, a.x + dx * end, a.y + dy * end);
       }
     }
-    const last = ring[ring.length - 1];
-    sketch.push({ x: last.x + (pass ? 0.4 : -0.4), y: last.y + (pass ? -0.4 : 0.4) });
-
-    ctx.save();
-    if (pass === 1) {
-      ctx.globalAlpha *= 0.55;
-      ctx.lineWidth *= 0.7;
-    }
-    ctx.beginPath();
-    smoothPath(ctx, sketch);
+    if (closed) ctx.closePath();
     ctx.stroke();
     ctx.restore();
   }
+}
+
+/** All four corner arcs share the same radius and sampling, including the seam. */
+function roundedOutline(x: number, y: number, width: number, height: number, radius: number): Point[] {
+  const points: Point[] = [{ x: x + radius, y }];
+  const centers = [
+    { x: x + width - radius, y: y + radius },
+    { x: x + width - radius, y: y + height - radius },
+    { x: x + radius, y: y + height - radius },
+    { x: x + radius, y: y + radius },
+  ];
+  centers.forEach((center, corner) => {
+    for (let step = 0; step <= 8; step++) {
+      const angle = -Math.PI / 2 + corner * Math.PI / 2 + step * Math.PI / 16;
+      points.push({ x: center.x + Math.cos(angle) * radius, y: center.y + Math.sin(angle) * radius });
+    }
+  });
+  return points.slice(0, -1); // Closing the path supplies the final shared tangent.
 }
 
 function smoothPath(ctx: CanvasRenderingContext2D, pts: Point[]) {
@@ -618,7 +693,7 @@ function drawRectangle(ctx: CanvasRenderingContext2D, el: CanvasElement) {
       if (r > 0 && ctx.roundRect) ctx.roundRect(x, y, w, h, r);
       else ctx.rect(x, y, w, h);
     },
-    corners
+    r > 0 ? roundedOutline(x, y, w, h, r) : corners
   );
   drawShapeLabel(ctx, el, { x, y, w, h });
 }
@@ -655,11 +730,11 @@ function drawCircle(ctx: CanvasRenderingContext2D, el: CanvasElement) {
   const rx = Math.max(0.5, w / 2);
   const ry = Math.max(0.5, h / 2);
   const samples: Point[] = [];
-  for (let i = 0; i <= 36; i++) {
-    const a = (i / 36) * Math.PI * 2;
+  for (let i = 0; i < 72; i++) {
+    const a = (i / 72) * Math.PI * 2;
     samples.push({ x: cx + Math.cos(a) * rx, y: cy + Math.sin(a) * ry });
   }
-  paintShape(ctx, el, () => ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2), samples, false);
+  paintShape(ctx, el, () => ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2), samples, true);
   drawShapeLabel(ctx, el, { x, y, w, h });
 }
 

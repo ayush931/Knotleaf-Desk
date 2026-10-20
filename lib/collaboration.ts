@@ -1,3 +1,4 @@
+import { CHAT_LIMIT, CHAT_TEXT_LIMIT, isRoomMessage, type RoomMessage } from "./roomChat";
 import { normalizeBackground } from "./background.mjs";
 import type { BackgroundSettings } from "@/draw/types";
 import * as Y from "yjs";
@@ -21,6 +22,8 @@ export function updateSharedText(text: Y.Text, next: string) {
 export class RoomSession {
   readonly doc = new Y.Doc();
   readonly elements = this.doc.getMap<CanvasElement>("elements");
+  readonly chat = this.doc.getArray<RoomMessage>("chat");
+  private sentChatAt: number[] = [];
   readonly notes = this.doc.getText("notes");
   readonly meta = this.doc.getMap<string>("meta");
   readonly undo = new Y.UndoManager([this.elements, this.notes, this.meta], { trackedOrigins: new Set([this]), captureTimeout: 300 });
@@ -33,6 +36,7 @@ export class RoomSession {
   private queued: Board | undefined;
   private lastScene = new Map<string, CanvasElement>();
   private knownElementIds = new Set<string>();
+  onChat?: (messages: RoomMessage[]) => void;
   onRemote?: (elements: CanvasElement[], notes: string, title: string, background: BackgroundSettings) => void;
   onStatus?: (status: string) => void;
   onPresence?: (people: Collaborator[]) => void;
@@ -68,10 +72,11 @@ export class RoomSession {
         }, "seed");
       }
       this.queued = undefined;
-      this.emitRemote();
+      this.emitRemote(); this.emitChat();
     });
+    this.chat.observe(() => this.emitChat());
     this.doc.on("afterTransaction", (transaction: Y.Transaction) => {
-      if (this.synced && transaction.origin !== this && transaction.changed.size) this.emitRemote();
+      if (this.synced && transaction.origin !== this && transaction.changed.size && !(transaction.changed.size === 1 && transaction.changed.has(this.chat))) this.emitRemote();
       this.onHistory?.(this.undo.undoStack.length > 0, this.undo.redoStack.length > 0);
     });
     this.provider.awareness.on("change", () => {
@@ -128,6 +133,26 @@ export class RoomSession {
     this.onRemote?.(elements, this.notes.toString(), this.meta.get("title") || "Shared whiteboard", normalizeBackground(this.meta.get("background")));
   }
 
+  private emitChat() {
+    const messages = this.chat.toArray().filter(isRoomMessage).slice(-CHAT_LIMIT);
+    this.onChat?.(messages);
+  }
+  sendChat(text: string) {
+    if (this.destroyed || this.expired || !this.synced || !this.provider.wsconnected) throw new Error("Chat is disconnected. Wait for the room to reconnect, then send again.");
+    const content = text.trim();
+    if (!content) return;
+    if (content.length > CHAT_TEXT_LIMIT) throw new Error(`Messages can contain up to ${CHAT_TEXT_LIMIT} characters.`);
+    const now = Date.now();
+    this.sentChatAt = this.sentChatAt.filter(at => now - at < 10000);
+    if (this.sentChatAt.length >= 10) throw new Error("You’re sending messages quickly. Wait a few seconds and try again.");
+    const user = this.provider.awareness.getLocalState()?.user;
+    const message: RoomMessage = { id: crypto.randomUUID(), author: this.doc.clientID, name: String(user?.name || "Guest").slice(0, 40), text: content, at: now };
+    this.doc.transact(() => {
+      if (this.chat.length >= CHAT_LIMIT) this.chat.delete(0, this.chat.length - CHAT_LIMIT + 1);
+      this.chat.push([message]);
+    }, "room-chat");
+    this.sentChatAt.push(now);
+  }
   cursor(point: Point | null) { this.provider.awareness.setLocalStateField("cursor", point); }
   setName(name: string) { const user = this.provider.awareness.getLocalState()?.user; this.provider.awareness.setLocalStateField("user", { ...user, name: name.trim().slice(0, 40) || "Guest" }); }
   destroy() {
@@ -135,7 +160,7 @@ export class RoomSession {
     this.destroyed = true;
     clearTimeout(this.expiryTimer);
     this.provider.awareness.setLocalState(null);
-    this.onRemote = undefined; this.onStatus = undefined; this.onPresence = undefined; this.onHistory = undefined; this.onExpired = undefined;
+    this.onRemote = undefined; this.onStatus = undefined; this.onPresence = undefined; this.onHistory = undefined; this.onExpired = undefined; this.onChat = undefined;
     this.provider.destroy(); this.undo.destroy(); this.doc.destroy();
   }
 }

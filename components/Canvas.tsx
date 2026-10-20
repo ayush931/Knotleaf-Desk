@@ -3,6 +3,7 @@
 import { Heading1, List, CheckSquare, Quote, Check, PanelsTopLeft, Bug } from "lucide-react";
 import { useRouter } from "next/navigation";
 import React, { useCallback, useEffect, useMemo, useRef, useState, useLayoutEffect } from "react";
+import type { RoomMessage, RoomChatProps } from "@/lib/roomChat";
 import { RoomSession, type Collaborator } from "@/lib/collaboration";
 import { getRoomServerUrl, checkRoomAvailable, RoomExpiredError } from "@/lib/roomConnection";
 import { createRoomFromBoard } from "@/lib/roomCreation";
@@ -82,6 +83,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
   });
   const boardRef = useRef(board);
   const sessionRef = useRef<RoomSession | null>(null);
+  const [roomMessages, setRoomMessages] = useState<{ roomId?: string; messages: RoomMessage[] }>({ messages: [] });
   const [roomStatus, setRoomStatus] = useState("connecting");
   const [roomReady, setRoomReady] = useState(!initialRoomId);
   const [roomError, setRoomError] = useState("");
@@ -156,6 +158,11 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
     setBoard(next);
     sessionRef.current?.update(next);
   }, [setBoard, setHistoryError]);
+
+  const roomChat: RoomChatProps = { messages: roomMessages.roomId === initialRoomId ? roomMessages.messages : [], connected: roomReady && roomStatus === "connected", onSend: text => {
+    if (!sessionRef.current) throw new Error("The room is not connected. Wait and try again.");
+    sessionRef.current.sendChat(text);
+  } };
 
   const refreshBoardsList = useCallback(() => setBoardsList(getAllBoards()), []);
 
@@ -245,11 +252,13 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
       session = new RoomSession(url, initialRoomId, boardRef.current);
       sessionRef.current = session;
       session.onExpired = () => {
+        setRoomMessages({ roomId: initialRoomId, messages: [] });
         clearTimeout(timer); deleteBoard(initialRoomId); refreshBoardsList();
         setRoomStatus("expired"); setRoomReady(false); setRoomError("This room expired and was deleted after 24 hours.");
         const next = { ...boardRef.current, elements: [], markdownNotes: "" };
         boardRef.current = next; setBoard(next); engine?.applyRemoteElements([]);
       };
+      session.onChat = messages => setRoomMessages({ roomId: initialRoomId, messages });
       session.onStatus = setRoomStatus;
       session.onRemote = (elements, markdownNotes, title, background) => {
         clearTimeout(timer); setRoomError("");
@@ -614,7 +623,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
           onFocusCanvas={toggleFocus}
           onBeforeRefresh={prepareRefresh}
           recording={recording}
-          collaboration={<><Classroom key={initialRoomId || "personal"} roomId={initialRoomId} onRecordingChange={setRecording} uiHidden={focusMode} onCreateRoom={() => createSharedRoom(true)} /><CollaborationPanel roomId={initialRoomId} onLeave={handleLeaveRoom} status={roomStatus} people={people} onName={name => sessionRef.current?.setName(name)} onJoin={id => router.push(`/canvas/${id}`)} onCreate={() => createSharedRoom()} /></>}
+          collaboration={<><Classroom key={initialRoomId || "personal"} roomId={initialRoomId} roomChat={initialRoomId ? roomChat : undefined} onName={name => sessionRef.current?.setName(name)} onRecordingChange={setRecording} uiHidden={focusMode} onCreateRoom={() => createSharedRoom(true)} /><CollaborationPanel key={initialRoomId || "personal"} roomChat={roomChat} roomId={initialRoomId} onLeave={handleLeaveRoom} status={roomStatus} people={people} onName={name => sessionRef.current?.setName(name)} onJoin={id => router.push(`/canvas/${id}`)} onCreate={() => createSharedRoom()} /></>}
           title={board.title}
           saveError={saveError}
           onRetrySave={() => persist(boardRef.current)}
