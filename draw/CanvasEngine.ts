@@ -388,12 +388,13 @@ export class CanvasEngine {
     this.onZoomChange?.(this.zoom); this.requestRender();
   }
   public setReadOnly(value: boolean) { this.cancelGesture(); this.readOnly = value; this.selectedIds.clear(); this.emitSelection(); this.updateCursor(); }
-  public focusElements(ids: string[], select = true) {
+  public focusElements(ids: string[], select = true, insets = { left: 48, right: 48, top: 60, bottom: 60 }) {
     const elements = this.elements.filter(el => ids.includes(el.id));
     const bounds = unionBounds(elements.map(el => getElementBounds(el, this.elements))); if (!bounds) return;
     const width = Math.max(1, bounds.maxX - bounds.minX), height = Math.max(1, bounds.maxY - bounds.minY);
-    this.zoom = Math.max(0.1, Math.min(2, Math.max(1, this.cssWidth - 96) / width, Math.max(1, this.cssHeight - 120) / height));
-    this.pan = { x: this.cssWidth / 2 - (bounds.minX + bounds.maxX) / 2 * this.zoom, y: this.cssHeight / 2 - (bounds.minY + bounds.maxY) / 2 * this.zoom };
+    const availableWidth = Math.max(1, this.cssWidth - insets.left - insets.right), availableHeight = Math.max(1, this.cssHeight - insets.top - insets.bottom);
+    this.zoom = Math.max(0.1, Math.min(2, availableWidth / width, availableHeight / height));
+    this.pan = { x: insets.left + availableWidth / 2 - (bounds.minX + bounds.maxX) / 2 * this.zoom, y: insets.top + availableHeight / 2 - (bounds.minY + bounds.maxY) / 2 * this.zoom };
     if (select) { this.cancelGesture(); this.tool = "select"; this.emitTool(); this.selectedIds = new Set(elements.map(el => el.id)); this.emitSelection(); this.updateCursor(); }
     this.onZoomChange?.(this.zoom); this.requestRender();
   }
@@ -747,6 +748,38 @@ export class CanvasEngine {
     this.elements = [...this.elements, ...copies];
     this.selectedIds = new Set(copies.map((c) => c.id));
     this.commit();
+  }
+
+  /** Insert a reusable diagram as one undoable operation with fresh internal IDs. */
+  public insertTemplate(source: CanvasElement[], replace = false): string[] {
+    if (this.readOnly) throw new Error("Exit presentation before inserting a template.");
+    if (!source.length) throw new Error("This template has no diagram elements.");
+    this.cancelGesture();
+    let copies = this.cloneElements(source, 0);
+    const parents = new Map(copies.map(el => [el.id, el]));
+    copies = copies.map(el => {
+      if (el.type === "sticky") return this.fitSticky(el);
+      if (el.type !== "text") return el;
+      const parent = el.containerId ? parents.get(el.containerId) : undefined;
+      if (!parent) return this.remeasureText(el);
+      setFont(this.ctx, el.fontSize, el.fontFamily, el.bold ? 700 : 400, el.italic);
+      const width = Math.max(24, parent.width * (parent.type === "diamond" ? 0.6 : 1) - 32);
+      const text = el.text.split("\n").map(line => wrapText(this.ctx, line, width).join("\n")).join("\n");
+      const measured = this.remeasureText({ ...el, text, fill: "transparent", fillStyle: "none" });
+      const x = parent.x + (parent.width - measured.width) / 2, y = parent.y + (parent.height - measured.height) / 2;
+      return { ...measured, x, y, containerOffset: { x: (x - parent.x) / Math.max(1,parent.width), y: (y - parent.y) / Math.max(1,parent.height) } };
+    });
+    const bounds = unionBounds(copies.map(el => getElementBounds(el, copies)))!;
+    const existing = !replace ? unionBounds(this.elements.map(el => getElementBounds(el, this.elements))) : null;
+    const center = this.screenToCanvas(this.cssWidth / 2, this.cssHeight / 2);
+    const dx = existing ? existing.maxX + 96 - bounds.minX : center.x - (bounds.minX + bounds.maxX) / 2;
+    const dy = existing ? existing.minY - bounds.minY : center.y - (bounds.minY + bounds.maxY) / 2;
+    const ids = new Set(copies.map(el => el.id));
+    copies = copies.map(el => translateElement(el, dx, dy, ids));
+    this.elements = replace ? copies : [...this.elements, ...copies];
+    this.tool = "select"; this.emitTool(); this.selectedIds = ids;
+    this.commit(); this.focusElements([...ids], false, { left: 48, right: 48, top: 80, bottom: 80 });
+    return [...ids];
   }
 
   public copySelection() {
