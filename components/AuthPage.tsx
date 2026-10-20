@@ -1,8 +1,11 @@
 "use client";
 
+import { brandAsset } from "@/lib/brandAssets";
+
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { HardDrive, ArrowRight, CheckCircle2 } from "lucide-react";
 
 export function AuthPage({ isSignIn }: { isSignIn: boolean }) {
@@ -29,6 +32,7 @@ export function AuthPage({ isSignIn }: { isSignIn: boolean }) {
 
       <div className="w-full max-w-md bg-neutral-900/40 backdrop-blur-xl border border-neutral-800 p-8 rounded-3xl shadow-2xl z-10">
         <div className="text-center mb-6">
+          <Image src={brandAsset("/icons/logo.svg")} alt="Knotleaf Desk" width={220} height={64} className="mx-auto mb-6" priority />
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 mb-3">
             <HardDrive className="w-3.5 h-3.5" />
             <span>100% Local Storage Mode</span>

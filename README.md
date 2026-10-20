@@ -186,3 +186,18 @@ Room links stop working 24 hours after creation, including during an active draw
 The whiteboard keeps its original black canvas and dot/grid appearance. Appearance stays hidden until opened. Use Focus canvas (Shift+Z) for a full-window drawing area; Escape restores the controls. Appearance includes separate background colors and Solid/Hatch/Crosshatch/Dots styles for shapes/cards and the canvas. Paint has been removed. Existing board images and saved background styles remain supported in projects and exports.
 
 Notes include Find/Replace (Ctrl/Cmd+F or H while writing), previous/next matches, match case, Undo replace and Copy Markdown. Canvas text connectors sit at the outer outline’s side midpoints. Double-click inside a shape to write, and double-click its border to select. Alt+drag duplicates the selection in one undoable action. Each color section offers 50 extra predefined shades through More colors.
+
+
+### Local files and erasing
+
+Use **Upload image or file** in the drawing toolbar, or drop files onto the canvas. PNG, JPEG and WebP images appear inline; other files become downloadable attachment cards. Original file bytes stay in this browser’s local storage and are excluded from shared rooms and room databases. There are no app upload size/type/count caps; browser storage capacity still applies. A storage error leaves the existing board intact. Select a file card to download it. Editable project backups include local assets.
+
+Select **Eraser** for adjustable screen-pixel size and All elements, Lines & freehand, or Shapes & cards modes. Sizes have no fixed application maximum. Locked elements are protected, and Undo restores a completed erase gesture.
+
+**Present frames** displays each frame as an isolated slide, with previous/next controls and a frame picker. Exit restores the editing viewport. Knotleaf’s leaf icon and wordmark use blue #3B82F6; interface accents use blue #3B82F6; canvas background and drawing colors remain independently controlled.
+
+Image export supports PNG, JPG and WebP, with selection-only and 1x/2x/3x resolution options. JPG uses an opaque canvas background; PNG/WebP can retain transparency.
+
+Opaque downloads include the canvas background and selected dot/grid style. PNG is lossless; canvas PDF pages keep the artwork aspect ratio without white borders or extra labels. Transparency is opt-in. Image encoding uses one browser worker with a bounded queue and automatic idle cleanup; large exports yield to keep controls responsive. Browser compatibility falls back to the asynchronous native encoder.
+
+Drawing defaults, eraser options, notes split dimensions and export preferences are saved in browser local storage, including on localhost. Preferences belong to the current site/port and browser profile; panels stay closed on a fresh visit.

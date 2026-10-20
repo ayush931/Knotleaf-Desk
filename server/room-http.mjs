@@ -1,3 +1,4 @@
+import { sharedElements } from '../lib/localAssets.mjs';
 import { normalizeBackground } from '../lib/background.mjs';
 import * as Y from 'yjs';
 import { randomUUID } from 'node:crypto';
@@ -6,7 +7,7 @@ import { ROOM_LIFETIME_MS } from '../lib/roomExpiry.mjs';
 import { validRoomId } from './database.mjs';
 export async function createStoredRoom(store, board, base) {
   if (!board || typeof board.title !== 'string' || (board.markdownNotes !== undefined && typeof board.markdownNotes !== 'string') || !Array.isArray(board.elements) || !board.elements.every(isValidElement)) throw new Error('Invalid board content');
-  board = { ...board, markdownNotes: board.markdownNotes ?? '' };
+  board = { ...board, elements: sharedElements(board.elements), markdownNotes: board.markdownNotes ?? '' };
   const id = randomUUID(), title = `${board.title.slice(0,185)} · shared`, doc = new Y.Doc();
   const createdAt = Date.now(), expiresAt = new Date(createdAt + ROOM_LIFETIME_MS).toISOString();
   try {

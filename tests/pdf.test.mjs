@@ -22,3 +22,9 @@ test('PDF notes break before intersecting lines and always advance', () => {
   expect(choosePageEnd(2078, 1048, 2500, lines)).toBe(2500);
   expect(choosePageEnd(0, 100, 2500, [{ top: 0, bottom: 2000 }])).toBe(100);
 });
+
+
+test('canvas PDF pages match artwork aspect ratio without added margins or labels',async()=>{
+ const pdf=await PDFDocument.load(await createProjectPdf({title:'Canvas parity',canvas:png,includeCanvas:true,includeNotes:false}));
+ expect(pdf.getPage(0).getWidth()).toBe(pdf.getPage(0).getHeight());
+});

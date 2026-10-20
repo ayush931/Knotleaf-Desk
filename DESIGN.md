@@ -34,15 +34,15 @@ components:
 ## Overview
 
 ### Creative North Star
-An engineering drawing desk: quiet charcoal chrome, a spacious canvas, and bright blue attachment ports that make diagram structure visible.
+An engineering drawing desk: quiet charcoal chrome, a spacious canvas, and blue attachment ports that make diagram structure visible.
 
 ### Product context and register
-Personal diagrams and project notes, primarily used on desktop with keyboard and pointer. English interface; no market-specific business rules. This is a product tool, not a marketing page. Repository README and current user instructions supply the product context. Preserve the existing dark identity. The branching K and leaf mark is the expressive signature; controls remain familiar. Avoid decorative gradients, giant toolbars, and ornamental cards.
+Personal diagrams and project notes, primarily used on desktop with keyboard and pointer. English interface; no market-specific business rules. This is a product tool, not a marketing page. Repository README and current user instructions supply the product context. Preserve the existing dark identity. The branch-veined leaf mark is the expressive signature; controls remain familiar. Avoid decorative gradients, giant toolbars, and ornamental cards.
 
 Runtime sources are canonical: `app/globals.css` owns global styles and scrollbar tokens; `app/layout.tsx` owns font variables; shared components own utility-class geometry; `draw/renderer.ts` owns canvas visuals and blue ports. This document records these implemented values, rather than generating a separate theme.
 
 ## Colors
-Background #121212, surface #18181b, border #27272a, text #f4f4f5, muted #a1a1aa, primary #3b82f6. Blue means active/selected/connected. Rose indicates destructive actions. Use labels and shapes alongside color. Forced-colors scrollbars use system colors.
+Background #121212, surface #18181b, border #27272a, text #f4f4f5, muted #a1a1aa, primary #3B82F6. Blue means active/selected/connected. Existing semantic feedback and destructive tones remain; spacing/margin guides are red. Use labels and shapes alongside color. Forced-colors scrollbars use system colors.
 
 ## Typography
 Inter for controls, Fira Code for Markdown source and coordinates, Caveat for hand lettering. Canvas text also offers Lora (serif), Nunito (rounded sans), Roboto Condensed and Patrick Hand (printed handwriting). The appearance picker previews each named family in a compact two-column button group with selected-state semantics. `draw/fonts.ts` owns family IDs, labels, CSS-variable names and fallback stacks; `app/layout.tsx` bundles the corresponding Next fonts. Renderer, inline editor and picker use that shared mapping. Fonts are bundled by Next at build time. Notes use 13px source with 24px line height and 14px rendered prose. Controls remain compact without compromising focus indicators.
@@ -56,7 +56,7 @@ Canvas editor placeholders inherit the chosen font and have explicit full-opacit
 Borders and tonal surfaces establish hierarchy. Shadows are reserved for floating tools, menus and drawers. Modal backdrops darken the workspace. Avoid shadows on document content.
 
 ## Shapes
-8px controls, 12px floating panels. Lucide icons use consistent strokes. The blue/white Knotleaf mark is shared by header and website favicon.
+8px controls, 12px floating panels. Lucide icons use consistent strokes. The blue leaf Knotleaf mark is shared by header and website favicon.
 
 ## Components
 Native buttons for actions. Active view buttons expose aria-pressed. Workspace and export quality selects deliberately use platform-owned native popups. Native dialog owns modal focus, Escape and background inertness. Inline board-deletion confirmation stays inside the workspace dialog and states the consequence. Enabled buttons have hover/pointer/focus states; disabled actions are muted. No browser confirm/alert flows.
@@ -73,13 +73,13 @@ Motion is brief functional feedback. Reduced-motion styles disable decorative an
 
 Selection controls use four square corner resize handles and one circular attachment port per side. Side-center resize squares are omitted on connectable elements to avoid duplicate controls. The selection outline supports side resizing beside the connector dots, with directional resize cursors. Frames also keep their edge squares because they do not expose connectors.
 
-The single-selection outline is solid and quiet. Successful shape and card creation returns to Select with the same blue outline, resize handles and connector points as a manually selected element. Clicking blank space clears the selection. Connection points belong to the selected element in Select mode; other elements reveal them only as Arrow-tool targets. Bound arrow endpoints use the existing blue accent. Port layers are painted once, and selection controls stay hidden while typing.
+The single-selection outline is solid and quiet. Successful shape and card creation returns to Select with the same blue outline, resize handles and connector points as a manually selected element. Clicking blank space clears the selection. Connection points belong to the selected element in Select mode; other elements reveal them only as Arrow-tool targets. Bound arrow endpoints use the blue accent. Port layers are painted once, and selection controls stay hidden while typing.
 
 Canvas icons are standalone glyphs on transparent backgrounds, with no captions or badge cards. The appearance panel is 288px wide and constrained to the canvas viewport. Its fixed header shows a stable Appearance title and selection context, its settings area scrolls independently, and a fixed footer groups labelled selection actions. Secondary settings use native details. It follows the measured toolbar height. Drawing-tool shortcuts remain in tooltips and accessible keyboard metadata. Workspace rows use quiet surfaces and disclose move controls only when needed.
 
 Knotleaf Desk combines the knot of connected diagrams with the leaf of a notebook. The export panel has one format selector and one content selector, with explicit editable/share-only guidance. The .knotleaf format is versioned JSON. Opening a backup always creates a new local board in the chosen workspace.
 
-Smart guides use soft red #f87171 during manipulation only: dashed alignments, solid gap rulers, pixel labels and equal-spacing markers. Their strokes and labels stay constant in screen pixels across zoom. They do not appear on idle boards or in exports.
+Smart guides use red #f87171 during manipulation only: dashed alignments, solid gap rulers, pixel labels and equal-spacing markers. Their strokes and labels stay constant in screen pixels across zoom. They do not appear on idle boards or in exports.
 
 Board tools uses a single search/history/template dialog, keeping new capabilities out of the drawing chrome. Presentation controls sit in a compact bottom bar with a native frame picker and clear exit action. Snapshot/template rows share restrained borders, explicit actions and local-storage scope descriptions.
 
@@ -131,3 +131,22 @@ Free-text selection follows measured visible glyphs, including italic overhangs,
 Diamond (kite) shapes honor Sharp/Rounded in Clean and Rough strokes. Rounded diamonds use four circular corner fillets with a shared radius, reduced uniformly for thin or tiny diamonds; rough samples follow those same arcs. Fill boundaries and strokes share the rounded geometry.
 
 Canvas fill patterns paint the selected base color across the whole canvas first, then add a subtle contrast pattern. Solid/Hatch/Crosshatch/Dots retain black when black is selected; white checkerboard never leaks through an opaque background. Shape/card pattern transparency and the original drawing grid/dots remain independent. Canvas, PNG/PDF and SVG use drawCanvasBackground.
+
+
+The leaf is the brand signature: one broad blue (#3B82F6) leaf with a branching dark vein on a charcoal tile, shared by header, workspace, favicon and installed icons. The full SVG wordmark pairs a restrained serif name with a small DESK label; control typography stays Inter. Theme colors and utility classes are restored exactly from commit f93d8e0: unmodified Tailwind blue utilities, blue-600 primary buttons with white glyphs/text, #3b82f6 focus rings, #3B82F6 selection/connector chrome, and #f87171 red spacing/margin guides. No custom blue palette or new primary-button treatment overrides them. Actual canvas background, original dot/grid patterns and saved drawing colors remain unchanged.
+
+The only upload action lives in TopToolbar; BoardHeader has no upload action, including its overflow menu. Native multiple-file selection and canvas drop share one pipeline. Images keep original bytes and aspect ratio; other files use quiet charcoal attachment cards with a blue file glyph. Upload status/error is dismissible without shifting controls. All new assets are browser-local; the UI states their scope and natural browser storage capacity. Appearance remains explicitly controlled.
+
+Eraser options use one compact panel below the drawing toolbar, native mode select, numeric screen-pixel diameter and +/- buttons. Positive finite sizes have no app maximum. Modes are All elements, Lines & freehand, and Shapes & cards. The circular blue preview follows the pointer; erasing removes whole touched objects, respects locks and commits one undo step.
+
+Frame presentation clips artwork to the active frame and suppresses other frame boundaries, frame title tags, editing grid and collaborator cursors. Fit reserves 24px top/side margins and 88px below for slide controls, even for very large frames. Exiting restores the prior viewport and editing grid.
+
+Reconcile drift: the blue primary and red spacing-guide roles remain as explicitly requested; the leaf logo replaces the old mark. Runtime utility classes and focus rings match f93d8e0 exactly while measurement guides retain red; artwork palettes and the black canvas retain their separate content roles.
+
+Manifest identity, start URL, scope and manifest URL stay stable across branding updates. `next.config.ts` fingerprints icon contents and supplies NEXT_PUBLIC_BRAND_ICON_VERSION; `lib/brandAssets.ts` versions header/wordmark, favicon metadata, Apple icon and PWA icon URLs consistently. The manifest revalidates, allowing supporting browsers to discover changed icons for existing installations. Browser-owned identity review and OS launcher refresh timing remain outside app control. No forced reinstall, new app identity or automatic page reload is introduced.
+
+The existing export menu also offers JPG and WebP beside PNG. All raster formats share canvas/selection scope and 1x/2x/3x resolution. PNG/WebP retain optional transparency; JPG states its opaque canvas background. Formats share the renderer and preserve locally embedded image bytes while decoding, and unsupported encoders show a recoverable error rather than downloading a mislabeled file.
+
+Downloads default to the same canvas base color, grid/dots and drawing renderer. Transparent export explicitly omits canvas color and grid. Canvas PDF pages use the captured artwork aspect ratio, with no added title, branding/footer or white letterboxing. Notes PDF pages use the selected canvas base color, readable matching light/dark ink and bundled control font, with matching full-page margins.
+
+Export preparation and controls stay responsive during large jobs: one lazily created encoding worker, bounded queue, transferable bitmap ownership, asynchronous compatibility fallback, timed resource cleanup and cooperative scene batches. Primary font readiness is cached per document FontFaceSet and retried after failures. Next build worker count is limited to two; no server process is spawned per upload/export.

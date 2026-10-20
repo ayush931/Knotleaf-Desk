@@ -182,3 +182,18 @@ test('room chat bounds history, rejects malformed entries, and prevents rapid ac
     session.chat.push([{...valid,id:'malformed',at:1e100}]); expect(messages.some(message=>message.id==='malformed')).toBe(false);
   } finally { session.destroy(); await server.close(); await rm(directory,{recursive:true,force:true}); }
 },10000);
+
+test('local uploads never enter room synchronization or persisted room files',async()=>{
+ const{RoomSession}=await import('../lib/collaboration.ts');const directory=await mkdtemp(path.join(os.tmpdir(),'knotleaf-local-only-'));
+ const service=createCollaborationServer({port:0,directory,roomStore:null});const address=await service.listen();
+ const base={stroke:'#fff',strokeWidth:1,strokeStyle:'solid',fill:'transparent',fillStyle:'none',roundness:'sharp',opacity:1,zIndex:0,x:0,y:0,width:10,height:10};
+ const asset={...base,id:'private-file',type:'image',localOnly:true,source:'data:image/png;base64,aGVsbG8='};const shape={...base,id:'shared-shape',type:'rectangle'};
+ const board={id:crypto.randomUUID(),title:'Local assets',elements:[asset,shape],markdownNotes:''},url=`ws://127.0.0.1:${address.port}`;
+ const a=new RoomSession(url,board.id,board),b=new RoomSession(url,board.id);
+ try{a.connect();await until(()=>a.synced);b.connect();await until(()=>b.synced&&b.elements.has(shape.id));
+ expect(a.elements.has(asset.id)).toBe(false);expect(b.elements.has(asset.id)).toBe(false);
+ a.update({...board,elements:[{...asset,x:900},{...shape,x:150}]});await until(()=>b.elements.get(shape.id)?.x===150);
+ expect(a.elements.has(asset.id)).toBe(false);await new Promise(r=>setTimeout(r,250));
+ const restored=new Y.Doc();Y.applyUpdate(restored,new Uint8Array(await readFile(path.join(directory,`${board.id}.bin`))));expect(restored.getMap('elements').has(asset.id)).toBe(false);expect(JSON.stringify(restored.toJSON())).not.toContain('aGVsbG8');restored.destroy();
+ }finally{a.destroy();b.destroy();await service.close();await rm(directory,{recursive:true,force:true});}
+},10000);

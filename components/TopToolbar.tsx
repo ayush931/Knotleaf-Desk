@@ -21,9 +21,12 @@ import {
   Redo2,
   Shapes,
   Pipette,
+  ImagePlus,
 } from "lucide-react";
 
 interface TopToolbarProps {
+  onUploadAssets?: () => void;
+  uploadingAssets?: boolean;
   selectedTool: Tool;
   setSelectedTool: (t: Tool) => void;
   onUndo: () => void;
@@ -54,6 +57,8 @@ const TOOLS: { id: Tool; label: string; key: string; icon: React.ReactNode }[] =
 ];
 
 export const TopToolbar = memo(function TopToolbar({
+  onUploadAssets,
+  uploadingAssets,
   selectedTool,
   setSelectedTool,
   onUndo,
@@ -89,6 +94,7 @@ export const TopToolbar = memo(function TopToolbar({
         </button>
         <span className="h-5 w-px mx-1 bg-[#27272a]" />
 
+        {onUploadAssets&&<button type="button" aria-label="Upload image or file" title="Upload image or file · stored on this device" disabled={uploadingAssets} onClick={onUploadAssets} className={iconBtn}><ImagePlus className="h-4 w-4"/></button>}
         {TOOLS.map((t) => {
           const active = selectedTool === t.id;
           return (

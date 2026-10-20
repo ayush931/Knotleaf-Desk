@@ -3,7 +3,7 @@ import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
 import { normalizeIconSvg, getIconImage } from '../draw/iconSvg.ts';
 import { drawElement } from '../draw/renderer.ts';
 import { boardToSvg } from '../draw/svgExport.ts';
-import { exportToPng } from '../draw/export.ts';
+import { exportToPng, exportToRaster } from '../draw/export.ts';
 import { iconUrl, searchOnlineIcons, fetchOnlineIcon } from '../lib/onlineIcons.ts';
 
 const saved = new Map(), draws = [], downloads = [];
@@ -135,4 +135,23 @@ test('SVG exports clipped patterned fills with independent alpha and transparent
   const svg = boardToSvg([shape], false, [shape], { fill: '#ec4899', fillStyle: 'dots', fillOpacity: 0 });
   expect(svg).toContain('<clipPath'); expect(svg).toContain('clip-path="url(#paint-clip-'); expect(svg).toContain('opacity="0.3"'); expect(svg).not.toContain('#ec4899');
   expect(svg).toContain('stroke="#fff"');
+});
+
+
+test('JPG and WebP downloads use the requested encoding and extension, and reject silent PNG fallback',async()=>{
+ const original=document.createElement;const encoded=[],files=[];
+ document.createElement=tag=>tag==='canvas'?{getContext:()=>ctx,toDataURL:(mime,quality)=>{encoded.push({mime,quality});return `data:${mime};base64,test`;}}:{click(){files.push({href:this.href,name:this.download});}};
+ try{const shape={...base,type:'rectangle'};for(const format of ['jpeg','webp'])await exportToRaster([shape],'dark',format,true,2);
+ expect(encoded.map(e=>e.mime)).toEqual(['image/jpeg','image/webp']);expect(files[0].name).toEndWith('.jpg');expect(files[1].name).toEndWith('.webp');expect(files[0].href).toStartWith('blob:');
+ document.createElement=tag=>tag==='canvas'?{getContext:()=>ctx,toDataURL:()=> 'data:image/png;base64,test'}:{click(){throw Error('Should not download a mislabeled file');}};
+ await expect(exportToRaster([shape],'dark','webp')).rejects.toThrow('Choose PNG');await expect(exportToRaster([],'dark','jpeg')).rejects.toThrow('Add something');
+ }finally{document.createElement=original;}
+});
+
+
+test('exports succeed when system fallback font faces are unavailable',async()=>{
+ const previous=document.fonts,requested=[];
+ document.fonts={load:query=>{requested.push(query);return query.includes(',')||query.includes('Fallback')?Promise.reject(Error('Missing local Arial')):Promise.resolve([]);}};
+ try{downloads.length=0;await exportToPng([{...base,type:'text',text:'Linux export',fontFamily:'sans',fontSize:20}],'dark',true);expect(downloads).toHaveLength(1);expect(requested.length).toBeGreaterThan(0);}
+ finally{if(previous)document.fonts=previous;else delete document.fonts;}
 });

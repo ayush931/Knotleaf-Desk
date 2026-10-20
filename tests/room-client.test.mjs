@@ -61,3 +61,10 @@ test('a browser storage quota failure does not invalidate a room saved on the se
   expect(await createRoomFromBoard(board)).toEqual({ id, savedLocally: false });
   expect(getBoard(board.id).title).toBe('Personal');
 });
+
+test('creating a room keeps local assets in this browser and out of the HTTP body',async()=>{
+ const board=createBoard('Private assets'),id=crypto.randomUUID();
+ const asset={id:'private',type:'image',localOnly:true,source:'SECRET ORIGINAL BYTES'};board.elements=[asset];
+ globalThis.fetch=async(_url,options)=>{expect(options.body).not.toContain('SECRET');expect(JSON.parse(options.body).elements).toEqual([]);return Response.json({id,title:'Shared'},{status:201});};
+ await createRoomFromBoard(board);expect(getBoard(id).elements).toEqual([asset]);
+});

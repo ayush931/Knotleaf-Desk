@@ -1,3 +1,4 @@
+import { sharedElements } from "./localAssets.mjs";
 import { CHAT_LIMIT, CHAT_TEXT_LIMIT, isRoomMessage, type RoomMessage } from "./roomChat";
 import { normalizeBackground } from "./background.mjs";
 import type { BackgroundSettings } from "@/draw/types";
@@ -43,7 +44,7 @@ export class RoomSession {
   onHistory?: (canUndo: boolean, canRedo: boolean) => void;
   onExpired?: () => void;
   constructor(url: string, roomId: string, seed?: Board) {
-    this.queued = seed;
+    this.queued = seed ? { ...seed, elements: sharedElements(seed.elements) } : undefined;
     this.provider = new WebsocketProvider(url, roomId, this.doc, { connect: false });
     const colors = ["#60a5fa", "#f472b6", "#34d399", "#fbbf24", "#c084fc"];
     this.provider.awareness.setLocalStateField("user", { name: `Guest ${String(this.doc.clientID).slice(-4)}`, color: colors[this.doc.clientID % colors.length] });
@@ -64,7 +65,7 @@ export class RoomSession {
           this.meta.set("initialized", "true");
           this.meta.set("title", initial?.title || "Shared whiteboard");
           this.meta.set("background", JSON.stringify(normalizeBackground(initial?.background)));
-          initial?.elements.forEach(el => {
+          sharedElements(initial?.elements || []).forEach(el => {
             if (el.type === "text" && el.isCodeCard) { const code = this.doc.getText(`code:${el.id}`); code.insert(0, el.text); this.undo.addToScope(code); this.elements.set(el.id, { ...structuredClone(el), text: "" }); }
             else this.elements.set(el.id, structuredClone(el));
           });
@@ -97,6 +98,7 @@ export class RoomSession {
   }
   update(board: Board) {
     if (this.expired) return;
+    board = { ...board, elements: sharedElements(board.elements) };
     if (!this.synced) { this.queued = board; return; }
     this.doc.transact(() => {
       // Publish only this client's edits, never replace the room with a full snapshot.

@@ -840,7 +840,7 @@ test('new shapes inherit patterned fill opacity while stroke opacity remains ind
 });
 
 
-test('Pencil stays active between strokes, pointer departure, cancellation and undo without blue outlines', () => {
+test('Pencil stays active between strokes, pointer departure, cancellation and undo without selection outlines', () => {
   const { engine, drag, listeners, point } = setup([]); const outlines = [];
   engine.ctx.strokeRect = (...rect) => outlines.push({ rect, color: engine.ctx.strokeStyle });
   engine.setTool('pencil'); drag(100, 100, 180, 160); listeners.pointermove(point(900, 650)); engine.draw();
@@ -1085,4 +1085,59 @@ test('switching the black canvas among Solid, Hatch, Crosshatch and Dots always 
   expect(paints[0]).toEqual({fill:'#121212',alpha:1});
  }
  engine.destroy();
+});
+
+test('local uploads preserve original bytes, are centered, and undo as one operation', () => {
+  const {engine,drag}=setup([]);
+  const image='data:image/png;base64,iVBORw0KGgo=';
+  const attachment={name:'notes.txt',mimeType:'text/plain',size:5,source:'data:application/octet-stream;base64,aGVsbG8='};
+  const ids=engine.addAssets([{kind:'image',source:image,width:6000,height:3000,name:'original.png'},{kind:'attachment',attachment}]);
+  expect(ids).toHaveLength(2);expect(engine.getElements().every(el=>el.localOnly&&isValidElement(el))).toBe(true);
+  const uploaded=engine.getElements();expect(uploaded[0].width/uploaded[0].height).toBe(2);
+  expect(uploaded[0].x+uploaded[0].width).toBeLessThan(uploaded[1].x);
+  engine.undo();expect(engine.getElements()).toHaveLength(0);engine.redo();expect(engine.getElements()).toEqual(uploaded);
+  engine.focusElements([ids[0]]);engine.restoreViewport({zoom:1,pan:{x:0,y:0}});const el=engine.getElements()[0];drag(el.x+10,el.y+10,el.x+50,el.y+40);
+  expect(engine.getElements()[0].source).toBe(image);expect(engine.getElements()[1].attachment).toEqual(attachment);engine.destroy();
+});
+test('upload storage failure leaves the existing scene and undo history intact',()=>{
+  const{engine}=setup([source]);
+  expect(()=>engine.addAssets([{kind:'attachment',attachment:{name:'empty.bin',mimeType:'application/octet-stream',size:0,source:'data:application/octet-stream;base64,'}}],undefined,()=>{throw Error('Quota');})).toThrow('Quota');
+  expect(engine.getElements()).toEqual([source]);expect(engine.canUndo()).toBe(false);engine.destroy();
+});
+test('local images accept original sources above the old upload and dimension caps',()=>{
+  const{engine}=setup([]);const image='data:image/png;base64,'+'AAAA'.repeat(1_000_001);
+  engine.addAssets([{kind:'image',source:image,width:12000,height:6000,name:'large.png'}]);expect(isValidElement(engine.getElements()[0])).toBe(true);expect(engine.getElements()[0].source).toBe(image);engine.destroy();
+});
+for(const mode of ['all','drawings','objects'])test(`eraser ${mode} sweeps between pointer events and respects locked elements`,()=>{
+ const line={...base,id:'line',type:'line',x:300,y:300,width:100,height:0,startX:300,startY:300,endX:400,endY:300};
+ const shape={...source,x:500,y:260},locked={...source,id:'locked',x:700,y:260,isLocked:true};
+ const{engine,drag}=setup([line,shape,locked]);engine.setTool('eraser');engine.setEraserOptions(40,mode);drag(200,300,900,300);
+ expect(engine.getElements().map(el=>el.id)).toEqual(mode==='all'?['locked']:mode==='drawings'?['source','locked']:['line','locked']);
+ engine.undo();expect(engine.getElements()).toEqual([line,shape,locked]);engine.redo();expect(engine.getElements()).toHaveLength(mode==='all'?1:2);engine.destroy();
+});
+test('eraser supports very large sizes without an application maximum',()=>{
+ const{engine,drag}=setup([source]);engine.setTool('eraser');engine.setEraserOptions(1e9,'all');drag(900,600,901,601);expect(engine.getElements()).toHaveLength(0);engine.destroy();
+});
+test('presentation fits large frames with controls clear of slide content and preserves artwork',()=>{
+ const frame={...source,type:'frame',id:'frame',title:'Large slide',x:100,y:100,width:30000,height:20000};
+ const{engine}=setup([frame,source]);const before=engine.getViewport();engine.setReadOnly(true);engine.setPresentationFrame(frame.id);
+ const view=engine.getViewport();expect(view.zoom).toBeLessThan(.1);
+ const bottom=engine.canvasToScreen(frame.x+frame.width,frame.y+frame.height);expect(bottom.x).toBeLessThanOrEqual(976);expect(bottom.y).toBeLessThanOrEqual(612);
+ engine.setPresentationFrame(null);engine.setReadOnly(false);engine.restoreViewport(before);expect(engine.getElements()).toEqual([frame,source]);expect(engine.getViewport()).toEqual(before);engine.destroy();
+});
+
+test('room undo orders local assets and shared edits without sending image bytes',async()=>{
+ const{RoomSession}=await import('../lib/collaboration.ts');const session=new RoomSession('ws://127.0.0.1:1',crypto.randomUUID());session.synced=true;
+ const{engine}=setup([]);let current=[];
+ engine.collaborativeLocalHistory={state:()=>({undo:session.undo.undoStack.length,redo:session.undo.redoStack.length}),stop:()=>session.undo.stopCapturing(),clearRedo:()=>session.undo.clear(false,true)};
+ engine.collaborativeUndo=()=>session.undo.undo();engine.collaborativeRedo=()=>session.undo.redo();
+ engine.onChange=elements=>{current=elements;session.update({id:'test',title:'Board',elements,markdownNotes:''});};
+ session.onRemote=elements=>engine.applyRemoteElements([...elements,...current.filter(el=>el.localOnly)].sort((a,b)=>a.zIndex-b.zIndex));
+ try{
+ const source='data:image/png;base64,aGVsbG8=';engine.addAssets([{kind:'image',source,width:200,height:100,name:'private.png'}]);expect(engine.getElements()).toHaveLength(1);expect(session.elements.size).toBe(0);
+ engine.setElements([...engine.getElements(),{...base,id:'shape',type:'rectangle',x:600,y:300,width:100,height:100,zIndex:1}],true);expect(session.elements.size).toBe(1);
+ engine.undo();expect(engine.getElements().map(el=>el.type)).toEqual(['image']);engine.undo();expect(engine.getElements()).toHaveLength(0);
+ engine.redo();expect(engine.getElements().map(el=>el.type)).toEqual(['image']);engine.redo();expect(engine.getElements().map(el=>el.type)).toEqual(['image','rectangle']);
+ engine.selectAll();engine.deleteSelected();expect(engine.getElements()).toHaveLength(0);engine.undo();expect(engine.getElements().map(el=>el.type)).toEqual(['image','rectangle']);engine.redo();expect(engine.getElements()).toHaveLength(0);expect(session.elements.size).toBe(0);
+ }finally{engine.destroy();session.destroy();}
 });

@@ -1,3 +1,4 @@
+import { brandAsset } from "@/lib/brandAssets";
 import type { Metadata, Viewport } from "next";
 import { Inter, Caveat, Fira_Code, Lora, Nunito, Roboto_Condensed, Patrick_Hand } from "next/font/google";
 import "./globals.css";
@@ -20,8 +21,8 @@ export const metadata: Metadata = {
   manifest: "/manifest.webmanifest",
   appleWebApp: { capable: true, title: "Knotleaf Desk", statusBarStyle: "black-translucent" },
   icons: {
-    apple: "/icons/icon-192.png",
-    icon: [{ url: "/icons/mark.svg", type: "image/svg+xml" }, { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" }],
+    apple: brandAsset("/icons/icon-192.png"),
+    icon: [{ url: brandAsset("/icons/mark.svg"), type: "image/svg+xml" }, { url: brandAsset("/icons/icon-192.png"), sizes: "192x192", type: "image/png" }],
   },
 };
 
@@ -35,7 +36,8 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" suppressHydrationWarning className={`dark ${inter.variable} ${caveat.variable} ${firaCode.variable} ${lora.variable} ${nunito.variable} ${condensed.variable} ${patrick.variable}`}>
-      <body className="antialiased bg-[#121212] text-[#f4f4f5]">{children}</body>
+      {/* Browser extensions can add body attributes before React hydrates. */}
+      <body suppressHydrationWarning className="antialiased bg-[#121212] text-[#f4f4f5]">{children}</body>
     </html>
   );
 }

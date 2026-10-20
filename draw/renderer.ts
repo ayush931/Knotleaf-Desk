@@ -1,3 +1,4 @@
+import { attachmentSize } from "@/lib/attachments.mjs";
 import { drawBackgroundFill } from "./backgroundFill";
 import { expandCodeTabs, highlightCode } from "@/lib/code";
 import { routeConnector } from "./connectorRouting";
@@ -59,10 +60,26 @@ export function fontStack(family: FontFamily): string {
   return resolvedFonts[family] || resolvedFonts.sans;
 }
 
+const fontLoads = new WeakMap<FontFaceSet, Promise<void>>();
 export async function loadCanvasFonts(): Promise<void> {
   if (typeof document === "undefined" || !document.fonts) return;
-  await Promise.all(FONT_OPTIONS.flatMap(font => ["400", "700", "italic 400", "italic 700"].map(style => document.fonts.load(`${style} 16px ${fontStack(font.id)}`))));
-  textBoundsContexts.get(document)?.cache.clear();
+  const fonts = document.fonts;
+  let loading = fontLoads.get(fonts);
+  if (!loading) {
+    // Await bundled faces only; unavailable platform-local fallback fonts must
+    // not block export. Concurrent requests share this one readiness promise.
+    loading = Promise.all(FONT_OPTIONS.flatMap(font => {
+      const primary = fontStack(font.id).split(",")[0].trim();
+      return ["400", "700", "italic 400", "italic 700"].map(style =>
+        fonts.load(`${style} 16px ${primary}`).catch(() => {
+          throw new Error(`Could not load the ${font.label} font. Check your connection and retry the export.`);
+        })
+      );
+    })).then(() => { textBoundsContexts.get(document)?.cache.clear(); })
+      .catch(error => { fontLoads.delete(fonts); throw error; });
+    fontLoads.set(fonts, loading);
+  }
+  await loading;
 }
 
 export function setFont(
@@ -444,6 +461,16 @@ function cachedTextContentBounds(el: TextElement): Bounds | null {
 
 // --- Grid -------------------------------------------------------------------
 
+export function gridAppearance(zoom: number, light = false) {
+  let spacing = 24 * zoom;
+  while (spacing < 14) spacing *= 2;
+  return {
+    spacing, radius: Math.max(0.9, Math.min(zoom, 1.4)),
+    dotColor: light ? "rgba(0, 0, 0, 0.15)" : "rgba(255, 255, 255, 0.12)",
+    lineColor: light ? "rgba(0, 0, 0, 0.1)" : "rgba(255, 255, 255, 0.06)",
+  };
+}
+
 export function drawGrid(
   ctx: CanvasRenderingContext2D,
   width: number,
@@ -456,15 +483,14 @@ export function drawGrid(
   if (gridType === "none") return;
 
   // Keep the on-screen spacing readable when zoomed far out.
-  let spacing = 24 * zoom;
-  while (spacing < 14) spacing *= 2;
+  const { spacing, radius, dotColor, lineColor } = gridAppearance(zoom, light);
   const startX = ((pan.x % spacing) + spacing) % spacing;
   const startY = ((pan.y % spacing) + spacing) % spacing;
 
   ctx.save();
   if (gridType === "dot") {
-    ctx.fillStyle = light ? "rgba(0, 0, 0, 0.15)" : "rgba(255, 255, 255, 0.12)";
-    const r = Math.max(0.9, 1.0 * Math.min(zoom, 1.4));
+    ctx.fillStyle = dotColor;
+    const r = radius;
     ctx.beginPath();
     for (let x = startX; x < width; x += spacing) {
       for (let y = startY; y < height; y += spacing) {
@@ -474,7 +500,7 @@ export function drawGrid(
     }
     ctx.fill();
   } else {
-    ctx.strokeStyle = light ? "rgba(0, 0, 0, 0.1)" : "rgba(255, 255, 255, 0.06)";
+    ctx.strokeStyle = lineColor;
     ctx.lineWidth = 1;
     ctx.beginPath();
     for (let x = startX; x < width; x += spacing) {
@@ -525,7 +551,12 @@ export function drawElement(ctx: CanvasRenderingContext2D, el: CanvasElement, op
       drawSticky(ctx, el);
       break;
     case "image": {
-      try { const resource = getImageResource(el.source, opts.onResourceLoad); if (resource.ready) ctx.drawImage(resource.image, el.x, el.y, el.width, el.height); } catch { /* Invalid imported images cannot stop the scene. */ }
+      try { const resource = getImageResource(el.source, opts.onResourceLoad, el.localOnly ? Infinity : 4_000_000); if (resource.ready) {
+      ctx.imageSmoothingEnabled = true;ctx.imageSmoothingQuality = "high";
+      const m=ctx.getTransform?.();
+      if(m&&m.a>0&&m.d>0&&m.b===0&&m.c===0)ctx.drawImage(resource.image,(Math.round(el.x*m.a+m.e)-m.e)/m.a,(Math.round(el.y*m.d+m.f)-m.f)/m.d,Math.max(1,Math.round(el.width*m.a))/m.a,Math.max(1,Math.round(el.height*m.d))/m.d);
+      else ctx.drawImage(resource.image,el.x,el.y,el.width,el.height);
+    } } catch { /* Invalid imported images cannot stop the scene. */ }
       break;
     }
     case "icon":
@@ -1131,6 +1162,17 @@ function drawStyledText(ctx: CanvasRenderingContext2D, text: string, x: number, 
 
 function drawText(ctx: CanvasRenderingContext2D, el: CanvasElement) {
   if (el.type !== "text") return;
+  if (el.attachment) {
+    const x=el.x-16,y=el.y-16,w=el.width+32,h=el.height+32;
+    ctx.save();ctx.fillStyle=el.fill;ctx.strokeStyle="#3f3f46";ctx.lineWidth=1;
+    ctx.beginPath();ctx.roundRect(x,y,w,h,10);ctx.fill();ctx.stroke();
+    ctx.strokeStyle="#3B82F6";ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(x+20,y+20);ctx.lineTo(x+36,y+20);ctx.lineTo(x+44,y+28);ctx.lineTo(x+44,y+52);ctx.lineTo(x+20,y+52);ctx.closePath();ctx.stroke();
+    ctx.textBaseline="top";ctx.textAlign="left";ctx.fillStyle="#e4e4e7";setFont(ctx,14,"sans",600);
+    let name=el.attachment.name;while(name.length>1&&ctx.measureText(name).width>w-88)name=name.slice(0,-2)+"…";
+    ctx.fillText(name,x+60,y+21);ctx.fillStyle="#a1a1aa";setFont(ctx,11,"sans");
+    ctx.fillText(`${el.attachment.name.split('.').pop()?.toUpperCase().slice(0,12)||'FILE'} · ${attachmentSize(el.attachment.size)}`,x+60,y+43);
+    ctx.fillStyle="#71717a";ctx.fillText("Local file · Select to download",x+20,y+h-27);ctx.restore();return;
+  }
   if (el.isCodeCard) {
     const result = highlightCode(expandCodeTabs(el.text), el.codeLanguage);
     ctx.save(); ctx.fillStyle = "#10151e"; ctx.strokeStyle = "#334155"; ctx.lineWidth = 1;
@@ -1212,7 +1254,7 @@ function drawText(ctx: CanvasRenderingContext2D, el: CanvasElement) {
       const boxY = ly + (line.lineHeight - boxSize) / 2;
       ctx.save();
       if (line.type === "todo-checked") {
-        ctx.fillStyle = "#10B981";
+        ctx.fillStyle = "#3B82F6";
         ctx.beginPath();
         if (ctx.roundRect) ctx.roundRect(indentX, boxY, boxSize, boxSize, 3);
         else ctx.rect(indentX, boxY, boxSize, boxSize);
@@ -1693,7 +1735,7 @@ export function drawElementAnchors(
 
 export function drawMarquee(ctx: CanvasRenderingContext2D, b: Bounds, zoom: number) {
   ctx.save();
-  ctx.fillStyle = "rgba(59, 130, 246, 0.08)";
+  ctx.fillStyle = "rgba(16, 185, 129, 0.08)";
   ctx.strokeStyle = ACCENT;
   ctx.lineWidth = 1 / zoom;
   ctx.fillRect(b.minX, b.minY, b.maxX - b.minX, b.maxY - b.minY);
