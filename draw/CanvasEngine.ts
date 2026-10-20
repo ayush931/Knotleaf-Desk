@@ -1,5 +1,5 @@
 import { DEFAULT_BACKGROUND, normalizeBackground, isLightBackground } from "@/lib/background.mjs";
-import { drawBackgroundFill } from "./backgroundFill";
+import { drawCanvasBackground } from "./backgroundFill";
 import { isEmbeddedImage } from "./imageResource";
 import { expandCodeTabs } from "@/lib/code";
 import {
@@ -1087,7 +1087,7 @@ export class CanvasEngine {
 
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     ctx.clearRect(0, 0, w, h);
-    drawBackgroundFill(ctx, this.background, () => ctx.rect(0, 0, w, h), { x: 0, y: 0, width: w, height: h });
+    drawCanvasBackground(ctx, this.background, () => ctx.rect(0, 0, w, h), { x: 0, y: 0, width: w, height: h });
     drawGrid(ctx, w, h, this.pan, this.zoom, this.gridType, isLightBackground(this.background));
 
     ctx.save();

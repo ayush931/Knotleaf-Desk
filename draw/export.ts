@@ -1,6 +1,6 @@
 import { CanvasElement, Theme, Board, BackgroundSettings } from "./types";
 import { normalizeBackground } from "@/lib/background.mjs";
-import { drawBackgroundFill } from "./backgroundFill";
+import { drawCanvasBackground } from "./backgroundFill";
 import { drawElement, getElementBounds, unionBounds, loadCanvasFonts } from "./renderer";
 import { getImageResource } from "./imageResource";
 import { getIconImage } from "./iconSvg";
@@ -26,7 +26,7 @@ export async function renderToCanvas(elements: CanvasElement[], theme: Theme, sc
   const ctx = canvas.getContext("2d");
   if (!ctx) return null;
 
-  if (!transparent) drawBackgroundFill(ctx, normalizeBackground(background), () => ctx.rect(0, 0, w, h), { x: 0, y: 0, width: w, height: h });
+  if (!transparent) drawCanvasBackground(ctx, normalizeBackground(background), () => ctx.rect(0, 0, w, h), { x: 0, y: 0, width: w, height: h });
   ctx.save();
   ctx.scale(actualScale, actualScale);
   ctx.translate(-bounds.minX + PADDING, -bounds.minY + PADDING);

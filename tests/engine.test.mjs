@@ -1075,3 +1075,14 @@ test('Rounded works for kite/diamond shapes in Clean and Rough styles at every a
     }
   }
 });
+
+
+test('switching the black canvas among Solid, Hatch, Crosshatch and Dots always paints a black base', () => {
+ const {engine}=setup([]);engine.setGridType('none');
+ for(const fillStyle of ['solid','hachure','crosshatch','dots']) {
+  const paints=[];engine.ctx.fill=function(){paints.push({fill:this.fillStyle,alpha:this.globalAlpha});};engine.ctx.globalAlpha=1;
+  engine.setBackground({fill:'#121212',fillStyle,fillOpacity:1});engine.draw();
+  expect(paints[0]).toEqual({fill:'#121212',alpha:1});
+ }
+ engine.destroy();
+});

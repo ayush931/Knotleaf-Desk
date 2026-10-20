@@ -37,3 +37,12 @@ export function backgroundFillCss(style: BackgroundFill): { backgroundColor?: st
   if (style.fillStyle === 'hachure' || style.fillStyle === 'crosshatch') return { backgroundColor: 'transparent', backgroundImage: `repeating-linear-gradient(45deg, ${color} 0 1.25px, transparent 1.25px 10px)${style.fillStyle === 'crosshatch' ? `,repeating-linear-gradient(-45deg, ${color} 0 1.25px, transparent 1.25px 10px)` : ''}` };
   return { backgroundColor: color };
 }
+
+/** Canvas patterns overlay an opaque base; shape patterns remain transparent. */
+export function drawCanvasBackground(ctx: CanvasRenderingContext2D, style: BackgroundFill, build: () => void, box: { x: number; y: number; width: number; height: number }) {
+  drawBackgroundFill(ctx, { ...style, fillStyle: 'solid' }, build, box);
+  if (style.fillStyle === 'solid') return;
+  const n = parseInt(style.fill.slice(1), 16);
+  const brightness = (n >> 16) * 0.299 + ((n >> 8) & 255) * 0.587 + (n & 255) * 0.114;
+  drawBackgroundFill(ctx, { ...style, fill: brightness > 150 ? '#000000' : '#ffffff', fillOpacity: (style.fillOpacity ?? 1) * 0.12 }, build, box);
+}

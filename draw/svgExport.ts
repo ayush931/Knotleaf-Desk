@@ -1,6 +1,6 @@
 import type { Board, CanvasElement, BackgroundSettings } from "./types";
 import { normalizeBackground } from "@/lib/background.mjs";
-import { drawBackgroundFill } from "./backgroundFill";
+import { drawCanvasBackground } from "./backgroundFill";
 import { drawElement, getElementBounds, unionBounds, loadCanvasFonts } from "./renderer";
 import { isEmbeddedImage } from "./imageResource";
 import { getIconById } from "./iconsData";
@@ -95,7 +95,7 @@ export function boardToSvg(elements: CanvasElement[], transparent = false, scene
     get(target, key) { if (key in target.state) return target.state[key as keyof Paint]; const value = Reflect.get(target, key); return typeof value === "function" ? value.bind(target) : value; },
     set(target, key, value) { if (key in target.state) Reflect.set(target.state, key, value); return true; },
   }) as unknown as CanvasRenderingContext2D;
-  if (!transparent) drawBackgroundFill(ctx, normalizeBackground(background), () => ctx.rect(bounds.minX - 40, bounds.minY - 40, width, height), { x: bounds.minX - 40, y: bounds.minY - 40, width, height });
+  if (!transparent) drawCanvasBackground(ctx, normalizeBackground(background), () => ctx.rect(bounds.minX - 40, bounds.minY - 40, width, height), { x: bounds.minX - 40, y: bounds.minY - 40, width, height });
   for (const el of elements) {
     if (el.type === "image") {
       if (isEmbeddedImage(el.source)) recorder.output.push(`<image x="${el.x}" y="${el.y}" width="${el.width}" height="${el.height}" href="${esc(el.source)}" opacity="${el.opacity}" preserveAspectRatio="none"/>`);
