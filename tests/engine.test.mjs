@@ -6,7 +6,7 @@ import { TEMPLATES } from '../draw/templatesData.ts';
 import { isValidElement } from '../lib/elementValidation.mjs';
 import { unionBounds } from '../draw/renderer.ts';
 import { setFont } from '../draw/renderer.ts';
-import { computeArrowPath, computeLinePath, drawElement, layoutDocument, drawSelection, drawElementAnchors, getElementAnchors, getElementBounds } from '../draw/renderer.ts';
+import { computeArrowPath, computeLinePath, drawElement, layoutDocument, drawSelection, drawElementAnchors, getElementAnchors, getElementBounds, textContentBounds, measureTextBlock } from '../draw/renderer.ts';
 const savedGlobals = new Map();
 beforeAll(() => {
   for (const [key, value] of Object.entries({
@@ -874,12 +874,12 @@ test('shape border exclusion scales with zoom and does not mistake diamond corne
   listeners.dblclick(point(230, 240)); expect(editor.containerId).toBe('source'); engine.destroy();
 });
 
-test('text ports sit on the middle of each outside outline edge at every zoom and start bound connectors', () => {
+test('text connectors remain outside the tight selection outline at every zoom', () => {
   const text = { ...base, id: 'plain', type: 'text', x: 100, y: 100, width: 120, height: 32.4, text: 'Text', fontSize: 24, fontFamily: 'sans', textAlign: 'left' };
   for (const zoom of [0.5, 1, 2, 3]) {
     const { engine, drag } = setup([text]); engine.selectAll(); engine.setZoom(zoom, { x: 0, y: 0 });
     const boxes = []; engine.ctx.strokeRect = (...box) => boxes.push(box); engine.draw();
-    expect(boxes).toContainEqual([92, 92, 136, 48.400000000000006]);
+    expect(boxes).toContainEqual([98, 98, 124, 36.400000000000006]);
     const ports = getElementAnchors(text); expect(ports.find(p => p.anchor === 'right')).toEqual({ anchor: 'right', x: 228, y: 116.2 });
     const from = engine.canvasToScreen(228, 116.2), to = engine.canvasToScreen(400, 200); drag(from.x, from.y, to.x, to.y);
     expect(engine.getElements().find(el => el.type === 'arrow')).toMatchObject({ startX: 228, startY: 116.2, startBinding: { elementId: 'plain', anchor: 'right' } }); engine.destroy();
@@ -987,4 +987,102 @@ test('template fitting honors narrow screens and explicitly opened inspector spa
     expect((bounds.minX + bounds.maxX) / 2 * zoom + pan.x).toBeCloseTo((width + left - 48) / 2, 5);
   }
   engine.destroy();
+});
+
+function recordedShape(element) {
+  const paths = [], ctx = new Proxy({ lineWidth: 2, globalAlpha: 1,
+    beginPath() { paths.push([]); }, moveTo(...p) { paths.at(-1).push(['M', ...p]); },
+    quadraticCurveTo(...p) { paths.at(-1).push(['Q', ...p]); }, closePath() { paths.at(-1).push(['Z']); },
+    stroke() {}, measureText: text => ({ width: text.length * 7 }),
+  }, { get: (obj, key) => key in obj ? obj[key] : () => {} });
+  drawElement(ctx, element, { theme: 'dark' }); return paths.filter(path => path.length);
+}
+for (const type of ['rectangle', 'diamond']) {
+  test(`rough ${type} keeps every vertex, closes both passes, and remains stable across redraws`, () => {
+    for (const [width, height] of [[240, 120], [-240, -120], [8, 6], [600, 24]]) {
+      const element = { ...base, id: 'rough-shape', type, x: 50, y: 60, width, height, strokeStyle: 'rough', roundness: 'sharp' };
+      const paths = recordedShape(element); expect(paths).toHaveLength(2);
+      const x = Math.min(50, 50 + width), y = Math.min(60, 60 + height), w = Math.abs(width), h = Math.abs(height);
+      const vertices = type === 'rectangle' ? [[x,y],[x+w,y],[x+w,y+h],[x,y+h]] : [[x+w/2,y],[x+w,y+h/2],[x+w/2,y+h],[x,y+h/2]];
+      for (const path of paths) {
+        const endpoints = path.filter(op => op[0] === 'M' || op[0] === 'Q').map(op => op.slice(-2));
+        for (const vertex of vertices) expect(endpoints.some(p => Math.hypot(p[0]-vertex[0],p[1]-vertex[1]) < 1e-8)).toBe(true);
+        expect(path.at(-1)).toEqual(['Z']); expect(endpoints.at(-1)).toEqual(endpoints[0]);
+        expect(path.flat().filter(v => typeof v === 'number').every(Number.isFinite)).toBe(true);
+      }
+      expect(recordedShape(element)).toEqual(paths);
+    }
+  });
+}
+test('rough rounded rectangles keep equal corner radii including the starting seam', () => {
+  for (const size of [8, 24, 120]) {
+    const el = { ...base, id: 'rounded', type: 'rectangle', x: 0, y: 0, width: size * 2, height: size, strokeStyle: 'rough' };
+    const radius = Math.min(12, el.width/4, el.height/4);
+    const paths = recordedShape(el);
+    for (const path of paths) {
+      const endpoints = path.filter(op => op[0] === 'M' || op[0] === 'Q').map(op => op.slice(-2));
+      for (const [x,y] of [[radius,0],[el.width-radius,0],[el.width,radius],[el.width,el.height-radius],[el.width-radius,el.height],[radius,el.height],[0,el.height-radius],[0,radius]]) {
+        expect(endpoints.some(p => Math.hypot(p[0]-x,p[1]-y)<1e-8)).toBe(true);
+      }
+      expect(endpoints.some(p => Math.hypot(...p)<radius*.25)).toBe(false);
+      expect(path.at(-1)).toEqual(['Z']);
+    }
+    expect(paths).not.toEqual(recordedShape({ ...el, roundness: 'sharp' }));
+  }
+});
+test('rough ellipses have two closed seams at every aspect ratio', () => {
+  for(const [width,height] of [[200,200],[400,40],[6,8]]) {
+    const paths=recordedShape({...base,id:'ellipse',type:'circle',x:0,y:0,width,height,strokeStyle:'rough'});
+    expect(paths).toHaveLength(2);
+    for(const path of paths){expect(path.at(-1)).toEqual(['Z']);expect(path.filter(op=>op[0]==='Q').at(-1).slice(-2)).toEqual(path[0].slice(-2));}
+  }
+});
+
+
+test('free text measurement does not impose a two-character minimum or hidden right margin', () => {
+  const ctx = { measureText: text => ({ width: text.length * 5 }) };
+  for (const text of ['i', 'Hello', 'a\nlonger']) {
+    const size=measureTextBlock(ctx,text,24,'sans'); expect(size.width).toBe(Math.max(...text.split('\n').map(line=>line.length))*5);
+  }
+});
+test('visible text bounds ignore oversized alignment boxes, empty lines and line-height slack, while honoring italic and underline ink', () => {
+  const ctx={save(){},restore(){},measureText(text){const w=text.length*10, anchor=this.textAlign==='center'?w/2:this.textAlign==='right'?w:0;return {width:w,actualBoundingBoxLeft:anchor+2,actualBoundingBoxRight:w-anchor+1,actualBoundingBoxAscent:-4,actualBoundingBoxDescent:21};}};
+  const el={...base,id:'tight',type:'text',x:100,y:200,width:800,height:500,text:'Hello\nHi\n',fontSize:24,fontFamily:'sans',textAlign:'left'};
+  expect(textContentBounds(ctx,el)).toEqual({minX:98,maxX:151,minY:204,maxY:253.4});
+  expect(textContentBounds(ctx,{...el,text:'Hi',textAlign:'center'})).toEqual({minX:488,maxX:511,minY:204,maxY:221});
+  expect(textContentBounds(ctx,{...el,text:'Hi',textAlign:'right'})).toEqual({minX:878,maxX:901,minY:204,maxY:221});
+  expect(textContentBounds(ctx,{...el,text:'Hi',underline:true}).maxY).toBeGreaterThan(225);
+});
+
+
+test('Rounded works for kite/diamond shapes in Clean and Rough styles at every aspect ratio', () => {
+  for(const [width,height] of [[200,120],[120,200],[300,24],[24,300],[8,8],[-200,-120]]) {
+    const el={...base,id:'kite',type:'diamond',x:300,y:300,width,height,roundness:'rounded'};
+    const arcs=[];const ctx=new Proxy({arcTo(...args){arcs.push(args);},measureText:()=>({width:0})},{get:(obj,key)=>key in obj?obj[key]:()=>{}});
+    drawElement(ctx,el,{theme:'dark'});expect(arcs).toHaveLength(4);
+    expect(arcs.every(arc=>arc.every(Number.isFinite)&&arc[4]>0&&arc[4]<=12)).toBe(true);
+    expect(new Set(arcs.map(arc=>arc[4])).size).toBe(1);
+    const rough={...el,strokeStyle:'rough'},paths=recordedShape(rough),sharp=recordedShape({...rough,roundness:'sharp'});
+    expect(paths).not.toEqual(sharp);expect(paths).toHaveLength(2);
+    const x=Math.min(el.x,el.x+width),y=Math.min(el.y,el.y+height),w=Math.abs(width),h=Math.abs(height);
+    for(const path of paths){
+      const endpoints=path.filter(op=>op[0]==='M'||op[0]==='Q').map(op=>op.slice(-2));
+      for(const [vx,vy]of[[x+w/2,y],[x+w,y+h/2],[x+w/2,y+h],[x,y+h/2]])expect(endpoints.some(p=>Math.hypot(p[0]-vx,p[1]-vy)<1e-6)).toBe(false);
+      const inset=Math.min(12,w/4,h/4);
+      expect(Math.max(...endpoints.map(p=>p[0]))).toBeGreaterThanOrEqual(x+w-inset-1e-5);
+      expect(Math.min(...endpoints.map(p=>p[0]))).toBeLessThanOrEqual(x+inset+1e-5);
+      expect(path.at(-1)).toEqual(['Z']);expect(path.flat().filter(v=>typeof v==='number').every(Number.isFinite)).toBe(true);
+    }
+  }
+});
+
+
+test('switching the black canvas among Solid, Hatch, Crosshatch and Dots always paints a black base', () => {
+ const {engine}=setup([]);engine.setGridType('none');
+ for(const fillStyle of ['solid','hachure','crosshatch','dots']) {
+  const paints=[];engine.ctx.fill=function(){paints.push({fill:this.fillStyle,alpha:this.globalAlpha});};engine.ctx.globalAlpha=1;
+  engine.setBackground({fill:'#121212',fillStyle,fillOpacity:1});engine.draw();
+  expect(paints[0]).toEqual({fill:'#121212',alpha:1});
+ }
+ engine.destroy();
 });
