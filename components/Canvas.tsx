@@ -691,7 +691,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
           onExportDrawio={selection => exportToDrawio(boardRef.current, exportElements(selection))}
           onExportImage={handleExportImage}
           onExportProject={scope => exportProjectFile(boardRef.current, scope)}
-          onExportPdf={async scope => { const snapshot = structuredClone(boardRef.current); const { exportProjectPdf } = await import("@/draw/projectPdf"); await exportProjectPdf(snapshot, scope); }}
+          onExportPdf={async scope => { const snapshot = structuredClone({...boardRef.current,elements:exportElements(false)}); const { exportProjectPdf } = await import("@/draw/projectPdf"); await exportProjectPdf(snapshot, scope); }}
           onImportFile={handleImportJson}
           onExportJson={handleExportJson}
           onExportMarkdown={handleExportMarkdown}

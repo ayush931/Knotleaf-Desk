@@ -36,7 +36,7 @@ import {
   getElementAnchors,
   getElementBounds,
   getResizeHandles,
-  selectionPadding,
+  SELECTION_PADDING,
   measureTextBlock,
   normalizeRect,
   unionBounds,
@@ -1119,7 +1119,11 @@ export class CanvasEngine {
     this.draw();
   }
 
-  private onResourceLoad = () => this.requestRender();
+  private onResourceLoad = () => {
+    if (this.destroyed) return;
+    this.elements = resolveBindings(this.elements, new Set(this.elements.filter(el=>el.type==="icon").map(el=>el.id)));
+    this.requestRender();
+  };
 
   private requestRender() {
     this.onViewportChange?.(this.getViewport());
@@ -1179,9 +1183,9 @@ export class CanvasEngine {
     }
 
     if (selected.length > 1) {
-      for (const el of selected) drawBoundsOutline(ctx, getElementBounds(el, this.elements), this.zoom, 3 / this.zoom);
+      for (const el of selected) drawBoundsOutline(ctx, getElementBounds(el, this.elements), this.zoom, 0);
       const group = unionBounds(selected.map(el => getElementBounds(el, this.elements)));
-      if (group) drawBoundsOutline(ctx, group, this.zoom, 10 / this.zoom);
+      if (group) drawBoundsOutline(ctx, group, this.zoom, 0);
     }
 
     if (this.draft) {
@@ -1343,6 +1347,7 @@ export class CanvasEngine {
         const onTag = pt.x >= r.x + 12 && pt.x <= r.x + 12 + tagW && Math.abs(pt.y - r.y) <= 12 / this.zoom;
         return (inside && !deep) || onTag;
       }
+      case "icon":
       case "text": {
         const b = getElementBounds(el);
         return pt.x >= b.minX - tol && pt.x <= b.maxX + tol && pt.y >= b.minY - tol && pt.y <= b.maxY + tol;
@@ -1368,7 +1373,7 @@ export class CanvasEngine {
     }
 
     const bounds = getElementBounds(el);
-    const handles = getResizeHandles(bounds, this.zoom, el.type === "frame", selectionPadding(el, this.zoom));
+    const handles = getResizeHandles(bounds, this.zoom, el.type === "frame", SELECTION_PADDING);
     for (const { handle, x, y } of handles) {
       if (near(x, y)) return handle;
     }
@@ -1376,8 +1381,8 @@ export class CanvasEngine {
     // The outline is draggable for one-axis resizing. Leave the circular
     // connector hit areas free so the same gesture cannot start both actions.
     if (el.type !== "frame" && getElementAnchors(el).some(port => Math.hypot(pt.x - port.x, pt.y - port.y) < 10 / this.zoom)) return null;
-    const pad = selectionPadding(el, this.zoom);
-    const edgeTolerance = 6 / this.zoom;
+    const pad = SELECTION_PADDING;
+    const edgeTolerance = (el.type === "text" || el.type === "icon" ? 2 : 6) / this.zoom;
     const x0 = bounds.minX - pad, x1 = bounds.maxX + pad;
     const y0 = bounds.minY - pad, y1 = bounds.maxY + pad;
     if (pt.x >= x0 && pt.x <= x1) {
@@ -2013,7 +2018,7 @@ export class CanvasEngine {
     const snapshot = g.snapshot;
     const bounds = getElementBounds(snapshot);
     const tightText = snapshot.type === "text" && !snapshot.isDocCard && !snapshot.isCodeCard && snapshot.fill === "transparent";
-    const r = snapshot.type === "pencil" || tightText ? { x: bounds.minX, y: bounds.minY, w: bounds.maxX - bounds.minX, h: bounds.maxY - bounds.minY } : normalizeRect(snapshot);
+    const r = snapshot.type === "pencil" || snapshot.type === "icon" || tightText ? { x: bounds.minX, y: bounds.minY, w: bounds.maxX - bounds.minX, h: bounds.maxY - bounds.minY } : normalizeRect(snapshot);
     const dx = pt.x - g.origin.x, dy = pt.y - g.origin.y;
     let x0 = r.x, y0 = r.y, x1 = r.x + r.w, y1 = r.y + r.h;
     if (g.handle.includes("w")) x0 = Math.min(this.snapPoint({ x: r.x + dx, y: r.y }).x, x1 - MIN_SIZE);
@@ -2039,6 +2044,12 @@ export class CanvasEngine {
           return { ...text, x: text.x + x - ink.minX, y: text.y + y - ink.minY };
         }
         return { ...text, x: g.handle.includes("w") ? r.x + r.w - text.width : r.x, y: g.handle.includes("n") ? r.y + r.h - text.height : r.y };
+      }
+      if (snapshot.type === "icon") {
+        const horizontal=g.handle.includes("w")||g.handle.includes("e"),vertical=g.handle.includes("n")||g.handle.includes("s");
+        const scale=horizontal&&vertical?Math.max(rect.width/Math.max(r.w,1),rect.height/Math.max(r.h,1)):horizontal?rect.width/Math.max(r.w,1):rect.height/Math.max(r.h,1);
+        const left=g.handle.includes("w")?r.x+r.w-r.w*scale:r.x,top=g.handle.includes("n")?r.y+r.h-r.h*scale:r.y;
+        return {...snapshot,width:snapshot.width*scale,height:snapshot.height*scale,x:left-(bounds.minX-snapshot.x)*scale,y:top-(bounds.minY-snapshot.y)*scale};
       }
       if (snapshot.type === "image" && !this.shiftDown) {
         const horizontal=g.handle.includes("w")||g.handle.includes("e"),vertical=g.handle.includes("n")||g.handle.includes("s");

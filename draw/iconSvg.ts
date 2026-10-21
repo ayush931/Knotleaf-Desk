@@ -45,7 +45,21 @@ export function normalizeIconSvg(source: string, viewBox?: string, namespace?: s
   return { svgMarkup: new XMLSerializer().serializeToString(group), viewBox: dimensions.join(" ") };
 }
 
-interface IconImage { image: HTMLImageElement; ready: boolean; failed: boolean; loaded: Promise<void>; listeners: Set<() => void> }
+export interface IconInkBounds { minX:number; minY:number; maxX:number; maxY:number }
+/** Normalized alpha bounds are measured once, including SVG letterboxing/masks. */
+export function iconAlphaBounds(data: Uint8ClampedArray, width:number, height:number): IconInkBounds | null {
+  let x0=width,y0=height,x1=-1,y1=-1;
+  for(let y=0;y<height;y++)for(let x=0;x<width;x++)if(data[(y*width+x)*4+3]){
+    x0=Math.min(x0,x);y0=Math.min(y0,y);x1=Math.max(x1,x);y1=Math.max(y1,y);
+  }
+  return x1<0?null:{minX:x0/width,minY:y0/height,maxX:(x1+1)/width,maxY:(y1+1)/height};
+}
+export function readIconInk(canvas: HTMLCanvasElement): IconInkBounds | null {
+  try { const context=canvas.getContext('2d');return context?iconAlphaBounds(context.getImageData(0,0,canvas.width,canvas.height).data,canvas.width,canvas.height):null; }
+  catch { return null; }
+}
+
+interface IconImage { ink?:IconInkBounds|null; image: HTMLImageElement; ready: boolean; failed: boolean; loaded: Promise<void>; listeners: Set<() => void> }
 const images = new Map<string, IconImage>();
 export function getIconImage(markup: string, viewBox: string, color: string, onLoad?: () => void): IconImage {
   const key = JSON.stringify([markup, viewBox, color]);
@@ -55,7 +69,13 @@ export function getIconImage(markup: string, viewBox: string, color: string, onL
     const image = new Image();
     const listeners = new Set<() => void>();
     const loaded = new Promise<void>((resolve, reject) => {
-      image.onload = () => { entry!.ready = true; resolve(); for (const notify of listeners) notify(); listeners.clear(); };
+      image.onload = () => {
+        try {
+          const canvas=document.createElement('canvas');canvas.width=256;canvas.height=256;
+          canvas.getContext('2d')?.drawImage(image,0,0,256,256);entry!.ink=readIconInk(canvas);
+          canvas.width=0;canvas.height=0;
+        } catch { /* Unavailable pixel readback retains the logical icon bounds. */ }
+        entry!.ready = true; resolve(); for (const notify of listeners) notify(); listeners.clear(); };
       image.onerror = () => { entry!.failed = true; reject(new Error("Could not render this icon.")); for (const notify of listeners) notify(); listeners.clear(); };
     });
     entry = { image, ready: false, failed: false, loaded, listeners };

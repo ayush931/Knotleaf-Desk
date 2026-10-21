@@ -338,7 +338,7 @@ test('selection paints one connector per side and only corner resize squares at 
     drawElementAnchors(ctx, getElementAnchors(source), null, zoom);
     expect(squares).toHaveLength(4); expect(circles).toHaveLength(4);
     expect(circles.map(([x, y]) => [x, y])).toEqual([[160, 100], [220, 140], [160, 180], [100, 140]]);
-    const pad = 5 / zoom, half = 4 / zoom;
+    const pad = 0, half = 4 / zoom;
     expect(squares.map(([x, y]) => [x + half, y + half])).toEqual([[100 - pad, 100 - pad], [220 + pad, 100 - pad], [220 + pad, 180 + pad], [100 - pad, 180 + pad]]);
   }
 });
@@ -780,11 +780,11 @@ test('a completed shape still paints its blue outline after the pointer moves aw
   engine.ctx.strokeRect = (...rect) => outlines.push({ rect, color: engine.ctx.strokeStyle });
   engine.setTool('rectangle'); drag(100, 100, 180, 160);
   listeners.pointermove(point(900, 650)); engine.draw();
-  expect(outlines).toContainEqual({ rect: [95, 95, 90, 70], color: '#3B82F6' });
+  expect(outlines).toContainEqual({ rect: [100, 100, 80, 60], color: '#3B82F6' });
   expect(engine.getTool()).toBe('select');
   drag(500, 500, 500, 500); expect(engine.getSelectedElements()).toEqual([]);
   outlines.length = 0; engine.draw();
-  expect(outlines).not.toContainEqual({ rect: [95, 95, 90, 70], color: '#3B82F6' });
+  expect(outlines).not.toContainEqual({ rect: [100, 100, 80, 60], color: '#3B82F6' });
   engine.destroy();
 });
 
@@ -879,7 +879,7 @@ test('text connectors remain outside the tight selection outline at every zoom',
   for (const zoom of [0.5, 1, 2, 3]) {
     const { engine, drag } = setup([text]); engine.selectAll(); engine.setZoom(zoom, { x: 0, y: 0 });
     const boxes = []; engine.ctx.strokeRect = (...box) => boxes.push(box); engine.draw();
-    expect(boxes).toContainEqual([98, 98, 124, 36.400000000000006]);
+    expect(boxes).toContainEqual([100, 100, 120, 32.400000000000006]);
     const ports = getElementAnchors(text); expect(ports.find(p => p.anchor === 'right')).toEqual({ anchor: 'right', x: 228, y: 116.2 });
     const from = engine.canvasToScreen(228, 116.2), to = engine.canvasToScreen(400, 200); drag(from.x, from.y, to.x, to.y);
     expect(engine.getElements().find(el => el.type === 'arrow')).toMatchObject({ startX: 228, startY: 116.2, startBinding: { elementId: 'plain', anchor: 'right' } }); engine.destroy();
@@ -1140,4 +1140,17 @@ test('room undo orders local assets and shared edits without sending image bytes
  engine.redo();expect(engine.getElements().map(el=>el.type)).toEqual(['image']);engine.redo();expect(engine.getElements().map(el=>el.type)).toEqual(['image','rectangle']);
  engine.selectAll();engine.deleteSelected();expect(engine.getElements()).toHaveLength(0);engine.undo();expect(engine.getElements().map(el=>el.type)).toEqual(['image','rectangle']);engine.redo();expect(engine.getElements()).toHaveLength(0);expect(session.elements.size).toBe(0);
  }finally{engine.destroy();session.destroy();}
+});
+
+
+test('selection outlines add zero padding to every boxed element at all zoom levels',()=>{
+ const elements=[source,{...source,type:'diamond'},{...source,type:'circle'},{...source,type:'frame',title:'Frame'},{...source,type:'image',source:'data:image/png;base64,aGVsbG8=',imageName:'Image'},{...source,type:'icon',iconId:'arch-client',width:48,height:48},{...source,type:'text',text:'Text',fontSize:20,fontFamily:'sans',isDocCard:false},{...source,type:'text',text:'Card',fontSize:20,fontFamily:'sans',isDocCard:true},{...source,type:'sticky',text:'Note',fontSize:20,fontFamily:'sans',color:'#fff'}];
+ for(const element of elements)for(const zoom of [.25,1,3]){
+  const rects=[],ctx=new Proxy({strokeRect:(...rect)=>rects.push(rect)},{get:(o,k)=>k in o?o[k]:()=>{}});const bounds=getElementBounds(element);drawSelection(ctx,element,zoom);
+  expect(rects[0]).toEqual([bounds.minX,bounds.minY,bounds.maxX-bounds.minX,bounds.maxY-bounds.minY]);
+ }
+});
+test('curved line bounds follow the visible curve rather than its distant control point',()=>{
+ const line={...base,id:'curve',type:'line',x:0,y:0,width:100,height:0,startX:0,startY:0,endX:100,endY:0,bendOffset:100};
+ expect(getElementBounds(line)).toEqual({minX:0,minY:0,maxX:100,maxY:50});
 });
