@@ -1,6 +1,6 @@
 import { beforeAll, afterAll, test, expect } from 'bun:test';
 import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
-import { normalizeIconSvg, getIconImage } from '../draw/iconSvg.ts';
+import { normalizeIconSvg, getIconImage, iconAlphaBounds } from '../draw/iconSvg.ts';
 import { drawElement } from '../draw/renderer.ts';
 import { boardToSvg } from '../draw/svgExport.ts';
 import { exportToPng, exportToRaster } from '../draw/export.ts';
@@ -84,7 +84,7 @@ test('PNG export waits for icon decoding and SVG export keeps transparent, unlab
     const exporting = exportToPng([icon], 'dark', true);
     expect(downloads).toHaveLength(0); expect(pending).toHaveLength(1);
     pending.splice(0).forEach(load => load()); await exporting;
-    expect(draws).toHaveLength(1); expect(downloads).toHaveLength(1);
+    expect(draws.filter(args=>args[3]===48&&args[4]===48)).toHaveLength(1); expect(downloads).toHaveLength(1);
     const svg = boardToSvg([icon], true);
     expect(svg).toContain('linearGradient'); expect(svg).toContain('mask="url(#icon-icon-hole)"');
     expect(svg).not.toContain('Old saved caption'); expect(svg).not.toContain('badge');
@@ -154,4 +154,10 @@ test('exports succeed when system fallback font faces are unavailable',async()=>
  document.fonts={load:query=>{requested.push(query);return query.includes(',')||query.includes('Fallback')?Promise.reject(Error('Missing local Arial')):Promise.resolve([]);}};
  try{downloads.length=0;await exportToPng([{...base,type:'text',text:'Linux export',fontFamily:'sans',fontSize:20}],'dark',true);expect(downloads).toHaveLength(1);expect(requested.length).toBeGreaterThan(0);}
  finally{if(previous)document.fonts=previous;else delete document.fonts;}
+});
+
+
+test('icon ink bounds remove transparent SVG margins and preserve painted pixels',()=>{
+ const pixels=new Uint8ClampedArray(10*10*4);for(let y=2;y<6;y++)for(let x=3;x<7;x++)pixels[(y*10+x)*4+3]=255;
+ expect(iconAlphaBounds(pixels,10,10)).toEqual({minX:.3,minY:.2,maxX:.7,maxY:.6});expect(iconAlphaBounds(new Uint8ClampedArray(400),10,10)).toBeNull();
 });

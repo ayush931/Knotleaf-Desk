@@ -17,7 +17,7 @@ import {
 } from "./types";
 import { getIconById } from "./iconsData";
 import { getImageResource } from "./imageResource";
-import { getIconImage } from "./iconSvg";
+import { getIconImage, readIconInk, type IconInkBounds } from "./iconSvg";
 import { FONT_OPTIONS } from "./fonts";
 
 export const ACCENT = "#3B82F6";
@@ -114,13 +114,41 @@ export function unionBounds(list: Bounds[]): Bounds | null {
 }
 
 /** Tight bounds of an element in canvas space, including arrow bends and pencil strokes. */
+const iconInkCache = new Map<string, IconInkBounds | null>();
+function iconContentBounds(el: Extract<CanvasElement,{type:"icon"}>): Bounds {
+  const size=Math.max(1,Math.min(el.width,el.height)),x=el.x+(el.width-size)/2,y=el.y+(el.height-size)/2;
+  let ink:IconInkBounds|null|undefined;
+  const definition=getIconById(el.iconId),color=el.iconColor||definition?.color||ACCENT;
+  try {
+    if(el.svgMarkup) ink=getIconImage(el.svgMarkup,el.viewBox||"0 0 24 24",color).ink;
+    else {
+      const key=`${el.iconId}|${el.viewBox||definition?.viewBox||""}|${color}`;
+      if(!iconInkCache.has(key)){
+        const canvas=document.createElement('canvas');canvas.width=256;canvas.height=256;
+        const context=canvas.getContext('2d');if(context)drawIcon(context,{...el,x:0,y:0,width:256,height:256});
+        iconInkCache.set(key,readIconInk(canvas));canvas.width=0;canvas.height=0;
+        if(iconInkCache.size>256)iconInkCache.delete(iconInkCache.keys().next().value!);
+      }
+      ink=iconInkCache.get(key);
+    }
+  } catch { /* Geometry remains usable before browser resources are available. */ }
+  return ink?{minX:x+ink.minX*size,minY:y+ink.minY*size,maxX:x+ink.maxX*size,maxY:y+ink.maxY*size}:{minX:x,minY:y,maxX:x+size,maxY:y+size};
+}
+
 export function getElementBounds(el: CanvasElement, scene: CanvasElement[] = []): Bounds {
+  if(el.type==="icon")return iconContentBounds(el);
   if (el.type === "arrow" || el.type === "line") {
     const pts: Point[] = [];
     if (el.type === "arrow" || el.bendOffset) {
       const info = el.type === "arrow" ? computeArrowPath(el, scene) : computeLinePath(el);
       pts.push(...info.points);
-      if (info.cpx !== undefined && info.cpy !== undefined) pts.push({ x: info.cpx, y: info.cpy });
+      if (info.cpx !== undefined && info.cpy !== undefined) {
+        const a=info.points[0],b=info.points[info.points.length-1],c={x:info.cpx,y:info.cpy};
+        for(const axis of ["x","y"] as const){
+          const denominator=a[axis]-2*c[axis]+b[axis],t=denominator?(a[axis]-c[axis])/denominator:-1;
+          if(t>0&&t<1)pts.push({x:(1-t)**2*a.x+2*(1-t)*t*c.x+t*t*b.x,y:(1-t)**2*a.y+2*(1-t)*t*c.y+t*t*b.y});
+        }
+      }
     } else {
       pts.push({ x: el.startX, y: el.startY }, { x: el.endX, y: el.endY });
     }
@@ -159,9 +187,9 @@ function pointsBounds(pts: Point[]): Bounds {
   return { minX, minY, maxX, maxY };
 }
 
-/** Text ports and its selection outline share stable, outside-glyph padding. */
+/** Connector ports stay outside content; selection itself adds no margin. */
 export const TEXT_PORT_PADDING = 8;
-export function selectionPadding(el: CanvasElement, zoom: number) { return el.type === "text" ? el.isDocCard || el.isCodeCard || el.fill !== "transparent" ? TEXT_PORT_PADDING : 2 : 5 / zoom; }
+export const SELECTION_PADDING = 0;
 
 export function getElementAnchors(el: CanvasElement): { anchor: AnchorPosition; x: number; y: number }[] {
   if (el.type === "arrow" || el.type === "line" || el.type === "pencil" || el.type === "frame") return [];
@@ -1661,7 +1689,7 @@ export function drawSelection(ctx: CanvasRenderingContext2D, el: CanvasElement, 
     }
   } else {
     const b = getElementBounds(el);
-    const pad = selectionPadding(el, z);
+    const pad = SELECTION_PADDING;
     drawBoundsOutline(ctx, b, z, pad, false);
     drawResizeHandles(ctx, b, z, el.type === "frame", pad);
   }
@@ -1680,7 +1708,7 @@ export function drawBoundsOutline(ctx: CanvasRenderingContext2D, b: Bounds, zoom
 export type ResizeHandle = "nw" | "ne" | "se" | "sw" | "n" | "e" | "s" | "w";
 
 /** Shared positions for painting and hit testing. Side centers belong to connectors. */
-export function getResizeHandles(b: Bounds, zoom: number, includeSides = false, pad = 5 / zoom): { handle: ResizeHandle; x: number; y: number }[] {
+export function getResizeHandles(b: Bounds, zoom: number, includeSides = false, pad = 0): { handle: ResizeHandle; x: number; y: number }[] {
   const x0 = b.minX - pad, x1 = b.maxX + pad;
   const y0 = b.minY - pad, y1 = b.maxY + pad;
   const corners: { handle: ResizeHandle; x: number; y: number }[] = [
@@ -1695,7 +1723,7 @@ export function getResizeHandles(b: Bounds, zoom: number, includeSides = false, 
   return corners;
 }
 
-export function drawResizeHandles(ctx: CanvasRenderingContext2D, b: Bounds, zoom: number, includeSides = false, pad = 5 / zoom) {
+export function drawResizeHandles(ctx: CanvasRenderingContext2D, b: Bounds, zoom: number, includeSides = false, pad = 0) {
   const s = 8 / zoom;
   const pts = getResizeHandles(b, zoom, includeSides, pad);
   ctx.save();
