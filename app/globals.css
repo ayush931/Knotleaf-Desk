@@ -159,7 +159,7 @@ dialog::backdrop { background: rgb(0 0 0 / 55%); backdrop-filter: blur(3px); }
 .code-source textarea::placeholder { -webkit-text-fill-color: #64748b; opacity: 1; }
 
 /* Visual notes share the document palette; controls stay compact above the page. */
-.notes-rich .tiptap { min-height: 100%; padding: 24px; outline: none; font-family: var(--font-inter), sans-serif; font-size: 15px; line-height: 1.75; color: #e4e4e7; overflow-wrap: anywhere; }
+.notes-rich .tiptap { min-height: 100%; padding: 24px; outline: none; font-family: var(--note-font-family, var(--font-inter)), sans-serif; font-size: var(--note-font-size, 16px); line-height: var(--note-line-height, 1.75); color: #e4e4e7; overflow-wrap: anywhere; }
 .notes-rich .tiptap > * + * { margin-top: .8em; }
 .notes-rich .tiptap p { margin-bottom: .4em; }
 .notes-rich .tiptap h1 { font-size: 1.8em; line-height: 1.3; font-weight: 700; margin-top: 1.1em; }
@@ -175,7 +175,7 @@ dialog::backdrop { background: rgb(0 0 0 / 55%); backdrop-filter: blur(3px); }
 .notes-rich .tiptap li[data-checked="true"] > div > p { color: #a1a1aa; text-decoration: line-through; }
 .notes-rich .tiptap blockquote { margin-block: 1em; border: 1px solid #635b3d; border-left: 3px solid #c7ba91; border-radius: 8px; background: #302d24; color: #e5dcc4; padding: 14px 18px; }
 .notes-rich .tiptap a { color: #60a5fa; text-decoration: underline; cursor: text; }
-.notes-rich .tiptap code { border-radius: 4px; background: #27272a; padding: .15em .3em; font-family: var(--font-fira-code), monospace; font-size: .9em; }
+.notes-rich .tiptap code { border-radius: 4px; background: #27272a; padding: .15em .3em; font-family: var(--font-fira), monospace; font-size: .9em; }
 .notes-rich .tiptap pre { overflow: auto; border: 1px solid #3f3f46; border-radius: 8px; background: #121212; padding: 14px; white-space: pre-wrap; }
 .notes-rich .tiptap pre code { background: transparent; padding: 0; }
 .notes-rich .tiptap hr { margin-block: 1.5em; border-color: #3f3f46; }
@@ -190,3 +190,20 @@ dialog::backdrop { background: rgb(0 0 0 / 55%); backdrop-filter: blur(3px); }
 @media (max-width: 640px) { .notes-rich .tiptap { padding: 16px; } }
 
 .notes-rich .tiptap h4, .notes-rich .tiptap h5, .notes-rich .tiptap h6 { font-size: 1em; font-weight: 650; }
+
+.notes-rich .tiptap [data-type="details"] { display:flex; gap:8px; margin-block:1em; padding:12px; border:1px solid #3f3f46; border-radius:8px; }
+.notes-rich .tiptap [data-type="details"] > button { flex:none; height:24px; width:24px; border-radius:4px; color:#a1a1aa; cursor:pointer; }
+.notes-rich .tiptap [data-type="details"] > button:hover { background:#27272a; color:#f4f4f5; }
+.notes-rich .tiptap [data-type="details"] > button::before { content:'▸'; }
+.notes-rich .tiptap [data-type="details"].is-open > button::before { content:'▾'; }
+.notes-rich .tiptap [data-type="details"] > div { flex:1; min-width:0; }
+.notes-rich .tiptap summary { font-weight:600; }
+.notes-rich .tiptap [data-type="detailsContent"] { margin-top:8px; }
+.notes-rich .tiptap details { padding:12px; border:1px solid #3f3f46; border-radius:8px; }
+.notes-rich .tiptap details > summary { cursor:pointer; }
+.notes-rich .tiptap mark { background-color:#665329; color:inherit; border-radius:2px; padding:.1em .15em; }
+.notes-rich .tiptap sup { vertical-align:super; font-size:.75em; }
+.notes-rich .tiptap sub { vertical-align:sub; font-size:.75em; }
+
+.notes-rich .tiptap [data-type="details"] summary { display:block; list-style:none; }
+.notes-rich .tiptap [data-type="details"] summary::marker { content:""; }

@@ -19,3 +19,9 @@ test('invalid preferences recover safely and do not restore transient panel stat
 test('storage denial does not break drawing defaults or saving callers',()=>{
  localStorage.getItem=()=>{throw Error('blocked');};localStorage.setItem=()=>{throw Error('quota');};expect(loadPreferences().eraserSize).toBe(24);expect(savePreferences({eraserSize:300})).toBe(false);
 });
+
+test('document reading preferences persist alongside canvas and export settings',()=>{
+ savePreferences({noteAppearance:{font:'serif',size:20,width:'wide',lineHeight:2.1}});savePreferences({eraserSize:80,exportFormat:'pdf'});
+ expect(loadPreferences().noteAppearance).toEqual({font:'serif',size:20,width:'wide',lineHeight:2.1});expect(loadPreferences().eraserSize).toBe(80);
+ expect(normalizePreferences({noteAppearance:{font:'bad',size:-4,width:'bad',lineHeight:100}}).noteAppearance.font).toBe('sans');
+});
