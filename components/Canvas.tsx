@@ -281,12 +281,14 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
         boardRef.current = next; setBoard(next); setSaveError(!saveBoard(next));
         engine?.applyRemoteElements(elements); setRoomReady(true); refreshBoardsList();
       };
+      session.onHighlight = (id, points) => engine?.setHighlights(id, points);
       session.onPresence = people => { setPeople(people); engine?.setCollaborators(people); };
       session.onHistory = (undo, redo) => { setCanUndo(undo||!!engine?.hasLocalAssetUndo()); setCanRedo(redo||!!engine?.hasLocalAssetRedo()); };
       let lastCursor = 0;
       if (engine) {
         engine.collaborativeLocalHistory={state:()=>({undo:session!.undo.undoStack.length,redo:session!.undo.redoStack.length}),stop:()=>session!.undo.stopCapturing(),clearRedo:()=>session!.undo.clear(false,true)};
         engine.collaborativeUndo = () => session?.undo.undo(); engine.collaborativeRedo = () => session?.undo.redo();
+        engine.onHighlightChange = points => session?.highlight(points);
         engine.onCursorChange = point => { if (Date.now() - lastCursor > 50) { lastCursor = Date.now(); session?.cursor(point); } };
       }
       session.connect();
@@ -302,7 +304,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
     });
     return () => {
       controller.abort(); clearTimeout(timer); session?.destroy(); sessionRef.current = null;
-      if (engine) { engine.collaborativeLocalHistory=undefined; engine.collaborativeUndo = undefined; engine.collaborativeRedo = undefined; engine.onCursorChange = undefined; }
+      if (engine) { engine.collaborativeLocalHistory=undefined; engine.collaborativeUndo = undefined; engine.collaborativeRedo = undefined; engine.onCursorChange = undefined; engine.onHighlightChange = undefined; }
     };
   }, [initialRoomId, refreshBoardsList, roomAttempt]);
 

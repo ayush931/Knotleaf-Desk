@@ -6,6 +6,7 @@ export type Tool =
   | "circle"
   | "arrow"
   | "line"
+  | "highlighter"
   | "pencil"
   | "text"
   | "code"

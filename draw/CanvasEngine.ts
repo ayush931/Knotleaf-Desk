@@ -1,3 +1,4 @@
+import { HIGHLIGHTER_LIFETIME, HIGHLIGHTER_LIMIT, liveHighlights, type HighlightPoint } from "./highlighter";
 import { isLocalAsset } from "@/lib/localAssets.mjs";
 import { DEFAULT_BACKGROUND, normalizeBackground, isLightBackground } from "@/lib/background.mjs";
 import { drawCanvasBackground, drawBackgroundFill } from "./backgroundFill";
@@ -79,6 +80,7 @@ const HANDLE_CURSOR: Record<Handle, string> = {
 };
 
 type Gesture =
+  | { kind: "highlight" }
   | { kind: "pan"; last: Point }
   | { kind: "erase"; erased: boolean; last: Point }
   | {
@@ -238,6 +240,43 @@ export class CanvasEngine {
   private elements: CanvasElement[] = [];
   private committedElements: CanvasElement[] = [];
   private collaborators: { name: string; color: string; cursor?: Point }[] = [];
+  private highlights: HighlightPoint[] = [];
+  private remoteHighlights = new Map<number, HighlightPoint[]>();
+  private highlightTimer?: ReturnType<typeof setTimeout>;
+  public onHighlightChange?: (points: HighlightPoint[]) => void;
+  public setHighlights(id: number, points: HighlightPoint[]) {
+    this.remoteHighlights.set(id, points); this.requestRender();
+  }
+  private addHighlight(point: Point, start = false) {
+    const now = Date.now(), last = this.highlights.at(-1);
+    if (!start && last && now - last.at < 8) return;
+    this.highlights = liveHighlights(this.highlights, now);
+    this.highlights.push({ ...point, at: now, start });
+    this.highlights = this.highlights.slice(-HIGHLIGHTER_LIMIT);
+    this.onHighlightChange?.(this.highlights); this.requestRender();
+  }
+  private drawHighlights(ctx: CanvasRenderingContext2D) {
+    const now = Date.now(); this.highlights = liveHighlights(this.highlights, now);
+    for (const [id, points] of this.remoteHighlights) {
+      const live = liveHighlights(points, now);
+      if (live.length) this.remoteHighlights.set(id, live); else this.remoteHighlights.delete(id);
+    }
+    ctx.save(); ctx.strokeStyle = "#ef4444"; ctx.fillStyle = "#ef4444";
+    ctx.lineWidth = 4 / this.zoom; ctx.lineCap = "round"; ctx.lineJoin = "round";
+    for (const points of [this.highlights, ...this.remoteHighlights.values()]) {
+      for (let i = 0; i < points.length; i++) {
+        const p = points[i], previous = points[i - 1];
+        ctx.globalAlpha = Math.min(1, (HIGHLIGHTER_LIFETIME - now + p.at) / 200);
+        ctx.beginPath();
+        if (previous && !p.start) { ctx.moveTo(previous.x, previous.y); ctx.lineTo(p.x, p.y); ctx.stroke(); }
+        else { ctx.arc(p.x, p.y, 2 / this.zoom, 0, Math.PI * 2); ctx.fill(); }
+      }
+    }
+    ctx.restore();
+    if ((this.highlights.length || this.remoteHighlights.size) && !this.highlightTimer) {
+      this.highlightTimer = setTimeout(() => { this.highlightTimer = undefined; this.requestRender(); }, 33);
+    }
+  }
   private eraserSize = 24;
   private eraserMode: "all" | "drawings" | "objects" = "all";
   private eraserPointer: Point | null = null;
@@ -1214,6 +1253,7 @@ export class CanvasEngine {
       setFont(ctx, 11, "sans", 600); ctx.textAlign = "left"; ctx.textBaseline = "top";
       ctx.fillRect(10, 18, ctx.measureText(person.name).width + 12, 22); ctx.fillStyle = "#121212"; ctx.fillText(person.name, 16, 23); ctx.restore();
     }
+    this.drawHighlights(ctx);
     ctx.restore();
     if(this.tool==="eraser"&&this.eraserPointer&&!this.readOnly&&!this.spaceDown){
       const p=this.eraserPointer,r=this.eraserSize/2;ctx.save();ctx.fillStyle="rgba(59,130,246,0.07)";ctx.strokeStyle="rgba(59,130,246,0.8)";ctx.lineWidth=1;
@@ -1442,7 +1482,7 @@ export class CanvasEngine {
       }
     }
     this.activePointerId = e.pointerId;
-    if (!this.readOnly && e.button === 0 && !this.spaceDown && !["select", "hand", "eraser", "fill", "eyedropper"].includes(this.tool)) this.onBeforeCreate?.();
+    if (!this.readOnly && e.button === 0 && !this.spaceDown && !["select", "hand", "eraser", "fill", "eyedropper", "highlighter"].includes(this.tool)) this.onBeforeCreate?.();
     const opensEditor = e.button === 0 && !this.spaceDown && ["text", "doc", "sticky", "code"].includes(this.tool);
     if (opensEditor) {
       // The editor takes focus during this event. A compatibility mousedown on
@@ -1455,6 +1495,10 @@ export class CanvasEngine {
     this.altDown = !!e.altKey;
     const sp = this.screenPoint(e);
     const pt = this.screenToCanvas(sp.x, sp.y);
+
+    if (this.tool === "highlighter" && e.button === 0 && !this.spaceDown) {
+      e.preventDefault(); this.gesture = { kind: "highlight" }; this.addHighlight(pt, true); return;
+    }
 
     if (this.readOnly || e.button === 1 || this.spaceDown || this.tool === "hand") {
       this.gesture = { kind: "pan", last: sp };
@@ -1653,6 +1697,9 @@ export class CanvasEngine {
     }
 
     switch (g.kind) {
+      case "highlight":
+        this.addHighlight(pt);
+        break;
       case "pan":
         this.pan = { x: this.pan.x + sp.x - g.last.x, y: this.pan.y + sp.y - g.last.y };
         g.last = sp;
@@ -1726,6 +1773,7 @@ export class CanvasEngine {
       return;
     }
     if (e && this.activePointerId !== null && e.pointerId !== this.activePointerId) return;
+    if (e && this.gesture?.kind === "highlight") { const sp = this.screenPoint(e); this.addHighlight(this.screenToCanvas(sp.x, sp.y)); }
     const g = this.gesture;
     this.gesture = null;
     this.guides = [];
@@ -1780,6 +1828,7 @@ export class CanvasEngine {
   }
 
   private onDoubleClick = (e: MouseEvent) => {
+    if (this.tool === "highlighter") return;
     if (this.readOnly || this.spaceDown || e.button !== 0) return;
     e.preventDefault();
     this.cancelGesture();
@@ -2195,7 +2244,7 @@ export class CanvasEngine {
   }
 
   private updateCursor() {
-    if (this.readOnly || this.gesture?.kind === "pan" || this.spaceDown) {
+    if ((this.readOnly && this.tool !== "highlighter") || this.gesture?.kind === "pan" || this.spaceDown) {
       this.canvas.style.cursor = this.gesture?.kind === "pan" ? "grabbing" : "grab";
       return;
     }
@@ -2240,7 +2289,9 @@ export class CanvasEngine {
     }
 
     if (this.readOnly) {
-      if (key === "+" || key === "=") { e.preventDefault(); this.zoomIn(); }
+      if (key === "j" && !mod && !e.altKey) this.setTool("highlighter");
+      else if (key === "v" && !mod && !e.altKey) this.setTool("hand");
+      else if (key === "+" || key === "=") { e.preventDefault(); this.zoomIn(); }
       else if (key === "-") { e.preventDefault(); this.zoomOut(); }
       return;
     }
@@ -2371,6 +2422,9 @@ export class CanvasEngine {
         break;
       case "l":
         this.setTool("line");
+        break;
+      case "j":
+        this.setTool("highlighter");
         break;
       case "p":
         this.setTool("pencil");
@@ -2526,6 +2580,7 @@ export class CanvasEngine {
 
   public destroy() {
     this.destroyed = true;
+    clearTimeout(this.highlightTimer); this.highlights = []; this.remoteHighlights.clear(); this.onHighlightChange = undefined;
     this.clearPendingClick();
     this.gesture = null;
     this.releasePointer();
