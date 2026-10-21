@@ -266,7 +266,7 @@ export class CanvasEngine {
     for (const points of [this.highlights, ...this.remoteHighlights.values()]) {
       for (let i = 0; i < points.length; i++) {
         const p = points[i], previous = points[i - 1];
-        ctx.globalAlpha = Math.min(1, (HIGHLIGHTER_LIFETIME - now + p.at) / 100);
+        ctx.globalAlpha = Math.min(1, (HIGHLIGHTER_LIFETIME - now + p.at) / 50);
         ctx.beginPath();
         if (previous && !p.start) { ctx.moveTo(previous.x, previous.y); ctx.lineTo(p.x, p.y); ctx.stroke(); }
         else { ctx.arc(p.x, p.y, 2 / this.zoom, 0, Math.PI * 2); ctx.fill(); }

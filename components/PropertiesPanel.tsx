@@ -276,7 +276,7 @@ export function PropertiesPanel({
           className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-neutral-800 hover:text-white focus-visible:outline-2 focus-visible:outline-blue-500"><X className="h-4 w-4" /></button>
       </header>
       <div className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain p-4">
-      {selectedTool === "highlighter" ? <p className="text-xs leading-5 text-neutral-400">The red highlighter fades after half a second. It is visible to collaborators and is never saved or exported.</p> : <>
+      {selectedTool === "highlighter" ? <p className="text-xs leading-5 text-neutral-400">The red highlighter fades after 0.2 seconds. It is visible to collaborators and is never saved or exported.</p> : <>
       {/* Text: size, family, alignment. Shortcuts: Ctrl+Shift+> / < */}
       {isTextual && (
         <div className="space-y-2">

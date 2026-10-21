@@ -23,7 +23,7 @@ const GROUPS: { title: string; items: [string, string][] }[] = [
       ["A", "Arrow (snaps to shape ports)"],
       ["L", "Line"],
       ["P", "Draw"],
-      ["J", "Highlighter (red, disappears after 0.5 seconds)"],
+      ["J", "Highlighter (red, disappears after 0.2 seconds)"],
       ["T", "Text"],
       ["C", "Code card (inline editor)"],
       ["N", "Doc Card (rich formatted note)"],
