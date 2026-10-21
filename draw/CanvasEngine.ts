@@ -39,6 +39,7 @@ import {
   getResizeHandles,
   SELECTION_PADDING,
   measureTextBlock,
+  layoutDocument,
   normalizeRect,
   unionBounds,
   setFont,
@@ -80,6 +81,7 @@ const HANDLE_CURSOR: Record<Handle, string> = {
 };
 
 type Gesture =
+  | { kind: "text-box"; origin: Point; current: Point }
   | { kind: "highlight" }
   | { kind: "pan"; last: Point }
   | { kind: "erase"; erased: boolean; last: Point }
@@ -661,6 +663,7 @@ export class CanvasEngine {
       setFont(this.ctx, el.fontSize, "mono");
       return { ...el, width: Math.max(280, ...expandCodeTabs(el.text).split("\n").map(line => this.ctx.measureText(line).width)) + 24, height: Math.max(100, el.text.split("\n").length * el.fontSize * 1.5 + 36) };
     }
+    if (el.textBox) { const width=Math.max(32,el.width); const layout=layoutDocument(this.ctx,el.text,el.fontSize,el.fontFamily,{...el,width}); return {...el,width,height:Math.max(el.height,layout.totalHeight)}; }
     const size = measureTextBlock(this.ctx, el.text, el.fontSize, el.fontFamily, el);
     return { ...el, width: el.isDocCard ? Math.max(240,size.width) : size.width, height: el.isDocCard ? Math.max(100,size.height) : size.height };
   }
@@ -957,7 +960,8 @@ export class CanvasEngine {
       if (info.replaceLabelId) this.elements = this.elements.map(el => el.id === info.replaceLabelId ? { ...el, label: undefined } : el);
       if (trimmed) {
         const el = this.makeTextElement(text, info.canvasX, info.canvasY, info.fontSize, info.fontFamily, info.color, info.align, false, info);
-        this.elements = [...this.elements, { ...el, ...(info.containerId && info.containerOffset ? { containerId: info.containerId, containerOffset: info.containerOffset } : {}) }];
+        const sized = info.boxWidth ? this.remeasureText({...el,textBox:true,width:info.boxWidth,height:info.boxHeight||el.height}) : el;
+        this.elements = [...this.elements, { ...sized, ...(info.containerId && info.containerOffset ? { containerId: info.containerId, containerOffset: info.containerOffset } : {}) }];
         this.selectedIds = new Set([el.id]);
       }
     } else if (info.elementId) {
@@ -1063,7 +1067,8 @@ export class CanvasEngine {
         state = {
           kind: "text", elementId: el.id, canvasX: el.x, canvasY: el.y,
           screenX: p.x, screenY: p.y,
-          screenWidth: Math.max(80, el.width * this.zoom + 24),
+          screenWidth: el.textBox ? el.width*this.zoom : Math.max(80, el.width * this.zoom + 24),
+          ...(el.textBox?{boxWidth:el.width,boxHeight:el.height,screenHeight:el.height*this.zoom}:{}),
           bold: el.bold, italic: el.italic, underline: el.underline, strikethrough: el.strikethrough,
           text: el.text, fontSize: el.fontSize, fontFamily: el.fontFamily,
           color: el.stroke, align: el.textAlign,
@@ -1124,10 +1129,10 @@ export class CanvasEngine {
       setFont(this.ctx, state.fontSize, state.fontFamily, state.bold ? 700 : 400, state.italic);
       const originX = el.x + (el.type === "sticky" ? 12 : 0), originY = el.y + (el.type === "sticky" ? 12 : 0);
       const available = el.width - (el.type === "sticky" ? 24 : 0);
-      const lines = el.type === "sticky" ? wrapText(this.ctx, state.text, available) : state.text.split("\n");
+      const lines = el.type === "sticky" || el.type === "text" && el.textBox ? wrapText(this.ctx, state.text, available) : state.text.split("\n");
       let consumed = 0;
       const offsets = lines.map(line => {
-        if (el.type === "text") { const offset = consumed; consumed += line.length + 1; return offset; }
+        if (el.type === "text" && !el.textBox) { const offset = consumed; consumed += line.length + 1; return offset; }
         if (!line && state!.text[consumed] === "\n") consumed++;
         const offset = Math.max(consumed, state!.text.indexOf(line, consumed)); consumed = offset + line.length; return offset;
       });
@@ -1227,6 +1232,9 @@ export class CanvasEngine {
       if (group) drawBoundsOutline(ctx, group, this.zoom, 0);
     }
 
+    if (this.gesture?.kind === "text-box") {
+      const {origin,current}=this.gesture;ctx.save();ctx.strokeStyle=ACCENT;ctx.lineWidth=1/this.zoom;ctx.setLineDash([4/this.zoom,3/this.zoom]);ctx.strokeRect(Math.min(origin.x,current.x),Math.min(origin.y,current.y),Math.abs(current.x-origin.x),Math.abs(current.y-origin.y));ctx.restore();
+    }
     if (this.draft) {
       drawElement(ctx, this.draft, { theme: this.theme, zoom: this.zoom, scene: this.elements });
     }
@@ -1483,7 +1491,7 @@ export class CanvasEngine {
     }
     this.activePointerId = e.pointerId;
     if (!this.readOnly && e.button === 0 && !this.spaceDown && !["select", "hand", "eraser", "fill", "eyedropper", "highlighter"].includes(this.tool)) this.onBeforeCreate?.();
-    const opensEditor = e.button === 0 && !this.spaceDown && ["text", "doc", "sticky", "code"].includes(this.tool);
+    const opensEditor = e.button === 0 && !this.spaceDown && ["doc", "sticky", "code"].includes(this.tool);
     if (opensEditor) {
       // The editor takes focus during this event. A compatibility mousedown on
       // the canvas would blur it and immediately commit/discard an empty draft.
@@ -1595,25 +1603,10 @@ export class CanvasEngine {
     }
 
     if (this.tool === "text") {
-      this.setTool("select");
-      this.selectedIds.clear();
-      this.emitSelection();
-      this.updateCursor();
-      this.onStartInlineText?.({
-        kind: "new-text",
-        canvasX: pt.x,
-        canvasY: pt.y,
-        screenX: sp.x,
-        screenY: sp.y,
-        text: "",
-        fontSize: this.currentStyle.fontSize,
-        fontFamily: this.currentStyle.fontFamily,
-        bold: this.currentStyle.bold, italic: this.currentStyle.italic, underline: this.currentStyle.underline, strikethrough: this.currentStyle.strikethrough,
-        color: this.currentStyle.stroke || "#FFFFFF",
-        align: this.currentStyle.textAlign,
-      });
-      this.requestRender();
-      return;
+      e.preventDefault();
+      this.selectedIds.clear(); this.emitSelection();
+      this.gesture = { kind: "text-box", origin: this.snapPoint(pt), current: this.snapPoint(pt) };
+      this.requestRender(); return;
     }
 
     if (this.tool === "code") {
@@ -1697,6 +1690,11 @@ export class CanvasEngine {
     }
 
     switch (g.kind) {
+      case "text-box": {
+        let target = this.snapPoint(pt);
+        if(this.shiftDown){const side=Math.max(Math.abs(target.x-g.origin.x),Math.abs(target.y-g.origin.y));target={x:g.origin.x+Math.sign(target.x-g.origin.x||1)*side,y:g.origin.y+Math.sign(target.y-g.origin.y||1)*side};}
+        g.current=target; break;
+      }
       case "highlight":
         this.addHighlight(pt);
         break;
@@ -1783,6 +1781,14 @@ export class CanvasEngine {
     this.hoveredAnchors = [];
 
     switch (g.kind) {
+      case "text-box": {
+        const width=Math.abs(g.current.x-g.origin.x),height=Math.abs(g.current.y-g.origin.y);
+        const sized=width*this.zoom>6&&height*this.zoom>6;
+        const x=sized?Math.min(g.origin.x,g.current.x):g.origin.x,y=sized?Math.min(g.origin.y,g.current.y):g.origin.y;
+        const screen=this.canvasToScreen(x,y);this.setTool("select");
+        this.onStartInlineText?.({kind:"new-text",canvasX:x,canvasY:y,screenX:screen.x,screenY:screen.y,text:"",fontSize:this.currentStyle.fontSize,fontFamily:this.currentStyle.fontFamily,color:this.currentStyle.stroke||"#FFFFFF",align:this.currentStyle.textAlign,bold:this.currentStyle.bold,italic:this.currentStyle.italic,underline:this.currentStyle.underline,strikethrough:this.currentStyle.strikethrough,...(sized?{boxWidth:Math.max(32,width),boxHeight:Math.max(height,this.currentStyle.fontSize*1.35),screenWidth:Math.max(32,width)*this.zoom,screenHeight:Math.max(height,this.currentStyle.fontSize*1.35)*this.zoom}:{})});
+        break;
+      }
       case "move":
         if (g.moved) {
           this.commit();
@@ -2066,7 +2072,7 @@ export class CanvasEngine {
     if (!g || g.kind !== "resize") return;
     const snapshot = g.snapshot;
     const bounds = getElementBounds(snapshot);
-    const tightText = snapshot.type === "text" && !snapshot.isDocCard && !snapshot.isCodeCard && snapshot.fill === "transparent";
+    const tightText = snapshot.type === "text" && !snapshot.textBox && !snapshot.isDocCard && !snapshot.isCodeCard && snapshot.fill === "transparent";
     const r = snapshot.type === "pencil" || snapshot.type === "icon" || tightText ? { x: bounds.minX, y: bounds.minY, w: bounds.maxX - bounds.minX, h: bounds.maxY - bounds.minY } : normalizeRect(snapshot);
     const dx = pt.x - g.origin.x, dy = pt.y - g.origin.y;
     let x0 = r.x, y0 = r.y, x1 = r.x + r.w, y1 = r.y + r.h;
@@ -2082,6 +2088,7 @@ export class CanvasEngine {
       const rect = { x: x0, y: y0, width: x1 - x0, height: y1 - y0 };
       if (snapshot.type === "pencil") return { ...snapshot, ...rect, points: snapshot.points.map(p => ({ x: x0 + (p.x - r.x) * rect.width / Math.max(r.w, 1), y: y0 + (p.y - r.y) * rect.height / Math.max(r.h, 1) })) };
       if (snapshot.type === "text") {
+        if(snapshot.textBox)return this.remeasureText({...snapshot,...rect});
         const horizontal = g.handle.includes("w") || g.handle.includes("e");
         const vertical = g.handle.includes("n") || g.handle.includes("s");
         const scale = horizontal && vertical ? Math.max(rect.width / Math.max(r.w, 1), rect.height / Math.max(r.h, 1)) : horizontal ? rect.width / Math.max(r.w, 1) : rect.height / Math.max(r.h, 1);

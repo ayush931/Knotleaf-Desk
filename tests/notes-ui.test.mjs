@@ -1,7 +1,7 @@
 import {test,expect,beforeAll,beforeEach,afterEach,afterAll} from 'bun:test';
 import React,{act,useState} from 'react';
 import {Window} from 'happy-dom';
-import {DocEditor} from '../components/DocEditor.tsx';
+import {MarkdownNotesEditor as DocEditor} from '../components/MarkdownNotesEditor.tsx';
 let browser,root,createRoot;const previous=new Map();
 beforeAll(async()=>{
  browser=new Window({url:'https://desk.example/'});

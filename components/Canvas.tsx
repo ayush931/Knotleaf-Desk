@@ -51,7 +51,7 @@ import { exportToDrawio } from "@/draw/drawioExport";
 import { exportToRaster, type RasterFormat, copyPngToClipboard, exportToJson, exportNotesToMarkdown, exportProjectFile } from "@/draw/export";
 import { TemplateDefinition } from "@/draw/templatesData";
 import { BoardHeader } from "./BoardHeader";
-import { DocEditor } from "./DocEditor";
+const DocEditor = React.lazy(() => import("./DocEditor").then(module => ({ default: module.DocEditor })));
 import { EraserControls, type EraserMode } from "./EraserControls";
 import { TopToolbar } from "./TopToolbar";
 import { PropertiesPanel } from "./PropertiesPanel";
@@ -603,7 +603,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
       context.save();
       setFont(context, inlineText.fontSize, inlineText.fontFamily, inlineText.bold ? 700 : 400, inlineText.italic);
       const layout = inlineEditorLayout({ ...inlineText, placeholder: inlinePlaceholder, measure: text => context.measureText(text).width, zoom,
-        preferredWidth: inlineText.kind === "sticky" || selectedElement?.type === "text" && selectedElement.isDocCard ? inlineText.screenWidth : undefined,
+        preferredWidth: inlineText.boxWidth ? inlineText.boxWidth*zoom : inlineText.kind === "sticky" || selectedElement?.type === "text" && selectedElement.isDocCard ? inlineText.screenWidth : undefined,
         viewportWidth: containerRef.current?.clientWidth || 900, viewportHeight: containerRef.current?.clientHeight || 600 });
       context.restore();
       editor.style.width = `${Math.ceil(layout.width)}px`;
@@ -704,7 +704,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
       )}
 
       <main inert={!roomReady} ref={splitRef} className={`relative flex max-sm:flex-col min-h-0 flex-1 w-full overflow-hidden ${!isPresentationOpen && !focusMode ? "mt-11" : ""}`} >
-        {viewMode !== "canvas" && !isPresentationOpen && <section aria-label="Board notes" style={viewMode === "split" ? narrowSplit ? { width: "100%", height: Math.min(notesHeight, splitBounds.height - 160) } : { width: Math.min(notesWidth, splitBounds.width - 280) } : undefined} className={`board-notes min-h-0 ${focusMode ? "hidden" : ""} ${viewMode === "notes" ? "w-full min-w-0 flex-1" : "shrink-0"}`}><DocEditor key={noteFocus?.token || 0} focusRange={noteFocus} value={board.markdownNotes || ""} onChange={markdownNotes => persist({ ...boardRef.current, markdownNotes })} onExportMarkdown={handleExportMarkdown} theme={theme} /></section>}
+        {viewMode !== "canvas" && !isPresentationOpen && <section aria-label="Board notes" style={viewMode === "split" ? narrowSplit ? { width: "100%", height: Math.min(notesHeight, splitBounds.height - 160) } : { width: Math.min(notesWidth, splitBounds.width - 280) } : undefined} className={`board-notes min-h-0 ${focusMode ? "hidden" : ""} ${viewMode === "notes" ? "w-full min-w-0 flex-1" : "shrink-0"}`}><React.Suspense fallback={<div role="status" className="h-full bg-[#18181b] p-4 text-xs text-neutral-400">Opening notes…</div>}><DocEditor key={`${board.id}:${noteFocus?.token || 0}`} focusRange={noteFocus} value={board.markdownNotes || ""} onChange={markdownNotes => persist({ ...boardRef.current, markdownNotes })} onExportMarkdown={handleExportMarkdown} theme={theme} /></React.Suspense></section>}
         {viewMode === "split" && !isPresentationOpen && !focusMode && <div role="separator" aria-label="Resize notes panel" aria-orientation={narrowSplit ? "horizontal" : "vertical"} aria-valuemin={narrowSplit ? 160 : 220} aria-valuemax={narrowSplit ? Math.max(160, splitBounds.height - 160) : Math.max(220, splitBounds.width - 280)} aria-valuenow={Math.round(narrowSplit ? notesHeight : notesWidth)} tabIndex={0} className={`split-handle z-30 shrink-0 touch-none bg-neutral-800 hover:bg-blue-500 focus-visible:bg-blue-500 focus-visible:outline-none ${narrowSplit ? "h-1.5 w-full cursor-row-resize" : "w-1.5 cursor-col-resize"}`} onDoubleClick={() => { setNotesWidth(360); setNotesHeight(300); }} onKeyDown={e => { if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"].includes(e.key)) {
           e.preventDefault(); e.stopPropagation();
           const delta = e.key === "ArrowRight" || e.key === "ArrowDown" ? 20 : -20;
@@ -865,7 +865,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
                     }
                   }}
                   placeholder={inlinePlaceholder}
-                  wrap={!inlineText.text || inlineText.kind === "sticky" || selectedElement?.type === "text" && selectedElement.isDocCard ? "soft" : "off"}
+                  wrap={inlineText.boxWidth || !inlineText.text || inlineText.kind === "sticky" || selectedElement?.type === "text" && selectedElement.isDocCard ? "soft" : "off"}
                   spellCheck={false}
                   style={{
                     position: "absolute",
@@ -886,7 +886,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
                     border: "none",
                     borderRadius: 0,
                     padding: 0,
-                    outline: "none",
+                    outline: inlineText.boxWidth ? "1px solid #3b82f6" : "none",
                     resize: "none",
                     overflowX: "auto",
                     boxShadow: "none",

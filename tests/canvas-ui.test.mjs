@@ -172,7 +172,7 @@ test('double-click inside a shape focuses attached text while border double-clic
 
 test('notes-only layout fills the available main area instead of collapsing on narrow screens', async () => {
   await renderBoard('notes');expect(named('Board notes').classList.contains('flex-1')).toBe(true);
-  expect(named('Board notes in Markdown')).toBeTruthy();
+  expect(named('Notes editor')).toBeTruthy();expect(named('Board notes in Markdown')).toBeNull();
 });
 
 
