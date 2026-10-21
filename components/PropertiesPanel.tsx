@@ -276,6 +276,7 @@ export function PropertiesPanel({
           className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-neutral-800 hover:text-white focus-visible:outline-2 focus-visible:outline-blue-500"><X className="h-4 w-4" /></button>
       </header>
       <div className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain p-4">
+      {selectedTool === "highlighter" ? <p className="text-xs leading-5 text-neutral-400">The red highlighter fades after one second. It is visible to collaborators and is never saved or exported.</p> : <>
       {/* Text: size, family, alignment. Shortcuts: Ctrl+Shift+> / < */}
       {isTextual && (
         <div className="space-y-2">
@@ -752,6 +753,7 @@ export function PropertiesPanel({
         />
       </div>
 
+      </>}
       {onBackgroundChange && <details className="border-t border-neutral-800 pt-2"><summary className="cursor-pointer py-1 text-xs text-neutral-400">Canvas background</summary><div className="mt-2 space-y-2"><ColorControl label="Canvas background color" value={background.fill} onChange={fill => onBackgroundChange({ ...background, fill, fillOpacity: 1 })} /><BackgroundStylePicker label="Canvas background style" value={background.fillStyle} onChange={fillStyle => onBackgroundChange({ ...background, fillStyle, fillOpacity: 1 })} /></div></details>}
       </div>
       {selectedElement && <footer aria-label="Selection actions" className="grid shrink-0 grid-cols-2 gap-2 border-t border-neutral-800 bg-neutral-900/80 p-3 text-xs">

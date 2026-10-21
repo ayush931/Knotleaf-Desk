@@ -23,6 +23,7 @@ const GROUPS: { title: string; items: [string, string][] }[] = [
       ["A", "Arrow (snaps to shape ports)"],
       ["L", "Line"],
       ["P", "Draw"],
+      ["J", "Highlighter (red, disappears after 1 second)"],
       ["T", "Text"],
       ["C", "Code card (inline editor)"],
       ["N", "Doc Card (rich formatted note)"],

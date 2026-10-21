@@ -1154,3 +1154,24 @@ test('curved line bounds follow the visible curve rather than its distant contro
  const line={...base,id:'curve',type:'line',x:0,y:0,width:100,height:0,startX:0,startY:0,endX:100,endY:0,bendOffset:100};
  expect(getElementBounds(line)).toEqual({minX:0,minY:0,maxX:100,maxY:50});
 });
+
+
+test('teaching highlighter stays transient, separates strokes, and never edits underlying content', () => {
+  const { engine, listeners, point, drag } = setup([source]);
+  const changes = [], packets = []; let edits = 0;
+  engine.onChange = elements => changes.push(elements);
+  engine.onHighlightChange = points => packets.push([...points]);
+  engine.onStartInlineText = () => { edits++; };
+  engine.setTool('highlighter'); drag(120, 120, 200, 150); drag(300, 300, 320, 320);
+  listeners.dblclick(point(150, 140));
+  expect(packets.flat().some(p => p.x === 120 && p.start)).toBe(true);
+  expect(packets.at(-1).filter(p => p.start)).toHaveLength(2);
+  expect(engine.getElements()).toEqual([source]); expect(changes).toHaveLength(0); expect(edits).toBe(0);
+  expect(engine.tool).toBe('highlighter');
+  engine.undo(); expect(engine.getElements()).toEqual([source]);
+  listeners.pointerdown(point(400, 400)); listeners.pointercancel(point(400, 400));
+  expect(engine.getElements()).toEqual([source]);
+  engine.setReadOnly(true); drag(450, 450, 470, 470);
+  expect(packets.at(-1).some(p => p.start && p.x === 450)).toBe(true);
+  expect(engine.getElements()).toEqual([source]); engine.destroy();
+});

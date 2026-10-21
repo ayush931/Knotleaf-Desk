@@ -1,3 +1,4 @@
+import { HIGHLIGHTER_LIFETIME, liveHighlights, readHighlights, type HighlightPoint } from "@/draw/highlighter";
 import { sharedElements } from "./localAssets.mjs";
 import { CHAT_LIMIT, CHAT_TEXT_LIMIT, isRoomMessage, type RoomMessage } from "./roomChat";
 import { normalizeBackground } from "./background.mjs";
@@ -41,6 +42,24 @@ export class RoomSession {
   onRemote?: (elements: CanvasElement[], notes: string, title: string, background: BackgroundSettings) => void;
   onStatus?: (status: string) => void;
   onPresence?: (people: Collaborator[]) => void;
+  onHighlight?: (id: number, points: HighlightPoint[]) => void;
+  private highlightSequence = 0;
+  private seenHighlights = new Map<number, number>();
+  private pendingHighlights: HighlightPoint[] = [];
+  private highlightSendTimer?: ReturnType<typeof setTimeout>;
+  private highlightClearTimer?: ReturnType<typeof setTimeout>;
+  highlight(points: HighlightPoint[]) {
+    if (this.destroyed || this.expired) return;
+    this.pendingHighlights = points;
+    if (this.highlightSendTimer) return;
+    this.highlightSendTimer = setTimeout(() => {
+      this.highlightSendTimer = undefined;
+      const sentAt = Date.now(), points = liveHighlights(this.pendingHighlights, sentAt);
+      this.provider.awareness.setLocalStateField("highlight", { sequence: ++this.highlightSequence, sentAt, points });
+      clearTimeout(this.highlightClearTimer);
+      this.highlightClearTimer = setTimeout(() => this.provider.awareness.setLocalStateField("highlight", null), HIGHLIGHTER_LIFETIME);
+    }, 50);
+  }
   onHistory?: (canUndo: boolean, canRedo: boolean) => void;
   onExpired?: () => void;
   constructor(url: string, roomId: string, seed?: Board) {
@@ -82,7 +101,15 @@ export class RoomSession {
     });
     this.provider.awareness.on("change", () => {
       const people: Collaborator[] = [];
-      this.provider.awareness.getStates().forEach((state, id) => {
+      const states = this.provider.awareness.getStates();
+      for (const id of this.seenHighlights.keys()) if (!states.has(id)) { this.seenHighlights.delete(id); this.onHighlight?.(id, []); }
+      states.forEach((state, id) => {
+        if (id !== this.doc.clientID) {
+          const packet = readHighlights(state.highlight);
+          if (packet && packet.sequence > (this.seenHighlights.get(id) ?? -1)) {
+            this.seenHighlights.set(id, packet.sequence); this.onHighlight?.(id, packet.points);
+          }
+        }
         if (!state.user || typeof state.user.name !== "string") return;
         const cursor = state.cursor && Number.isFinite(state.cursor.x) && Number.isFinite(state.cursor.y) ? state.cursor : undefined;
         people.push({ id, name: state.user.name.slice(0, 40), color: /^#[a-f\d]{6}$/i.test(state.user.color) ? state.user.color : "#60a5fa", cursor: id === this.doc.clientID ? undefined : cursor });
@@ -94,6 +121,8 @@ export class RoomSession {
   private expire() {
     if (this.expired || this.destroyed) return;
     this.expired = true; this.synced = false; clearTimeout(this.expiryTimer);
+    clearTimeout(this.highlightSendTimer); clearTimeout(this.highlightClearTimer);
+    this.provider.awareness.setLocalStateField("highlight", null);
     this.provider.disconnect(); this.onExpired?.();
   }
   update(board: Board) {
@@ -160,7 +189,8 @@ export class RoomSession {
   destroy() {
     if (this.destroyed) return;
     this.destroyed = true;
-    clearTimeout(this.expiryTimer);
+    clearTimeout(this.expiryTimer); clearTimeout(this.highlightSendTimer); clearTimeout(this.highlightClearTimer);
+    this.seenHighlights.clear(); this.pendingHighlights = []; this.onHighlight = undefined;
     this.provider.awareness.setLocalState(null);
     this.onRemote = undefined; this.onStatus = undefined; this.onPresence = undefined; this.onHistory = undefined; this.onExpired = undefined; this.onChat = undefined;
     this.provider.destroy(); this.undo.destroy(); this.doc.destroy();

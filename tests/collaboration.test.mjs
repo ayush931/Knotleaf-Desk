@@ -197,3 +197,24 @@ test('local uploads never enter room synchronization or persisted room files',as
  const restored=new Y.Doc();Y.applyUpdate(restored,new Uint8Array(await readFile(path.join(directory,`${board.id}.bin`))));expect(restored.getMap('elements').has(asset.id)).toBe(false);expect(JSON.stringify(restored.toJSON())).not.toContain('aGVsbG8');restored.destroy();
  }finally{a.destroy();b.destroy();await service.close();await rm(directory,{recursive:true,force:true});}
 },10000);
+
+
+test('teaching highlights reach peers through presence, expire and never enter saved room data', async () => {
+  const { RoomSession } = await import('../lib/collaboration.ts');
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'whiteboard-highlight-'));
+  const service = createCollaborationServer({ port:0, directory, roomStore:null }); const address = await service.listen();
+  const room=crypto.randomUUID(), url=`ws://127.0.0.1:${address.port}`;
+  const a=new RoomSession(url,room), b=new RoomSession(url,room); const received=[];
+  b.onHighlight=(id,points)=>received.push({id,points});
+  try {
+    a.connect(); b.connect(); await until(()=>a.synced&&b.synced);
+    a.highlight([{x:120,y:180,at:Date.now(),start:true}]);
+    await until(()=>received.some(p=>p.id===a.doc.clientID&&p.points[0]?.x===120));
+    const count=received.length; a.cursor({x:140,y:180});
+    await new Promise(resolve=>setTimeout(resolve,80)); expect(received).toHaveLength(count);
+    expect(a.elements.size).toBe(0); expect(a.undo.undoStack).toHaveLength(0);
+    await until(()=>a.provider.awareness.getLocalState().highlight===null);
+    const restored=new Y.Doc(); Y.applyUpdate(restored,Y.encodeStateAsUpdate(a.doc));
+    expect(restored.getMap('elements').size).toBe(0); expect(JSON.stringify(restored.toJSON())).not.toContain('highlight'); restored.destroy();
+  } finally { a.destroy(); b.destroy(); await service.close(); await rm(directory,{recursive:true,force:true}); }
+},10000);
