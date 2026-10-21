@@ -1,6 +1,6 @@
 import type { Point } from "./types";
 
-export const HIGHLIGHTER_LIFETIME = 500;
+export const HIGHLIGHTER_LIFETIME = 200;
 export const HIGHLIGHTER_LIMIT = 160;
 export interface HighlightPoint extends Point { at: number; start?: boolean }
 export interface HighlightPacket { sequence: number; sentAt: number; points: HighlightPoint[] }
