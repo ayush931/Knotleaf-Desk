@@ -1,6 +1,4 @@
 import React from 'react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import type { Board } from './types';
@@ -8,7 +6,9 @@ import { safeFilename, type ExportScope } from '@/lib/projectFile';
 import { encodeRaster } from './rasterEncoder';
 import { renderToCanvas } from './export';
 import { normalizeBackground, isLightBackground } from '@/lib/background.mjs';
-import { fontStack, loadCanvasFonts } from './renderer';
+import { loadPreferences } from '@/lib/preferences';
+import { fontCssStack } from './fonts';
+import { loadCanvasFonts } from './renderer';
 
 export interface PdfImages { title: string; canvas?: string | Uint8Array | ArrayBuffer | null; notes?: (string | Uint8Array | ArrayBuffer)[]; includeCanvas: boolean; includeNotes: boolean; backgroundColor?: string }
 /** PDF assembly is independent of browser capture, so pagination and output can be verified. */
@@ -54,14 +54,15 @@ export function choosePageEnd(start: number, pageHeight: number, totalHeight: nu
 
 async function captureNotes(board: Board): Promise<Uint8Array[]> {
   if (!board.markdownNotes.trim()) return [];
-  const { default: html2canvas } = await import('html2canvas');
+  const [{ default: html2canvas },{notesToSafeHtml}] = await Promise.all([import('html2canvas'),import('@/lib/richNotes')]);
+  const appearance=loadPreferences().noteAppearance;
   await loadCanvasFonts();
   const background = normalizeBackground(board.background), light = isLightBackground(background);
   const ink = light ? '#17202b' : '#e5e5e5';
   const host = document.createElement('section');
   host.className = 'knotleaf-pdf-notes';
   host.setAttribute('aria-hidden', 'true');
-  host.style.cssText = `position:absolute;left:-10000px;top:0;width:794px;padding:0 24px;box-sizing:border-box;background:${background.fill};color:${ink};font:14px/1.8 ${fontStack('sans')};overflow-wrap:anywhere;`;
+  host.style.cssText = `position:absolute;left:-10000px;top:0;width:794px;padding:0 24px;box-sizing:border-box;background:${background.fill};color:${ink};font:${appearance.size}px/${appearance.lineHeight} ${fontCssStack(appearance.font)};overflow-wrap:anywhere;`;
   host.innerHTML = renderToStaticMarkup(<><style>{`
     .knotleaf-pdf-notes * { box-sizing:border-box; color:inherit; }
     .knotleaf-pdf-notes h1 { font-size:28px;line-height:1.3;margin:0 0 24px;font-weight:700; }
@@ -75,7 +76,15 @@ async function captureNotes(board: Board): Promise<Uint8Array[]> {
     .knotleaf-pdf-notes td,.knotleaf-pdf-notes th { border:1px solid ${light ? "#cbd5e1" : "#3f3f46"};padding:8px;overflow-wrap:anywhere; }
     .knotleaf-pdf-notes blockquote { border-left:3px solid #3b82f6;padding-left:16px;margin:16px 0; }
     .knotleaf-pdf-notes a { color:${light ? "#2563eb" : "#60a5fa"};text-decoration:underline; }
-  `}</style><h1>{board.title}</h1><ReactMarkdown remarkPlugins={[remarkGfm]} components={{ img: ({ alt }) => <span>[Image: {alt || 'linked image'}]</span> }}>{board.markdownNotes}</ReactMarkdown></>);
+    .knotleaf-pdf-notes mark { background-color:#665329;color:inherit;border-radius:2px; }
+    .knotleaf-pdf-notes details { border:1px solid #3f3f46;padding:12px;margin:12px 0; }
+    .knotleaf-pdf-notes summary { font-weight:700; }
+    .knotleaf-pdf-notes sup { vertical-align:super;font-size:.75em; } .knotleaf-pdf-notes sub { vertical-align:sub;font-size:.75em; }
+  `}</style><h1>{board.title}</h1></>);
+  const content=document.createElement('template');content.innerHTML=notesToSafeHtml(board.markdownNotes);
+  content.content.querySelectorAll('img').forEach(image=>{const label=document.createElement('span');label.textContent=`[Image: ${image.alt||'linked image'}]`;image.replaceWith(label);});
+  content.content.querySelectorAll('details').forEach(details=>details.open=true);
+  host.append(content.content);
   document.body.appendChild(host);
   try {
     await document.fonts?.ready;

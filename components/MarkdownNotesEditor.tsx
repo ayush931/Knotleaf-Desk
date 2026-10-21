@@ -1,17 +1,16 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import ReactMarkdown from "react-markdown";
+import { NotePreview } from "./NotePreview";
 import { findNoteMatches, replaceAllNoteMatches } from "@/lib/notesSearch";
 import { highlightNotesSource } from "@/lib/code";
 import { continueNoteList, formatNotes, indentNotes, noteHeadings, type NoteEdit, type NoteFormat } from "@/lib/notesEditing";
-import { HighlightedCode } from "./CodeEditor";
-import remarkGfm from "remark-gfm";
 import { Heading1, List, CheckSquare, Code, Quote, Download, Eye, Edit3, Bold, Italic, ListTree, X, Search, Copy, ArrowUp, ArrowDown } from "lucide-react";
 
 interface DocEditorProps {
   value: string; onChange: (value: string) => void; onExportMarkdown: () => void;
   theme: "dark" | "light";
+  onOpenNote?: (id:string)=>boolean;
   focusRange?: { start: number; end: number };
 }
 const tools: {label:string;icon:typeof Bold;format:NoteFormat;shortcut?:string}[] = [
@@ -23,7 +22,7 @@ const tools: {label:string;icon:typeof Bold;format:NoteFormat;shortcut?:string}[
   {label:"Code block",icon:Code,format:"code"},
   {label:"Quote",icon:Quote,format:"quote"},
 ];
-export function MarkdownNotesEditor({ value, onChange, onExportMarkdown, focusRange }: DocEditorProps) {
+export function MarkdownNotesEditor({ value, onChange, onExportMarkdown, focusRange, onOpenNote }: DocEditorProps) {
   const textarea=useRef<HTMLTextAreaElement>(null),sourcePreview=useRef<HTMLPreElement>(null),searchPreview=useRef<HTMLPreElement>(null);
   const selection=useRef({start:0,end:0,scroll:0}),pending=useRef<{start:number;end:number}|null>(null);
   const [preview,setPreview]=useState(false),[outline,setOutline]=useState(false);
@@ -126,7 +125,7 @@ export function MarkdownNotesEditor({ value, onChange, onExportMarkdown, focusRa
     </div>}
     {outline&&<nav aria-label="Note outline" style={{maxHeight:"min(160px, 25%)"}} className="shrink-0 overflow-y-auto border-b border-neutral-800 px-3 py-2"><div className="mb-1 flex items-center justify-between text-[11px] text-neutral-500">Outline<button type="button" aria-label="Close outline" onClick={()=>setOutline(false)} className="note-tool"><X className="h-3 w-3"/></button></div>{headings.length?headings.map(h=><button type="button" key={h.start} className="block w-full truncate rounded py-1 pr-2 text-left text-xs text-neutral-400 hover:bg-neutral-800 hover:text-white" style={{paddingLeft:8+(h.level-1)*10}} onClick={()=>{pending.current=h;setPreview(false);const input=textarea.current;if(input){input.focus();input.setSelectionRange(h.start,h.end);pending.current=null;}}}>{h.text}</button>):<p className="py-2 text-xs text-neutral-500">Add headings with # to organize your notes.</p>}</nav>}
     <div className={`min-h-0 min-w-0 flex-1 ${preview?"overflow-y-auto overflow-x-hidden":"overflow-hidden"}`}>
-      {preview?<article className="note-preview mx-auto max-w-3xl break-words p-5"><ReactMarkdown remarkPlugins={[remarkGfm]} components={{code:({children,className,...props})=>className||String(children).includes("\n")?<HighlightedCode code={String(children).replace(/\n$/,"")} language={className?.replace("language-","")||"auto"}/>:<code {...props}>{children}</code>,a:({children,...props})=><a {...props} target="_blank" rel="noopener noreferrer">{children}</a>}}>{value||"*Your notes will appear here. Switch to Edit to start writing.*"}</ReactMarkdown></article>:<div className="notes-source relative mx-auto h-full min-h-0 w-full max-w-3xl overflow-hidden"><pre ref={sourcePreview} aria-hidden="true" className="hljs pointer-events-none absolute inset-0 m-0 overflow-hidden" dangerouslySetInnerHTML={{__html:sourceHtml}}/>{findOpen&&matches[activeIndex]&&<pre ref={searchPreview} aria-hidden="true" className="pointer-events-none absolute inset-0 m-0 overflow-hidden text-transparent">{value.slice(0,matches[activeIndex].start)}<mark className="bg-amber-400/25 text-transparent">{value.slice(matches[activeIndex].start,matches[activeIndex].end)}</mark>{value.slice(matches[activeIndex].end)}{"\n"}</pre>}<textarea ref={textarea} aria-label="Board notes in Markdown" value={value} onChange={e=>onChange(e.target.value)} onScroll={syncSource} placeholder={"Capture your thinking…\n\n# Project notes\n\n- Ideas, decisions, and next steps\n- [ ] Your first task\n\nUse Markdown for headings, tables, links, and code."} spellCheck autoCapitalize="sentences" className="relative block h-full min-h-0 w-full resize-none overflow-auto border-0 bg-transparent text-transparent caret-white placeholder:text-neutral-600 focus:outline-none selection:bg-blue-500/30" onKeyDown={e=>{
+      {preview?<NotePreview value={value} onOpenNote={onOpenNote}/>:<div className="notes-source relative mx-auto h-full min-h-0 w-full max-w-3xl overflow-hidden"><pre ref={sourcePreview} aria-hidden="true" className="hljs pointer-events-none absolute inset-0 m-0 overflow-hidden" dangerouslySetInnerHTML={{__html:sourceHtml}}/>{findOpen&&matches[activeIndex]&&<pre ref={searchPreview} aria-hidden="true" className="pointer-events-none absolute inset-0 m-0 overflow-hidden text-transparent">{value.slice(0,matches[activeIndex].start)}<mark className="bg-amber-400/25 text-transparent">{value.slice(matches[activeIndex].start,matches[activeIndex].end)}</mark>{value.slice(matches[activeIndex].end)}{"\n"}</pre>}<textarea ref={textarea} aria-label="Board notes in Markdown" value={value} onChange={e=>onChange(e.target.value)} onScroll={syncSource} placeholder={"Capture your thinking…\n\n# Project notes\n\n- Ideas, decisions, and next steps\n- [ ] Your first task\n\nUse Markdown for headings, tables, links, and code."} spellCheck autoCapitalize="sentences" className="relative block h-full min-h-0 w-full resize-none overflow-auto border-0 bg-transparent text-transparent caret-white placeholder:text-neutral-600 focus:outline-none selection:bg-blue-500/30" onKeyDown={e=>{
         if(e.nativeEvent.isComposing)return;
         const input=e.currentTarget,mod=e.ctrlKey||e.metaKey,key=e.key.toLowerCase();
         if(mod&&(key==='b'||key==='i')){e.preventDefault();format(key==='b'?'bold':'italic');return;}

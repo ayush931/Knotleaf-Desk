@@ -1,4 +1,5 @@
 import { DEFAULT_STYLE, type ElementStyleProps } from '@/draw/types';
+import { normalizeNoteAppearance, DEFAULT_NOTE_APPEARANCE, type NoteAppearance } from './notesDocument';
 import { FONT_OPTIONS } from '@/draw/fonts';
 
 const KEY = 'knotleaf.preferences.v1';
@@ -9,12 +10,13 @@ export interface Preferences {
   eraserMode: 'all' | 'drawings' | 'objects';
   notesWidth: number;
   notesHeight: number;
+  noteAppearance: NoteAppearance;
   exportFormat: string;
   exportScope: 'project' | 'canvas' | 'notes';
   exportScale: number;
   exportTransparent: boolean;
 }
-const defaults = (): Preferences => ({ version:1, style:{...DEFAULT_STYLE}, eraserSize:24, eraserMode:'all', notesWidth:360, notesHeight:300, exportFormat:'project', exportScope:'project', exportScale:2, exportTransparent:false });
+const defaults = (): Preferences => ({ version:1, style:{...DEFAULT_STYLE}, eraserSize:24, eraserMode:'all', notesWidth:360, notesHeight:300, noteAppearance:{...DEFAULT_NOTE_APPEARANCE}, exportFormat:'project', exportScope:'project', exportScale:2, exportTransparent:false });
 const finite = (n: unknown, min: number, max=Number.MAX_VALUE): n is number => typeof n==='number' && Number.isFinite(n) && n>=min && n<=max;
 const color = (value: unknown): value is string => typeof value==='string' && (value==='transparent' || /^#[\da-f]{6}$/i.test(value));
 export function normalizePreferences(value: unknown): Preferences {
@@ -34,6 +36,7 @@ export function normalizePreferences(value: unknown): Preferences {
   if(['all','drawings','objects'].includes(String(data.eraserMode)))result.eraserMode=data.eraserMode as Preferences['eraserMode'];
   if(finite(data.notesWidth,220))result.notesWidth=data.notesWidth;
   if(finite(data.notesHeight,160))result.notesHeight=data.notesHeight;
+  result.noteAppearance=normalizeNoteAppearance(data.noteAppearance);
   if(['project','pdf','png','jpeg','webp','svg','markdown','drawio','json'].includes(String(data.exportFormat)))result.exportFormat=String(data.exportFormat);
   if(['project','canvas','notes'].includes(String(data.exportScope)))result.exportScope=data.exportScope as Preferences['exportScope'];
   if([1,2,3].includes(data.exportScale as number))result.exportScale=data.exportScale as number;
