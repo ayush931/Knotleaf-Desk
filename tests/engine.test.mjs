@@ -272,16 +272,16 @@ test('Text followed by a canvas click starts an editor at the click and clears t
 });
 
 
-test('text clicks suppress canvas mouse focus and do not capture the editor pointer', () => {
+test('text clicks capture the sizing gesture and focus the editor on release', () => {
   const { engine, listeners, point, captures } = setup([]);
   engine.setTool('text');
   let suppressed = false, editor;
   const click = { ...point(350, 250), preventDefault() { suppressed = true; } };
   engine.onStartInlineText = state => { editor = state; };
   listeners.pointerdown(click);
-  expect(suppressed).toBe(true); expect(captures).toHaveLength(0);
-  expect(editor?.kind).toBe('new-text');
-  listeners.pointerup(click);
+  expect(suppressed).toBe(true); expect(captures).toHaveLength(1);
+  expect(editor).toBeUndefined();
+  listeners.pointerup(click); expect(editor?.kind).toBe('new-text');
   engine.commitInlineText({ ...editor, text: 'Typing stays in the editor' });
   expect(engine.getElements()[0].text).toBe('Typing stays in the editor'); engine.destroy();
 });
@@ -1174,4 +1174,27 @@ test('teaching highlighter stays transient, separates strokes, and never edits u
   engine.setReadOnly(true); drag(450, 450, 470, 470);
   expect(packets.at(-1).some(p => p.start && p.x === 450)).toBe(true);
   expect(engine.getElements()).toEqual([source]); engine.destroy();
+});
+
+
+test('dragging Text defines a writing area, wraps without modifying content, and resizes without scaling the font', () => {
+  const {engine,listeners,point,drag}=setup([]);let editor;
+  engine.onStartInlineText=state=>{editor=state;};engine.setTool('text');drag(100,100,240,240);
+  expect(editor).toMatchObject({boxWidth:140,boxHeight:140,canvasX:100,canvasY:100});
+  const text='This is a longer sentence that should wrap inside the chosen writing area.';
+  engine.commitInlineText({...editor,text});let el=engine.getElements()[0];
+  expect(el.text).toBe(text);expect(el.textBox).toBe(true);expect(el.width).toBe(140);expect(el.height).toBeGreaterThanOrEqual(140);
+  const layout=measureTextBlock({measureText:t=>({width:t.length*7}),save(){},restore(){}},text,el.fontSize,el.fontFamily,el);
+  const bounds=getElementBounds(el);expect(bounds.maxX-bounds.minX).toBe(140);expect(layout.height).toBeGreaterThan(el.fontSize*2);
+  const size=el.fontSize;engine.setTool('select');drag(240,100,320,100);el=engine.getElements()[0];
+  expect(el.width).toBeGreaterThan(140);expect(el.fontSize).toBe(size);expect(el.text).toBe(text);
+  engine.undo();expect(engine.getElements()[0].width).toBe(140);engine.redo();
+  listeners.dblclick(point(110,110));expect(editor.boxWidth).toBe(engine.getElements()[0].width);engine.destroy();
+});
+test('Text sizing supports reverse dragging, Shift squares, and cancellation without creating elements',()=>{
+ const {engine,listeners,point}=setup([]);let editor;engine.onStartInlineText=state=>{editor=state;};engine.setTool('text');
+ listeners.pointerdown(point(300,300));listeners.pointermove(point(100,200,true));listeners.pointerup(point(100,200,true));
+ expect(editor).toMatchObject({canvasX:100,canvasY:100,boxWidth:200,boxHeight:200});
+ engine.setTool('text');editor=undefined;listeners.pointerdown(point(0,0));listeners.pointermove(point(100,100));listeners.pointercancel(point(100,100));
+ expect(editor).toBeUndefined();expect(engine.getElements()).toHaveLength(0);engine.destroy();
 });

@@ -24,7 +24,7 @@ const GROUPS: { title: string; items: [string, string][] }[] = [
       ["L", "Line"],
       ["P", "Draw"],
       ["J", "Highlighter (red, disappears after 0.2 seconds)"],
-      ["T", "Text"],
+      ["T", "Text · click to type or drag a writing area"],
       ["C", "Code card (inline editor)"],
       ["N", "Doc Card (rich formatted note)"],
       ["S", "Sticky note"],

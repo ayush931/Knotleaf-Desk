@@ -2,7 +2,7 @@
 
 # Knotleaf Desk
 
-An open-source, local-first whiteboard and Markdown notebook. Draw diagrams, connect ideas, and keep project notes in one place. Use it directly in your browser on Linux, Windows, macOS, or mobile. No account, database, subscription, or API key is required for core features.
+An open-source, local-first whiteboard and visual notebook. Draw diagrams, connect ideas, and keep project notes in one place. Use it directly in your browser on Linux, Windows, macOS, or mobile. No account, database, subscription, or API key is required for core features.
 
 ## Features
 
@@ -11,9 +11,10 @@ An open-source, local-first whiteboard and Markdown notebook. Draw diagrams, con
 - **Smart guides:** temporary red edge/center alignment lines, nearby gap measurements and equal-spacing indicators while dragging. Hold Alt to bypass magnetic alignment. Guides never appear in exports or saved projects.
 - **Canvas text:** double-click empty space or inside a shape to write at the pointer, or choose Text (T) then click. Text written inside shapes follows their movement and resizing; double-clicking existing text places the caret near the clicked character. Text appears directly on the canvas with a transparent, borderless editor. Font, size, color, alignment and formatting controls update the active editor; Ctrl/Cmd+Enter finishes editing.
 - **Resize and connect:** select an element, then drag a corner square or an edge beside a connector dot to resize. Drag the circular side dot to create a connection. Select mode shows ports only on the selected item; the Arrow tool reveals target ports. Text and freehand drawings resize their content, and Escape cancels an unfinished drag.
-- **Canvas tools:** rectangles, diamonds, ellipses, freehand, text, sticky notes, frames, document cards, eraser, grid/snap, pan/zoom, undo/redo, duplication, resizing, layers and presentation mode.
+- **Canvas tools:** rectangles, diamonds, ellipses, freehand, text, sticky notes, frames, document cards, eraser, a disappearing red teaching highlighter (J), grid/snap, pan/zoom, undo/redo, duplication, resizing, layers and presentation mode.
+- **Sized canvas text:** choose Text (T), then drag a writing area like a rectangle (Shift makes it square). Text wraps to the chosen width and grows vertically; resizing the box preserves font size. A click still starts automatic-size text.
 - **Notes beside drawings:** Canvas / Split / Notes views. Drag the split divider, use arrow keys when it is focused, or double-click to reset. On narrow screens the split stacks vertically. Long notes scroll vertically; text and code wrap to avoid horizontal scrollbars.
-- **Markdown notebook:** headings, bold/italic, lists, checklists, code blocks, quotes, tables, links, safe rendered preview, heading outline, word count and reading time. Ctrl/Cmd+B and Ctrl/Cmd+I format selections; Enter continues lists/checklists; Tab indents source. Download notes as `.md`.
+- **Visual notebook:** write normally with headings, bold/italic/strikethrough, bullet and numbered lists, interactive checklists, sticky-note blocks, code, links, tables, dividers, find/replace, outline and undo/redo. Use buttons or familiar shortcuts without writing Markdown syntax. Optional Markdown source and `.md` downloads remain available. Existing notes open visually without changing their saved content.
 - **Local workspaces:** create workspaces, organize/move boards, search, duplicate, import, and confirm deletion. Existing boards remain in Personal workspace. Workspaces are local folders rather than cloud teams.
 - **Architecture library:** bundled cloud, database, language and infrastructure glyphs; optional online Iconify search; diagram templates.
 - **Board tools:** Ctrl/Cmd+F searches canvas text, labels, icons, frame titles and Markdown notes. The same panel contains local version history and reusable custom templates. Restore/template actions create new boards; template and checkpoint downloads use `.knotleaf`.

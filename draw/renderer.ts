@@ -159,7 +159,7 @@ export function getElementBounds(el: CanvasElement, scene: CanvasElement[] = [])
   }
   if (el.type === "text") {
     const isDocCard = el.isDocCard || (el.fill && el.fill !== "transparent");
-    if (!isDocCard && !el.isCodeCard) {
+    if (!isDocCard && !el.isCodeCard && !el.textBox) {
       const ink = cachedTextContentBounds(el);
       if (ink) return ink;
     }
@@ -246,6 +246,7 @@ export function fitText(ctx: CanvasRenderingContext2D, text: string, maxWidth: n
 }
 
 export interface DocLine {
+  sourceLine?: number;
   raw: string;
   type:
     | "h1"
@@ -286,7 +287,7 @@ export function layoutDocument(
   text: string,
   baseFontSize: number,
   family: FontFamily,
-  formatting: TextFormatting = {}
+  formatting: TextFormatting & { textBox?: boolean; width?: number } = {}
 ): DocumentLayout {
   const rawLines = text.split("\n");
   const lines: DocLine[] = [];
@@ -393,25 +394,15 @@ export function layoutDocument(
     const indentPx = indentLevel * 18;
     const gutterPx =
       type.startsWith("bullet-") || type === "number" || type.startsWith("todo-") ? 24 : type === "quote" ? 18 : 0;
-    const lineWidth = indentPx + gutterPx + measuredContentWidth;
-    maxLineWidth = Math.max(maxLineWidth, lineWidth);
-
-    lines.push({
-      raw,
-      type,
-      content,
-      prefix,
-      indentLevel,
-      fontSize,
-      fontWeight,
-      isItalic,
-      isStrikethrough,
-      lineHeight,
-      yOffset: currentY,
-      width: lineWidth,
-    });
-
-    currentY += lineHeight;
+    const available = Math.max(16,(formatting.width||240)-indentPx-gutterPx);
+    const measureContext=ctx||{measureText:(value:string)=>({width:value.length*fontSize*0.6})} as CanvasRenderingContext2D;
+    const pieces=formatting.textBox?wrapText(measureContext,content,available):[content];
+    for(let piece=0;piece<pieces.length;piece++){
+      const lineWidth=indentPx+gutterPx+(formatting.textBox?measureContext.measureText(pieces[piece]).width:measuredContentWidth);
+      maxLineWidth=Math.max(maxLineWidth,lineWidth);
+      lines.push({raw,sourceLine:i,type:piece===0?type:"normal",content:pieces[piece],prefix:piece===0?prefix:undefined,indentLevel,fontSize,fontWeight,isItalic,isStrikethrough,lineHeight,yOffset:currentY,width:lineWidth});
+      currentY+=lineHeight;
+    }
   }
 
   return {
@@ -1419,16 +1410,17 @@ export function getCheckboxAtPoint(
         pt.y <= boxY + boxSize + tol
       ) {
         const isChecked = line.type === "todo-checked";
-        const currentLine = rawLines[i];
+        const sourceIndex=line.sourceLine??i;
+        const currentLine = rawLines[sourceIndex];
         let toggledLine = currentLine;
         if (isChecked) {
           toggledLine = currentLine.replace(/\[[xX]\]/, "[ ]");
         } else {
           toggledLine = currentLine.replace(/\[\s*\]/, "[x]");
         }
-        rawLines[i] = toggledLine;
+        rawLines[sourceIndex] = toggledLine;
         return {
-          lineIndex: i,
+          lineIndex: sourceIndex,
           newChecked: !isChecked,
           newText: rawLines.join("\n"),
         };

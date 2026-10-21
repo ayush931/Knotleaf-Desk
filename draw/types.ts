@@ -47,6 +47,8 @@ export interface TextFormatting {
 }
 
 export interface InlineTextState extends TextFormatting {
+  boxWidth?: number;
+  boxHeight?: number;
   containerId?: string;
   containerOffset?: Point;
   caret?: number;
@@ -152,6 +154,8 @@ export interface PencilElement extends BaseElement {
 export interface AttachmentData { name: string; mimeType: string; size: number; source: string }
 
 export interface TextElement extends BaseElement, TextFormatting {
+  /** Explicit writing area chosen by dragging the Text tool. */
+  textBox?: boolean;
   attachment?: AttachmentData;
   containerId?: string;
   containerOffset?: Point;

@@ -39,7 +39,7 @@ interface TopToolbarProps {
   onHeightChange?: (height: number) => void;
 }
 
-const TOOLS: { id: Tool; label: string; key: string; icon: React.ReactNode }[] = [
+const TOOLS: { id: Tool; label: string; key: string; hint?: string; icon: React.ReactNode }[] = [
   { id: "select", label: "Select", key: "V", icon: <MousePointer2 className="w-4 h-4" /> },
   { id: "hand", label: "Pan", key: "H", icon: <Hand className="w-4 h-4" /> },
   { id: "rectangle", label: "Rectangle", key: "R", icon: <Square className="w-4 h-4" /> },
@@ -49,7 +49,7 @@ const TOOLS: { id: Tool; label: string; key: string; icon: React.ReactNode }[] =
   { id: "line", label: "Line", key: "L", icon: <Minus className="w-4 h-4" /> },
   { id: "pencil", label: "Draw", key: "P", icon: <Pencil className="w-4 h-4" /> },
   { id: "highlighter", label: "Highlighter · fades after 0.2 seconds", key: "J", icon: <Highlighter className="w-4 h-4" /> },
-  { id: "text", label: "Text & Bullets", key: "T", icon: <Type className="w-4 h-4" /> },
+  { id: "text", label: "Text & Bullets", key: "T", hint: "Click to type · drag a writing area · Shift for a square", icon: <Type className="w-4 h-4" /> },
   { id: "doc", label: "Doc Card", key: "N", icon: <FileText className="w-4 h-4" /> },
   { id: "code", label: "Code card", key: "C", icon: <Code2 className="w-4 h-4" /> },
   { id: "sticky", label: "Sticky note", key: "S", icon: <StickyNote className="w-4 h-4" /> },
@@ -103,7 +103,7 @@ export const TopToolbar = memo(function TopToolbar({
             <button
               key={t.id}
               onClick={() => setSelectedTool(t.id)}
-              title={`${t.label} (${t.key})`}
+              title={`${t.label} (${t.key})${t.hint ? ` · ${t.hint}` : ""}`}
               aria-label={`${t.label} (${t.key})`}
               aria-keyshortcuts={t.key.toLowerCase()}
               aria-pressed={active}
