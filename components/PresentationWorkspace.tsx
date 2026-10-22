@@ -9,6 +9,7 @@ import {
   duplicateSlide,
   writeSpeakerNotes,
 } from "@/lib/presentations/authoring";
+import { PresentationGuide } from "./PresentationGuide";
 import { PresentationThemes } from "./PresentationThemes";
 import { ConfirmDialog } from "./ConfirmDialog";
 import {
@@ -244,6 +245,7 @@ function PresentationEditor({
     fileRef = useRef<HTMLInputElement>(null),
     imageRef = useRef<HTMLInputElement>(null),
     presentButton = useRef<HTMLButtonElement>(null),
+    guideButton = useRef<HTMLButtonElement>(null),
     pending = useRef<Deck | null>(null);
   const slides = React.useMemo(
     () => parseSlides(deck?.source || ""),
@@ -597,6 +599,7 @@ function PresentationEditor({
               className={button}
               onClick={() => setHelp((value) => !value)}
               aria-expanded={help}
+              ref={guideButton}
               aria-label="Presentation writing guide"
             >
               <CircleHelp size={14} />
@@ -976,53 +979,24 @@ function PresentationEditor({
         }}
       />
       {help && deck.kind !== "html" && (
-        <aside
-          aria-label="Presentation writing guide"
-          className="max-h-[45dvh] shrink-0 overflow-auto border-b border-neutral-700 bg-neutral-900 p-4 text-xs leading-6 text-neutral-300"
-        >
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <div>
-              <h2 className="text-sm font-semibold text-neutral-100">
-                Your guide to writing slides
-              </h2>
-              <p className="text-neutral-400">
-                Click an example to insert it at your cursor. The preview
-                updates as you write.
-              </p>
-            </div>
-            <button
-              className={button}
-              aria-label="Close writing guide"
-              onClick={() => setHelp(false)}
-            >
-              <X size={14} />
-            </button>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {PRESENTATION_SNIPPETS.map(([name, description, example]) => (
-              <button
-                key={name}
-                className="rounded-lg border border-neutral-700 bg-[#18181b] p-3 text-left hover:border-blue-500 focus-visible:outline-blue-500"
-                onClick={() => insert(example)}
-              >
-                <strong className="text-blue-300">{name}</strong>
-                <p className="leading-5 text-neutral-400">{description}</p>
-                <pre className="mt-2 max-h-28 overflow-auto whitespace-pre-wrap break-all font-mono text-[11px] leading-5 text-neutral-300">
-                  {example.trim()}
-                </pre>
-              </button>
-            ))}
-          </div>
-          <p className="mt-3 text-neutral-400">
-            Present: ← / → and Space to advance; B to blank; L for laser; Esc to
-            exit. Delete slide removes the selected slide; Undo delete restores
-            it. Markdown imports append slides; a presentation backup asks
-            before replacing the deck. Presentations and uploaded images stay on
-            this device and are not shared through a room. Export a backup to
-            transfer your editable deck; HTML and PDF audience exports exclude
-            speaker notes.
-          </p>
-        </aside>
+        <PresentationGuide
+          deck={deck}
+          onClose={() => {
+            setHelp(false);
+            requestAnimationFrame(() => guideButton.current?.focus());
+          }}
+          onInsert={(value) => {
+            setHelp(false);
+            insert(value);
+          }}
+          onAction={(action) => {
+            if (action === "starters" || action === "organize")
+              setPlanner(action);
+            else if (action === "design") setDesignOpen(true);
+            else if (action === "checks") setLintOpen(true);
+            else setPresenting(true);
+          }}
+        />
       )}
       {error && (
         <div
