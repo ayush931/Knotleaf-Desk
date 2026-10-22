@@ -31,6 +31,10 @@ export function themeVariables(deck: Deck): Record<string, string> {
     ),
     "--deck-body": resolvedFont(deck.bodyFont || type.body, "Arial,sans-serif"),
     "--deck-size": `${deck.bodySize || type.size}px`,
+    "--deck-scale": String(deck.bodySize ? deck.bodySize / type.size : 1),
+    "--deck-code": deck.bodyFont
+      ? resolvedFont(deck.bodyFont, "monospace")
+      : "monospace",
     "--deck-image": deck.backgroundImage
       ? `url(${JSON.stringify(deck.backgroundImage)})`
       : "none",

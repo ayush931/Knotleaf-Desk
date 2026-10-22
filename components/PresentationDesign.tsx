@@ -7,7 +7,6 @@ import {
   COMPOSITIONS,
   TRANSITIONS,
 } from "@/lib/presentations/design";
-import { FontSelect } from "./FontSelect";
 export function PresentationDesign({
   open,
   deck,
@@ -137,49 +136,6 @@ export function PresentationDesign({
               </option>
             ))}
           </select>
-        </label>
-        <div className="space-y-1 text-xs text-neutral-400">
-          Heading font
-          <FontSelect
-            className={select}
-            aria-label="Presentation heading font"
-            defaultLabel="Theme default"
-            value={deck.headingFont || ""}
-            onChange={(event) =>
-              onChange({
-                headingFont: (event.target.value ||
-                  undefined) as Deck["headingFont"],
-              })
-            }
-          />
-        </div>
-        <div className="space-y-1 text-xs text-neutral-400">
-          Body font
-          <FontSelect
-            className={select}
-            aria-label="Presentation body font"
-            defaultLabel="Theme default"
-            value={deck.bodyFont || ""}
-            onChange={(event) =>
-              onChange({
-                bodyFont: (event.target.value || undefined) as Deck["bodyFont"],
-              })
-            }
-          />
-        </div>
-        <label className="space-y-1 text-xs text-neutral-400">
-          Body size · {deck.bodySize || 30}px
-          <input
-            aria-label="Presentation body size"
-            type="range"
-            min="12"
-            max="64"
-            value={deck.bodySize || 30}
-            onChange={(event) =>
-              onChange({ bodySize: Number(event.target.value) })
-            }
-            className="block w-full accent-blue-500"
-          />
         </label>
         <label className="flex items-center gap-3 text-xs text-neutral-400">
           Background color

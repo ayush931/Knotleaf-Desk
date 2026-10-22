@@ -1,6 +1,8 @@
 "use client";
 import "katex/dist/katex.min.css";
 import React, { useEffect, useRef, useState } from "react";
+import { FontSelect } from "./FontSelect";
+import { themeTypography } from "@/lib/presentations/design";
 import { PresentationThemes } from "./PresentationThemes";
 import { ConfirmDialog } from "./ConfirmDialog";
 import {
@@ -476,10 +478,7 @@ function PresentationEditor({
               onChange={(theme) => update({ theme })}
               onClose={() => setThemeGallery(false)}
             />
-            <button
-              className={button}
-              onClick={() => setDesignOpen(true)}
-            >
+            <button className={button} onClick={() => setDesignOpen(true)}>
               Design
             </button>
             <PresentationDesign
@@ -491,7 +490,7 @@ function PresentationEditor({
             <label className="flex items-center gap-1 text-xs text-neutral-400">
               Layout{" "}
               <select
-                  value={deck.layout}
+                value={deck.layout}
                 onChange={(event) =>
                   update({ layout: event.target.value as Deck["layout"] })
                 }
@@ -588,6 +587,54 @@ function PresentationEditor({
               </button>
             )}
           </>
+        )}
+        {deck.kind !== "html" && (
+          <div
+            role="group"
+            aria-label="Slide content typography"
+            className="flex items-center gap-2"
+          >
+            <label className="flex items-center gap-1 text-xs text-neutral-400">
+              Font
+              <FontSelect
+                aria-label="Presentation font"
+                defaultLabel="Theme default"
+                value={deck.bodyFont || deck.headingFont || ""}
+                onChange={(event) => {
+                  const font = (event.target.value ||
+                    undefined) as Deck["bodyFont"];
+                  update({ bodyFont: font, headingFont: font });
+                }}
+                className="max-w-40 rounded border border-neutral-700 bg-neutral-900 px-1 py-1.5 text-xs text-neutral-200"
+              />
+            </label>
+            <label className="flex items-center gap-1 text-xs text-neutral-400">
+              Size
+              <select
+                aria-label="Presentation font size"
+                value={deck.bodySize || ""}
+                onChange={(event) =>
+                  update({
+                    bodySize: event.target.value
+                      ? Number(event.target.value)
+                      : undefined,
+                  })
+                }
+                className="rounded border border-neutral-700 bg-neutral-900 px-1 py-1.5 text-xs text-neutral-200"
+              >
+                <option value="">
+                  Theme · {themeTypography(deck.theme).size}px
+                </option>
+                {Array.from({ length: 53 }, (_, index) => index + 12).map(
+                  (size) => (
+                    <option key={size} value={size}>
+                      {size}px
+                    </option>
+                  ),
+                )}
+              </select>
+            </label>
+          </div>
         )}
         <button
           className={button}

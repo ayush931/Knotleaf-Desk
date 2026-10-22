@@ -239,3 +239,17 @@ test("design imports validate bounded settings, font identities, and background 
   expect(deck.backgroundColor).toBeUndefined();
   expect(deck.animateBackground).toBe(false);
 });
+
+test("shared content typography scales headings and secondary text with the body", async () => {
+  const { themeVariables } = await import("../lib/presentations/export.ts");
+  const { SLIDE_CSS } = await import("../lib/presentations/styles.ts");
+  const deck = { version: 1, title: "Type", source: "# Title", theme: "midnight", layout: "standard", headingFont: "jetbrains-mono", bodyFont: "jetbrains-mono", bodySize: 45 };
+  const variables = themeVariables(deck);
+  expect(variables["--deck-size"]).toBe("45px");
+  expect(variables["--deck-scale"]).toBe("1.5");
+  expect(variables["--deck-heading"]).toBe(variables["--deck-body"]);
+  expect(variables["--deck-code"]).toBe(variables["--deck-body"]);
+  expect(SLIDE_CSS).toContain("font-size:calc(110px * var(--deck-scale,1))");
+  expect(SLIDE_CSS).toContain("font-size:calc(26px * var(--deck-scale,1))");
+  expect(SLIDE_CSS).not.toMatch(/font-size:\d+px/);
+});
