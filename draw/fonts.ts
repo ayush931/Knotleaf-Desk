@@ -186,6 +186,13 @@ export const FONT_FAMILIES = {
     '"Special Elite", monospace',
     "Monospace",
   ),
+  "jetbrains-mono": family(
+    "JetBrains Mono",
+    "--font-jetbrains-mono",
+    '"JetBrains Mono", monospace',
+    "Monospace",
+    true,
+  ),
   "space-mono": family(
     "Space Mono",
     "--font-space-mono",

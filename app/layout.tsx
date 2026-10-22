@@ -31,6 +31,7 @@ import {
   Abril_Fatface,
   Special_Elite,
   Space_Mono,
+  JetBrains_Mono,
 } from "next/font/google";
 import "./globals.css";
 
@@ -226,6 +227,14 @@ const fontSpaceMono = Space_Mono({
   weight: ["400", "700"],
 });
 
+const fontJetBrainsMono = JetBrains_Mono({
+  variable: "--font-jetbrains-mono",
+  subsets: ["latin"],
+  display: "swap",
+  preload: false,
+  style: ["normal", "italic"],
+});
+
 export const metadata: Metadata = {
   title: {
     default: "Knotleaf Desk",
@@ -266,7 +275,7 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={`dark ${inter.variable} ${caveat.variable} ${firaCode.variable} ${lora.variable} ${nunito.variable} ${condensed.variable} ${patrick.variable} ${fontManrope.variable} ${fontDMSans.variable} ${fontSpaceGrotesk.variable} ${fontOutfit.variable} ${fontQuicksand.variable} ${fontComfortaa.variable} ${fontPlayfairDisplay.variable} ${fontCormorantGaramond.variable} ${fontLibreBaskerville.variable} ${fontDMSerifDisplay.variable} ${fontKalam.variable} ${fontShadowsIntoLight.variable} ${fontIndieFlower.variable} ${fontPermanentMarker.variable} ${fontArchitectsDaughter.variable} ${fontFredoka.variable} ${fontBaloo2.variable} ${fontRighteous.variable} ${fontLobster.variable} ${fontBangers.variable} ${fontAbrilFatface.variable} ${fontSpecialElite.variable} ${fontSpaceMono.variable}`}
+      className={`dark ${inter.variable} ${caveat.variable} ${firaCode.variable} ${lora.variable} ${nunito.variable} ${condensed.variable} ${patrick.variable} ${fontManrope.variable} ${fontDMSans.variable} ${fontSpaceGrotesk.variable} ${fontOutfit.variable} ${fontQuicksand.variable} ${fontComfortaa.variable} ${fontPlayfairDisplay.variable} ${fontCormorantGaramond.variable} ${fontLibreBaskerville.variable} ${fontDMSerifDisplay.variable} ${fontKalam.variable} ${fontShadowsIntoLight.variable} ${fontIndieFlower.variable} ${fontPermanentMarker.variable} ${fontArchitectsDaughter.variable} ${fontFredoka.variable} ${fontBaloo2.variable} ${fontRighteous.variable} ${fontLobster.variable} ${fontBangers.variable} ${fontAbrilFatface.variable} ${fontSpecialElite.variable} ${fontSpaceMono.variable} ${fontJetBrainsMono.variable}`}
     >
       {/* Browser extensions can add body attributes before React hydrates. */}
       <body

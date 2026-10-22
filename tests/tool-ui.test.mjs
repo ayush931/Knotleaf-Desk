@@ -38,7 +38,7 @@ test('text inspector keeps formatting visible and secondary document controls co
 });
 test('canvas font picker keeps quick previews without a More fonts dropdown', () => {
   const html = renderToStaticMarkup(React.createElement(PropertiesPanel, { ...props, isTextEditing: true, currentStyle: { ...DEFAULT_STYLE, fontFamily: 'serif' } }));
-  expect(html).toContain('aria-label="Font family"'); expect(QUICK_FONTS).toHaveLength(7);expect(FONT_OPTIONS).toHaveLength(30);
+  expect(html).toContain('aria-label="Font family"'); expect(QUICK_FONTS).toHaveLength(8);expect(FONT_OPTIONS).toHaveLength(31);
   for (const font of QUICK_FONTS) expect(html).toContain(`aria-label="Font: ${font.label}"`);
   expect(html).not.toContain('aria-label="More fonts"');expect(html).not.toContain('More fonts');
   expect(html).toContain('aria-label="Font: Lora" aria-pressed="true"');

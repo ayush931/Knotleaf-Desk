@@ -52,6 +52,7 @@ import { exportToDrawio } from "@/draw/drawioExport";
 import { exportToRaster, type RasterFormat, copyPngToClipboard, exportToJson, exportNotesToMarkdown, exportProjectFile } from "@/draw/export";
 import { TemplateDefinition } from "@/draw/templatesData";
 import { BoardHeader } from "./BoardHeader";
+const PresentationWorkspace = React.lazy(() => import("./PresentationWorkspace").then(module => ({ default: module.PresentationWorkspace })));
 const DocEditor = React.lazy(() => import("./DocEditor").then(module => ({ default: module.DocEditor })));
 import { EraserControls, type EraserMode } from "./EraserControls";
 import { TopToolbar } from "./TopToolbar";
@@ -499,7 +500,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
       if (!engine || engineRef.current!==engine || boardRef.current.id!==boardId) throw new Error("The board changed. Upload these files again on the current board.");
       commitInline();engine.finishCode();setCodeId(null);
       const current=boardRef.current;
-      boardRef.current={...current,viewMode:current.viewMode==="notes"?"canvas":current.viewMode};
+      boardRef.current={...current,viewMode:(current.viewMode==="notes"||current.viewMode==="slides")?"canvas":current.viewMode};
       let ids:string[];
       try { ids=engine.addAssets(assets,point?engine.screenToCanvas(point.x,point.y):undefined,elements=>{if(!saveBoard({...boardRef.current,elements}))throw new Error("Your browser’s local storage is full or unavailable. Free space or use another board, then upload again. No files were added.");}); }
       catch(error){boardRef.current=current;throw error;}
@@ -522,7 +523,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
     const starterNotes = template.markdownNotes.trim();
     const markdownNotes = [current.markdownNotes?.trimEnd(), starterNotes].filter(Boolean).join("\n\n");
     // Template notes belong in Notes, not in an overlapping canvas document card.
-    boardRef.current = { ...current, markdownNotes, viewMode: current.viewMode === "notes" ? "canvas" : current.viewMode };
+    boardRef.current = { ...current, markdownNotes, viewMode: (current.viewMode === "notes" || current.viewMode === "slides") ? "canvas" : current.viewMode };
     let ids: string[];
     try { ids = engine.insertTemplate(template.elements, replace); }
     catch (error) { boardRef.current = current; throw error; }
@@ -708,6 +709,8 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
     previousFocusMode.current = focusMode;
   }, [focusMode]);
 
+  useEffect(() => { engineRef.current?.setKeyboardEnabled(viewMode === "canvas" || viewMode === "split" || focusMode || isPresentationOpen); }, [viewMode, focusMode, isPresentationOpen]);
+
   return (
     <div
       className="relative w-screen h-[100dvh] overflow-hidden flex flex-col font-sans select-none bg-[#121212] text-white"
@@ -748,7 +751,16 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
       )}
 
       <main inert={!roomReady} ref={splitRef} className={`relative flex max-sm:flex-col min-h-0 flex-1 w-full overflow-hidden ${!isPresentationOpen && !focusMode ? "mt-11" : ""}`} >
-        {viewMode !== "canvas" && !isPresentationOpen && <section aria-label="Board notes" style={viewMode === "split" ? narrowSplit ? { width: "100%", height: Math.min(notesHeight, splitBounds.height - 160) } : { width: Math.min(notesWidth, splitBounds.width - 280) } : undefined} className={`board-notes min-h-0 ${focusMode ? "hidden" : ""} ${viewMode === "notes" ? "w-full min-w-0 flex-1" : "shrink-0"}`}><React.Suspense fallback={<div role="status" className="h-full bg-[#18181b] p-4 text-xs text-neutral-400">Opening notes…</div>}><DocEditor key={`${board.id}:${noteFocus?.token || 0}`} focusRange={noteFocus} noteId={board.id} title={board.title} getNotes={()=>getAllBoards().filter(summary=>!isRoomBoardId(summary.id)&&(summary.workspaceId||"personal")===workspaceId).map(summary=>getBoard(summary.id)).filter((note):note is Board=>!!note).map(({id,title,markdownNotes})=>({id,title,markdownNotes}))} onOpenNote={id=>{const note=getBoard(id);if(!note)return false;note.viewMode="notes";if(!saveBoard(note))return false;handleSelectBoard(id);return true;}} onCreateNote={title=>{const currentId=boardRef.current.id;try{const note=createBoard(title,undefined,workspaceId);note.viewMode="notes";if(!saveBoard(note))throw new Error("Could not save note");refreshBoardsList();return {id:note.id,title:note.title,markdownNotes:note.markdownNotes};}finally{setActiveBoardId(currentId);}}} value={board.markdownNotes || ""} onChange={markdownNotes => persist({ ...boardRef.current, markdownNotes })} onExportMarkdown={handleExportMarkdown} theme={theme} /></React.Suspense></section>}
+        {viewMode === "slides" && !isPresentationOpen && !focusMode && <React.Suspense fallback={<div role="status" className="flex-1 p-5 text-sm text-neutral-400">Opening presentation…</div>}><PresentationWorkspace key={board.id} boardId={board.id} title={board.title} notes={board.markdownNotes || ""} onCanvasSnapshot={async () => {
+          const snapshot = structuredClone(boardRef.current);
+          const frames = snapshot.elements.filter(el => el.type === "frame").sort((a,b) => a.y-b.y || a.x-b.x);
+          const { renderToCanvas } = await import("@/draw/export");
+          const groups = frames.length ? frames.map(frame => snapshot.elements.filter(el => el.id === frame.id || el.type !== "frame" && el.x >= frame.x && el.y >= frame.y && el.x + el.width <= frame.x + frame.width && el.y + el.height <= frame.y + frame.height)) : [snapshot.elements];
+          const images: string[] = [];
+          for (const elements of groups) { const canvas = await renderToCanvas(elements,snapshot.theme,1,false,snapshot.elements,snapshot.background,snapshot.gridType); if(canvas) { images.push(canvas.toDataURL("image/png")); canvas.width=canvas.height=1; } }
+          return images;
+        }} /></React.Suspense>}
+        {(viewMode === "notes" || viewMode === "split") && !isPresentationOpen && <section aria-label="Board notes" style={viewMode === "split" ? narrowSplit ? { width: "100%", height: Math.min(notesHeight, splitBounds.height - 160) } : { width: Math.min(notesWidth, splitBounds.width - 280) } : undefined} className={`board-notes min-h-0 ${focusMode ? "hidden" : ""} ${viewMode === "notes" ? "w-full min-w-0 flex-1" : "shrink-0"}`}><React.Suspense fallback={<div role="status" className="h-full bg-[#18181b] p-4 text-xs text-neutral-400">Opening notes…</div>}><DocEditor key={`${board.id}:${noteFocus?.token || 0}`} focusRange={noteFocus} noteId={board.id} title={board.title} getNotes={()=>getAllBoards().filter(summary=>!isRoomBoardId(summary.id)&&(summary.workspaceId||"personal")===workspaceId).map(summary=>getBoard(summary.id)).filter((note):note is Board=>!!note).map(({id,title,markdownNotes})=>({id,title,markdownNotes}))} onOpenNote={id=>{const note=getBoard(id);if(!note)return false;note.viewMode="notes";if(!saveBoard(note))return false;handleSelectBoard(id);return true;}} onCreateNote={title=>{const currentId=boardRef.current.id;try{const note=createBoard(title,undefined,workspaceId);note.viewMode="notes";if(!saveBoard(note))throw new Error("Could not save note");refreshBoardsList();return {id:note.id,title:note.title,markdownNotes:note.markdownNotes};}finally{setActiveBoardId(currentId);}}} value={board.markdownNotes || ""} onChange={markdownNotes => persist({ ...boardRef.current, markdownNotes })} onExportMarkdown={handleExportMarkdown} theme={theme} /></React.Suspense></section>}
         {viewMode === "split" && !isPresentationOpen && !focusMode && <div role="separator" aria-label="Resize notes panel" aria-orientation={narrowSplit ? "horizontal" : "vertical"} aria-valuemin={narrowSplit ? 160 : 220} aria-valuemax={narrowSplit ? Math.max(160, splitBounds.height - 160) : Math.max(220, splitBounds.width - 280)} aria-valuenow={Math.round(narrowSplit ? notesHeight : notesWidth)} tabIndex={0} className={`split-handle z-30 shrink-0 touch-none bg-neutral-800 hover:bg-blue-500 focus-visible:bg-blue-500 focus-visible:outline-none ${narrowSplit ? "h-1.5 w-full cursor-row-resize" : "w-1.5 cursor-col-resize"}`} onDoubleClick={() => { setNotesWidth(360); setNotesHeight(300); }} onKeyDown={e => { if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"].includes(e.key)) {
           e.preventDefault(); e.stopPropagation();
           const delta = e.key === "ArrowRight" || e.key === "ArrowDown" ? 20 : -20;
@@ -761,7 +773,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
           onDragOver={event=>{if(event.dataTransfer.types.includes("Files")){event.preventDefault();event.dataTransfer.dropEffect="copy";setDragFiles(true);}}}
           onDragLeave={event=>{if(!event.currentTarget.contains(event.relatedTarget as Node|null))setDragFiles(false);}}
           onDrop={event=>{if(!event.dataTransfer.files.length)return;event.preventDefault();setDragFiles(false);const r=canvasRef.current?.getBoundingClientRect();void uploadAssets(Array.from(event.dataTransfer.files),r?{x:event.clientX-r.left,y:event.clientY-r.top}:undefined);}}
-          className={`relative min-h-0 min-w-0 flex-1 h-full overflow-hidden bg-[#121212] ${viewMode === "notes" && !isPresentationOpen && !focusMode ? "hidden" : ""}`}
+          className={`relative min-h-0 min-w-0 flex-1 h-full overflow-hidden bg-[#121212] ${(viewMode === "notes" || viewMode === "slides") && !isPresentationOpen && !focusMode ? "hidden" : ""}`}
         >
             {dragFiles&&<div aria-hidden="true" className="pointer-events-none absolute inset-2 z-40 flex items-center justify-center rounded-xl border-2 border-dashed border-blue-400 bg-blue-500/10 text-sm text-blue-200">Drop images or files onto this board</div>}
             <canvas ref={canvasRef} className="block touch-none" style={{ backgroundColor: "#fafafa", backgroundImage: "conic-gradient(#d4d4d8 25%, transparent 0 50%, #d4d4d8 0 75%, transparent 0)", backgroundSize: "16px 16px" }} />
@@ -1025,14 +1037,14 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
       {focusMode && <button onClick={exitFocus} aria-label="Show controls" aria-keyshortcuts="Escape Shift+Z" title="Show controls · Escape or Shift+Z" className="absolute right-2 top-2 z-40 flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-700 bg-neutral-900/80 text-neutral-400 transition-colors hover:bg-neutral-800 hover:text-white focus-visible:outline-2 focus-visible:outline-blue-500"><PanelsTopLeft className="h-4 w-4" /></button>}
       <input ref={assetInputRef} type="file" multiple aria-label="Upload files" className="hidden" onChange={event=>{const files=Array.from(event.target.files||[]);event.target.value="";void uploadAssets(files);}}/>
       {!isPresentationOpen&&!focusMode&&(assetBusy||assetError||assetNotice)&&<div role={assetError?"alert":"status"} className="absolute right-3 top-24 z-50 max-w-[min(360px,calc(100vw-24px))] rounded-xl border border-neutral-700 bg-neutral-900 p-3 text-xs text-neutral-300 shadow-sm"><div className="flex items-start gap-3"><p className={assetError?"text-blue-300":""}>{assetBusy?"Uploading files…":assetError||assetNotice}</p>{!assetBusy&&<button type="button" aria-label="Dismiss upload message" className="note-tool shrink-0" onClick={()=>{setAssetError("");setAssetNotice("");}}><X className="h-3.5 w-3.5"/></button>}</div><p className="mt-2 text-[11px] text-neutral-500">Files stay on this device. Available space depends on your browser.</p></div>}
-      {!isPresentationOpen&&!focusMode&&selectedElement?.type==="text"&&selectedElement.attachment&&<div className="absolute bottom-16 left-1/2 z-30 flex max-w-[calc(100%-1rem)] -translate-x-1/2 items-center gap-2 rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-xs"><span className="max-w-48 truncate" title={selectedElement.attachment.name}>{selectedElement.attachment.name}</span><button type="button" aria-label="Download attachment" onClick={downloadSelectedAttachment} className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-blue-300 hover:bg-neutral-800"><Download className="h-3.5 w-3.5"/>Download</button></div>}
+      {!isPresentationOpen&&!focusMode&&(viewMode==="canvas"||viewMode==="split")&&selectedElement?.type==="text"&&selectedElement.attachment&&<div className="absolute bottom-16 left-1/2 z-30 flex max-w-[calc(100%-1rem)] -translate-x-1/2 items-center gap-2 rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-xs"><span className="max-w-48 truncate" title={selectedElement.attachment.name}>{selectedElement.attachment.name}</span><button type="button" aria-label="Download attachment" onClick={downloadSelectedAttachment} className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-blue-300 hover:bg-neutral-800"><Download className="h-3.5 w-3.5"/>Download</button></div>}
       <PresentationMode isActive={isPresentationOpen} onExit={endPresentation} title={board.title} theme={theme} frames={frames} index={presentationIndex} onIndex={setPresentationIndex} />
       {!isPresentationOpen && !focusMode && <button type="button" aria-label="Report bug" title="Report a bug" onClick={() => { setBoardToolsSection("report"); setBoardToolsOpen(true); }} className="absolute bottom-3 left-2 z-30 inline-flex h-8 items-center gap-1 rounded-lg border border-neutral-700 bg-neutral-900/95 px-1.5 text-[11px] text-neutral-400 hover:bg-neutral-800 hover:text-white focus-visible:outline-2 focus-visible:outline-blue-500"><Bug aria-hidden="true" className="h-3 w-3"/>Report bug</button>}
       <BoardTools initialSection={boardToolsSection} open={boardToolsOpen} onClose={() => setBoardToolsOpen(false)} board={board} selection={librarySelection} historyError={historyError} onHistorySaved={() => setHistoryError("")} onOpenCopy={(source, title) => { const copy = importBoardFile(JSON.stringify({ ...source, title })); if (!copy) throw new Error("Could not create a board. Check available browser storage."); copy.title = title; if (!saveBoard(copy)) throw new Error("Could not save the new board."); moveBoardToWorkspace(copy.id, workspaceId); handleSelectBoard(copy.id); }} onFind={(id, index, length) => {
         if (index !== undefined) {
           persist({ ...boardRef.current, viewMode: "notes" });
           setNoteFocus(previous => ({ start: index, end: index + (length || 0), token: (previous?.token || 0) + 1 }));
-        } else { if (board.viewMode === "notes") persist({ ...boardRef.current, viewMode: "canvas" }); requestAnimationFrame(() => { const element = containerRef.current; if (element) engineRef.current?.resize(element.clientWidth, element.clientHeight); engineRef.current?.focusElements([id]); }); }
+        } else { if (board.viewMode === "notes" || board.viewMode === "slides") persist({ ...boardRef.current, viewMode: "canvas" }); requestAnimationFrame(() => { const element = containerRef.current; if (element) engineRef.current?.resize(element.clientWidth, element.clientHeight); engineRef.current?.focusElements([id]); }); }
       }} />
 
       <IconPickerModal

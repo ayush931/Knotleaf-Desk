@@ -177,9 +177,9 @@ export function BoardHeader({
           <Menu className="w-4 h-4" />
         </button>
 
-        <button aria-label="Board tools: find, history, templates and report a bug" title="Board tools · Find, history, templates & report a bug (Ctrl/Cmd+F)" onClick={onOpenBoardTools} className="rounded-lg p-1.5 text-neutral-400 hover:bg-neutral-800 hover:text-white"><Search className="h-4 w-4" /></button>
+        <button aria-label="Board tools: find, history, templates and report a bug" title="Board tools · Find, history, templates & report a bug (Ctrl/Cmd+F)" onClick={onOpenBoardTools} className="hidden min-[480px]:block rounded-lg p-1.5 text-neutral-400 hover:bg-neutral-800 hover:text-white"><Search className="h-4 w-4" /></button>
         <input ref={importFile} type="file" accept=".knotleaf,.json,.md,.markdown" className="hidden" onChange={async e => { const file = e.target.files?.[0]; e.target.value = ""; if (!file) return; try { if (file.size > 50_000_000) throw new Error("This file exceeds the 50 MB import limit."); onImportFile(await file.text(), file.name); setExportError(""); } catch (error) { setExportError(error instanceof Error ? error.message : "Could not open this project."); setShowExportMenu(true); } }} />
-        <button aria-label="Open project or notes" title="Open .knotleaf, .json or Markdown notes" onClick={() => importFile.current?.click()} className="rounded-lg p-1.5 text-neutral-400 hover:bg-neutral-800 hover:text-white"><FolderOpen className="h-4 w-4" /></button>
+        <button aria-label="Open project or notes" title="Open .knotleaf, .json or Markdown notes" onClick={() => importFile.current?.click()} className="hidden min-[480px]:block rounded-lg p-1.5 text-neutral-400 hover:bg-neutral-800 hover:text-white"><FolderOpen className="h-4 w-4" /></button>
         <div className="flex min-w-0 items-center gap-2">
           {/* The app mark is shared with the website favicon. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -219,13 +219,16 @@ export function BoardHeader({
       </div>
 
       <nav aria-label="Board view" className="flex shrink-0 items-center gap-0.5 rounded-lg border border-neutral-800 bg-neutral-900 p-0.5">
-        {(["canvas", "split", "notes"] as ViewMode[]).map(mode => <button key={mode} aria-pressed={viewMode === mode} onClick={() => onChangeViewMode(mode)} className={`rounded-md px-1.5 sm:px-2 py-1 text-[11px] font-medium capitalize transition ${viewMode === mode ? "bg-neutral-700 text-white" : "text-neutral-400 hover:bg-neutral-800 hover:text-white"}`}>{mode}</button>)}
+        {(["canvas", "split", "notes", "slides"] as ViewMode[]).map(mode => <button key={mode} aria-pressed={viewMode === mode} onClick={() => onChangeViewMode(mode)} className={`rounded-md px-1 min-[380px]:px-1.5 sm:px-2 py-1 text-[10px] min-[380px]:text-[11px] font-medium capitalize transition ${viewMode === mode ? "bg-neutral-700 text-white" : "text-neutral-400 hover:bg-neutral-800 hover:text-white"}`}>{mode === "slides" ? "Presentation" : mode}</button>)}
       </nav>
       {/* Right Section: Actions */}
       <button ref={actionsButton} type="button" aria-label="Board actions" aria-expanded={actionsOpen} aria-controls="board-actions" onClick={() => setActionsOpen(value => !value)} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-neutral-400 hover:bg-neutral-800 hover:text-white xl:hidden"><MoreHorizontal className="h-4 w-4" /></button>
       <div ref={actionsPanel} id="board-actions" onKeyDown={event => { if (event.key === "Escape" && !event.nativeEvent.isComposing) { event.stopPropagation(); setActionsOpen(false); actionsButton.current?.focus(); } }} className={`header-actions absolute right-2 top-12 max-w-[calc(100vw-1rem)] flex-wrap items-center gap-1 rounded-xl border border-neutral-700 bg-[#18181b] p-2 shadow-lg xl:static xl:flex xl:max-w-none xl:shrink-0 xl:flex-nowrap xl:rounded-none xl:border-0 xl:bg-transparent xl:p-0 xl:shadow-none ${actionsOpen ? "flex" : "hidden"}`}>
+        <button aria-label="Board tools" onClick={onOpenBoardTools} className="min-[480px]:hidden rounded-lg p-1.5 text-xs text-neutral-300 hover:bg-neutral-800"><Search className="mr-1 inline h-3.5 w-3.5" />Board tools</button>
+        <button aria-label="Open project or notes" onClick={() => importFile.current?.click()} className="min-[480px]:hidden rounded-lg p-1.5 text-xs text-neutral-300 hover:bg-neutral-800"><FolderOpen className="mr-1 inline h-3.5 w-3.5" />Open project</button>
         <RefreshWebApp onBeforeRefresh={onBeforeRefresh} recording={recording} />
         {collaboration}
+        {viewMode !== "slides" && <>
         {/* Templates Button */}
         <button
           onClick={onOpenTemplates}
@@ -281,6 +284,7 @@ export function BoardHeader({
           <Play className="w-3.5 h-3.5" />
         </button>
 
+        </>}
         <button
           onClick={onShowShortcuts}
           title="Keyboard shortcuts (?)"
@@ -292,7 +296,7 @@ export function BoardHeader({
 
         <InstallWebApp />
         {/* Export Dropdown */}
-        <div className="relative" ref={exportMenuRef}>
+        {viewMode !== "slides" && <div className="relative" ref={exportMenuRef}>
           <button
             aria-label="Export board" aria-expanded={showExportMenu}
             onClick={() => setShowExportMenu(!showExportMenu)}
@@ -334,7 +338,7 @@ export function BoardHeader({
               </div>
             </div>
           )}
-        </div>
+        </div>}
       </div>
       <ConfirmDialog open={clearOpen} onClose={() => setClearOpen(false)} onConfirm={onClearBoard} />
     </header>

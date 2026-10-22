@@ -33,7 +33,7 @@ export type Roundness = "sharp" | "rounded";
 import type { FontFamily } from "./fonts";
 export type { FontFamily } from "./fonts";
 export type TextAlign = "left" | "center" | "right";
-export type ViewMode = "canvas" | "split" | "notes";
+export type ViewMode = "canvas" | "split" | "notes" | "slides";
 export type GridType = "dot" | "grid" | "none";
 export type Theme = "dark";
 
@@ -166,6 +166,7 @@ export interface TextElement extends BaseElement, TextFormatting {
   fontFamily: FontFamily;
   textAlign: TextAlign;
   isDocCard?: boolean;
+  cardFillCustom?: boolean;
   isCodeCard?: boolean;
   codeLanguage?: string;
   title?: string;
