@@ -26,7 +26,7 @@ export const PRESENTATION_SNIPPETS = [
   ],
   [
     "Per-slide design",
-    "Override the theme and layout for just this slide. Theme names: midnight, paper, slate, ocean, dusk, studio. Layouts: standard, center, split.",
+    "Override the theme and layout for just this slide. Theme names: midnight (Keynote), paper (Editorial), slate (Nordic), ocean (Executive), dusk (Modern Report), studio (Corporate), blueprint, linen (Solarized), glacier (Architect), obsidian (Simple Dark), sand (Classic Report), gallery (Swiss). Layouts: standard, center, split.",
     "\n<!-- theme: paper -->\n<!-- layout: center -->\n",
   ],
   [
