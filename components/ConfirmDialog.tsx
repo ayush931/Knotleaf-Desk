@@ -10,7 +10,7 @@ export function ConfirmDialog({
   open: boolean;
   onClose: () => void;
   onConfirm: () => void;
-  variant?: "clear-board" | "remove-participant";
+  variant?: "clear-board" | "remove-participant" | "replace-presentation" | "delete-presentation";
   name?: string;
 }) {
   const titleId = useId();
@@ -28,14 +28,18 @@ export function ConfirmDialog({
       className="m-auto w-[min(400px,90vw)] rounded-xl border border-neutral-700 bg-[#18181b] p-5 text-neutral-100 shadow-2xl"
     >
       <h2 id={titleId} className="text-base font-semibold">
-        {variant === "remove-participant"
-          ? `Remove ${name} from this call?`
-          : "Clear this board?"}
+        {variant === "delete-presentation" ? `Delete “${name}”?` : variant === "replace-presentation"
+          ? `Open “${name}” here?`
+          : variant === "remove-participant"
+            ? `Remove ${name} from this call?`
+            : "Clear this board?"}
       </h2>
       <p className="mt-2 text-sm text-neutral-400">
-        {variant === "remove-participant"
-          ? "Disconnect their microphone, camera and screen sharing. They can rejoin with the invite link."
-          : "Remove all shapes and notes. You can undo the canvas change with Ctrl+Z."}
+        {variant === "delete-presentation" ? "This permanently removes the presentation from this device. Download a presentation backup first if you want to keep a copy." : variant === "replace-presentation"
+          ? "This replaces the presentation saved for this board on this device. Export a presentation backup first if you want to keep the current version."
+          : variant === "remove-participant"
+            ? "Disconnect their microphone, camera and screen sharing. They can rejoin with the invite link."
+            : "Remove all shapes and notes. You can undo the canvas change with Ctrl+Z."}
       </p>
       <div className="mt-5 flex justify-end gap-2">
         <button
@@ -52,9 +56,11 @@ export function ConfirmDialog({
           }}
           className="rounded-lg bg-rose-600 px-4 py-2 text-sm hover:bg-rose-500"
         >
-          {variant === "remove-participant"
-            ? "Remove from call"
-            : "Clear board"}
+          {variant === "delete-presentation" ? "Delete presentation" : variant === "replace-presentation"
+            ? "Open presentation"
+            : variant === "remove-participant"
+              ? "Remove from call"
+              : "Clear board"}
         </button>
       </div>
     </dialog>

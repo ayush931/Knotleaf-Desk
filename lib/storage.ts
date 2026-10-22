@@ -224,7 +224,7 @@ export function importBoardFromJson(jsonStr: string): Board | null {
     parsed.markdownNotes = typeof parsed.markdownNotes === "string" ? parsed.markdownNotes : "";
     parsed.background = normalizeBackground(parsed.background);
     parsed.theme = "dark";
-    parsed.viewMode = ["canvas", "split", "notes"].includes(parsed.viewMode) ? parsed.viewMode : "canvas";
+    parsed.viewMode = ["canvas", "split", "notes", "slides"].includes(parsed.viewMode) ? parsed.viewMode : "canvas";
     parsed.gridType = ["dot", "grid", "none"].includes(parsed.gridType) ? parsed.gridType : "dot";
     // Give unique ID on import to avoid collisions
     parsed.id = `import-${crypto.randomUUID()}`;

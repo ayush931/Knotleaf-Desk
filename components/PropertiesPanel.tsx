@@ -1,4 +1,5 @@
 "use client";
+import { cardBackground } from "@/draw/cardAppearance";
 
 import React, { useLayoutEffect, useRef } from "react";
 import { ColorPalette } from "./ColorPalette";
@@ -105,11 +106,11 @@ export function PropertiesPanel({
   const arrowEl = selectedElement?.type === "arrow" ? selectedElement : null;
 
   const activeStroke = selectedElement?.type === "icon" ? selectedElement.iconColor || "#E2E8F0" : selectedElement ? selectedElement.stroke : currentStyle.stroke;
-  const activeFill = selectedElement?.fill ?? currentStyle.fill;
+  const activeFill = selectedElement?.type === "text" ? cardBackground(selectedElement).fill : selectedElement?.fill ?? currentStyle.fill;
   const activeFillStyle = selectedElement?.fillStyle ?? currentStyle.fillStyle;
   const changeBackground = (fill: string, pattern?: BackgroundPattern) => {
     const next = { fill, fillStyle: fill === "transparent" ? "none" as const : pattern ?? (activeFillStyle === "none" || activeFillStyle === "semi" ? "solid" : activeFillStyle), fillOpacity: 1 };
-    if (selectedElement) onUpdateElement(selectedElement.type === "sticky" ? { ...next, color: fill } : next);
+    if (selectedElement) onUpdateElement(selectedElement.type === "sticky" ? { ...next, color: fill } : selectedElement.type === "text" ? {...next,cardFillCustom:true} : next);
     onUpdateStyle(next);
   };
   const activeStrokeWidth = selectedElement ? selectedElement.strokeWidth : currentStyle.strokeWidth;
@@ -340,6 +341,7 @@ export function PropertiesPanel({
                   onClick={() =>
                     onUpdateElement({
                       isDocCard: !textEl.isDocCard,
+                      cardFillCustom: false,
                       fill: !textEl.isDocCard ? "#18181B" : "transparent",
                     })
                   }

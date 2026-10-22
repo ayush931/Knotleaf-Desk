@@ -1207,3 +1207,9 @@ test('live room text publishes before finishing, retains its editor, and empty e
  engine.previewInlineText({...next,text:''});expect(engine.getElements()).toHaveLength(1);engine.previewInlineText({...next,text:'Again'});expect(published[0].text).toBe('Again');
  engine.commitInlineText({...next,text:''});expect(engine.getElements()).toHaveLength(0);engine.destroy();
 });
+
+test('hidden canvas ignores editing shortcuts and restores them when canvas becomes active',()=>{
+  const {engine}=setup([source]);engine.selectAll();engine.setKeyboardEnabled(false);
+  engine.onKeyDown({key:'Delete',code:'Delete',target:null,preventDefault(){}});expect(engine.getElements()).toHaveLength(1);
+  engine.setKeyboardEnabled(true);engine.onKeyDown({key:'Delete',code:'Delete',target:null,preventDefault(){}});expect(engine.getElements()).toHaveLength(0);engine.destroy();
+});

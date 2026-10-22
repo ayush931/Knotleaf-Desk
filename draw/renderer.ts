@@ -1,3 +1,4 @@
+import { cardBackground } from "./cardAppearance";
 import { attachmentSize } from "@/lib/attachments.mjs";
 import { drawBackgroundFill } from "./backgroundFill";
 import { expandCodeTabs, highlightCode } from "@/lib/code";
@@ -1191,6 +1192,7 @@ function drawText(ctx: CanvasRenderingContext2D, el: CanvasElement) {
     ctx.fillText(`${el.attachment.name.split('.').pop()?.toUpperCase().slice(0,12)||'FILE'} · ${attachmentSize(el.attachment.size)}`,x+60,y+43);
     ctx.fillStyle="#71717a";ctx.fillText("Local file · Select to download",x+20,y+h-27);ctx.restore();return;
   }
+  el = cardBackground(el);
   if (el.isCodeCard) {
     const result = highlightCode(expandCodeTabs(el.text), el.codeLanguage);
     ctx.save(); ctx.fillStyle = "#10151e"; ctx.strokeStyle = "#334155"; ctx.lineWidth = 1;

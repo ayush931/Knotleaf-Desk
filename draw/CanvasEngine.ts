@@ -1,3 +1,4 @@
+import { CODE_CARD_FILL, DOCUMENT_CARD_FILL } from "./cardAppearance";
 import { sceneFontFamilies } from "./fonts";
 import { HIGHLIGHTER_LIFETIME, HIGHLIGHTER_LIMIT, liveHighlights, type HighlightPoint } from "./highlighter";
 import { isLocalAsset } from "@/lib/localAssets.mjs";
@@ -238,6 +239,8 @@ export class CanvasEngine {
   private cssHeight = 0;
   private destroyed = false;
   private readOnly = false;
+  private keyboardEnabled = true;
+  public setKeyboardEnabled(value: boolean) { this.keyboardEnabled = value; }
   private presentationFrameId: string | null = null;
 
   private elements: CanvasElement[] = [];
@@ -1051,13 +1054,14 @@ export class CanvasEngine {
       stroke: color || "#FFFFFF",
       strokeWidth: 1,
       strokeStyle: "solid",
-      fill: isDocCard ? this.currentStyle.fill === "transparent" ? "#18181B" : this.currentStyle.fill : "transparent",
+      fill: isDocCard ? this.currentStyle.fill === "transparent" ? DOCUMENT_CARD_FILL : this.currentStyle.fill : "transparent",
       fillStyle: isDocCard ? this.currentStyle.fillStyle === "none" ? "solid" : this.currentStyle.fillStyle : "none",
       fillOpacity: this.currentStyle.fillOpacity ?? 1,
       roundness: isDocCard ? "rounded" : "sharp",
       opacity: 1,
       zIndex: this.elements.length,
       isDocCard,
+      ...(isDocCard ? {cardFillCustom:this.currentStyle.fill !== "transparent"} : {}),
       title: isDocCard ? "Document Note" : undefined,
     };
   }
@@ -1627,7 +1631,7 @@ export class CanvasEngine {
     }
 
     if (this.tool === "code") {
-      const el = this.remeasureText({ ...this.makeTextElement("", pt.x, pt.y, 14, "mono", "#eeffff", "left", true), isCodeCard: true, codeLanguage: "auto", title: "Code" });
+      const el = this.remeasureText({ ...this.makeTextElement("", pt.x, pt.y, 14, "mono", "#eeffff", "left", true), isCodeCard: true, fill:this.currentStyle.fill === "transparent" ? CODE_CARD_FILL : this.currentStyle.fill, codeLanguage: "auto", title: "Code" });
       this.elements = [...this.elements, el]; this.selectCreatedElement(el.id);
       this.commit(); this.editingId = el.id; this.onEditCode?.(el.id); return;
     }
@@ -2299,6 +2303,7 @@ export class CanvasEngine {
   }
 
   private onKeyDown = (e: KeyboardEvent) => {
+    if (!this.keyboardEnabled) return;
     if (e.isComposing || (e.target instanceof HTMLElement && e.target.getAttribute("role") === "separator") || this.isTypingTarget(e.target) || document.querySelector("dialog[open]")) return;
     this.shiftDown = e.shiftKey;
     this.altDown = !!e.altKey;
