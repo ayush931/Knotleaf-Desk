@@ -1,12 +1,11 @@
 "use client";
-import { FontSelect } from "./FontSelect";
 
 import React, { useLayoutEffect, useRef } from "react";
 import { ColorPalette } from "./ColorPalette";
 import { BackgroundStylePicker, type BackgroundPattern } from "./BackgroundStylePicker";
 import { parseFillColor } from "@/lib/fillColor";
 import { DEFAULT_BACKGROUND } from "@/lib/background.mjs";
-import type { BackgroundSettings, FontFamily } from "@/draw/types";
+import type { BackgroundSettings } from "@/draw/types";
 import { ColorControl } from "./ColorControl";
 import { QUICK_FONTS, fontCssStack } from "@/draw/fonts";
 import {
@@ -312,10 +311,6 @@ export function PropertiesPanel({
               </button>
             ))}
           </div>
-          <label className="block space-y-1 text-[11px] text-neutral-400">
-            More fonts
-            <FontSelect aria-label="More fonts" value={activeFamily} className="block h-9 w-full min-w-0 rounded-lg border border-neutral-700 bg-neutral-900 px-2 text-sm text-neutral-200" onChange={event=>{const fontFamily=event.target.value as FontFamily;onUpdateElement({fontFamily});onUpdateStyle({fontFamily});}} />
-          </label>
           {isTextual && (
             <div className="grid grid-cols-3 gap-1 p-0.5 mt-1 rounded-lg bg-neutral-800 text-[11px]">
               {(["left", "center", "right"] as const).map((al) => (
