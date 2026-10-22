@@ -19,6 +19,7 @@ export const TRANSITIONS = ["slide", "fade", "zoom", "lift", "none"] as const;
 export type Backdrop = (typeof BACKDROPS)[number];
 export interface DeckDesign {
   kind?: "markdown" | "html";
+  slideIds?: string[];
   backdrop?: Backdrop;
   template?: (typeof COMPOSITIONS)[number];
   transition?: (typeof TRANSITIONS)[number];
@@ -96,6 +97,14 @@ export const EXTRA_THEMES = {
 } as const;
 export function normalizeDesign(value: Record<string, unknown>): DeckDesign {
   const next: DeckDesign = {};
+  if (
+    Array.isArray(value.slideIds) &&
+    value.slideIds.every(
+      (id) => typeof id === "string" && /^[\w-]{1,80}$/.test(id),
+    ) &&
+    new Set(value.slideIds).size === value.slideIds.length
+  )
+    next.slideIds = [...value.slideIds];
   if (value.kind === "html" || value.kind === "markdown")
     next.kind = value.kind;
   if (BACKDROPS.includes(value.backdrop as Backdrop))

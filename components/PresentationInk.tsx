@@ -19,7 +19,7 @@ export function PresentationInk({
   fullViewport = false,
 }: {
   documentId: string;
-  slideId: number;
+  slideId: number | string;
   tool: InkTool;
   color: string;
   width: number;

@@ -51,15 +51,25 @@ export function PresentationPresenter({
     [clearVersion, setClear] = useState(0),
     [undoVersion, setUndo] = useState(0),
     [elapsed, setElapsed] = useState(0),
+    [clockRunning, setClockRunning] = useState(true),
+    [timeGoal, setTimeGoal] = useState(0),
     [error, setError] = useState("");
   useEffect(() => {
-    if (open) {
-      dialog.current?.showModal();
-      const timer = setInterval(() => setElapsed((value) => value + 1), 1000);
-      return () => clearInterval(timer);
-    }
-    dialog.current?.close();
+    if (open) dialog.current?.showModal();
+    else dialog.current?.close();
   }, [open]);
+  useEffect(() => {
+    if (!open || !clockRunning) return;
+    const started = performance.now();
+    let counted = 0;
+    const timer = setInterval(() => {
+      const seconds = Math.floor((performance.now() - started) / 1000);
+      const delta = seconds - counted;
+      counted = seconds;
+      if (delta > 0) setElapsed((value) => value + delta);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [open, clockRunning]);
   const jump = (value: number) => {
     setDirection(value < active ? -1 : 1);
     onIndex(Math.max(0, Math.min(value, slides.length - 1)));
@@ -125,7 +135,12 @@ export function PresentationPresenter({
         )
           return;
         const key = event.key.toLowerCase();
-        if (key === "escape") return;
+        if (
+          key === "escape" ||
+          ([" ", "enter"].includes(key) &&
+            (event.target as HTMLElement).closest("button"))
+        )
+          return;
         if (blackout) {
           if (["b", " ", "enter"].includes(key)) {
             event.preventDefault();
@@ -225,13 +240,13 @@ export function PresentationPresenter({
                 animate
                 animationKey={`${documentId}:${active}`}
                 direction={direction}
-                annotationKey={`${documentId}:${active}`}
+                annotationKey={`${documentId}:${deck.slideIds?.[active] || active}`}
               />
             )}
             {!blackout && (
               <PresentationInk
                 documentId={documentId}
-                slideId={active}
+                slideId={deck.slideIds?.[active] || active}
                 fullViewport={deck.kind === "html"}
                 tool={tool}
                 color={color}
@@ -409,9 +424,60 @@ export function PresentationPresenter({
                 </button>
               </>
             )}
-            <span className="text-xs tabular-nums text-neutral-500">
-              {Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, "0")}
-            </span>
+            <div
+              role="group"
+              aria-label="Rehearsal timer"
+              className="flex items-center gap-1 rounded border border-neutral-800 px-2 py-1"
+            >
+              <span
+                aria-label="Elapsed presentation time"
+                className="min-w-10 text-xs tabular-nums text-neutral-300"
+              >
+                {Math.floor(elapsed / 60)}:
+                {String(elapsed % 60).padStart(2, "0")}
+              </span>
+              <button
+                className={button}
+                aria-label={
+                  clockRunning
+                    ? "Pause rehearsal timer"
+                    : "Resume rehearsal timer"
+                }
+                onClick={() => setClockRunning((value) => !value)}
+              >
+                {clockRunning ? "Pause" : "Resume"}
+              </button>
+              <button
+                className={button}
+                aria-label="Reset rehearsal timer"
+                onClick={() => setElapsed(0)}
+              >
+                Reset
+              </button>
+              <select
+                aria-label="Presentation time goal"
+                value={timeGoal}
+                onChange={(event) => setTimeGoal(Number(event.target.value))}
+                className="max-w-24 rounded border border-neutral-700 bg-neutral-900 p-1 text-xs"
+              >
+                <option value={0}>No time goal</option>
+                {[5, 10, 15, 20, 30, 45, 60].map((minutes) => (
+                  <option key={minutes} value={minutes * 60}>
+                    {minutes} min
+                  </option>
+                ))}
+              </select>
+              {timeGoal > 0 && (
+                <span
+                  aria-label="Time remaining"
+                  className={`whitespace-nowrap text-[10px] tabular-nums ${elapsed >= timeGoal ? "text-red-300" : "text-neutral-400"}`}
+                >
+                  {elapsed >= timeGoal ? "Over by " : "Left "}
+                  {Math.floor(Math.abs(timeGoal - elapsed) / 60)}:
+                  {String(Math.abs(timeGoal - elapsed) % 60).padStart(2, "0")}
+                </span>
+              )}
+            </div>
             <button
               className={button}
               disabled={deck.kind === "html"}
