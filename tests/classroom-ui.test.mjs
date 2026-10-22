@@ -8,6 +8,7 @@ import {RefreshWebApp} from '../components/RefreshWebApp.tsx';
 import manifest from '../app/manifest.ts';
 import { RoomChat } from '../components/RoomChat.tsx';
 import { CollaborationPanel } from '../components/CollaborationPanel.tsx';
+import {CallScreenView} from '../components/CallScreenView.tsx';
 import {Classroom} from '../components/Classroom.tsx';
 let browser,root,createRoot;const previous=new Map();
 beforeAll(async()=>{
@@ -20,8 +21,8 @@ beforeEach(()=>{document.body.innerHTML='<header style="backdrop-filter:blur(12p
 afterEach(async()=>{await act(async()=>root.unmount());await browser.happyDOM.abort();});
 afterAll(()=>{browser.close();for(const [key,value]of previous)if(value)Object.defineProperty(globalThis,key,value);else delete globalThis[key];});
 async function render(props={},query=''){await act(async()=>root.render(React.createElement(SearchParamsContext.Provider,{value:new URLSearchParams(query)},React.createElement(Classroom,props))));}
-const trigger=()=>document.querySelector('[aria-label="Open classroom call"]');
-const panel=()=>document.querySelector('[aria-label="Classroom call"]');
+const trigger=()=>document.querySelector('[aria-label="Open live call"]');
+const panel=()=>document.querySelector('[aria-label="Live call"]');
 const button=text=>[...document.querySelectorAll('button')].find(el=>el.textContent.includes(text));
 test('Refresh checks the current room URL, saves latest edits and blocks duplicate clicks',async()=>{
  const originalFetch=globalThis.fetch,originalReload=window.location.reload,originalUrl=window.location.href;
@@ -73,19 +74,19 @@ test('Classroom click opens outside the blurred header and Escape minimizes with
 });
 test('Classroom offers personal-board room creation and keeps failures visible for retry',async()=>{
  let attempts=0;await render({onCreateRoom:async()=>{attempts++;if(attempts===1)throw new Error('Room server unavailable');}});
- await act(async()=>trigger().click());const create=button('Create room & open classroom');expect(create).toBeDefined();
+ await act(async()=>trigger().click());const create=button('Create room & open call');expect(create).toBeDefined();
  await act(async()=>create.click());expect(attempts).toBe(1);expect(document.querySelector('[role="alert"]').textContent).toBe('Room server unavailable');expect(create.disabled).toBe(false);
  await act(async()=>create.click());expect(attempts).toBe(2);expect(document.querySelector('[role="alert"]')).toBe(null);
 });
 test('a newly created classroom room opens the panel and focuses the name field',async()=>{
  await render({roomId:crypto.randomUUID()},'classroom=1');await act(async()=>new Promise(resolve=>requestAnimationFrame(resolve)));
- expect(trigger().getAttribute('aria-expanded')).toBe('true');expect(panel().classList.contains('hidden')).toBe(false);expect(button('Join class')).toBeDefined();expect(document.activeElement).toBe(panel().querySelector('input[maxlength="40"]'));
+ expect(trigger().getAttribute('aria-expanded')).toBe('true');expect(panel().classList.contains('hidden')).toBe(false);expect(button('Join call')).toBeDefined();expect(document.activeElement).toBe(panel().querySelector('input[maxlength="40"]'));
 });
 test('call invite is visible before joining, copyable, and selectable when clipboard fails',async()=>{
  const roomId=crypto.randomUUID(),original=Object.getOwnPropertyDescriptor(navigator,'clipboard');let copied;
  Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async text=>{copied=text;}}});
  try{
-  await render({roomId},'classroom=1');const link=panel().querySelector('[aria-label="Classroom invite link"]');
+  await render({roomId},'classroom=1');const link=panel().querySelector('[aria-label="Call invite link"]');
   expect(link.value).toBe(`https://desk.example/canvas/${roomId}?classroom=1`);
   await act(async()=>button('Copy').click());expect(copied).toBe(link.value);expect(panel().textContent).toContain('Invite link copied');
   navigator.clipboard.writeText=async()=>{throw new Error('Blocked');};await act(async()=>button('Copy').click());expect(document.activeElement).toBe(link);expect(link.selectionEnd).toBe(link.value.length);expect(panel().textContent).toContain('Select and copy');
@@ -99,6 +100,7 @@ test('audio source shows Auto microphone name and refreshes when devices change 
   await act(async()=>root.render(React.createElement(ClassroomAudioSource,props)));
   const select=document.querySelector('select');expect(select.options[0].textContent).toBe('Auto · USB mic');expect(document.querySelector('[role="status"]').textContent).toBe('Using: USB mic');
   await act(async()=>{select.value='usb';select.dispatchEvent(new window.Event('change',{bubbles:true}));});expect(chosen).toBe('usb');
+  devices=[{kind:'audioinput',deviceId:'new',label:'New USB mic'}];await act(async()=>button('Redetect microphones').click());expect(select.options[1].textContent).toBe('New USB mic');
   devices=[];await act(async()=>media.dispatchEvent(new window.Event('devicechange')));expect(select.options).toHaveLength(1);
   await act(async()=>root.render(React.createElement(ClassroomAudioSource,{...props,enabled:false,label:''})));expect(document.querySelector('[role="status"]').textContent).toContain('Microphone off');
  }finally{if(original)Object.defineProperty(navigator,'mediaDevices',original);else delete navigator.mediaDevices;}
@@ -143,10 +145,22 @@ test('collaboration and call chat share one conversation without joining media, 
  await act(async()=>document.querySelector('[aria-label="Close collaboration"]').click());
  await act(async()=>trigger().click());await act(async()=>document.querySelector('[aria-label="Show call chat"]').click());
  input=document.querySelector('[aria-label="Call chat message"]');expect(document.activeElement===input).toBe(true);expect(panel().querySelector('[aria-label="Call chat messages"]').textContent).toContain('Hello room');
- expect(button('Join class')).toBeDefined();
+ expect(button('Join call')).toBeDefined();
  await act(async()=>{inputSetter.call(input,'Reply from call');input.dispatchEvent(new window.Event('input',{bubbles:true}));});
  await act(async()=>input.closest('form').dispatchEvent(new window.Event('submit',{bubbles:true,cancelable:true})));
  expect(sent).toEqual(['Hello room','Reply from call']);expect(document.querySelector('[aria-label="Room chat messages"]').textContent).toContain('Reply from call');
  await act(async()=>{inputSetter.call(input,'Unsent draft');input.dispatchEvent(new window.Event('input',{bubbles:true}));});
  await act(async()=>document.querySelector('[aria-label="Hide call chat"]').click());await act(async()=>document.querySelector('[aria-label="Show call chat"]').click());expect(input.value).toBe('Unsent draft');
+});
+
+test('screen viewing expands with fit/actual size, full screen uses a surface and Escape restores focus',async()=>{
+ const stream=new window.MediaStream();stream.getTracks=()=>[];stream.getVideoTracks=()=>[];
+ await act(async()=>root.render(React.createElement(CallScreenView,{stream,label:'Shared screen',detail:'Alice · screen'})));
+ const enlarge=document.querySelector('[aria-label="Enlarge Shared screen"]');await act(async()=>enlarge.click());
+ const dialog=document.querySelector('dialog');expect(dialog.open).toBe(true);expect(dialog.getAttribute('aria-label')).toBe('Shared screen');
+ const size=document.querySelector('[aria-label="Screen viewing size"]');await act(async()=>{size.value='actual';size.dispatchEvent(new window.Event('change',{bubbles:true}));});expect(dialog.querySelector('video').classList.contains('max-w-none')).toBe(true);
+ const surface=dialog.firstElementChild;let requested=false;surface.requestFullscreen=async()=>{requested=true;};
+ await act(async()=>button('Full screen').click());expect(requested).toBe(true);expect(surface.tagName).toBe('DIV');
+ surface.requestFullscreen=async()=>{throw new Error('Not supported');};await act(async()=>button('Full screen').click());expect(dialog.querySelector('[role="alert"]').textContent).toContain('expanded view');
+ await act(async()=>dialog.dispatchEvent(new window.Event('cancel',{cancelable:true})));await act(async()=>new Promise(resolve=>requestAnimationFrame(resolve)));expect(dialog.open).toBe(false);expect(document.activeElement).toBe(enlarge);
 });

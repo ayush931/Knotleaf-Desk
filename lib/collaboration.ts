@@ -1,4 +1,5 @@
 import { HIGHLIGHTER_LIFETIME, liveHighlights, readHighlights, type HighlightPoint } from "@/draw/highlighter";
+import { elementTextKey, readElementText } from "./sharedElementText.mjs";
 import { sharedElements } from "./localAssets.mjs";
 import { CHAT_LIMIT, CHAT_TEXT_LIMIT, isRoomMessage, type RoomMessage } from "./roomChat";
 import { normalizeBackground } from "./background.mjs";
@@ -64,7 +65,7 @@ export class RoomSession {
   onExpired?: () => void;
   constructor(url: string, roomId: string, seed?: Board) {
     this.queued = seed ? { ...seed, elements: sharedElements(seed.elements) } : undefined;
-    this.provider = new WebsocketProvider(url, roomId, this.doc, { connect: false });
+    this.provider = new WebsocketProvider(url, roomId, this.doc, { connect: false, resyncInterval: 30000 });
     const colors = ["#60a5fa", "#f472b6", "#34d399", "#fbbf24", "#c084fc"];
     this.provider.awareness.setLocalStateField("user", { name: `Guest ${String(this.doc.clientID).slice(-4)}`, color: colors[this.doc.clientID % colors.length] });
     this.provider.on("status", ({ status }: { status: string }) => this.onStatus?.(status));
@@ -85,7 +86,7 @@ export class RoomSession {
           this.meta.set("title", initial?.title || "Shared whiteboard");
           this.meta.set("background", JSON.stringify(normalizeBackground(initial?.background)));
           sharedElements(initial?.elements || []).forEach(el => {
-            if (el.type === "text" && el.isCodeCard) { const code = this.doc.getText(`code:${el.id}`); code.insert(0, el.text); this.undo.addToScope(code); this.elements.set(el.id, { ...structuredClone(el), text: "" }); }
+            if (elementTextKey(el)) { const code = this.doc.getText(elementTextKey(el)!); code.insert(0, "text" in el ? el.text : ""); this.undo.addToScope(code); this.elements.set(el.id, { ...structuredClone(el), text: "" }); }
             else this.elements.set(el.id, structuredClone(el));
           });
           if (initial?.markdownNotes) this.notes.insert(0, initial.markdownNotes);
@@ -118,6 +119,15 @@ export class RoomSession {
     });
   }
   connect() { this.provider.connect(); }
+  /** Resume after a hidden/suspended view without replacing the live CRDT or undo history. */
+  resume() {
+    if (this.destroyed || this.expired || !this.provider.shouldConnect) return;
+    const socket = this.provider.ws;
+    if (socket?.readyState === 1 && Date.now() - this.provider.wsLastMessageReceived < 30000) return;
+    if (this.provider.wsconnecting) return;
+    this.provider.disconnect();
+    this.provider.connect();
+  }
   private expire() {
     if (this.expired || this.destroyed) return;
     this.expired = true; this.synced = false; clearTimeout(this.expiryTimer);
@@ -139,9 +149,10 @@ export class RoomSession {
         const previous = this.lastScene.get(el.id);
         if (JSON.stringify(previous) === JSON.stringify(el)) continue;
         if ((previous || this.knownElementIds.has(el.id)) && !this.elements.has(el.id)) continue; // Remote deletion wins over a stale edit.
-        if (el.type === "text" && el.isCodeCard) {
-          const code = this.doc.getText(`code:${el.id}`); this.undo.addToScope(code);
-          updateSharedText(code, el.text);
+        if (elementTextKey(el)) {
+          const key=elementTextKey(el)!;
+          const code = this.doc.getText(key); this.undo.addToScope(code);
+          updateSharedText(code, "text" in el ? el.text : "");
           const metadata = { ...structuredClone(el), text: "" };
           if (JSON.stringify(this.elements.get(el.id)) !== JSON.stringify(metadata)) this.elements.set(el.id, metadata);
         } else this.elements.set(el.id, structuredClone(el));
@@ -155,9 +166,9 @@ export class RoomSession {
   }
   private emitRemote() {
     const elements = [...this.elements.values()].filter(isValidElement).map(el => {
-      if (el.type !== "text" || !el.isCodeCard) return el;
-      const code = this.doc.getText(`code:${el.id}`); this.undo.addToScope(code);
-      return { ...el, text: code.toString() || el.text };
+      const key=elementTextKey(el);
+      if (key && this.doc.share.has(key)) this.undo.addToScope(this.doc.getText(key));
+      return readElementText(this.doc,el) as CanvasElement;
     }).sort((a, b) => a.zIndex - b.zIndex || a.id.localeCompare(b.id));
     for (const el of elements) this.knownElementIds.add(el.id);
     this.lastScene = new Map(elements.map(el => [el.id, structuredClone(el)]));

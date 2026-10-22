@@ -40,3 +40,28 @@ test('notes highlight code while typing, including unfinished fences, without ch
   expect(plain).toBe(source);
   expect(highlightNotesSource('```python\ndef hello():\n')).toContain('hljs-keyword');
 });
+
+test('simultaneous canvas text and sticky edits merge characters and retain local-only undo',()=>{
+ for(const type of ['text','sticky']){
+  const element={stroke:'#fff',strokeWidth:1,strokeStyle:'solid',fill:'transparent',fillStyle:'none',roundness:'rounded',opacity:1,id:'live-text',type,text:'Hello',x:0,y:0,width:300,height:100,fontSize:20,fontFamily:'sans',zIndex:0};
+  const a=new RoomSession('ws://localhost:1',crypto.randomUUID()),b=new RoomSession('ws://localhost:1',crypto.randomUUID());let first,second;
+  const base={title:'Live text',markdownNotes:'',elements:[element]};a.onRemote=elements=>first={...base,elements};b.onRemote=elements=>second={...base,elements};
+  try{
+   a.synced=true;b.synced=true;a.update(base);Y.applyUpdate(b.doc,Y.encodeStateAsUpdate(a.doc));b.undo.clear();a.undo.clear();
+   a.update({...first,elements:[{...first.elements[0],text:'Hello world'}]});b.update({...second,elements:[{...second.elements[0],text:'Say Hello'}]});
+   Y.applyUpdate(a.doc,Y.encodeStateAsUpdate(b.doc));Y.applyUpdate(b.doc,Y.encodeStateAsUpdate(a.doc));
+   expect(first.elements[0].text).toBe('Say Hello world');expect(second.elements[0].text).toBe('Say Hello world');
+   a.undo.undo();Y.applyUpdate(b.doc,Y.encodeStateAsUpdate(a.doc));expect(second.elements[0].text).toBe('Say Hello');
+   a.update({...first,elements:[{...first.elements[0],text:''}]});Y.applyUpdate(b.doc,Y.encodeStateAsUpdate(a.doc));expect(second.elements[0].text).toBe('');
+  }finally{a.destroy();b.destroy();}
+ }
+});
+
+test('server migrates legacy canvas text once and keeps intentionally empty shared content empty',async()=>{
+ const {migrateElementText,readElementText}=await import('../lib/sharedElementText.mjs');const doc=new Y.Doc();
+ try{
+  const element={id:'old',type:'text',text:'Existing writing'};doc.getMap('elements').set(element.id,element);
+  migrateElementText(doc);migrateElementText(doc);expect(doc.getText('text:old').toString()).toBe('Existing writing');expect(doc.getMap('elements').get('old').text).toBe('');
+  doc.getText('text:old').delete(0,'Existing writing'.length);expect(readElementText(doc,element).text).toBe('');
+ }finally{doc.destroy();}
+});

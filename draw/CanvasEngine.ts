@@ -951,7 +951,7 @@ export class CanvasEngine {
 
   // --- Inline text --------------------------------------------------------------
 
-  public commitInlineText(info: InlineTextState) {
+  public commitInlineText(info: InlineTextState, preview = false) {
     const text = info.text;
     const trimmed = text.trim();
     this.editingId = null;
@@ -973,7 +973,7 @@ export class CanvasEngine {
           continue;
         }
         if (info.kind === "text" && el.type === "text") {
-          if (!trimmed && !el.isDocCard) continue;
+          if (!trimmed && !el.isDocCard && !preview) continue;
           next.push(
             this.remeasureText({
               ...el,
@@ -1000,6 +1000,15 @@ export class CanvasEngine {
       if (this.elements.some(el => el.id === id)) this.selectedIds.add(id);
     }
     this.commit();
+  }
+
+  /** Publish room text while retaining the inline editor and its active tool. */
+  public previewInlineText(info: InlineTextState): InlineTextState {
+    if (!info.text.trim() && info.kind === "new-text") return info;
+    this.commitInlineText(info,true);
+    const id=info.kind === "new-text" ? [...this.selectedIds][0] : info.elementId;
+    this.editingId=id||null;
+    return id && info.kind === "new-text" ? {...info,kind:"text",elementId:id} : info;
   }
 
   public cancelInlineText() {

@@ -156,8 +156,13 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
   const [inlineText, renderInlineText] = useState<InlineTextState | null>(null);
   const inlineTextStateRef = useRef<InlineTextState | null>(null);
   const setInlineText = useCallback((update: React.SetStateAction<InlineTextState | null>) => {
-    const next = typeof update === "function" ? update(inlineTextStateRef.current) : update;
+    const previous=inlineTextStateRef.current;
+    let next = typeof update === "function" ? update(previous) : update;
     inlineTextStateRef.current = next;
+    if (next && previous && next.text !== previous.text && sessionRef.current?.synced && engineRef.current) {
+      next=engineRef.current.previewInlineText(next);
+      inlineTextStateRef.current=next;
+    }
     renderInlineText(next);
   }, []);
   const [currentStyle, setCurrentStyle] = useState<ElementStyleProps>(() => ({ ...preferences.style }));
@@ -185,7 +190,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
     const onStorage = (e: StorageEvent) => {
       if (e.key && e.key.startsWith("excali_eraser_board_")) {
         const current = getBoard(boardRef.current.id);
-        if (current && e.key === `excali_eraser_board_${current.id}`) {
+        if (!initialRoomId && current && e.key === `excali_eraser_board_${current.id}`) {
           boardRef.current = current;
           setBoard(current);
           engineRef.current?.setElements(current.elements, false);
@@ -196,7 +201,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
     };
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
-  }, [refreshBoardsList]);
+  }, [refreshBoardsList, initialRoomId]);
 
   // Dark mode: toggle the `dark` class on <html> so Tailwind's dark: variant follows the app toggle.
   useEffect(() => {
@@ -222,7 +227,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
     const engine = new CanvasEngine(canvasRef.current, boardRef.current.elements, boardRef.current.theme, boardRef.current.gridType);
     engine.resize(container.clientWidth, container.clientHeight);
     engineRef.current = engine;
-    const observer = new ResizeObserver(() => engine.resize(container.clientWidth, container.clientHeight));
+    const observer = new ResizeObserver(() => { if (container.clientWidth && container.clientHeight) engine.resize(container.clientWidth, container.clientHeight); });
     observer.observe(container);
 
     engine.onChange = (elements) => {
@@ -279,7 +284,21 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
         elements = [...elements, ...boardRef.current.elements.filter(isLocalAsset)].sort((a,b)=>a.zIndex-b.zIndex||a.id.localeCompare(b.id));
         const next = { ...boardRef.current, elements, markdownNotes, title, background, roomExpiresAt: session?.expiresAt };
         boardRef.current = next; setBoard(next); setSaveError(!saveBoard(next));
-        engine?.applyRemoteElements(elements); setRoomReady(true); refreshBoardsList();
+        engine?.applyRemoteElements(elements);
+        const editing=inlineTextStateRef.current;
+        if (editing?.elementId && (editing.kind === "text" || editing.kind === "sticky")) {
+          const element=elements.find(el=>el.id===editing.elementId);
+          if (!element) { inlineTextStateRef.current=null; renderInlineText(null); }
+          else if ("text" in element && element.text !== editing.text) {
+            const textarea=inlineTextareaRef.current,start=textarea?.selectionStart||0,end=textarea?.selectionEnd||0;
+            let prefix=0;while(prefix<editing.text.length&&prefix<element.text.length&&editing.text[prefix]===element.text[prefix])prefix++;
+            let suffix=0;while(suffix<editing.text.length-prefix&&suffix<element.text.length-prefix&&editing.text[editing.text.length-1-suffix]===element.text[element.text.length-1-suffix])suffix++;
+            const offset=(position:number)=>position<=prefix?position:position>=editing.text.length-suffix?position+element.text.length-editing.text.length:prefix+element.text.length-prefix-suffix;
+            const next={...editing,text:element.text};inlineTextStateRef.current=next;renderInlineText(next);
+            requestAnimationFrame(()=>{if(inlineTextareaRef.current===textarea&&inlineTextStateRef.current===next)textarea?.setSelectionRange(offset(start),offset(end));});
+          }
+        }
+        setRoomReady(true); refreshBoardsList();
       };
       session.onHighlight = (id, points) => engine?.setHighlights(id, points);
       session.onPresence = people => { setPeople(people); engine?.setCollaborators(people); };
@@ -307,6 +326,29 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
       if (engine) { engine.collaborativeLocalHistory=undefined; engine.collaborativeUndo = undefined; engine.collaborativeRedo = undefined; engine.onCursorChange = undefined; engine.onHighlightChange = undefined; }
     };
   }, [initialRoomId, refreshBoardsList, roomAttempt]);
+
+  // Section changes keep the same room/session. Resume suspended sockets and
+  // paint the current engine scene after the canvas regains its layout box.
+  useEffect(() => {
+    const resume = () => {
+      if (document.visibilityState === "hidden") return;
+      sessionRef.current?.resume();
+      const container = containerRef.current;
+      if (container && container.clientWidth && container.clientHeight) engineRef.current?.resize(container.clientWidth, container.clientHeight);
+    };
+    const frame = requestAnimationFrame(resume);
+    window.addEventListener("online", resume);
+    window.addEventListener("pageshow", resume);
+    window.addEventListener("focus", resume);
+    document.addEventListener("visibilitychange", resume);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener("online", resume);
+      window.removeEventListener("pageshow", resume);
+      window.removeEventListener("focus", resume);
+      document.removeEventListener("visibilitychange", resume);
+    };
+  }, [viewMode]);
 
   useEffect(() => {
     if (engineRef.current) {
@@ -574,7 +616,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
     // moving focus from the canvas/toolbar to the newly mounted textarea.
     const frame = requestAnimationFrame(() => {
       const editor = inlineTextareaRef.current;
-      if (!editor) return;
+      if (!editor || document.activeElement === editor) return;
       editor.focus({ preventScroll: true });
       if (inlineText.caret !== undefined) editor.setSelectionRange(inlineText.caret, inlineText.caret);
       else if (inlineText.text) editor.select();
@@ -679,7 +721,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
           saveError={saveError}
           onRetrySave={() => persist(boardRef.current)}
           viewMode={viewMode}
-          onChangeViewMode={(mode: ViewMode) => persist({ ...boardRef.current, viewMode: mode })}
+          onChangeViewMode={(mode: ViewMode) => { commitInline(); engineRef.current?.finishCode(); setCodeId(null); persist({ ...boardRef.current, viewMode: mode }); }}
           onRenameTitle={handleRenameTitle}
           onToggleSidebar={() => setIsSidebarOpen(true)}
           onOpenTemplates={() => setIsTemplatesOpen(true)}

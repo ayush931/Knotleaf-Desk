@@ -112,9 +112,9 @@ bun run start:local
 
 Runtime room configuration makes this work even when the build used hosted URLs. Local mode ignores hosted database/URL settings in memory without modifying `.env`. For testing the integrated Node hub against the configured database, use `bun run dev:hosted`; `bun start` also preserves configured production storage. Browser data and server room files are separate; clearing browser data does not delete rooms persisted on the local server.
 
-## 7. Classroom and recording verification
+## 7. Live call and recording verification
 
-Create/open a shared room → Classroom → name → Join class. Mic/camera start off. Screen sharing has its own track, so it can coexist with the camera. Minimize to keep drawing and editing; Leave call releases devices without leaving the board. Disconnection exposes Rejoin. Chat is temporary. Invite links grant editing and call access to anyone possessing the link; display names are not authenticated teacher/student accounts.
+Create/open a shared room → Live call → name → Join call. Mic/camera start off. Screen sharing has its own track, so it can coexist with the camera. Minimize to keep drawing and editing; Leave call releases devices without leaving the board. Disconnection exposes Rejoin. Chat is temporary. Invite links grant editing and call access to anyone possessing the link; display names are not authenticated teacher/student accounts.
 
 For local recording, select this app's tab, enable tab audio to capture remote voices, and optionally include your microphone. Stop & save downloads WebM (or MP4 if supported). Nothing uploads to the database. Recordings are held in memory and stop/save at 512 MB; split long lessons and save before closing the page. Screen/audio support varies by browser/OS; tell students before recording.
 

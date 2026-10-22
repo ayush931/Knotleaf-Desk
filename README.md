@@ -21,7 +21,7 @@ An open-source, local-first whiteboard and visual notebook. Draw diagrams, conne
 - **Presentations:** frame-by-frame slides with arrow keys, Page Up/Down, Home/End and a frame picker. Presentation is read-only and restores your previous viewport on exit. With no frames it presents the full canvas.
 - **Exports without watermarks:** PNG at 1x/2x/3x, SVG vectors, editable draw.io diagrams, portable .knotleaf projects, canvas/notes/combined PDFs, legacy JSON and Markdown. Export the whole board or just the selected elements; PNG/SVG support transparent backgrounds.
 - **Code on the canvas:** C creates an inline editable code card. Language detection updates as you type, with subtle highlighting, Tab indentation and a language override. Fenced code in notes highlights live as you type, including unfinished code blocks; Markdown preview uses the same restrained colours. No popup editor or code execution service. Shared code uses character-level CRDT merging.
-- **Teaching classroom:** native WebRTC video/audio, screen sharing and chat for small groups, with your own signaling server; local screen recordings download to your computer. No video-service subscription. Optional self-hosted coturn handles restrictive networks; see [DEPLOYMENT.md](DEPLOYMENT.md).
+- **Live calls:** native WebRTC video/audio, screen sharing and chat for small groups, with your own signaling server; local screen recordings download to your computer. No video-service subscription. Optional self-hosted coturn handles restrictive networks; see [DEPLOYMENT.md](DEPLOYMENT.md).
 - **Collaboration rooms:** share an invite link, edit shapes and Markdown together, see presence and canvas cursors, and reconnect with CRDT updates. The included WebSocket service persists room documents to standard PostgreSQL when configured, or local files. Rooms expire and are deleted 24 hours after creation; editing does not extend their lifetime.
 
 ## Run locally
@@ -172,13 +172,13 @@ Board tools is available from the search button in the header or Ctrl/Cmd+F. His
 Save a complete board or selected elements as a named custom template. Attached text is included in selected templates. Applying a template creates a new board; downloading a template makes it portable. The library is limited by browser storage, with explicit error feedback when saving fails. Templates do not synchronize between room participants or devices automatically.
 
 
-For the hosted classroom, see [DEPLOYMENT.md](DEPLOYMENT.md). Calls use a small-group mesh (8 participants by default); larger classrooms need an SFU. Run `bun run db:migrate` and `bun run db:check` to initialize and verify the database in your ignored `.env`. No hosted video SDK is installed.
+For the hosted call, see [DEPLOYMENT.md](DEPLOYMENT.md). Calls use a small-group mesh (8 participants by default); larger classrooms need an SFU. Run `bun run db:migrate` and `bun run db:check` to initialize and verify the database in your ignored `.env`. No hosted video SDK is installed.
 
 ### Install the web app
 
 Use **Install web app** in the top bar. Chrome/Edge offer the browser install prompt when available; otherwise the button shows browser instructions. On iOS use Safari → Share → Add to Home Screen, and on macOS Safari use File → Add to Dock. This installs the website, with no desktop binaries or release pipeline. Deploy over HTTPS. Use **Refresh** in the app header to load the latest update without closing the installed window. It saves current edits and reloads the same board/room URL; it stays open on a connection or saving failure. Refresh ends active calls, and is disabled while recording starts or runs. Updates never force a background reload. An internet connection is needed to load the app and use shared rooms/calls; offline startup is not provided.
 
-The Classroom panel displays a copyable invite link that opens the same board and call panel. Anyone with it can edit and join. Audio source defaults to Auto and shows the captured microphone name after permission; select a different microphone without leaving the call. Device names remain on your device. Screen tiles also indicate whether screen/tab audio is being shared.
+The Live call panel displays a copyable invite link that opens the same board and call panel. Anyone with it can edit and join. Audio source defaults to Auto and shows the captured microphone name after permission; select a different microphone without leaving the call. Device names remain on your device. Screen tiles also indicate whether screen/tab audio is being shared.
 
 Room links stop working 24 hours after creation, including during an active drawing or classroom session. Expired records and recovery files are removed on server startup and by a one-minute cleanup loop. Production also has a scheduled cleanup every 15 minutes to wake a sleeping host; scheduler delays can postpone physical deletion, while access still expires at 24 hours. Browser room backups/history are removed when an active session expires or the app next reads storage. Personal boards and downloaded exports are independent of room retention.
 
@@ -202,3 +202,8 @@ Image export supports PNG, JPG and WebP, with selection-only and 1x/2x/3x resolu
 Opaque downloads include the canvas background and selected dot/grid style. PNG is lossless; canvas PDF pages keep the artwork aspect ratio without white borders or extra labels. Transparency is opt-in. Image encoding uses one browser worker with a bounded queue and automatic idle cleanup; large exports yield to keep controls responsive. Browser compatibility falls back to the asynchronous native encoder.
 
 Drawing defaults, eraser options, notes split dimensions and export preferences are saved in browser local storage, including on localhost. Preferences belong to the current site/port and browser profile; panels stay closed on a fresh visit.
+
+
+Live call screen tiles have **Enlarge**, **Fit to window**, **Actual size** and **Full screen** controls. **Change screen source** opens the browser’s picker without ending the call; cancelling retains the current share. **Redetect microphones** refreshes plugged-in inputs without enabling a muted microphone.
+
+Shared canvas text and sticky notes now synchronize while typing, including when a participant is viewing Notes. Character-level Yjs merging preserves concurrent edits and local undo. Section changes retain the same room and call; stale browser connections resume on return. The room hub coalesces slow persistence writes into one current and one latest queued snapshot. Production still uses one hub replica; PostgreSQL is persistence, not a live cross-replica event bus.
