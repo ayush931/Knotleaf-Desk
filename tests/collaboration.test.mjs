@@ -218,3 +218,17 @@ test('teaching highlights reach peers through presence, expire and never enter s
     expect(restored.getMap('elements').size).toBe(0); expect(JSON.stringify(restored.toJSON())).not.toContain('highlight'); restored.destroy();
   } finally { a.destroy(); b.destroy(); await service.close(); await rm(directory,{recursive:true,force:true}); }
 },10000);
+
+test('resuming a stale room socket keeps the document and undo history and catches up peer edits', async()=>{
+ const {RoomSession}=await import('../lib/collaboration.ts');
+ const directory=await mkdtemp(path.join(os.tmpdir(),'knotleaf-resume-')),service=createCollaborationServer({port:0,directory,roomStore:null});const address=await service.listen();
+ const room=crypto.randomUUID(),url=`ws://127.0.0.1:${address.port}`,a=new RoomSession(url,room),b=new RoomSession(url,room);let latest='';b.onRemote=(_elements,notes)=>latest=notes;
+ try{
+  a.connect();b.connect();await until(()=>a.synced&&b.synced);
+  const doc=b.doc,undo=b.undo,healthy=b.provider.ws;b.resume();expect(b.provider.ws).toBe(healthy);
+  b.provider.wsLastMessageReceived=Date.now()-60000;b.resume();await until(()=>b.provider.synced&&b.provider.ws!==healthy);
+  expect(b.doc).toBe(doc);expect(b.undo).toBe(undo);
+  a.update({title:'Shared whiteboard',elements:[],markdownNotes:'Written while another section was open'});await until(()=>latest.includes('another section'));
+  b.provider.disconnect();const socket=b.provider.ws;b.resume();expect(b.provider.ws).toBe(socket);expect(b.provider.shouldConnect).toBe(false);
+ }finally{a.destroy();b.destroy();b.resume();await service.close();await rm(directory,{recursive:true,force:true});}
+});

@@ -1198,3 +1198,12 @@ test('Text sizing supports reverse dragging, Shift squares, and cancellation wit
  engine.setTool('text');editor=undefined;listeners.pointerdown(point(0,0));listeners.pointermove(point(100,100));listeners.pointercancel(point(100,100));
  expect(editor).toBeUndefined();expect(engine.getElements()).toHaveLength(0);engine.destroy();
 });
+
+test('live room text publishes before finishing, retains its editor, and empty edits remain editable until commit',()=>{
+ const {engine}=setup([]);let published=[];engine.onChange=elements=>published=elements;
+ const first={kind:'new-text',text:'H',fontSize:24,fontFamily:'sans',color:'#fff',align:'left',canvasX:50,canvasY:50,screenX:50,screenY:50,screenWidth:100};
+ const editing=engine.previewInlineText(first);expect(editing.kind).toBe('text');expect(editing.elementId).toBe(published[0].id);expect(published[0].text).toBe('H');
+ const next=engine.previewInlineText({...editing,text:'Hello'});expect(published).toHaveLength(1);expect(published[0].text).toBe('Hello');expect(next.elementId).toBe(editing.elementId);
+ engine.previewInlineText({...next,text:''});expect(engine.getElements()).toHaveLength(1);engine.previewInlineText({...next,text:'Again'});expect(published[0].text).toBe('Again');
+ engine.commitInlineText({...next,text:''});expect(engine.getElements()).toHaveLength(0);engine.destroy();
+});

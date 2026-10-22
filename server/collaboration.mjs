@@ -1,3 +1,5 @@
+import { migrateElementText, readElementText } from '../lib/sharedElementText.mjs';
+import { enqueueLatest } from './latest-write-queue.mjs';
 import { normalizeBackground } from '../lib/background.mjs';
 import http from 'node:http';
 import fs from 'node:fs';
@@ -18,17 +20,17 @@ export function createCollaborationServer({ host = '127.0.0.1', port = 3002, dir
   if (roomStore === undefined) roomStore = createRoomStore(process.env.DATABASE_URL, directory);
   const loaded = new Map();
   const loading = new Map();
-  const writes = new Map();
+  const writes = new Map(), waitingWrites = new Map();
   const ownedRooms = new Set();
   let closed = false;
   const expired = new Set(), expiryTimers = new Map(), deadlines = new Map();
-  const snapshotOf = doc => ({ background: normalizeBackground(doc.getMap("meta").get("background")), title: doc.getMap("meta").get("title") || "Shared whiteboard", elements: [...doc.getMap("elements").values()].map(el => el.type === "text" && el.isCodeCard ? { ...el, text: doc.getText(`code:${el.id}`).toString() } : el), markdownNotes: doc.getText("notes").toString() });
+  const snapshotOf = doc => ({ background: normalizeBackground(doc.getMap("meta").get("background")), title: doc.getMap("meta").get("title") || "Shared whiteboard", elements: [...doc.getMap("elements").values()].map(el => readElementText(doc,el)), markdownNotes: doc.getText("notes").toString() });
   const persist = async (name, doc) => {
     if (closed || !ownedRooms.has(name) || expired.has(name)) return;
     const state = Buffer.from(Y.encodeStateAsUpdate(doc)).toString('base64');
     const snapshot = snapshotOf(doc);
-    // Serialize writes so a slower old snapshot cannot overwrite a newer one.
-    const pending = (writes.get(name) || Promise.resolve()).catch(() => {}).then(async () => {
+    // Coalesce slow-storage backlogs: persist the latest full CRDT state next.
+    return enqueueLatest(writes,waitingWrites,name,{state,snapshot},async({state,snapshot})=>{
       if (closed || expired.has(name)) return;
       if (roomStore) {
         if (!await roomStore.load(name)) { expireRoom(name); return; }
@@ -36,12 +38,9 @@ export function createCollaborationServer({ host = '127.0.0.1', port = 3002, dir
       }
       if (expired.has(name)) return;
       const destination = path.join(directory, `${name}.bin`);
-      fs.writeFileSync(destination + '.tmp', Buffer.from(state, 'base64'));
-      fs.renameSync(destination + '.tmp', destination);
+      await fs.promises.writeFile(destination + '.tmp', Buffer.from(state, 'base64'));
+      await fs.promises.rename(destination + '.tmp', destination);
     });
-    writes.set(name, pending);
-    pending.finally(() => { if (writes.get(name) === pending) writes.delete(name); }).catch(() => {});
-    return pending;
   };
   const timers = new Map();
   setPersistence({
@@ -54,6 +53,7 @@ export function createCollaborationServer({ host = '127.0.0.1', port = 3002, dir
       }
       // Merge a local recovery copy too; CRDT tombstones prevent stale files from resurrecting deleted work.
       if (fs.existsSync(filename)) Y.applyUpdate(doc, new Uint8Array(fs.readFileSync(filename)));
+      migrateElementText(doc);
       if (deadlines.has(name)) doc.getMap('meta').set('expiresAt', new Date(deadlines.get(name)).toISOString());
       doc.on('update', () => {
         if (closed || expired.has(name)) return;
