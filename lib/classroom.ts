@@ -118,12 +118,7 @@ export class ClassroomSession {
         this.onError?.("You were removed from this call by a host or co-host.");
       if (event.code === 4001)
         this.onError?.("This room expired after 24 hours.");
-      if (!this.closed) {
-        this.stopMedia();
-        this.dropPeers();
-        this.state.status = "disconnected";
-        this.emit();
-      }
+      if (!this.closed) this.disconnectCall();
     };
   }
   private emit() {
@@ -192,8 +187,12 @@ export class ClassroomSession {
     } else if (message.type === "moderation") {
       if (message.action === "mute")
         void this.muteFromHost(String(message.by || "Host"));
-      else if (message.action === "remove")
+      else if (message.action === "remove") {
         this.onError?.("You were removed from this call by a host or co-host.");
+        // Reverse proxies may delay the socket's closing handshake. Release devices now.
+        this.disconnectCall();
+        this.socket.close(1000, "Removed from call");
+      }
     } else if (message.type === "signal") {
       const peer = this.peers.get(message.from as string);
       if (!peer) return;
@@ -678,6 +677,13 @@ export class ClassroomSession {
     this.state.microphone = null;
     this.state.audioProcessing = {};
     this.state.media = { mic: false, camera: false, screen: false };
+  }
+  private disconnectCall() {
+    ++this.micGeneration;
+    this.stopMedia();
+    this.dropPeers();
+    this.state.status = "disconnected";
+    this.emit();
   }
   private dropPeers() {
     for (const peer of this.peers.values()) peer.pc.close();
