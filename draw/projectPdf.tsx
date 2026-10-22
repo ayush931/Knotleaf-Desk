@@ -56,7 +56,6 @@ async function captureNotes(board: Board): Promise<Uint8Array[]> {
   if (!board.markdownNotes.trim()) return [];
   const [{ default: html2canvas },{notesToSafeHtml}] = await Promise.all([import('html2canvas'),import('@/lib/richNotes')]);
   const appearance=loadPreferences().noteAppearance;
-  await loadCanvasFonts();
   const background = normalizeBackground(board.background), light = isLightBackground(background);
   const ink = light ? '#17202b' : '#e5e5e5';
   const host = document.createElement('section');
@@ -87,6 +86,8 @@ async function captureNotes(board: Board): Promise<Uint8Array[]> {
   host.append(content.content);
   document.body.appendChild(host);
   try {
+    const families=[appearance.font,...Array.from(host.querySelectorAll('[data-note-font]')).map(node=>node.getAttribute('data-note-font') as typeof appearance.font)];
+    await loadCanvasFonts(["sans", ...families]);
     await document.fonts?.ready;
     const origin = host.getBoundingClientRect().top;
     const lines: { top: number; bottom: number }[] = [];

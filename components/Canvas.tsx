@@ -1,4 +1,5 @@
 "use client";
+import { sceneFontFamilies } from "@/draw/fonts";
 
 import { Heading1, List, CheckSquare, Quote, Check, PanelsTopLeft, Bug, Download, X } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -513,7 +514,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
   };
 
   const handleSelectTemplate = async (template: TemplateDefinition, replace: boolean) => {
-    await loadCanvasFonts().catch(() => undefined);
+    await loadCanvasFonts(sceneFontFamilies(template.elements)).catch(() => undefined);
     const engine = engineRef.current;
     if (!engine) throw new Error("The canvas is not ready. Please try again.");
     commitInline(); engine.finishCode(); setCodeId(null);

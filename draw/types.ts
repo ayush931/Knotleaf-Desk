@@ -30,7 +30,8 @@ export type BulletVariant =
 export type StrokeStyle = "solid" | "dashed" | "dotted" | "rough";
 export type FillStyle = "solid" | "semi" | "none" | "hachure" | "crosshatch" | "dots";
 export type Roundness = "sharp" | "rounded";
-export type FontFamily = "hand" | "sans" | "mono" | "serif" | "rounded" | "condensed" | "print";
+import type { FontFamily } from "./fonts";
+export type { FontFamily } from "./fonts";
 export type TextAlign = "left" | "center" | "right";
 export type ViewMode = "canvas" | "split" | "notes";
 export type GridType = "dot" | "grid" | "none";

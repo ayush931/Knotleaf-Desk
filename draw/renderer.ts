@@ -60,26 +60,25 @@ export function fontStack(family: FontFamily): string {
   return resolvedFonts[family] || resolvedFonts.sans;
 }
 
-const fontLoads = new WeakMap<FontFaceSet, Promise<void>>();
-export async function loadCanvasFonts(): Promise<void> {
+const fontLoads = new WeakMap<FontFaceSet, Map<FontFamily, Promise<void>>>();
+export async function loadCanvasFonts(families: readonly FontFamily[] = FONT_OPTIONS.map(font=>font.id)): Promise<void> {
   if (typeof document === "undefined" || !document.fonts) return;
   const fonts = document.fonts;
-  let loading = fontLoads.get(fonts);
-  if (!loading) {
-    // Await bundled faces only; unavailable platform-local fallback fonts must
-    // not block export. Concurrent requests share this one readiness promise.
-    loading = Promise.all(FONT_OPTIONS.flatMap(font => {
-      const primary = fontStack(font.id).split(",")[0].trim();
-      return ["400", "700", "italic 400", "italic 700"].map(style =>
-        fonts.load(`${style} 16px ${primary}`).catch(() => {
-          throw new Error(`Could not load the ${font.label} font. Check your connection and retry the export.`);
-        })
-      );
-    })).then(() => { textBoundsContexts.get(document)?.cache.clear(); })
-      .catch(error => { fontLoads.delete(fonts); throw error; });
-    fontLoads.set(fonts, loading);
-  }
-  await loading;
+  let cached = fontLoads.get(fonts);
+  if (!cached) { cached = new Map(); fontLoads.set(fonts, cached); }
+  await Promise.all([...new Set(families)].map(id=> {
+    const font=FONT_OPTIONS.find(font=>font.id===id);
+    if (!font) return;
+    let loading=cached.get(id);
+    if (!loading) {
+      const primary=fontStack(id).split(",")[0].trim();
+      loading=Promise.all(["400", "700", "italic 400", "italic 700"].map(style=>fonts.load(`${style} 16px ${primary}`)))
+        .then(()=>{textBoundsContexts.get(document)?.cache.clear();})
+        .catch(()=>{cached.delete(id);throw new Error(`Could not load the ${font.label} font. Check your connection and retry the export.`);});
+      cached.set(id,loading);
+    }
+    return loading;
+  }));
 }
 
 export function setFont(

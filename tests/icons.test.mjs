@@ -161,3 +161,12 @@ test('icon ink bounds remove transparent SVG margins and preserve painted pixels
  const pixels=new Uint8ClampedArray(10*10*4);for(let y=2;y<6;y++)for(let x=3;x<7;x++)pixels[(y*10+x)*4+3]=255;
  expect(iconAlphaBounds(pixels,10,10)).toEqual({minX:.3,minY:.2,maxX:.7,maxY:.6});expect(iconAlphaBounds(new Uint8ClampedArray(400),10,10)).toBeNull();
 });
+
+test('font readiness loads only used families, shares pending work and retries a failed family',async()=>{
+ const previous=document.fonts,requested=[];let rejectMarker=true;
+ document.fonts={load:query=>{requested.push(query);return query.includes('Permanent Marker')&&rejectMarker?Promise.reject(Error('Offline')):Promise.resolve([]);}};
+ try{
+  const {loadCanvasFonts}=await import('../draw/renderer.ts');await Promise.all([loadCanvasFonts(['fredoka']),loadCanvasFonts(['fredoka'])]);expect(requested).toHaveLength(4);expect(requested.every(q=>q.includes('Fredoka'))).toBe(true);
+  await expect(loadCanvasFonts(['marker'])).rejects.toThrow('Permanent Marker');rejectMarker=false;await loadCanvasFonts(['marker']);expect(requested.filter(q=>q.includes('Permanent Marker'))).toHaveLength(8);expect(requested.some(q=>q.includes('Bangers'))).toBe(false);
+ }finally{if(previous)document.fonts=previous;else delete document.fonts;}
+});

@@ -1,3 +1,4 @@
+import { sceneFontFamilies } from "./fonts";
 import { encodeRaster } from "./rasterEncoder";
 import { CanvasElement, Theme, Board, BackgroundSettings, GridType } from "./types";
 import { normalizeBackground, isLightBackground } from "@/lib/background.mjs";
@@ -11,7 +12,7 @@ const PADDING = 40;
 
 /** Renders the elements into an offscreen canvas at the given scale. */
 export async function renderToCanvas(elements: CanvasElement[], theme: Theme, scale: number, transparent: boolean, scene: CanvasElement[] = elements, background?: BackgroundSettings, gridType: GridType = "dot") {
-  await Promise.all([loadCanvasFonts(), ...elements.filter(el => el.type === "icon" && el.svgMarkup).map(el => el.type === "icon" ? getIconImage(el.svgMarkup!, el.viewBox || "0 0 24 24", el.iconColor || "#3B82F6").loaded : undefined)]);
+  await Promise.all([loadCanvasFonts(sceneFontFamilies(elements)), ...elements.filter(el => el.type === "icon" && el.svgMarkup).map(el => el.type === "icon" ? getIconImage(el.svgMarkup!, el.viewBox || "0 0 24 24", el.iconColor || "#3B82F6").loaded : undefined)]);
   await Promise.all(elements.map(el => el.type === "image" ? getImageResource(el.source, undefined, el.localOnly ? Infinity : 4_000_000).loaded : undefined));
   const bounds = unionBounds(elements.map(el => getElementBounds(el, scene)));
   if (!bounds) return null;

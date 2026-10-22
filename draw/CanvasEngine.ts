@@ -1,3 +1,4 @@
+import { sceneFontFamilies } from "./fonts";
 import { HIGHLIGHTER_LIFETIME, HIGHLIGHTER_LIMIT, liveHighlights, type HighlightPoint } from "./highlighter";
 import { isLocalAsset } from "@/lib/localAssets.mjs";
 import { DEFAULT_BACKGROUND, normalizeBackground, isLightBackground } from "@/lib/background.mjs";
@@ -327,6 +328,7 @@ export class CanvasEngine {
   private flowOffset = 0;
   private animFrameId: number | null = null;
   private renderQueued = false;
+  private requestedFonts = new Set<FontFamily>();
 
   // History & clipboard
   private undoStack: string[] = [];
@@ -369,12 +371,7 @@ export class CanvasEngine {
     this.attachEventListeners();
     this.resize(canvas.clientWidth, canvas.clientHeight);
 
-    // Canvas text can't trigger font loading the way DOM text does, so ask for it explicitly.
-    if (typeof document !== "undefined" && document.fonts) {
-      loadCanvasFonts()
-        .catch(() => undefined)
-        .finally(() => { if (!this.destroyed) { this.elements = alignTextPorts(this.elements); this.requestRender(); } });
-    }
+    this.prepareFonts();
   }
 
   // --- Configuration -----------------------------------------------------------
@@ -1188,8 +1185,19 @@ export class CanvasEngine {
     });
   }
 
+  private prepareFonts() {
+    if (typeof document === "undefined" || !document.fonts) return;
+    const needed=[...sceneFontFamilies(this.elements),this.currentStyle.fontFamily].filter(font=>!this.requestedFonts.has(font));
+    if (!needed.length) return;
+    needed.forEach(font=>this.requestedFonts.add(font));
+    void loadCanvasFonts(needed).then(()=>{
+      if (!this.destroyed) { this.elements=alignTextPorts(this.elements);this.requestRender(); }
+    }).catch(()=>{ /* Export retries failed loads and reports a recoverable error. */ });
+  }
+
   private draw() {
     if (this.destroyed) return;
+    this.prepareFonts();
     const ctx = this.ctx;
     const w = this.cssWidth;
     const h = this.cssHeight;

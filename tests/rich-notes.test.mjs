@@ -113,3 +113,12 @@ test('incremental peer updates do not echo and local undo keeps a peer’s inser
   applyRemoteNotes(editor,'');expect(editor.isEmpty).toBe(true);
  }finally{editor.destroy();}
 });
+
+test('distinctive font families survive rich-note storage and safe preview rendering',()=>{
+ for(const font of ['fredoka','bangers','lobster','marker','typewriter','space-mono','cormorant']){
+  const editor=create('Distinctive writing');try{
+   editor.commands.selectAll();editor.chain().setFontFamily(font).toggleBold().run();const saved=serializeRichNotes(editor),restored=create(saved);
+   try{expect(restored.getJSON()).toEqual(editor.getJSON());expect(notesToSafeHtml(saved)).toContain(`data-note-font="${font}"`);}finally{restored.destroy();}
+  }finally{editor.destroy();}
+ }
+});
