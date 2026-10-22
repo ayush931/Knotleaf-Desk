@@ -8,6 +8,8 @@ import {RefreshWebApp} from '../components/RefreshWebApp.tsx';
 import manifest from '../app/manifest.ts';
 import { RoomChat } from '../components/RoomChat.tsx';
 import { CollaborationPanel } from '../components/CollaborationPanel.tsx';
+import {CallParticipants} from '../components/CallParticipants.tsx';
+import {RoomJoinForm} from '../components/RoomJoinForm.tsx';
 import {CallScreenView} from '../components/CallScreenView.tsx';
 import {Classroom} from '../components/Classroom.tsx';
 let browser,root,createRoot;const previous=new Map();
@@ -160,7 +162,47 @@ test('screen viewing expands with fit/actual size, full screen uses a surface an
  const dialog=document.querySelector('dialog');expect(dialog.open).toBe(true);expect(dialog.getAttribute('aria-label')).toBe('Shared screen');
  const size=document.querySelector('[aria-label="Screen viewing size"]');await act(async()=>{size.value='actual';size.dispatchEvent(new window.Event('change',{bubbles:true}));});expect(dialog.querySelector('video').classList.contains('max-w-none')).toBe(true);
  const surface=dialog.firstElementChild;let requested=false;surface.requestFullscreen=async()=>{requested=true;};
- await act(async()=>button('Full screen').click());expect(requested).toBe(true);expect(surface.tagName).toBe('DIV');
- surface.requestFullscreen=async()=>{throw new Error('Not supported');};await act(async()=>button('Full screen').click());expect(dialog.querySelector('[role="alert"]').textContent).toContain('expanded view');
+ await act(async()=>[...dialog.querySelectorAll('button')].find(b=>b.textContent.trim()==='Full screen').click());expect(requested).toBe(true);expect(surface.tagName).toBe('DIV');
+ surface.requestFullscreen=async()=>{throw new Error('Not supported');};await act(async()=>[...dialog.querySelectorAll('button')].find(b=>b.textContent.trim()==='Full screen').click());expect(dialog.querySelector('[role="alert"]').textContent).toContain('expanded view');
  await act(async()=>dialog.dispatchEvent(new window.Event('cancel',{cancelable:true})));await act(async()=>new Promise(resolve=>requestAnimationFrame(resolve)));expect(dialog.open).toBe(false);expect(document.activeElement).toBe(enlarge);
+});
+
+test('Live call includes link joining, validates input and opens the requested call without capture',async()=>{
+ let joined;await render({onJoinRoom:id=>joined=id});await act(async()=>trigger().click());
+ const field=document.querySelector('[aria-label="Call link or room ID"]');expect(field).not.toBe(null);
+ const setValue=async value=>act(async()=>{const setter=Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value').set;setter.call(field,value);field.dispatchEvent(new window.Event('input',{bubbles:true}));});
+ await setValue('invalid link');await act(async()=>field.form.dispatchEvent(new window.Event('submit',{bubbles:true,cancelable:true})));expect(field.getAttribute('aria-invalid')).toBe('true');expect(document.activeElement).toBe(field);expect(joined).toBeUndefined();
+ const id=crypto.randomUUID();await setValue(`https://desk.example/canvas/${id}`);await act(async()=>field.form.dispatchEvent(new window.Event('submit',{bubbles:true,cancelable:true})));expect(joined).toBe(id);
+});
+test('shared join form preserves call intent and blocks duplicate pending joins',async()=>{
+ let calls=0,resolve;const id=crypto.randomUUID();await act(async()=>root.render(React.createElement(RoomJoinForm,{call:true,onJoin:(room,openCall)=>{expect(room).toBe(id);expect(openCall).toBe(true);calls++;return new Promise(done=>resolve=done);}})));
+ const field=document.querySelector('input');await act(async()=>{Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value').set.call(field,id);field.dispatchEvent(new window.Event('input',{bubbles:true}));});
+ await act(async()=>{field.form.dispatchEvent(new window.Event('submit',{bubbles:true,cancelable:true}));field.form.dispatchEvent(new window.Event('submit',{bubbles:true,cancelable:true}));});expect(calls).toBe(1);expect(button('Opening').disabled).toBe(true);await act(async()=>resolve());expect(button('Open call').disabled).toBe(false);
+});
+test('noise cancellation is visible, accessible and cannot change while a source is busy',async()=>{
+ let noise;const props={deviceId:'',label:'USB mic',enabled:true,busy:false,onChange(){},noiseSuppression:true,onNoiseChange:enabled=>noise=enabled,processing:{echoCancellation:true,noiseSuppression:true}};
+ await act(async()=>root.render(React.createElement(ClassroomAudioSource,props)));const toggle=document.querySelector('input[type="checkbox"]');expect(toggle.checked).toBe(true);await act(async()=>toggle.click());expect(noise).toBe(false);
+ await act(async()=>root.render(React.createElement(ClassroomAudioSource,{...props,busy:true})));expect(document.querySelector('input[type="checkbox"]').disabled).toBe(true);
+});
+
+test('screen tiles expose direct full screen and return focus to that action after closing',async()=>{
+ const stream=new window.MediaStream();stream.getTracks=()=>[];stream.getVideoTracks=()=>[];
+ await act(async()=>root.render(React.createElement(CallScreenView,{stream,label:'Alice screen',detail:'Alice'})));
+ const direct=document.querySelector('[aria-label="Full screen Alice screen"]'),dialog=document.querySelector('dialog');let requested=0;dialog.firstElementChild.requestFullscreen=async()=>{requested++;};
+ expect(dialog.open).toBe(false);await act(async()=>direct.click());expect(dialog.open).toBe(true);expect(requested).toBe(1);
+ await act(async()=>dialog.querySelector('[aria-label="Close enlarged screen"]').click());await act(async()=>new Promise(resolve=>requestAnimationFrame(resolve)));expect(document.activeElement).toBe(direct);
+});
+
+test('participant strips show speaking, microphone and roles with host-only co-host actions',async()=>{
+ const people=[{id:'host',name:'Alice',role:'host',mic:true,speaking:true,self:true},{id:'guest',name:'Bob',role:'participant',mic:false,speaking:false}];let action;
+ await act(async()=>root.render(React.createElement(CallParticipants,{people,role:'host',onModerate:(...args)=>action=args})));
+ expect(document.querySelector('[data-participant="host"]').getAttribute('aria-label')).toContain('speaking');expect(document.querySelector('[data-participant="guest"]').getAttribute('aria-label')).toContain('microphone off');
+ await act(async()=>button('Make co-host').click());expect(action).toEqual(['promote','guest']);
+ await act(async()=>button('Remove from call').click());expect(action).toEqual(['promote','guest']);const confirmation=document.querySelector('dialog[open]');expect(confirmation.textContent).toContain('Bob');expect(confirmation.textContent).toContain('rejoin');await act(async()=>[...confirmation.querySelectorAll('button')].find(b=>b.textContent==='Remove from call').click());expect(action).toEqual(['remove','guest']);
+ await act(async()=>root.render(React.createElement(CallParticipants,{people,role:'participant',onModerate(){}})));expect(button('Make co-host')).toBeUndefined();expect(document.querySelector('summary')).toBe(null);
+});
+test('call expansion and header full-screen controls use the call surface and restore its size',async()=>{
+ await render();await act(async()=>trigger().click());await act(async()=>document.querySelector('[aria-label="Expand call"]').click());expect(panel().classList.contains('inset-3')).toBe(true);
+ let requests=0;panel().requestFullscreen=async()=>{requests++;};await act(async()=>document.querySelector('[aria-label="Full screen call"]').click());expect(requests).toBe(1);
+ await act(async()=>document.querySelector('[aria-label="Restore call size"]').click());expect(panel().classList.contains('inset-3')).toBe(false);
 });

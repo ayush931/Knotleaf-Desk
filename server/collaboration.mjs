@@ -64,7 +64,7 @@ export function createCollaborationServer({ host = '127.0.0.1', port = 3002, dir
     async writeState(name, doc) { clearTimeout(timers.get(name)); timers.delete(name); try { await persist(name, doc); } catch (error) { console.error('Room persistence failed:', error.message); } },
   });
   const server = httpServer || http.createServer((request, response) => {
-    if (handleRoomHttp(request,response,{store:roomStore,origins,appUrl:process.env.NEXT_PUBLIC_APP_URL,cleanupExpired})) return; response.writeHead(200, { 'Content-Type': 'application/json' }); response.end(JSON.stringify({ service: 'Whiteboard collaboration', status: 'ok' })); });
+    if (handleRoomHttp(request,response,{store:roomStore,origins,appUrl:process.env.NEXT_PUBLIC_APP_URL,cleanupExpired,websocketUrl:pathPrefix.replace(/\/$/,'')||'/'})) return; response.writeHead(200, { 'Content-Type': 'application/json' }); response.end(JSON.stringify({ service: 'Whiteboard collaboration', status: 'ok' })); });
   const classroom = attachClassroomServer(server,{store:roomStore,origins,maxParticipants:process.env.CLASSROOM_MAX_PARTICIPANTS});
   const sockets = new WebSocketServer({ noServer: true, maxPayload: 8 * 1024 * 1024 });
   const expireRoom = name => {
@@ -121,7 +121,7 @@ export function createCollaborationServer({ host = '127.0.0.1', port = 3002, dir
   return {
     server,
     cleanupExpired,
-    handleHttp: (request,response) => handleRoomHttp(request,response,{store:roomStore,origins,appUrl:process.env.NEXT_PUBLIC_APP_URL,cleanupExpired}),
+    handleHttp: (request,response) => handleRoomHttp(request,response,{store:roomStore,origins,appUrl:process.env.NEXT_PUBLIC_APP_URL,cleanupExpired,websocketUrl:pathPrefix.replace(/\/$/,'')||'/'}),
     listen: () => new Promise((resolve, reject) => { server.once('error', reject); server.listen(port, host, () => resolve(server.address())); }),
     close: async () => {
       clearInterval(sweepTimer); for (const timer of expiryTimers.values()) clearTimeout(timer);

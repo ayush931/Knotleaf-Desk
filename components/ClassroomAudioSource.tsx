@@ -6,12 +6,18 @@ export function ClassroomAudioSource({
   enabled,
   busy,
   onChange,
+  noiseSuppression = true,
+  onNoiseChange,
+  processing,
 }: {
   deviceId: string;
   label: string;
   enabled: boolean;
   busy: boolean;
   onChange: (id: string) => void;
+  noiseSuppression?: boolean;
+  onNoiseChange?: (enabled: boolean) => void;
+  processing?: { echoCancellation?: boolean; noiseSuppression?: boolean };
 }) {
   const id = useId(),
     [devices, setDevices] = useState<MediaDeviceInfo[]>([]),
@@ -98,6 +104,31 @@ export function ClassroomAudioSource({
         <p className="text-[11px] text-neutral-500">
           Turn on the microphone to reveal device names.
         </p>
+      )}
+      {onNoiseChange && (
+        <div className="space-y-1">
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={noiseSuppression}
+              disabled={busy}
+              onChange={(event) => onNoiseChange(event.target.checked)}
+            />
+            Noise cancellation
+          </label>
+          <p className="text-[11px] text-neutral-500">
+            Echo cancellation stays on. Noise cancellation uses your browser’s
+            microphone processing.
+          </p>
+          {enabled &&
+            (processing?.echoCancellation === false ||
+              (noiseSuppression && processing?.noiseSuppression === false)) && (
+              <p role="status" className="text-[11px] text-amber-300">
+                This microphone or browser reports that audio processing is
+                unavailable. Try another microphone.
+              </p>
+            )}
+        </div>
       )}
       {error && <p className="text-[11px] text-amber-300">{error}</p>}
     </div>

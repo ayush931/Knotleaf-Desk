@@ -15,7 +15,7 @@ test('native classroom uses four media slots, updates tracks and releases device
  const session=new ClassroomSession('ws://localhost/classroom/room','Teacher');let state;session.onState=next=>{state=next;};
  const socket=sockets[0];socket.onopen();expect(socket.sent[0]).toEqual({type:'join',name:'Teacher'});
  socket.receive({type:'welcome',id:'a',peers:[{id:'b',name:'Student',media:{mic:false,camera:false,screen:false}}],iceServers:[],maxParticipants:8});expect(pcs[0].transceivers.map(t=>t.kind)).toEqual(['audio','video','video','audio']);
- await session.toggle('mic');await session.toggle('camera');await session.toggleScreen();expect(state.media).toEqual({mic:true,camera:true,screen:true});expect(pcs[0].transceivers.every(t=>t.sender.track)).toBe(true);
+ await session.toggle('mic');await session.toggle('camera');await session.toggleScreen(false,true);expect(state.media).toEqual({mic:true,camera:true,screen:true});expect(pcs[0].transceivers.every(t=>t.sender.track)).toBe(true);
  await session.toggleScreen();expect(state.media.screen).toBe(false);expect(pcs[0].transceivers[2].sender.track).toBe(null);
  session.close();expect(tracks.every(t=>t.stopped)).toBe(true);expect(pcs[0].connectionState).toBe('closed');
 }));
@@ -66,4 +66,50 @@ test('changing screen preserves capture on cancel, replaces both slots, and igno
  navigator.mediaDevices.getDisplayMedia=capture;await session.toggleScreen(true);expect(oldVideo.stopped).toBe(true);
  const next=state.screen;oldVideo.onended();expect(state.screen).toBe(next);expect(state.media.screen).toBe(true);expect(pcs[0].transceivers[2].sender.track).toBe(next.getVideoTracks()[0]);
  next.getVideoTracks()[0].onended();await until(()=>!state.media.screen);expect(pcs[0].transceivers[2].sender.track).toBe(null);session.close();expect(tracks.every(track=>track.stopped)).toBe(true);
+}));
+
+test('microphones request native echo/noise processing and changing noise settings retains the live device',async()=>mocked(async({sockets,tracks})=>{
+ const session=new ClassroomSession('ws://localhost/classroom/room','Host');let state;session.onState=next=>state=next;sockets[0].receive({type:'welcome',id:'a',peers:[],iceServers:[],maxParticipants:8});
+ const capture=navigator.mediaDevices.getUserMedia,requests=[];navigator.mediaDevices.getUserMedia=async options=>{requests.push(options);return capture(options);};
+ await session.toggle('mic');expect(requests[0].audio).toMatchObject({echoCancellation:true,noiseSuppression:true,autoGainControl:true});
+ const microphone=tracks[0];let applied;microphone.applyConstraints=async constraints=>{applied=constraints;};microphone.getSettings=()=>({echoCancellation:true,noiseSuppression:applied?.noiseSuppression??true});
+ await session.setNoiseSuppression(false);expect(applied).toMatchObject({echoCancellation:true,noiseSuppression:false,autoGainControl:true});expect(state.noiseSuppression).toBe(false);expect(state.audioProcessing).toEqual({echoCancellation:true,noiseSuppression:false});expect(microphone.stopped).toBe(false);expect(requests).toHaveLength(1);
+ microphone.applyConstraints=async()=>{throw new Error('Unavailable');};await expect(session.setNoiseSuppression(true)).rejects.toThrow('Unavailable');expect(state.noiseSuppression).toBe(false);expect(microphone.stopped).toBe(false);
+ session.close();
+}));
+test('screen audio is opt-in and system/window audio cannot feed call playback back to peers',async()=>mocked(async({sockets,pcs,tracks})=>{
+ const session=new ClassroomSession('ws://localhost/classroom/room','Host');let state;session.onState=next=>state=next;sockets[0].receive({type:'welcome',id:'a',peers:[{id:'z',name:'Peer',media:{mic:false,camera:false,screen:false}}],iceServers:[],maxParticipants:8});
+ const capture=navigator.mediaDevices.getDisplayMedia,requests=[];navigator.mediaDevices.getSupportedConstraints=()=>({restrictOwnAudio:true,suppressLocalAudioPlayback:true});
+ navigator.mediaDevices.getDisplayMedia=async options=>{requests.push(options);return capture(options);};
+ await session.toggleScreen();expect(requests[0].audio).toBe(false);expect(requests[0].selfBrowserSurface).toBe('exclude');expect(requests[0].systemAudio).toBe('exclude');expect(state.screen.getAudioTracks()).toHaveLength(0);expect(pcs[0].transceivers[3].sender.track).toBe(null);expect(tracks[1].stopped).toBe(true);
+ await session.toggleScreen(true,true);expect(requests[1].audio).toMatchObject({echoCancellation:true,restrictOwnAudio:true,suppressLocalAudioPlayback:true});expect(state.screen.getAudioTracks()).toHaveLength(1);
+ navigator.mediaDevices.getDisplayMedia=async options=>{const stream=await capture(options);stream.getVideoTracks()[0].getSettings=()=>({displaySurface:'monitor'});return stream;};
+ await session.toggleScreen(true,true);expect(state.screen.getAudioTracks()).toHaveLength(0);expect(pcs[0].transceivers[3].sender.track).toBe(null);session.close();expect(tracks.every(track=>track.stopped)).toBe(true);
+}));
+test('changing noise cancellation while muted never enables the microphone',async()=>mocked(async({sockets,tracks})=>{
+ const session=new ClassroomSession('ws://localhost/classroom/room','Host');let state;session.onState=next=>state=next;sockets[0].receive({type:'welcome',id:'a',peers:[],iceServers:[],maxParticipants:8});await session.setNoiseSuppression(false);expect(state.media.mic).toBe(false);expect(state.noiseSuppression).toBe(false);expect(tracks).toHaveLength(0);session.close();
+}));
+
+test('host roles follow server acknowledgments and host muting wins over an in-flight microphone switch',async()=>mocked(async({sockets,tracks,track})=>{
+ const secret='a'.repeat(64),session=new ClassroomSession('ws://localhost/classroom/room','Host',{hostToken:secret});let state;session.onState=next=>state=next;const socket=sockets[0];socket.onopen();expect(socket.sent[0].hostToken).toBe(secret);
+ socket.receive({type:'welcome',id:'a',role:'host',peers:[],iceServers:[],maxParticipants:8});expect(state.role).toBe('host');expect(JSON.stringify(state)).not.toContain(secret);await session.toggle('mic');
+ let finish;navigator.mediaDevices.getUserMedia=()=>new Promise(resolve=>finish=resolve);const switching=session.selectMicrophone('usb');socket.receive({type:'moderation',action:'mute',by:'Co-host'});await until(()=>state.media.mic===false);
+ const late=track('audio');finish({getTracks:()=>[late]});await switching;expect(late.stopped).toBe(true);expect(state.media.mic).toBe(false);expect(state.microphone).toBe(null);expect(state.notice).toContain('Co-host');
+ socket.receive({type:'role',id:'a',role:'cohost'});expect(state.role).toBe('cohost');session.moderate('mute-all');expect(socket.sent.at(-1).action).toBe('mute-all');session.close();expect(tracks.every(t=>t.stopped)).toBe(true);
+}));
+
+test('a browser ignoring live noise constraints replaces the microphone only after a working capture is ready',async()=>mocked(async({sockets,tracks,track})=>{
+ const session=new ClassroomSession('ws://localhost/classroom/room','Host');let state;session.onState=next=>state=next;sockets[0].receive({type:'welcome',id:'a',peers:[],iceServers:[],maxParticipants:8});await session.toggle('mic');
+ const previous=tracks[0];previous.applyConstraints=async()=>{};previous.getSettings=()=>({echoCancellation:true,noiseSuppression:true});
+ let finish;navigator.mediaDevices.getUserMedia=()=>new Promise(resolve=>finish=resolve);const changing=session.setNoiseSuppression(false);await until(()=>!!finish);expect(previous.stopped).toBe(false);
+ const replacement=track('audio');replacement.getSettings=()=>({echoCancellation:true,noiseSuppression:false});finish(new MediaStream([replacement]));await changing;expect(previous.stopped).toBe(true);expect(replacement.stopped).toBe(false);expect(state.noiseSuppression).toBe(false);expect(state.audioProcessing.noiseSuppression).toBe(false);
+ replacement.applyConstraints=async()=>{};navigator.mediaDevices.getUserMedia=async()=>{throw new Error('Device unavailable');};await expect(session.setNoiseSuppression(true)).rejects.toThrow('Device unavailable');expect(replacement.stopped).toBe(false);expect(state.noiseSuppression).toBe(false);session.close();
+}));
+test('remote mute wins over an in-flight noise processor replacement',async()=>mocked(async({sockets,tracks,track})=>{
+ const session=new ClassroomSession('ws://localhost/classroom/room','Host');let state;session.onState=next=>state=next;sockets[0].receive({type:'welcome',id:'a',peers:[],iceServers:[],maxParticipants:8});await session.toggle('mic');tracks[0].applyConstraints=async()=>{};tracks[0].getSettings=()=>({noiseSuppression:true});
+ let finish;navigator.mediaDevices.getUserMedia=()=>new Promise(resolve=>finish=resolve);const changing=session.setNoiseSuppression(false);await until(()=>!!finish);sockets[0].receive({type:'moderation',action:'mute',by:'Host'});await until(()=>!state.media.mic);const late=track('audio');finish(new MediaStream([late]));await changing;expect(late.stopped).toBe(true);expect(state.media.mic).toBe(false);expect(state.microphone).toBe(null);session.close();
+}));
+test('a noise processor replacement that disables echo cancellation is rejected without interrupting the mic',async()=>mocked(async({sockets,tracks,track})=>{
+ const session=new ClassroomSession('ws://localhost/classroom/room','Host');let state;session.onState=next=>state=next;sockets[0].receive({type:'welcome',id:'a',peers:[],iceServers:[],maxParticipants:8});await session.toggle('mic');const previous=tracks[0];previous.applyConstraints=async()=>{};previous.getSettings=()=>({noiseSuppression:true,echoCancellation:true});
+ const bad=track('audio');bad.getSettings=()=>({noiseSuppression:false,echoCancellation:false});navigator.mediaDevices.getUserMedia=async()=>new MediaStream([bad]);await expect(session.setNoiseSuppression(false)).rejects.toThrow('could not apply');expect(bad.stopped).toBe(true);expect(previous.stopped).toBe(false);expect(state.media.mic).toBe(true);expect(state.noiseSuppression).toBe(true);session.close();
 }));

@@ -1,3 +1,4 @@
+import {issueHostAccess} from './host-access.mjs';
 import { elementTextKey } from '../lib/sharedElementText.mjs';
 import { sharedElements } from '../lib/localAssets.mjs';
 import { normalizeBackground } from '../lib/background.mjs';
@@ -10,6 +11,7 @@ export async function createStoredRoom(store, board, base) {
   if (!board || typeof board.title !== 'string' || (board.markdownNotes !== undefined && typeof board.markdownNotes !== 'string') || !Array.isArray(board.elements) || !board.elements.every(isValidElement)) throw new Error('Invalid board content');
   board = { ...board, elements: sharedElements(board.elements), markdownNotes: board.markdownNotes ?? '' };
   const id = randomUUID(), title = `${board.title.slice(0,185)} · shared`, doc = new Y.Doc();
+  const access=issueHostAccess();
   const createdAt = Date.now(), expiresAt = new Date(createdAt + ROOM_LIFETIME_MS).toISOString();
   try {
     doc.getMap('meta').set('initialized','true'); doc.getMap('meta').set('title',title);
@@ -17,11 +19,11 @@ export async function createStoredRoom(store, board, base) {
     doc.getMap('meta').set('background', JSON.stringify(normalizeBackground(board.background)));
     for (const el of board.elements) { if (elementTextKey(el)) { doc.getText(elementTextKey(el)).insert(0,el.text); doc.getMap('elements').set(el.id,{...el,text:''}); } else doc.getMap('elements').set(el.id,el); }
     doc.getText('notes').insert(0,board.markdownNotes);
-    await store.create(id,title,Buffer.from(Y.encodeStateAsUpdate(doc)).toString('base64'),{title,elements:board.elements,markdownNotes:board.markdownNotes,background:normalizeBackground(board.background)},`${base.replace(/\/$/,'')}/canvas/${id}`,createdAt);
+    await store.create(id,title,Buffer.from(Y.encodeStateAsUpdate(doc)).toString('base64'),{title,elements:board.elements,markdownNotes:board.markdownNotes,background:normalizeBackground(board.background)},`${base.replace(/\/$/,'')}/canvas/${id}`,createdAt,access.hash);
   } finally { doc.destroy(); }
-  return { id,title,persistent:true,path:`/canvas/${id}`,expiresAt };
+  return { id,title,persistent:true,path:`/canvas/${id}`,expiresAt,hostToken:access.token };
 }
-export function handleRoomHttp(request, response, { store, origins, appUrl, cleanupExpired }) {
+export function handleRoomHttp(request, response, { store, origins, appUrl, cleanupExpired, websocketUrl = "/" }) {
   const pathname = new URL(request.url,'http://localhost').pathname;
   const roomId = pathname.startsWith('/api/rooms/') ? pathname.slice('/api/rooms/'.length) : null;
   const statusRead = request.method === 'GET' && validRoomId(roomId);
@@ -31,7 +33,7 @@ export function handleRoomHttp(request, response, { store, origins, appUrl, clea
   const reply = (status, data) => { response.writeHead(status, { 'Content-Type':'application/json', 'Cache-Control':'no-store', ...(allowed && origin ? { 'Access-Control-Allow-Origin':origin, Vary:'Origin' } : {}) }); response.end(JSON.stringify(data)); };
   if (!allowed) { reply(403,{error:'Create rooms from an allowed website.'}); return true; }
   if (statusRead) {
-    void (async () => { try { const room = await store.load(roomId); reply(room ? 200 : 410, room ? { expiresAt: room.expiresAt } : { error: 'This room expired or no longer exists.' }); } catch { reply(503, { error: 'Could not check the room. Retry shortly.' }); } })();
+    void (async () => { try { const room = await (store.status ? store.status(roomId) : store.load(roomId)); reply(room ? 200 : 410, room ? { expiresAt: room.expiresAt } : { error: 'This room expired or no longer exists.' }); } catch { reply(503, { error: 'Could not check the room. Retry shortly.' }); } })();
     return true;
   }
   if (request.method === 'OPTIONS') { response.setHeader('Access-Control-Allow-Methods','POST, OPTIONS'); response.setHeader('Access-Control-Allow-Headers','Content-Type'); reply(204,{}); return true; }
@@ -45,8 +47,9 @@ export function handleRoomHttp(request, response, { store, origins, appUrl, clea
       let size=0; const chunks=[];
       for await (const chunk of request) { size+=chunk.length; if (size>6_000_000) { reply(413,{error:'Board is too large to share.'}); return; } chunks.push(chunk); }
       let board; try { board=JSON.parse(Buffer.concat(chunks).toString()); } catch { reply(400,{error:'Invalid board content.'}); return; }
+      if (board?.warmup === true) { await store.ready?.(); reply(200,{ready:true,websocketUrl}); return; }
       if (!board || typeof board.title!=='string' || (board.markdownNotes!==undefined && typeof board.markdownNotes!=='string') || !Array.isArray(board.elements) || !board.elements.every(isValidElement)) { reply(400,{error:'Invalid board content.'}); return; }
-      reply(201,await createStoredRoom(store,board,appUrl || origin));
+      reply(201,{...await createStoredRoom(store,board,appUrl || origin),websocketUrl});
     } catch { reply(503,{error:'Room could not be saved. Check the room server storage and retry.'}); }
   })();
   return true;

@@ -1,3 +1,7 @@
+import { microphoneAudioConstraints, screenCaptureOptions } from "./callAudio";
+export type CallRole = "host" | "cohost" | "participant";
+export type ModerationAction =
+  "promote" | "demote" | "mute" | "remove" | "mute-all";
 export interface ClassMedia {
   mic: boolean;
   camera: boolean;
@@ -6,6 +10,8 @@ export interface ClassMedia {
 export interface ClassPeer {
   id: string;
   name: string;
+  role: CallRole;
+  microphone: MediaStream;
   media: ClassMedia;
   camera: MediaStream;
   screen: MediaStream;
@@ -13,8 +19,14 @@ export interface ClassPeer {
   status: RTCPeerConnectionState;
 }
 export interface ClassState {
+  id: string;
+  role: CallRole;
+  notice: string;
+  microphone: MediaStream | null;
   microphoneId: string;
   microphoneLabel: string;
+  noiseSuppression: boolean;
+  audioProcessing: { echoCancellation?: boolean; noiseSuppression?: boolean };
   status: "joining" | "connected" | "disconnected";
   peers: ClassPeer[];
   media: ClassMedia;
@@ -56,9 +68,16 @@ export class ClassroomSession {
   private peers = new Map<string, PeerConnection>();
   private tracks: (MediaStreamTrack | null)[] = [null, null, null, null];
   private pending = new Set<string>();
+  private micGeneration = 0;
   private state: ClassState = {
+    id: "",
+    role: "participant",
+    notice: "",
+    microphone: null,
     microphoneId: "",
     microphoneLabel: "",
+    noiseSuppression: true,
+    audioProcessing: {},
     status: "joining",
     peers: [],
     media: { mic: false, camera: false, screen: false },
@@ -71,9 +90,16 @@ export class ClassroomSession {
   constructor(
     url: string,
     private name: string,
+    options: { noiseSuppression?: boolean; hostToken?: string } = {},
   ) {
+    this.state.noiseSuppression = options.noiseSuppression ?? true;
     this.socket = new WebSocket(url);
-    this.socket.onopen = () => this.send({ type: "join", name });
+    this.socket.onopen = () =>
+      this.send({
+        type: "join",
+        name,
+        ...(options.hostToken ? { hostToken: options.hostToken } : {}),
+      });
     this.socket.onmessage = (e) => {
       try {
         this.receive(JSON.parse(e.data));
@@ -88,6 +114,8 @@ export class ClassroomSession {
         "Could not reach the call server. Check your connection and the room server.",
       );
     this.socket.onclose = (event) => {
+      if (event.code === 4003)
+        this.onError?.("You were removed from this call by a host or co-host.");
       if (event.code === 4001)
         this.onError?.("This room expired after 24 hours.");
       if (!this.closed) {
@@ -117,6 +145,11 @@ export class ClassroomSession {
     if (this.closed) return;
     if (message.type === "welcome") {
       this.id = message.id as string;
+      this.state.id = this.id;
+      this.state.role =
+        message.role === "host" || message.role === "cohost"
+          ? message.role
+          : "participant";
       this.iceServers = message.iceServers as RTCIceServer[];
       this.state.relayConfigured = message.relayConfigured === true;
       this.state.maxParticipants = message.maxParticipants as number;
@@ -142,8 +175,25 @@ export class ClassroomSession {
       const peer = this.peers.get(message.id as string);
       if (peer) {
         peer.view.media = message.media as ClassMedia;
+        peer.view.microphone.getAudioTracks().forEach((track) => {
+          track.enabled = peer.view.media.mic;
+        });
         this.emit();
       }
+    } else if (message.type === "role") {
+      const role: CallRole =
+        message.role === "host" || message.role === "cohost"
+          ? message.role
+          : "participant";
+      if (message.id === this.id) this.state.role = role;
+      const peer = this.peers.get(message.id as string);
+      if (peer) peer.view.role = role;
+      this.emit();
+    } else if (message.type === "moderation") {
+      if (message.action === "mute")
+        void this.muteFromHost(String(message.by || "Host"));
+      else if (message.action === "remove")
+        this.onError?.("You were removed from this call by a host or co-host.");
     } else if (message.type === "signal") {
       const peer = this.peers.get(message.from as string);
       if (!peer) return;
@@ -169,13 +219,20 @@ export class ClassroomSession {
     } else if (message.type === "error")
       this.onError?.(String(message.message));
   }
-  private addPeer(info: { id: string; name: string; media: ClassMedia }) {
+  private addPeer(info: {
+    id: string;
+    name: string;
+    media: ClassMedia;
+    role?: CallRole;
+  }) {
     if (this.peers.has(info.id) || info.id === this.id) return;
     const pc = new RTCPeerConnection({ iceServers: this.iceServers });
     const peer: PeerConnection = {
       pc,
       view: {
         ...info,
+        role: info.role || "participant",
+        microphone: new MediaStream(),
         camera: new MediaStream(),
         screen: new MediaStream(),
         audio: new MediaStream(),
@@ -208,10 +265,15 @@ export class ClassroomSession {
               : peer.view.camera;
       if (!stream.getTracks().some((t) => t.id === e.track.id))
         stream.addTrack(e.track);
+      if (e.track.kind === "audio" && slot === 0) {
+        peer.view.microphone.addTrack(e.track);
+        e.track.enabled = peer.view.media.mic;
+      }
       e.track.onunmute = () => this.emit();
       e.track.onmute = () => this.emit();
       e.track.onended = () => {
         stream.removeTrack(e.track);
+        peer.view.microphone.removeTrack(e.track);
         this.emit();
       };
       this.emit();
@@ -318,6 +380,22 @@ export class ClassroomSession {
         "A participant could not receive the media update. Leave and rejoin if it persists.",
       );
   }
+  moderate(action: ModerationAction, target?: string) {
+    if (this.state.status === "connected")
+      this.send({ type: "moderate", action, target });
+  }
+  private async muteFromHost(name: string) {
+    ++this.micGeneration;
+    this.tracks[0]?.stop();
+    await this.replace(0, null);
+    if (this.closed) return;
+    this.state.microphone = null;
+    this.state.microphoneLabel = "";
+    this.state.media.mic = false;
+    this.state.audioProcessing = {};
+    this.state.notice = `Muted by ${name}. You can turn your microphone on again.`;
+    this.publishMedia();
+  }
   private publishMedia() {
     this.send({ type: "media", ...this.state.media });
     this.emit();
@@ -325,19 +403,84 @@ export class ClassroomSession {
   private microphoneConstraints(
     deviceId = this.state.microphoneId,
   ): MediaTrackConstraints {
-    return {
-      echoCancellation: true,
-      noiseSuppression: true,
-      ...(deviceId ? { deviceId: { exact: deviceId } } : {}),
-    };
+    return microphoneAudioConstraints(deviceId, this.state.noiseSuppression);
   }
+  async setNoiseSuppression(enabled: boolean) {
+    if (
+      this.closed ||
+      this.state.status !== "connected" ||
+      this.pending.has("mic")
+    )
+      return;
+    const generation = this.micGeneration;
+    this.pending.add("mic");
+    try {
+      let track = this.tracks[0];
+      if (track)
+        await track.applyConstraints(
+          microphoneAudioConstraints(this.state.microphoneId, enabled),
+        );
+      if (this.closed || generation !== this.micGeneration) return;
+      // Some browsers acknowledge live constraints without updating their audio processor.
+      const actual = track?.getSettings?.().noiseSuppression;
+      if (track && typeof actual === "boolean" && actual !== enabled) {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            ...microphoneAudioConstraints(this.state.microphoneId, enabled),
+            echoCancellation: { exact: true },
+            noiseSuppression: { exact: enabled },
+          },
+          video: false,
+        });
+        if (this.closed || generation !== this.micGeneration) {
+          stream.getTracks().forEach((item) => item.stop());
+          return;
+        }
+        const replacement = stream.getAudioTracks()[0];
+        const settings = replacement?.getSettings?.();
+        const setting = settings?.noiseSuppression;
+        if (
+          !replacement ||
+          settings?.echoCancellation === false ||
+          (typeof setting === "boolean" && setting !== enabled)
+        ) {
+          stream.getTracks().forEach((item) => item.stop());
+          throw new Error(
+            "This microphone could not apply noise cancellation.",
+          );
+        }
+        const previous = track;
+        await this.replace(0, replacement);
+        previous.stop();
+        if (this.closed || generation !== this.micGeneration) {
+          replacement.stop();
+          return;
+        }
+        track = replacement;
+      }
+      this.state.noiseSuppression = enabled;
+      if (track) this.watchMicrophone(track);
+      this.emit();
+    } finally {
+      this.pending.delete("mic");
+    }
+  }
+
   private watchMicrophone(track: MediaStreamTrack) {
     this.state.microphoneLabel = track.label || "System microphone";
+    this.state.microphone = new MediaStream([track]);
+    const settings = track.getSettings?.();
+    this.state.audioProcessing = {
+      echoCancellation: settings?.echoCancellation,
+      noiseSuppression: settings?.noiseSuppression,
+    };
     track.onended = () => {
       if (this.tracks[0] === track) {
         void this.replace(0, null);
         this.state.media.mic = false;
         this.state.microphoneLabel = "";
+        this.state.microphone = null;
+        this.state.audioProcessing = {};
         this.publishMedia();
       }
     };
@@ -354,6 +497,7 @@ export class ClassroomSession {
       this.emit();
       return;
     }
+    const generation = this.micGeneration;
     this.pending.add("mic");
     try {
       // Acquire first: a denied or unplugged device must not silence the current microphone.
@@ -361,14 +505,22 @@ export class ClassroomSession {
         audio: this.microphoneConstraints(deviceId),
         video: false,
       });
-      if (this.closed || this.state.status !== "connected") {
+      if (
+        this.closed ||
+        this.state.status !== "connected" ||
+        generation !== this.micGeneration
+      ) {
         stream.getTracks().forEach((t) => t.stop());
         return;
       }
       const track = stream.getAudioTracks()[0],
         previous = this.tracks[0];
       await this.replace(0, track);
-      if (this.closed || this.state.status !== "connected") {
+      if (
+        this.closed ||
+        this.state.status !== "connected" ||
+        generation !== this.micGeneration
+      ) {
         track.stop();
         previous?.stop();
         return;
@@ -388,6 +540,8 @@ export class ClassroomSession {
       this.pending.has(kind)
     )
       return;
+    const generation = this.micGeneration;
+    if (kind === "mic") this.state.notice = "";
     this.pending.add(kind);
     const index = kind === "mic" ? 0 : 1;
     try {
@@ -395,7 +549,11 @@ export class ClassroomSession {
         this.tracks[index]?.stop();
         await this.replace(index, null);
         this.state.media[kind] = false;
-        if (kind === "mic") this.state.microphoneLabel = "";
+        if (kind === "mic") {
+          this.state.microphoneLabel = "";
+          this.state.microphone = null;
+          this.state.audioProcessing = {};
+        }
         if (kind === "camera") this.state.camera = null;
       } else {
         const stream = await navigator.mediaDevices.getUserMedia(
@@ -410,13 +568,21 @@ export class ClassroomSession {
                 audio: false,
               },
         );
-        if (this.closed || this.state.status !== "connected") {
+        if (
+          this.closed ||
+          this.state.status !== "connected" ||
+          (kind === "mic" && generation !== this.micGeneration)
+        ) {
           stream.getTracks().forEach((t) => t.stop());
           return;
         }
         const track = stream.getTracks()[0];
         await this.replace(index, track);
-        if (this.closed || this.state.status !== "connected") {
+        if (
+          this.closed ||
+          this.state.status !== "connected" ||
+          (kind === "mic" && generation !== this.micGeneration)
+        ) {
           track.stop();
           return;
         }
@@ -438,7 +604,7 @@ export class ClassroomSession {
       this.pending.delete(kind);
     }
   }
-  async toggleScreen(changeSource = false) {
+  async toggleScreen(changeSource = false, shareTabAudio = false) {
     if (
       this.closed ||
       this.state.status !== "connected" ||
@@ -451,10 +617,9 @@ export class ClassroomSession {
         await this.stopScreen();
         return;
       }
-      const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: { width: { ideal: 1280 }, frameRate: { ideal: 15, max: 20 } },
-        audio: true,
-      });
+      const stream = await navigator.mediaDevices.getDisplayMedia(
+        screenCaptureOptions(shareTabAudio),
+      );
       if (this.closed || this.state.status !== "connected") {
         stream.getTracks().forEach((t) => t.stop());
         return;
@@ -466,6 +631,13 @@ export class ClassroomSession {
         throw new Error(
           "No screen video was selected. Choose a screen, window or tab and try again.",
         );
+      }
+      const surface = video.getSettings?.().displaySurface;
+      if (!shareTabAudio || surface === "monitor" || surface === "window") {
+        for (const audio of stream.getAudioTracks()) {
+          audio.stop();
+          stream.removeTrack(audio);
+        }
       }
       this.state.screen = stream;
       await this.replace(2, video);
@@ -503,6 +675,8 @@ export class ClassroomSession {
     this.state.camera = null;
     this.state.screen = null;
     this.state.microphoneLabel = "";
+    this.state.microphone = null;
+    this.state.audioProcessing = {};
     this.state.media = { mic: false, camera: false, screen: false };
   }
   private dropPeers() {

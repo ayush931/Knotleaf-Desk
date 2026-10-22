@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Expand, Maximize, X } from "lucide-react";
 
 export function CallMediaVideo({
@@ -86,10 +86,12 @@ export function CallScreenView({
   stream,
   label,
   detail,
+  participants,
 }: {
   stream: MediaStream;
   label: string;
   detail: string;
+  participants?:ReactNode;
 }) {
   const [expanded, setExpanded] = useState(false),
     [size, setSize] = useState("fit"),
@@ -97,7 +99,8 @@ export function CallScreenView({
     [fullscreen, setFullscreen] = useState(false);
   const dialog = useRef<HTMLDialogElement>(null),
     surface = useRef<HTMLDivElement>(null),
-    trigger = useRef<HTMLButtonElement>(null);
+    trigger = useRef<HTMLButtonElement>(null),
+    returnFocus = useRef<HTMLButtonElement | null>(null);
   useEffect(() => {
     const element = dialog.current;
     if (expanded && !element?.open) element?.showModal();
@@ -113,7 +116,9 @@ export function CallScreenView({
     if (document.fullscreenElement === surface.current)
       void document.exitFullscreen().catch(() => {});
     setExpanded(false);
-    requestAnimationFrame(() => trigger.current?.focus());
+    requestAnimationFrame(() =>
+      (returnFocus.current || trigger.current)?.focus(),
+    );
   };
   const full = async () => {
     setError("");
@@ -132,6 +137,12 @@ export function CallScreenView({
       );
     }
   };
+  const openFull = async (button: HTMLButtonElement) => {
+    returnFocus.current = button;
+    setExpanded(true);
+    if (dialog.current && !dialog.current.open) dialog.current.showModal();
+    await full();
+  };
   return (
     <figure className="min-w-0">
       <CallMediaVideo stream={stream} label={label} />
@@ -142,10 +153,23 @@ export function CallScreenView({
           type="button"
           className="note-tool inline-flex shrink-0 items-center gap-1"
           aria-label={`Enlarge ${label}`}
-          onClick={() => setExpanded(true)}
+          onClick={(event) => {
+            returnFocus.current = event.currentTarget;
+            setExpanded(true);
+          }}
         >
           <Expand className="mr-1 h-3.5 w-3.5" />
           Enlarge
+        </button>
+        <button
+          type="button"
+          className="note-tool inline-flex shrink-0 items-center gap-1"
+          aria-label={`Full screen ${label}`}
+          title="Open screen in full screen"
+          onClick={(event) => void openFull(event.currentTarget)}
+        >
+          <Maximize className="h-3.5 w-3.5" />
+          Full screen
         </button>
       </figcaption>
       <dialog
@@ -212,6 +236,7 @@ export function CallScreenView({
               />
             )}
           </div>
+          {participants&&<div className="max-h-[30dvh] shrink-0 overflow-y-auto border-t border-neutral-700 p-3">{participants}</div>}
         </div>
       </dialog>
     </figure>
