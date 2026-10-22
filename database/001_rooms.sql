@@ -11,3 +11,5 @@ CREATE TABLE IF NOT EXISTS knotleaf_rooms (
 CREATE INDEX IF NOT EXISTS knotleaf_rooms_updated_at_idx ON knotleaf_rooms (updated_at DESC);
 ALTER TABLE knotleaf_rooms ADD COLUMN IF NOT EXISTS share_url text;
 CREATE INDEX IF NOT EXISTS knotleaf_rooms_created_at_idx ON knotleaf_rooms (created_at);
+
+ALTER TABLE knotleaf_rooms ADD COLUMN IF NOT EXISTS host_token_hash text;

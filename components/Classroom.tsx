@@ -1,4 +1,6 @@
 "use client";
+import { loadPreferences, savePreferences } from "@/lib/preferences";
+import { warmRoomServer } from "@/lib/roomCreation";
 import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useSearchParams } from "next/navigation";
@@ -10,11 +12,14 @@ import {
   PhoneOff,
   Copy,
   MessageCircle,
+  Expand,
+  Maximize,
 } from "lucide-react";
 import {
   ClassroomSession,
   classroomSocketUrl,
   type ClassState,
+  type ModerationAction,
 } from "@/lib/classroom";
 import {
   getRoomServerUrl,
@@ -22,6 +27,10 @@ import {
   checkRoomAvailable,
 } from "@/lib/roomConnection";
 import { ClassroomAudioSource } from "./ClassroomAudioSource";
+import { getRoomHostAccess } from "@/lib/roomAccess";
+import { CallParticipants, type CallParticipant } from "./CallParticipants";
+import { useCallSpeaking } from "./useCallSpeaking";
+import { RoomJoinForm } from "./RoomJoinForm";
 import { RoomChat } from "./RoomChat";
 import type { RoomChatProps } from "@/lib/roomChat";
 import { CallMediaVideo as MediaVideo, CallScreenView } from "./CallScreenView";
@@ -61,6 +70,7 @@ function PeerAudio({ stream, name }: { stream: MediaStream; name: string }) {
 export function Classroom({
   roomId,
   onCreateRoom,
+  onJoinRoom,
   onRecordingChange,
   uiHidden = false,
   roomChat,
@@ -71,12 +81,41 @@ export function Classroom({
   roomId?: string;
   uiHidden?: boolean;
   onCreateRoom?: () => Promise<void>;
+  onJoinRoom?: (id: string) => void | Promise<void>;
   onRecordingChange?: (active: boolean) => void;
 }) {
   const search = useSearchParams(),
     panelId = useId(),
-    trigger = useRef<HTMLButtonElement>(null);
+    trigger = useRef<HTMLButtonElement>(null),
+    panelRef = useRef<HTMLElement>(null);
+  const [expandedCall, setExpandedCall] = useState(false),
+    [fullCall, setFullCall] = useState(false);
+  useEffect(() => {
+    const changed = () =>
+      setFullCall(document.fullscreenElement === panelRef.current);
+    document.addEventListener("fullscreenchange", changed);
+    return () => document.removeEventListener("fullscreenchange", changed);
+  }, []);
+  const fullCallView = async () => {
+    setError("");
+    try {
+      if (document.fullscreenElement === panelRef.current)
+        await document.exitFullscreen();
+      else {
+        setExpandedCall(true);
+        if (!panelRef.current?.requestFullscreen) throw new Error();
+        await panelRef.current.requestFullscreen();
+      }
+    } catch {
+      setError(
+        "Full screen is unavailable. The expanded call view is still available.",
+      );
+    }
+  };
+
   const minimize = () => {
+    if (document.fullscreenElement === panelRef.current)
+      void document.exitFullscreen().catch(() => {});
     setOpen(false);
     requestAnimationFrame(() => trigger.current?.focus());
   };
@@ -87,9 +126,16 @@ export function Classroom({
     [state, setState] = useState<ClassState | null>(null),
     [error, setError] = useState(""),
     [busy, setBusy] = useState("");
+  const [noiseSuppression, setNoiseSuppression] = useState(
+      () => loadPreferences().callNoiseSuppression,
+    ),
+    [shareTabAudio, setShareTabAudio] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const client = useRef<ClassroomSession | null>(null),
     input = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (open && !roomId) void warmRoomServer();
+  }, [open, roomId]);
   const joinAbort = useRef<AbortController | null>(null);
   useEffect(
     () => () => {
@@ -134,6 +180,7 @@ export function Classroom({
       const session = new ClassroomSession(
         classroomSocketUrl(base, roomId),
         name.trim(),
+        { noiseSuppression, hostToken: getRoomHostAccess(roomId) },
       );
       client.current = session;
       session.onState = (next) => {
@@ -172,7 +219,10 @@ export function Classroom({
     setError("");
     try {
       if (action === "screen" || action === "change-screen")
-        await client.current?.toggleScreen(action === "change-screen");
+        await client.current?.toggleScreen(
+          action === "change-screen",
+          shareTabAudio,
+        );
       else await client.current?.toggle(action as "mic" | "camera");
     } catch (error) {
       if (
@@ -212,7 +262,8 @@ export function Classroom({
       if (
         event.key === "Escape" &&
         !event.defaultPrevented &&
-        !document.querySelector("dialog[data-call-screen][open]")
+        !document.querySelector("dialog[open]") &&
+        document.fullscreenElement !== panelRef.current
       ) {
         setOpen(false);
         trigger.current?.focus();
@@ -254,6 +305,22 @@ export function Classroom({
       setBusy("");
     }
   };
+  const changeNoiseSuppression = async (enabled: boolean) => {
+    if (busy) return;
+    setBusy("noise");
+    setError("");
+    try {
+      await client.current?.setNoiseSuppression(enabled);
+      setNoiseSuppression(enabled);
+      savePreferences({ callNoiseSuppression: enabled });
+    } catch {
+      setError(
+        "Could not change noise cancellation. Your current microphone settings are unchanged. Retry or select another microphone.",
+      );
+    } finally {
+      setBusy("");
+    }
+  };
   useEffect(() => {
     if (open && chatOpen) {
       document
@@ -263,6 +330,54 @@ export function Classroom({
     }
   }, [open, chatOpen, panelId]);
   const connected = state?.status === "connected";
+  const speaking = useCallSpeaking(
+    state
+      ? [
+          {
+            id: state.id || "self",
+            stream: state.microphone,
+            enabled: state.media.mic,
+          },
+          ...state.peers.map((peer) => ({
+            id: peer.id,
+            stream: peer.microphone,
+            enabled: peer.media.mic,
+          })),
+        ]
+      : [],
+    !!connected && open && !uiHidden,
+  );
+  const participants: CallParticipant[] = state
+    ? [
+        {
+          id: state.id || "self",
+          name: name || "You",
+          role: state.role || "participant",
+          mic: state.media.mic,
+          speaking: !!speaking[state.id || "self"],
+          self: true,
+        },
+        ...state.peers.map((peer) => ({
+          id: peer.id,
+          name: peer.name,
+          role: peer.role || "participant",
+          mic: peer.media.mic,
+          speaking: !!speaking[peer.id],
+        })),
+      ]
+    : [];
+  const moderate = (action: ModerationAction, id?: string) =>
+    client.current?.moderate(action, id);
+  const participantStrip = state ? (
+    <CallParticipants
+      people={participants}
+      role={state.role}
+      onModerate={moderate}
+      onToggleMicrophone={() => void act("mic")}
+      busy={!!busy}
+      compact
+    />
+  ) : undefined;
   const control =
     "flex items-center gap-1.5 rounded-lg border border-neutral-700 px-3 py-2 text-xs hover:bg-neutral-800 disabled:opacity-40";
   return (
@@ -286,9 +401,10 @@ export function Classroom({
       {typeof document !== "undefined" &&
         createPortal(
           <aside
+            ref={panelRef}
             id={panelId}
             aria-label="Live call"
-            className={`${open && !uiHidden ? "flex" : "hidden"} fixed bottom-3 right-3 top-14 z-50 w-[min(560px,calc(100vw-24px))] flex-col overflow-hidden rounded-xl border border-neutral-700 bg-neutral-900 text-white shadow-2xl`}
+            className={`${open && !uiHidden ? "flex" : "hidden"} fixed ${expandedCall ? "inset-3 w-auto" : "bottom-3 right-3 top-14 w-[min(560px,calc(100vw-24px))]"} z-50 flex-col overflow-hidden rounded-xl border border-neutral-700 bg-neutral-900 text-white shadow-2xl`}
           >
             <header className="flex items-center justify-between border-b border-neutral-700 p-3">
               <h2 className="text-sm font-semibold">
@@ -319,6 +435,33 @@ export function Classroom({
                   </button>
                 )}
                 <button
+                  type="button"
+                  className="note-tool"
+                  aria-label={
+                    expandedCall ? "Restore call size" : "Expand call"
+                  }
+                  title={expandedCall ? "Restore call size" : "Expand call"}
+                  aria-pressed={expandedCall}
+                  onClick={() => {
+                    if (document.fullscreenElement === panelRef.current)
+                      void document.exitFullscreen().catch(() => {});
+                    setExpandedCall((value) => !value);
+                  }}
+                >
+                  <Expand className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  className="note-tool"
+                  aria-label={
+                    fullCall ? "Exit call full screen" : "Full screen call"
+                  }
+                  title={fullCall ? "Exit full screen" : "Full screen call"}
+                  onClick={() => void fullCallView()}
+                >
+                  <Maximize className="h-4 w-4" />
+                </button>
+                <button
                   aria-label="Minimize live call"
                   title="Minimize · call stays connected"
                   onClick={minimize}
@@ -328,6 +471,11 @@ export function Classroom({
                 </button>
               </div>
             </header>
+            {connected && expandedCall && (
+              <div className="max-h-[28dvh] shrink-0 overflow-y-auto border-b border-neutral-700 p-3">
+                {participantStrip}
+              </div>
+            )}
             <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
               {roomId && roomChat && (
                 <div id={`${panelId}-chat`} hidden={!chatOpen}>
@@ -491,7 +639,30 @@ export function Classroom({
                     enabled={state.media.mic}
                     busy={!!busy}
                     onChange={(id) => void selectMicrophone(id)}
+                    noiseSuppression={state.noiseSuppression}
+                    onNoiseChange={(enabled) =>
+                      void changeNoiseSuppression(enabled)
+                    }
+                    processing={state.audioProcessing}
                   />
+                  <div className="space-y-1 text-xs text-neutral-400">
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={shareTabAudio}
+                        disabled={!!busy}
+                        onChange={(event) =>
+                          setShareTabAudio(event.target.checked)
+                        }
+                      />
+                      Include tab audio
+                    </label>
+                    <p className="text-[11px] text-neutral-500">
+                      {state.media.screen
+                        ? "Use Change screen source to apply audio changes."
+                        : "Off by default to prevent call audio feeding back. Enable to share sound from another tab."}
+                    </p>
+                  </div>
                   <p className="text-[11px] text-neutral-500">
                     Small-group call · up to {state.maxParticipants} people
                     {!state.relayConfigured
@@ -502,6 +673,7 @@ export function Classroom({
                     <CallScreenView
                       stream={state.screen}
                       label="Your shared screen"
+                      participants={participantStrip}
                       detail={`Your screen · ${state.screen.getAudioTracks().length ? "screen/tab audio shared" : "screen/tab audio off"}`}
                     />
                   )}
@@ -512,6 +684,7 @@ export function Classroom({
                         key={`screen-${peer.id}`}
                         stream={peer.screen}
                         label={`${peer.name}'s screen`}
+                        participants={participantStrip}
                         detail={`${peer.name} · ${peer.status === "connected" ? "screen" : peer.status}`}
                       />
                     ))}
@@ -554,6 +727,20 @@ export function Classroom({
                       </figure>
                     ))}
                   </div>
+                  {!expandedCall && (
+                    <CallParticipants
+                      people={participants}
+                      role={state.role}
+                      onModerate={moderate}
+                      onToggleMicrophone={() => void act("mic")}
+                      busy={!!busy}
+                    />
+                  )}
+                  {state.notice && (
+                    <p role="status" className="text-xs text-neutral-300">
+                      {state.notice}
+                    </p>
+                  )}
                   {!state.peers.length && (
                     <p role="status" className="py-2 text-xs text-neutral-400">
                       You’re the first here. Invite others using the room’s
@@ -561,6 +748,30 @@ export function Classroom({
                     </p>
                   )}
                 </>
+              )}
+              {!connected && (
+                <RoomJoinForm
+                  call
+                  onJoin={
+                    onJoinRoom ||
+                    ((id) => window.location.assign(roomInviteUrl(id, true)))
+                  }
+                />
+              )}
+              {connected && (
+                <details className="border-t border-neutral-800 pt-3 text-xs text-neutral-400">
+                  <summary className="cursor-pointer hover:text-white">
+                    Join another call
+                  </summary>
+                  <p className="pt-2">Opening another link leaves this call.</p>
+                  <RoomJoinForm
+                    call
+                    onJoin={
+                      onJoinRoom ||
+                      ((id) => window.location.assign(roomInviteUrl(id, true)))
+                    }
+                  />
+                </details>
               )}
               {state?.peers.map((peer) => (
                 <PeerAudio key={peer.id} stream={peer.audio} name={peer.name} />

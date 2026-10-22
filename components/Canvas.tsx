@@ -665,7 +665,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
   const createSharedRoom = (openClassroom = false): Promise<void> => {
     if (creatingRoomRef.current) return creatingRoomRef.current;
     const operation = (async () => {
-      const { id, savedLocally } = await createRoomFromBoard(structuredClone(boardRef.current));
+      const { id, savedLocally } = await createRoomFromBoard(boardRef.current);
       setSaveError(!savedLocally);
       router.push(`/canvas/${id}${openClassroom ? "?classroom=1" : ""}`);
     })();
@@ -716,7 +716,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
           onFocusCanvas={toggleFocus}
           onBeforeRefresh={prepareRefresh}
           recording={recording}
-          collaboration={<><Classroom key={`classroom:${initialRoomId || "personal"}`} roomId={initialRoomId} roomChat={initialRoomId ? roomChat : undefined} onName={name => sessionRef.current?.setName(name)} onRecordingChange={setRecording} uiHidden={focusMode} onCreateRoom={() => createSharedRoom(true)} /><CollaborationPanel key={`collaboration:${initialRoomId || "personal"}`} roomChat={roomChat} roomId={initialRoomId} onLeave={handleLeaveRoom} status={roomStatus} people={people} onName={name => sessionRef.current?.setName(name)} onJoin={id => router.push(`/canvas/${id}`)} onCreate={() => createSharedRoom()} /></>}
+          collaboration={<><Classroom key={`classroom:${initialRoomId || "personal"}`} roomId={initialRoomId} roomChat={initialRoomId ? roomChat : undefined} onName={name => sessionRef.current?.setName(name)} onRecordingChange={setRecording} uiHidden={focusMode} onCreateRoom={() => createSharedRoom(true)} onJoinRoom={id=>router.push(`/canvas/${id}?classroom=1`)} /><CollaborationPanel key={`collaboration:${initialRoomId || "personal"}`} roomChat={roomChat} roomId={initialRoomId} onLeave={handleLeaveRoom} status={roomStatus} people={people} onName={name => sessionRef.current?.setName(name)} onJoin={(id,openCall) => router.push(`/canvas/${id}${openCall?"?classroom=1":""}`)} onCreate={() => createSharedRoom()} /></>}
           title={board.title}
           saveError={saveError}
           onRetrySave={() => persist(boardRef.current)}

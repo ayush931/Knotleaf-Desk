@@ -1,15 +1,18 @@
 "use client";
+import { warmRoomServer } from "@/lib/roomCreation";
 import { useEffect, useRef, useState } from "react";
 import { Users, Link, X, LogOut, MessageCircle } from "lucide-react";
+import { RoomJoinForm } from "./RoomJoinForm";
 import { RoomChat } from "./RoomChat";
 import type { RoomChatProps } from "@/lib/roomChat";
 import type { Collaborator } from "@/lib/collaboration";
 import { roomInviteUrl } from "@/lib/roomConnection";
-interface Props { roomChat?: RoomChatProps; roomId?: string; status: string; people: Collaborator[]; onCreate: () => Promise<void>; onJoin: (id: string) => void; onName: (name: string) => void; onLeave: () => void }
+interface Props { roomChat?: RoomChatProps; roomId?: string; status: string; people: Collaborator[]; onCreate: () => Promise<void>; onJoin: (id: string, openCall?: boolean) => void; onName: (name: string) => void; onLeave: () => void }
 export function CollaborationPanel(p: Props) {
-  const [open, setOpen] = useState(false), [invite, setInvite] = useState(""), [error, setError] = useState(""), [copied, setCopied] = useState(false);
+  const [open, setOpen] = useState(false), [error, setError] = useState(""), [copied, setCopied] = useState(false);
   const [chatIntent, setChatIntent] = useState(false);
   const dialog = useRef<HTMLDialogElement>(null);
+  useEffect(() => { if (open && !p.roomId) void warmRoomServer(); }, [open, p.roomId]);
   const inviteLink = p.roomId && typeof window !== "undefined" ? roomInviteUrl(p.roomId) : "";
   const leaveRoom = () => { setOpen(false); p.onLeave(); };
   const [creating, setCreating] = useState(false);
@@ -30,7 +33,7 @@ export function CollaborationPanel(p: Props) {
       {p.roomId ? <div className="mt-4 space-y-3"><p role="status" className={`text-sm ${p.status === "connected" ? "text-emerald-400" : "text-amber-400"}`}>{p.status === "connected" ? "Connected · edits merge live" : p.status === "expired" ? "Room expired · deleted after 24 hours" : "Connecting… check the collaboration server"}</p><label className="block text-xs text-neutral-400">Your name<input maxLength={40} placeholder="Your name" onChange={e => p.onName(e.target.value)} className="mt-1 block w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-white" /></label><button onClick={async () => { try { await navigator.clipboard.writeText(inviteLink); setCopied(true); } catch { setError("Copy is unavailable. Select the room link below."); } }} className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm hover:bg-blue-500"><Link className="h-4 w-4" />{copied ? "Invite link copied" : "Copy invite link"}</button><input readOnly aria-label="Room invite link" value={typeof window !== "undefined" ? inviteLink : ""} className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-xs text-neutral-400" onFocus={e => e.target.select()} /><p className="text-xs text-neutral-500">This room is deleted 24 hours after creation. Anyone with this link can edit the canvas and notes. Share a hosted or LAN address; localhost links work only on your computer.</p><ul className="space-y-1 text-xs text-neutral-400">{p.people.map(person => <li key={person.id} className="flex items-center gap-2"><span className="h-2 w-2 rounded-full" style={{ background: person.color }} />{person.name}</li>)}</ul></div> : <div className="mt-4 space-y-3"><p className="text-sm leading-relaxed text-neutral-400">Rooms are deleted 24 hours after creation. Create a shared copy of this board. Invite people to draw and write notes together, with live cursors and merged edits.</p><button onClick={createRoom} disabled={creating} className="w-full rounded-lg bg-blue-600 px-3 py-2 text-sm hover:bg-blue-500">{creating ? "Creating room…" : "Create room from this board"}</button><p className="text-xs text-neutral-500">Requires the included collaboration server. Your personal board stays in its workspace.</p></div>}
       {p.roomId && p.roomChat && <div className="mt-4"><RoomChat {...p.roomChat}/></div>}
       {p.roomId && <button onClick={leaveRoom} className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg border border-neutral-700 px-3 py-2 text-sm text-neutral-300 hover:bg-neutral-800"><LogOut className="h-4 w-4" />Leave room</button>}
-      <form noValidate className="mt-5 space-y-2 border-t border-neutral-800 pt-4" onSubmit={e => { e.preventDefault(); const match = invite.match(/([a-f\d]{8}-[a-f\d]{4}-4[a-f\d]{3}-[89ab][a-f\d]{3}-[a-f\d]{12})/i); if (!match) { setError("Paste a valid room link or room ID."); return; } try { const url = new URL(invite); if (["http:", "https:"].includes(url.protocol) && url.pathname === `/canvas/${match[1]}`) { window.location.assign(url.href); return; } } catch { /* A room ID joins on the current server. */ } p.onJoin(match[1]); }}><label htmlFor="join-room" className="text-xs text-neutral-400">Join an existing room</label><div className="flex gap-2"><input id="join-room" value={invite} onChange={e => { setInvite(e.target.value); setError(""); }} placeholder="Paste room link or ID" className="min-w-0 flex-1 rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm" /><button disabled={!invite.trim()} className="rounded-lg border border-neutral-700 px-3 py-2 text-sm hover:bg-neutral-800 disabled:opacity-40">Join</button></div></form>
+      <RoomJoinForm onJoin={p.onJoin}/>
       {error && <p role="alert" className="mt-3 text-xs text-rose-400">{error}</p>}
     </dialog></>;
 }

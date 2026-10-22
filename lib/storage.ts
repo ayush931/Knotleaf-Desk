@@ -5,11 +5,13 @@ import { normalizeBackground } from "./background.mjs";
 import { Board, BoardSummary, CanvasElement, Workspace } from "@/draw/types";
 import { TEMPLATES } from "@/draw/templatesData";
 import { roomExpiresAt } from "./roomExpiry.mjs";
+import { clearRoomHostAccess } from "./roomAccess";
 
 function expiredRoom(board: { id: string; createdAt: number; roomExpiresAt?: number }): boolean {
   return isRoomBoardId(board.id) && (board.roomExpiresAt ?? roomExpiresAt(board.createdAt)) <= Date.now();
 }
 function removeRoomCache(id: string) {
+  clearRoomHostAccess(id);
   localStorage.removeItem(`excali_eraser_board_${id}`);
   localStorage.removeItem(`knotleaf_history_${id}`);
   if (getActiveBoardId() === id) localStorage.removeItem('excali_eraser_active_board_id');
@@ -157,6 +159,7 @@ export function clearBoard(id: string): Board | null {
 
 export function deleteBoard(id: string): void {
   if (typeof window === "undefined") return;
+  clearRoomHostAccess(id);
   try {
     localStorage.removeItem(`${STORAGE_KEYS.BOARD_PREFIX}${id}`);
     localStorage.removeItem(`knotleaf_history_${id}`);

@@ -1,3 +1,4 @@
+import {verifyHostToken} from './host-access.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import pg from 'pg';
@@ -14,7 +15,10 @@ export function createRoomStore(url = process.env.DATABASE_URL, directory = proc
     const filename = id => { if (!validRoomId(id)) throw new Error('Invalid room ID'); return path.join(directory, `${id}.json`); };
     const write = (id, record) => { const file = filename(id); fs.writeFileSync(file + '.tmp', JSON.stringify(record), { mode: 0o600 }); fs.renameSync(file + '.tmp', file); };
     return {
-      async create(id, title, state, snapshot, shareUrl = null, createdAt = Date.now()) { if (fs.existsSync(filename(id))) return; write(id, { id, title, sharePath: `/canvas/${id}`, shareUrl, state, snapshot, createdAt: new Date(createdAt).toISOString(), updatedAt: new Date().toISOString() }); },
+      async ready() {},
+      async verifyHost(id,token) { const room=await this.load(id);return !!room&&verifyHostToken(token,room.hostTokenHash); },
+      async status(id) { const room=await this.load(id); return room ? {expiresAt:room.expiresAt} : null; },
+      async create(id, title, state, snapshot, shareUrl = null, createdAt = Date.now(), hostTokenHash = null) { if (fs.existsSync(filename(id))) return; write(id, { id, title, sharePath: `/canvas/${id}`, shareUrl, state, snapshot, hostTokenHash, createdAt: new Date(createdAt).toISOString(), updatedAt: new Date().toISOString() }); },
       async load(id) {
         let record;
         try { record = JSON.parse(fs.readFileSync(filename(id), 'utf8')); } catch (error) { if (error.code === 'ENOENT') return null; throw error; }
@@ -39,14 +43,22 @@ export function createRoomStore(url = process.env.DATABASE_URL, directory = proc
   // Self-hosted Postgres initializes its idempotent schema without a SaaS migration service.
   let ready;
   const query = async (text, values) => { ready ||= pool.query(fs.readFileSync(new URL('../database/001_rooms.sql', import.meta.url), 'utf8')).catch(error => { ready = undefined; throw error; }); await ready; return pool.query(text, values); };
+  const read = async (id, statusOnly = false) => {
+    if (!validRoomId(id)) throw new Error('Invalid room ID');
+    const fields = statusOnly ? '' : 'state_base64 AS state, host_token_hash IS NOT NULL AS "hasHost", ';
+    const { rows } = await query(`SELECT ${fields}created_at + interval '24 hours' AS "expiresAt" FROM knotleaf_rooms WHERE id=$1 AND created_at > now() - interval '24 hours'`, [id]);
+    if (rows[0]) return rows[0];
+    // Only expired/missing reads need deletion; healthy joins use one round trip.
+    const { rows: expired } = await query("DELETE FROM knotleaf_rooms WHERE id=$1 AND created_at <= now() - interval '24 hours' RETURNING id", [id]);
+    for (const row of expired) removeFiles(row.id);
+    return null;
+  };
   return {
-    async create(id, title, state, snapshot, shareUrl = null, createdAt = Date.now()) { if (!validRoomId(id)) throw new Error('Invalid room ID'); await query('INSERT INTO knotleaf_rooms (id,title,share_path,share_url,state_base64,snapshot,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT (id) DO NOTHING', [id, title.slice(0,200), `/canvas/${id}`, shareUrl, state, JSON.stringify(snapshot),new Date(createdAt)]); },
-    async load(id) {
-      const { rows: expired } = await query("DELETE FROM knotleaf_rooms WHERE id=$1 AND created_at <= now() - interval '24 hours' RETURNING id", [id]);
-      for (const row of expired) removeFiles(row.id);
-      const { rows } = await query("SELECT state_base64 AS state, created_at + interval '24 hours' AS \"expiresAt\" FROM knotleaf_rooms WHERE id=$1 AND created_at > now() - interval '24 hours'", [id]);
-      return rows[0] || null;
-    },
+    async create(id, title, state, snapshot, shareUrl = null, createdAt = Date.now(), hostTokenHash = null) { if (!validRoomId(id)) throw new Error('Invalid room ID'); await query('INSERT INTO knotleaf_rooms (id,title,share_path,share_url,state_base64,snapshot,created_at,host_token_hash) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT (id) DO NOTHING', [id, title.slice(0,200), `/canvas/${id}`, shareUrl, state, JSON.stringify(snapshot),new Date(createdAt),hostTokenHash]); },
+    ready: () => query('SELECT 1'),
+    async verifyHost(id,token) {if(!validRoomId(id))return false;const {rows}=await query("SELECT host_token_hash FROM knotleaf_rooms WHERE id=$1 AND created_at > now() - interval '24 hours'",[id]);return verifyHostToken(token,rows[0]?.host_token_hash);},
+    status: id => read(id, true),
+    load: id => read(id),
     async save(id, state, snapshot) { const result = await query("UPDATE knotleaf_rooms SET state_base64=$2,snapshot=$3,title=$4,updated_at=now() WHERE id=$1 AND created_at > now() - interval '24 hours'", [id,state,JSON.stringify(snapshot),String(snapshot.title || 'Shared whiteboard').slice(0,200)]); if (!result.rowCount) throw new Error('Room does not exist or has expired'); },
     async purgeExpired() {
       const { rows } = await query("DELETE FROM knotleaf_rooms WHERE created_at <= now() - interval '24 hours' RETURNING id");

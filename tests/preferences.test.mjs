@@ -25,3 +25,7 @@ test('document reading preferences persist alongside canvas and export settings'
  expect(loadPreferences().noteAppearance).toEqual({font:'serif',size:20,width:'wide',lineHeight:2.1});expect(loadPreferences().eraserSize).toBe(80);
  expect(normalizePreferences({noteAppearance:{font:'bad',size:-4,width:'bad',lineHeight:100}}).noteAppearance.font).toBe('sans');
 });
+
+test('noise cancellation defaults on and persists independently of drawing settings',()=>{
+ expect(loadPreferences().callNoiseSuppression).toBe(true);savePreferences({callNoiseSuppression:false});savePreferences({eraserSize:55});expect(loadPreferences().callNoiseSuppression).toBe(false);expect(normalizePreferences({callNoiseSuppression:'off'}).callNoiseSuppression).toBe(true);
+});

@@ -1,10 +1,11 @@
 import { beforeEach, afterEach, test, expect } from 'bun:test';
-import { getRoomServerUrl, roomInviteUrl, checkRoomAvailable, RoomExpiredError } from '../lib/roomConnection.ts';
+import { getRoomServerUrl, roomInviteUrl, checkRoomAvailable, RoomExpiredError, rememberCreatedRoom, resetRoomConnectionCache } from '../lib/roomConnection.ts';
 import { createRoomFromBoard } from '../lib/roomCreation.ts';
 import { createBoard, getBoard, getOrCreateDefaultBoard } from '../lib/storage.ts';
 const originals = new Map();
 let records;
 beforeEach(() => {
+  resetRoomConnectionCache();
   records = new Map();
   for (const [key, value] of Object.entries({ window: { location: { origin: 'http://localhost:3000' } }, localStorage: { getItem: key => records.get(key) ?? null, setItem: (key, value) => records.set(key, value) } })) {
     originals.set(key, Object.getOwnPropertyDescriptor(globalThis, key));
@@ -67,4 +68,35 @@ test('creating a room keeps local assets in this browser and out of the HTTP bod
  const asset={id:'private',type:'image',localOnly:true,source:'SECRET ORIGINAL BYTES'};board.elements=[asset];
  globalThis.fetch=async(_url,options)=>{expect(options.body).not.toContain('SECRET');expect(JSON.parse(options.body).elements).toEqual([]);return Response.json({id,title:'Shared'},{status:201});};
  await createRoomFromBoard(board);expect(getBoard(id).elements).toEqual([asset]);
+});
+
+test('concurrent configuration lookups share one request and failures are retryable',async()=>{
+ let requests=0,finish;globalThis.fetch=async()=>{requests++;return new Promise(resolve=>finish=resolve);};
+ const first=getRoomServerUrl(),second=getRoomServerUrl();expect(requests).toBe(1);finish(Response.json({collaboration:true,websocketUrl:'/collaboration'}));
+ expect(await first).toBe(await second);await getRoomServerUrl();expect(requests).toBe(1);
+ resetRoomConnectionCache();globalThis.fetch=async()=>{requests++;throw new Error('Offline');};await expect(getRoomServerUrl()).rejects.toThrow('Offline');
+ globalThis.fetch=async()=>Response.json({collaboration:true,websocketUrl:'/collaboration'});expect(await getRoomServerUrl()).toContain('/collaboration');
+});
+test('a durable creation skips immediate redundant room checks but expired confirmations do not',async()=>{
+ const id=crypto.randomUUID();let requests=0;globalThis.fetch=async()=>{requests++;return new Response(null,{status:200});};
+ rememberCreatedRoom(id,new Date(Date.now()+86400000).toISOString());await checkRoomAvailable('ws://localhost:3000/collaboration',id);expect(requests).toBe(0);
+ rememberCreatedRoom(id,new Date(Date.now()-1000).toISOString());await checkRoomAvailable('ws://localhost:3000/collaboration',id);expect(requests).toBe(1);
+});
+test('creation primes runtime configuration without sending local view settings',async()=>{
+ const board=createBoard('Fast room'),id=crypto.randomUUID();let requests=0;
+ globalThis.fetch=async(_url,options)=>{requests++;const body=JSON.parse(options.body);expect(body.id).toBeUndefined();expect(body.viewMode).toBeUndefined();return Response.json({id,title:'Fast room',websocketUrl:'/collaboration',expiresAt:new Date(Date.now()+86400000).toISOString()},{status:201});};
+ await createRoomFromBoard(board);expect(await getRoomServerUrl()).toBe('ws://localhost:3000/collaboration');await checkRoomAvailable('ws://localhost:3000/collaboration',id);expect(requests).toBe(1);
+});
+
+test('opening sharing warms once without creating a room and allows retry after failure',async()=>{
+ const {warmRoomServer}=await import('../lib/roomCreation.ts');window.location.origin='https://warm.example';let requests=0,finish;
+ globalThis.fetch=async(_url,options)=>{requests++;expect(JSON.parse(options.body)).toEqual({warmup:true});return new Promise(resolve=>finish=resolve);};
+ const first=warmRoomServer(),second=warmRoomServer();expect(first).toBe(second);expect(requests).toBe(1);finish(Response.json({ready:true,websocketUrl:'/collaboration'}));await first;await warmRoomServer();expect(requests).toBe(1);expect(await getRoomServerUrl()).toBe('wss://warm.example/collaboration');
+ window.location.origin='https://failed-warm.example';globalThis.fetch=async()=>{requests++;throw new Error('Sleeping');};await warmRoomServer();await warmRoomServer();expect(requests).toBe(3);
+});
+
+test('cancelling one configuration caller does not cancel another caller sharing its request',async()=>{
+ let finish;globalThis.fetch=()=>new Promise(resolve=>finish=resolve);
+ const controller=new AbortController(),first=getRoomServerUrl(controller.signal),second=getRoomServerUrl();controller.abort(new Error('Closed panel'));
+ await expect(first).rejects.toThrow('Closed panel');finish(Response.json({collaboration:true,websocketUrl:'/collaboration'}));expect(await second).toBe('ws://localhost:3000/collaboration');
 });
