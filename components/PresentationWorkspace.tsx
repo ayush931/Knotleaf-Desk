@@ -3,6 +3,12 @@ import "katex/dist/katex.min.css";
 import React, { useEffect, useRef, useState } from "react";
 import { FontSelect } from "./FontSelect";
 import { themeTypography } from "@/lib/presentations/design";
+import { PresentationPlanner, type SlideAction } from "./PresentationPlanner";
+import {
+  moveSlide,
+  duplicateSlide,
+  writeSpeakerNotes,
+} from "@/lib/presentations/authoring";
 import { PresentationThemes } from "./PresentationThemes";
 import { ConfirmDialog } from "./ConfirmDialog";
 import {
@@ -225,6 +231,7 @@ function PresentationEditor({
     [themeGallery, setThemeGallery] = useState(false),
     [designOpen, setDesignOpen] = useState(false),
     [busy, setBusy] = useState(""),
+    [planner, setPlanner] = useState<"organize" | "starters" | null>(null),
     [commandsOpen, setCommandsOpen] = useState(false),
     [grid, setGrid] = useState(false),
     [lintOpen, setLintOpen] = useState(false),
@@ -251,6 +258,8 @@ function PresentationEditor({
   const [undoDelete, setUndoDelete] = useState<{
     source: string;
     index: number;
+    label?: string;
+    slideIds?: string[];
   } | null>(null);
   const [imported, setImported] = useState<Deck | null>(null);
   useEffect(() => {
@@ -288,13 +297,92 @@ function PresentationEditor({
     };
   }, [boardId]);
   const update = (next: Partial<Deck>) => {
-    setDeck((value) => (value ? { ...value, ...next } : value));
+    setDeck((value) => {
+      if (!value) return value;
+      const merged = { ...value, ...next };
+      if (
+        next.source !== undefined &&
+        value.slideIds &&
+        next.slideIds === undefined
+      )
+        merged.slideIds = parseSlides(next.source).map(
+          (_, i) => value.slideIds?.[i] || crypto.randomUUID(),
+        );
+      return merged;
+    });
     setSaved(false);
     setError("");
     if (next.source !== undefined) {
       setUndoDelete(null);
       projector.stopFollowing();
     }
+  };
+  const undoStructure = () => {
+    if (!undoDelete) return;
+    update({
+      source: undoDelete.source,
+      slideIds: undoDelete.slideIds || slides.map((_, i) => String(i)),
+    });
+    setIndex(undoDelete.index);
+    setUndoDelete(null);
+  };
+  const changeSlide = (action: SlideAction, position: number) => {
+    if (!deck) return;
+    const next =
+      action === "up"
+        ? Math.max(0, position - 1)
+        : action === "down"
+          ? Math.min(slides.length - 1, position + 1)
+          : action === "duplicate"
+            ? position + 1
+            : Math.max(0, position - 1);
+    const source =
+      action === "delete"
+        ? removeSlide(deck.source, position)
+        : action === "duplicate"
+          ? duplicateSlide(deck.source, position)
+          : moveSlide(deck.source, position, next);
+    if (source === deck.source) return;
+    const ids = slides.map((_, i) => deck.slideIds?.[i] || String(i));
+    if (action === "duplicate")
+      ids.splice(position + 1, 0, crypto.randomUUID());
+    else if (action === "delete") {
+      ids.splice(position, 1);
+      if (!ids.length) ids.push(crypto.randomUUID());
+    } else {
+      const [id] = ids.splice(position, 1);
+      ids.splice(next, 0, id);
+    }
+    update({ source, slideIds: ids });
+    setUndoDelete({
+      source: deck.source,
+      slideIds: deck.slideIds || slides.map((_, i) => String(i)),
+      index: active,
+      label: action === "delete" ? "Undo delete" : "Undo change",
+    });
+    setIndex(next);
+  };
+  const addStarter = (source: string) => {
+    if (!deck) return;
+    const end = slides[active].end;
+    const inserted =
+      deck.source.slice(0, end).trimEnd() +
+      (deck.source.trim() ? "\n\n---\n\n" : "") +
+      source.trim() +
+      "\n\n" +
+      deck.source.slice(end);
+    const ids = slides.map((_, i) => deck.slideIds?.[i] || String(i));
+    const newIds = parseSlides(source).map(() => crypto.randomUUID());
+    if (deck.source.trim()) ids.splice(active + 1, 0, ...newIds);
+    else ids.splice(0, ids.length, ...newIds);
+    update({ source: inserted, slideIds: ids });
+    setUndoDelete({
+      source: deck.source,
+      slideIds: deck.slideIds || slides.map((_, i) => String(i)),
+      index: active,
+      label: "Undo starter",
+    });
+    setIndex(deck.source.trim() ? active + 1 : 0);
   };
   const insert = (value: string) => {
     if (!deck) return;
@@ -360,7 +448,11 @@ function PresentationEditor({
   return (
     <section
       onKeyDownCapture={(event) => {
-        if (event.nativeEvent.isComposing) return;
+        if (
+          event.nativeEvent.isComposing ||
+          (event.target as HTMLElement).closest("dialog[open]")
+        )
+          return;
         const mod = event.ctrlKey || event.metaKey,
           key = event.key.toLowerCase();
         if (
@@ -561,29 +653,24 @@ function PresentationEditor({
               <Plus size={13} />
               Slide
             </button>
+            <button className={button} onClick={() => setPlanner("starters")}>
+              Starters
+            </button>
+            <button className={button} onClick={() => setPlanner("organize")}>
+              Organize
+            </button>
             <button
               className={button}
               aria-label="Delete current slide"
-              onClick={() => {
-                update({ source: removeSlide(deck.source, active) });
-                setUndoDelete({ source: deck.source, index: active });
-                setIndex(Math.max(0, active - 1));
-              }}
+              onClick={() => changeSlide("delete", active)}
             >
               <Trash2 size={13} />
               <span className="hidden sm:inline">Delete slide</span>
             </button>
             {undoDelete && (
-              <button
-                className={button}
-                onClick={() => {
-                  update({ source: undoDelete.source });
-                  setIndex(undoDelete.index);
-                  setUndoDelete(null);
-                }}
-              >
+              <button className={button} onClick={undoStructure}>
                 <Undo2 size={13} />
-                Undo delete
+                {undoDelete.label || "Undo delete"}
               </button>
             )}
           </>
@@ -766,6 +853,20 @@ function PresentationEditor({
               run: () => onNew("html"),
             },
             {
+              id: "organize",
+              label: "Organize slides",
+              description:
+                "Move, duplicate, delete and undo with visual previews",
+              run: () => setPlanner("organize"),
+            },
+            {
+              id: "starters",
+              label: "Insert a story starter",
+              description:
+                "Ready-made outlines for a lesson, update, pitch or workshop",
+              run: () => setPlanner("starters"),
+            },
+            {
               id: "themes",
               label: "Choose theme",
               description: "Professional palettes with visual previews",
@@ -802,7 +903,14 @@ function PresentationEditor({
           ].filter(
             (command) =>
               deck.kind !== "html" ||
-              !["themes", "design", "guide", "lint"].includes(command.id),
+              ![
+                "themes",
+                "design",
+                "guide",
+                "lint",
+                "organize",
+                "starters",
+              ].includes(command.id),
           )}
         />
       )}
@@ -1115,7 +1223,7 @@ function PresentationEditor({
               <SlideSurface
                 slide={slides[active]}
                 deck={deck}
-                annotationKey={`${boardId}:${active}`}
+                annotationKey={`${boardId}:${deck.slideIds?.[active] || active}`}
               />
             )}
           </div>
@@ -1152,10 +1260,26 @@ function PresentationEditor({
                   Speaker notes · private{" "}
                   {projector.following ? "· following audience" : ""}
                 </summary>
-                <p className="mt-2 max-h-24 overflow-auto whitespace-pre-wrap text-neutral-300">
-                  {slides[active].notes ||
-                    "Add <!-- notes: Your reminder --> to this slide."}
-                </p>
+                <label className="mt-2 block text-[10px] text-neutral-500">
+                  Only you can see these notes. They are excluded from audience
+                  HTML and PDF.
+                  <textarea
+                    aria-label="Private speaker notes"
+                    value={slides[active].notes}
+                    onChange={(event) =>
+                      update({
+                        source: writeSpeakerNotes(
+                          deck.source,
+                          active,
+                          event.target.value,
+                        ),
+                      })
+                    }
+                    placeholder="What do you want to say on this slide?"
+                    rows={3}
+                    className="mt-2 block w-full resize-none rounded border border-neutral-700 bg-neutral-950 p-2 text-xs leading-5 text-neutral-200 outline-none focus:border-blue-500"
+                  />
+                </label>
               </details>
             </>
           )}
@@ -1218,6 +1342,22 @@ function PresentationEditor({
             </button>
           ))}
         </nav>
+      )}
+      {planner && deck.kind !== "html" && (
+        <PresentationPlanner
+          mode={planner}
+          deck={deck}
+          slides={slides}
+          active={active}
+          onClose={() => setPlanner(null)}
+          onSelect={(position) => {
+            projector.stopFollowing();
+            setIndex(position);
+          }}
+          onAction={changeSlide}
+          onStarter={addStarter}
+          onUndo={undoDelete ? undoStructure : undefined}
+        />
       )}
       <PresentationPresenter
         key={presenting ? "presenting" : "closed"}

@@ -243,7 +243,16 @@ test("design imports validate bounded settings, font identities, and background 
 test("shared content typography scales headings and secondary text with the body", async () => {
   const { themeVariables } = await import("../lib/presentations/export.ts");
   const { SLIDE_CSS } = await import("../lib/presentations/styles.ts");
-  const deck = { version: 1, title: "Type", source: "# Title", theme: "midnight", layout: "standard", headingFont: "jetbrains-mono", bodyFont: "jetbrains-mono", bodySize: 45 };
+  const deck = {
+    version: 1,
+    title: "Type",
+    source: "# Title",
+    theme: "midnight",
+    layout: "standard",
+    headingFont: "jetbrains-mono",
+    bodyFont: "jetbrains-mono",
+    bodySize: 45,
+  };
   const variables = themeVariables(deck);
   expect(variables["--deck-size"]).toBe("45px");
   expect(variables["--deck-scale"]).toBe("1.5");
@@ -252,4 +261,67 @@ test("shared content typography scales headings and secondary text with the body
   expect(SLIDE_CSS).toContain("font-size:calc(110px * var(--deck-scale,1))");
   expect(SLIDE_CSS).toContain("font-size:calc(26px * var(--deck-scale,1))");
   expect(SLIDE_CSS).not.toMatch(/font-size:\d+px/);
+});
+
+test("slide organization preserves private notes, code and reveals through moves and duplication", async () => {
+  const { moveSlide, duplicateSlide } =
+    await import("../lib/presentations/authoring.ts");
+  const source =
+    "# First\n<!-- notes: A private note -->\n\n---\n# Second\n```md\n---\n```\n\n- Later {reveal}\n\n---\n# Last";
+  const moved = parseSlides(moveSlide(source, 0, 2));
+  expect(moved.map((slide) => slide.title)).toEqual([
+    "Second",
+    "Last",
+    "First",
+  ]);
+  expect(moved[2].notes).toBe("A private note");
+  expect(moved[0].source).toContain("```md\n---\n```");
+  expect(moved[0].source).toContain("{reveal}");
+  expect(
+    parseSlides(moveSlide(source, 2, 0)).map((slide) => slide.title),
+  ).toEqual(["Last", "First", "Second"]);
+  const copied = parseSlides(duplicateSlide(source, 0));
+  expect(copied).toHaveLength(4);
+  expect(copied[1]).toMatchObject({
+    title: copied[0].title,
+    source: copied[0].source,
+    notes: copied[0].notes,
+  });
+  for (const index of [-1, 99, 1.2]) {
+    expect(moveSlide(source, index, 0)).toBe(source);
+    expect(duplicateSlide(source, index)).toBe(source);
+  }
+});
+test("plain speaker notes preserve arbitrary text and stay absent from audience output", async () => {
+  const { writeSpeakerNotes } =
+    await import("../lib/presentations/authoring.ts");
+  const source =
+    "# First\n<!-- notes: Old -->\n\n---\n# Last\n```md\n<!-- notes: literal -->\n```";
+  const notes = 'SECRET-NOTES with --> and \"quotes\"\n---\nNew line.  ';
+  const updated = writeSpeakerNotes(source, 0, notes);
+  expect(parseSlides(updated)).toHaveLength(2);
+  expect(parseSlides(updated)[0].notes).toBe(notes);
+  expect(parseSlides(updated)[1].source).toContain("<!-- notes: literal -->");
+  expect(parseSlides(writeSpeakerNotes(updated, 0, ""))[0].notes).toBe("");
+  const audience = await audienceHtml({
+    version: 1,
+    title: "Notes",
+    source: updated,
+    theme: "midnight",
+    layout: "standard",
+  });
+  expect(audience.join("")).not.toContain("SECRET-NOTES");
+  expect(audience.join("")).not.toContain("notes-json");
+  expect(
+    parseSlides("# Test\n<!-- notes-json: malformed -->")[0].source,
+  ).not.toContain("malformed");
+});
+test("story starters provide editable multi-slide structures without private data", async () => {
+  const { STORY_STARTERS } = await import("../lib/presentations/authoring.ts");
+  expect(new Set(STORY_STARTERS.map((item) => item.id)).size).toBe(6);
+  for (const item of STORY_STARTERS) {
+    const slides = parseSlides(item.source);
+    expect(slides.length).toBeGreaterThanOrEqual(4);
+    expect(slides.every((slide) => slide.title && !slide.notes)).toBe(true);
+  }
 });

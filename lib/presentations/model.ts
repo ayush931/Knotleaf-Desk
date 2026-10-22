@@ -83,6 +83,7 @@ export function parseSlides(source: string): Slide[] {
     offset = 0,
     content = "",
     notes = "",
+    jsonNotes: string | undefined,
     fence = "",
     fenceSize = 0,
     inNote = false,
@@ -94,7 +95,7 @@ export function parseSlides(source: string): Slide[] {
     const title = headingTitle || `Slide ${slides.length + 1}`;
     slides.push({
       source: content.trim(),
-      notes: notes.trim(),
+      notes: jsonNotes ?? notes.trim(),
       title,
       start,
       end,
@@ -107,6 +108,7 @@ export function parseSlides(source: string): Slide[] {
     });
     content = "";
     notes = "";
+    jsonNotes = undefined;
     headingTitle = "";
     theme = layout = undefined;
   };
@@ -126,6 +128,21 @@ export function parseSlides(source: string): Slide[] {
       )
         fence = "";
       content += line;
+    } else if (
+      !fence &&
+      !math &&
+      !inNote &&
+      /^\s*<!--\s*notes-json:/.test(line)
+    ) {
+      const encoded = line.match(
+        /^\s*<!--\s*notes-json:\s*(.*?)\s*-->\s*$/,
+      )?.[1];
+      try {
+        const value = JSON.parse(encoded || "");
+        if (typeof value === "string") jsonNotes = value;
+      } catch {
+        /* Malformed private notes remain private. */
+      }
     } else if (!fence && !math && !inNote && /^\s*---\s*$/.test(line)) {
       finish(offset);
       start = offset + line.length;
