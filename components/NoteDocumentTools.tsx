@@ -13,12 +13,11 @@ import {
   Eraser,
 } from "lucide-react";
 import {
-  NOTE_FONTS,
   NOTE_COLORS,
   NOTE_HIGHLIGHTS,
   type NoteAppearance,
 } from "@/lib/notesDocument";
-import { fontCssStack } from "@/draw/fonts";
+import { FontSelect } from "./FontSelect";
 
 export type NotePanel =
   | "appearance"
@@ -59,7 +58,8 @@ export function NoteTypographyTools({
   };
   return (
     <>
-      <select
+      <FontSelect
+        defaultLabel="Default font"
         aria-label="Text font"
         title="Font for selected text or your next typing"
         className="h-8 w-24 shrink-0 rounded border border-neutral-700 bg-neutral-900 px-1.5 text-xs"
@@ -69,18 +69,7 @@ export function NoteTypographyTools({
           if (e.target.value) chain?.setFontFamily(e.target.value).run();
           else chain?.unsetFontFamily().run();
         }}
-      >
-        <option value="">Default font</option>
-        {NOTE_FONTS.map((f) => (
-          <option
-            key={f.id}
-            value={f.id}
-            style={{ fontFamily: fontCssStack(f.id) }}
-          >
-            {f.label}
-          </option>
-        ))}
-      </select>
+      />
       <input
         ref={input}
         aria-label="Text size"
@@ -273,7 +262,7 @@ export function NoteStylePanel({
           </p>
           <label className="block space-y-1">
             Default font
-            <select
+            <FontSelect
               aria-label="Default note font"
               className="w-full rounded border border-neutral-700 bg-neutral-900 p-2"
               value={appearance.font}
@@ -283,13 +272,7 @@ export function NoteStylePanel({
                   font: e.target.value as NoteAppearance["font"],
                 })
               }
-            >
-              {NOTE_FONTS.map((f) => (
-                <option key={f.id} value={f.id}>
-                  {f.label}
-                </option>
-              ))}
-            </select>
+            />
           </label>
           <label className="block space-y-1">
             Default size

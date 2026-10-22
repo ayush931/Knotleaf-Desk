@@ -4,7 +4,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { PropertiesPanel } from '../components/PropertiesPanel.tsx';
 import { TopToolbar } from '../components/TopToolbar.tsx';
 import { DEFAULT_STYLE } from '../draw/types.ts';
-import { FONT_OPTIONS } from '../draw/fonts.ts';
+import { FONT_OPTIONS, QUICK_FONTS } from '../draw/fonts.ts';
 const noop = () => {};
 const props = { isOpen: true, onOpenChange: noop, selectedElement: null, selectedTool: 'select', selectionCount: 1, currentStyle: DEFAULT_STYLE, onSwapArrow: noop, onChangeFontSize: noop, onUpdateStyle: noop, onUpdateElement: noop, onDuplicate: noop, onDelete: noop, onBringToFront: noop, onSendToBack: noop, theme: 'dark' };
 test('manually opened Arrow inspector exposes all routing modes', () => {
@@ -36,10 +36,11 @@ test('text inspector keeps formatting visible and secondary document controls co
   expect(html).toContain('Document card</summary>'); expect(html).toContain('Lists</summary>');
   expect(html).not.toMatch(/<details[^>]*\bopen/); expect(html).not.toContain('Background Fill');
 });
-test('font picker previews all seven families and announces the selected font', () => {
+test('font picker retains quick previews and offers the full grouped collection', () => {
   const html = renderToStaticMarkup(React.createElement(PropertiesPanel, { ...props, isTextEditing: true, currentStyle: { ...DEFAULT_STYLE, fontFamily: 'serif' } }));
-  expect(html).toContain('aria-label="Font family"'); expect(FONT_OPTIONS).toHaveLength(7);
-  for (const font of FONT_OPTIONS) expect(html).toContain(`aria-label="Font: ${font.label}"`);
+  expect(html).toContain('aria-label="Font family"'); expect(QUICK_FONTS).toHaveLength(7);expect(FONT_OPTIONS).toHaveLength(30);
+  for (const font of QUICK_FONTS) expect(html).toContain(`aria-label="Font: ${font.label}"`);
+  expect(html).toContain('aria-label="More fonts"');for(const font of FONT_OPTIONS)expect(html).toContain(`<option value="${font.id}"`);expect(html).toContain('label="Playful &amp; display"');
   expect(html).toContain('aria-label="Font: Lora" aria-pressed="true"');
   expect(html).toContain('var(--font-lora)');
 });

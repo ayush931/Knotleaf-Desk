@@ -1,13 +1,14 @@
 "use client";
+import { FontSelect } from "./FontSelect";
 
 import React, { useLayoutEffect, useRef } from "react";
 import { ColorPalette } from "./ColorPalette";
 import { BackgroundStylePicker, type BackgroundPattern } from "./BackgroundStylePicker";
 import { parseFillColor } from "@/lib/fillColor";
 import { DEFAULT_BACKGROUND } from "@/lib/background.mjs";
-import type { BackgroundSettings } from "@/draw/types";
+import type { BackgroundSettings, FontFamily } from "@/draw/types";
 import { ColorControl } from "./ColorControl";
-import { FONT_OPTIONS, fontCssStack } from "@/draw/fonts";
+import { QUICK_FONTS, fontCssStack } from "@/draw/fonts";
 import {
   CanvasElement,
   StrokeStyle,
@@ -295,7 +296,7 @@ export function PropertiesPanel({
             <button onClick={() => onChangeFontSize(2)} title="Larger (Ctrl+Shift+>)" aria-label="Increase font size" className="w-7 h-7 rounded-md bg-neutral-800 hover:bg-neutral-700 text-sm">+</button>
           </div>
           <div role="group" aria-label="Font family" className="grid grid-cols-2 gap-1 p-0.5 mt-1.5 rounded-lg bg-neutral-800 text-[11px]">
-            {FONT_OPTIONS.map(({ id: fam, label }) => (
+            {QUICK_FONTS.map(({ id: fam, label }) => (
               <button
                 key={fam}
                 aria-label={`Font: ${label}`}
@@ -311,6 +312,10 @@ export function PropertiesPanel({
               </button>
             ))}
           </div>
+          <label className="block space-y-1 text-[11px] text-neutral-400">
+            More fonts
+            <FontSelect aria-label="More fonts" value={activeFamily} className="block h-9 w-full min-w-0 rounded-lg border border-neutral-700 bg-neutral-900 px-2 text-sm text-neutral-200" onChange={event=>{const fontFamily=event.target.value as FontFamily;onUpdateElement({fontFamily});onUpdateStyle({fontFamily});}} />
+          </label>
           {isTextual && (
             <div className="grid grid-cols-3 gap-1 p-0.5 mt-1 rounded-lg bg-neutral-800 text-[11px]">
               {(["left", "center", "right"] as const).map((al) => (

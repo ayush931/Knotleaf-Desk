@@ -1,6 +1,6 @@
 # Whiteboard interaction contract
 
-Canvas text, document cards and sticky notes share seven font choices: Inter, Caveat, Fira Code, Lora, Nunito, Roboto Condensed and Patrick Hand. Existing sans/hand/mono IDs retain their meaning. Font buttons expose the selected family and preserve editor focus. Font IDs persist through board backups and room sync. Canvas startup and raster/vector export wait for bundled font faces to load; standalone SVG viewers may use the documented fallback stack when a font is not installed.
+Canvas text, document cards, sticky notes and Notes share 30 font choices. The existing seven families remain quick choices; More fonts exposes the full grouped catalogue through FontSelect, also reused for note text and default reading typography. Existing sans/hand/mono IDs retain their meaning. Font buttons expose the selected family and preserve editor focus. Font IDs persist through board backups and room sync. Canvas startup/style/remote updates request only used font families and repaint when ready. Raster/vector and Notes PDF exports await their used bundled families; standalone SVG viewers may use the documented fallback stack when a font is not installed.
 
 Empty inline editors size from their actual placeholder using the active font metrics. Hints inherit the chosen family, weight and style, use explicit high-contrast placeholder colors, and wrap within constrained viewports. Editor bounds remeasure after font loading and viewport/split changes. Document/sticky editors preserve card widths; editing surfaces stay visible near viewport edges without changing saved canvas coordinates.
 
@@ -10,7 +10,7 @@ The current user brief and README define a personal, local-first tool. No server
 
 | Capability | Canonical owner | Source of truth | Allowed variants | Verification |
 |---|---|---|---|---|
-| Select/Listbox | Native select in BoardsSidebar and BoardHeader | DESIGN.md | Platform-owned workspace, move and PNG quality popups | Typecheck; manual browser check still required |
+| Select/Listbox | Native select in BoardsSidebar and BoardHeader | DESIGN.md | Platform-owned workspace, move, font and PNG quality popups | Typecheck; manual browser check still required |
 | Scrollbar | app/globals.css | DESIGN.md | Notes, inspector and board list own vertical scroll | Static audit |
 | CRUD | lib/storage.ts and Canvas.tsx | README storage model | Local board/workspace create, rename, move, duplicate, import; destructive confirmation | tests/storage.test.mjs |
 | Modal | Native dialog in BoardsSidebar and ConfirmDialog | DESIGN.md | Workspace drawer and clear confirmation | Browser focus check still required |
@@ -179,3 +179,5 @@ Expanded call and expanded screen views expose participant names, speaking activ
 Room creation grants creator host access through a private browser capability, hashed in server storage, excluded from invites/shared content/exports and removed with the room cache. Joining first or claiming a role never grants host access. The server authorizes each moderation action: only host assigns co-host; host/co-host may mute or remove ordinary participants; co-host cannot moderate host/other co-hosts. Remote mute cancels pending device acquisitions, stops capture and updates all peers; re-enabling requires the participant's own action. Removal confirms first and explains that the invite can be reused. Co-host roles are session-only. Older rooms without a creator capability remain participant-only.
 
 A server removal message immediately stops microphone/camera/screen capture, closes peer connections and shows Rejoin; it never waits for a proxy-delayed WebSocket close handshake. Pending device acquisition is invalidated, and eventual socket-close callbacks are harmless.
+
+Font catalogue IDs come from draw/fonts.ts, preserving all existing saved IDs. Choices persist through preferences, room updates, project backups and rich-note HTML/Markdown round trips. Native font selects retain keyboard/type-ahead/Escape behavior and an accessible name; their expanded popup is platform owned. Extra font choices never open Appearance automatically. Failed font loads remain retryable through the existing export error flow.

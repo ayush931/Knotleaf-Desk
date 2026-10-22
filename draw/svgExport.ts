@@ -1,3 +1,4 @@
+import { sceneFontFamilies } from "./fonts";
 import type { Board, CanvasElement, BackgroundSettings, GridType } from "./types";
 import { normalizeBackground, isLightBackground } from "@/lib/background.mjs";
 import { drawCanvasBackground } from "./backgroundFill";
@@ -120,7 +121,7 @@ export function boardToSvg(elements: CanvasElement[], transparent = false, scene
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="${bounds.minX - 40} ${bounds.minY - 40} ${width} ${height}">${recorder.output.join("\n")}</svg>`;
 }
 export async function exportToSvg(board: Board, elements = board.elements, transparent = false) {
-  await loadCanvasFonts();
+  await loadCanvasFonts(sceneFontFamilies(elements));
   const svg = boardToSvg(elements, transparent, board.elements, board.background, board.gridType || "dot");
   if (!svg) throw new Error("Add something to the canvas before exporting SVG.");
   const url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml" }));
