@@ -64,7 +64,7 @@ bun run db:check
 
 These connect directly to Neon; neither command starts Docker or PostgreSQL locally. Migration creates `knotleaf_rooms` with room UUID, title, public invite URL/path, full Yjs state, a JSON snapshot of shapes/code/notes, and timestamps. The check verifies the schema and performs temporary reads/writes/updates in a rolled-back transaction. The room server also initializes the idempotent schema on first use after deployment.
 
-Shared canvas, code and Markdown content is stored in Neon. Personal workspaces/history/templates remain browser-local because there is no authenticated account identity for private cloud storage. Presence, chat and call negotiation are ephemeral. Recordings download to your computer and are not uploaded to Neon.
+Shared canvas, code and Markdown content is stored in Neon. Personal workspaces/history/templates remain browser-local; optional account identity does not enable private cloud storage. Presence, chat and call negotiation are ephemeral. Recordings download to your computer and are not uploaded to Neon.
 
 The server loads saved state before synchronization, rejects unavailable storage instead of opening an empty board, and merges recovery files using Yjs. A minimum two-second address-selection attempt timeout avoids premature TCP failures on remote database endpoints. Keep regular editable `.knotleaf` backups; deployments are not backups.
 
@@ -129,3 +129,7 @@ All rooms, including previously created rooms, have a fixed 24-hour lifetime bas
 Deploy the hub and frontend together. Startup schema migration adds nullable `host_token_hash`; `bun run db:check` verifies that column. Only newly created rooms receive a creator capability; legacy rooms remain participant-only. The creator's browser stores the raw capability outside board data and sends it only to the call signaling endpoint. The server stores a SHA-256 hash and authorizes every moderation command. Never put host capabilities in invite links or analytics. Co-host roles are session-only; removal disconnects media but does not ban the invitation holder from rejoining.
 
 Verify with separate browser profiles: create as host, join the invite as participant, promote to co-host, mute another participant and remove with confirmation. Confirm participant clients cannot promote themselves or manage a host, and a pending microphone switch cannot undo a remote mute. Expanded call and screen views must display speaking and microphone states. Test actual speakers/headsets on two devices for echo/noise; browser constraints and automated synthetic media checks cannot prove acoustic quality. Screen/tab audio is opt-in; system/window audio tracks are excluded.
+
+## Optional account sign-in
+
+Configure account variables on the Next.js host, run `bun run auth:migrate` against its PostgreSQL database, and register the Google callback URI before enabling Google sign-in. See [account deployment and API contract](docs/auth.md). Account sessions are independent of the room host and do not change invite permissions.

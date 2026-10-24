@@ -39,3 +39,6 @@ premium-audit.json
 # Private hosting environment exports
 .env.render.local
 .env.vercel.local
+
+# Local account database and signing secret
+.auth-data/
