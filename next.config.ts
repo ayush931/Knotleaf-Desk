@@ -17,6 +17,7 @@ const nextConfig: NextConfig = {
   devIndicators: false,
   experimental: { cpus: 2 },
   outputFileTracingRoot: process.cwd(),
+  outputFileTracingExcludes: { "/*": ["./.auth-data/**/*"] },
 };
 
 export default nextConfig;

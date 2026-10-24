@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import next from 'next';
 import { createCollaborationServer } from './collaboration.mjs';
+import { canonicalAuthPageURL } from '../lib/authOrigin.mjs';
 
 if (fs.existsSync('.env') && process.loadEnvFile) process.loadEnvFile('.env');
 const dev = process.argv.includes('--dev');
@@ -26,6 +27,13 @@ const web = next({ dev, hostname, port, ...(conf ? { conf } : {}) });
 await web.prepare();
 const handler = web.getRequestHandler();
 const server = http.createServer((request, response) => {
+  if (['GET', 'HEAD'].includes(request.method)) {
+    const pathname = (request.url || '/').split('?')[0];
+    if (['/', '/signin', '/signup', '/present'].includes(pathname) || pathname.startsWith('/canvas/')) {
+      const target = canonicalAuthPageURL(`http://${request.headers.host}${request.url}`, process.env.BETTER_AUTH_URL);
+      if (target) { response.writeHead(307, { Location: target, 'Cache-Control': 'no-store' }); response.end(); return; }
+    }
+  }
   if (collaboration.handleHttp(request,response)) return;
   if (request.url === '/api/collaboration-health') { response.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); response.end(JSON.stringify({ features: ['paint-images', 'background-fills'], collaboration: true, websocketUrl: '/collaboration', storage: process.env.DATABASE_URL ? 'database' : 'local' })); return; }
   handler(request, response).catch(error => { console.error(error); if (!response.headersSent) response.writeHead(500); response.end('Unable to load Whiteboard'); });

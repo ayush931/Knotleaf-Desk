@@ -14,10 +14,11 @@ await cp(path.join(root, 'public'), path.join(target, 'public'), { recursive: tr
 const { nodeFileTrace } = createRequire(import.meta.url)('next/dist/compiled/@vercel/nft');
 const traced = await nodeFileTrace(['server/web.mjs', 'server/collaboration.mjs'], { base: root });
 for (const relative of traced.fileList) {
-  if (relative === ".env" || relative.startsWith(".env.") || relative.startsWith(".collab-data/")) continue;
+  if (relative === ".env" || relative.startsWith(".env.") || relative.startsWith(".collab-data/") || relative.startsWith(".auth-data/")) continue;
   const destination = path.join(target, relative);
   await mkdir(path.dirname(destination), { recursive: true });
   await cp(path.join(root, relative), destination, { force: true });
 }
 for (const filename of ['.env', '.env.local', '.env.production', '.env.production.local', '.env.development', '.env.development.local', '.env.render.local', '.env.vercel.local']) await rm(path.join(target, filename), { force: true });
+await rm(path.join(target, '.auth-data'), { recursive: true, force: true });
 console.log('Website and collaboration servers staged in server-dist/');
