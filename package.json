@@ -16,7 +16,8 @@
     "build:server": "bun run build && node scripts/prepare-server.mjs",
     "db:migrate": "node scripts/migrate-db.mjs",
     "db:check": "node scripts/check-db.mjs",
-    "auth:migrate": "node scripts/migrate-auth.mjs"
+    "auth:migrate": "node scripts/migrate-auth.mjs",
+    "build:vercel": "node scripts/prepare-auth-deploy.mjs && next build"
   },
   "dependencies": {
     "@tiptap/extension-details": "3.32.0",
@@ -68,7 +69,7 @@
     "tailwindcss": "^4",
     "typescript": "^5"
   },
-  "description": "Knotleaf Desk — an open-source canvas and notebook with portable projects.",
+  "description": "Knotleaf Desk \u2014 an open-source canvas and notebook with portable projects.",
   "license": "MIT",
   "author": "Whiteboard contributors",
   "homepage": "https://github.com/ayush931/excalidraw"

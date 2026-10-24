@@ -5,11 +5,11 @@ Production uses your Vercel website, a Render Node/WebSocket service, and Neon P
 ## Ready-to-copy environment files
 
 - `.env`: current local development settings; your database credential is preserved.
-- `.env.vercel.local`: public production URLs to copy/import into Vercel.
+- `.env.vercel.local`: a hosting export; refresh it with the account settings below before importing into Vercel.
 - `.env.render.local`: private Render values, including your existing database connection and relay secret. Copy/import it only into Render's Environment settings.
 - `.env.vercel.example` and `.env.render.example`: commit-safe templates with credentials left blank.
 
-The two `.local` hosting exports are ignored by Git and excluded from Docker build context. They are snapshots: refresh their secret values if you rotate credentials in `.env`. Changing these files does not update hosting dashboards automatically. Do not rename/copy the Render file to a Next.js auto-loaded `.env.local` on a Vercel-only project; its server secrets are not needed there. `PORT` comes from Render and Docker supplies its internal runtime flags. `STUN_URLS` uses Google’s public `stun:stun.l.google.com:19302` endpoint, verified with a binding request. `TURN_URLS` stays empty by your choice; no relay is enabled.
+The two `.local` hosting exports are ignored by Git and excluded from Docker build context. They are snapshots: refresh their secret values if you rotate credentials in `.env`. Changing these files does not update hosting dashboards automatically. Do not copy the entire Render export into the frontend. Vercel needs the account database and OAuth settings below; room relay secrets remain on Render. `PORT` comes from Render and Docker supplies its internal runtime flags. `STUN_URLS` uses Google’s public `stun:stun.l.google.com:19302` endpoint, verified with a binding request. `TURN_URLS` stays empty by your choice; no relay is enabled.
 
 ## 1. Vercel — knotleaf-desk.vercel.app
 
@@ -18,11 +18,16 @@ Set these in Project Settings → Environment Variables for Production, then red
 ```dotenv
 NEXT_PUBLIC_APP_URL=https://knotleaf-desk.vercel.app
 NEXT_PUBLIC_COLLAB_URL=wss://excalidraw-tl7h.onrender.com/collaboration
+BETTER_AUTH_URL=https://knotleaf-desk.vercel.app
+BETTER_AUTH_SECRET=YOUR_RANDOM_SECRET_AT_LEAST_32_CHARACTERS
+DATABASE_URL=YOUR_COMPLETE_POOLED_NEON_CONNECTION_STRING
+GOOGLE_CLIENT_ID=YOUR_GOOGLE_WEB_CLIENT_ID
+GOOGLE_CLIENT_SECRET=YOUR_GOOGLE_WEB_CLIENT_SECRET
 ```
 
-Install: `bun install --frozen-lockfile`. Build: `bun run build`.
+Install: `bun install --frozen-lockfile`. Build: `bun run build:vercel` (validates account settings and migrates its schema before building).
 
-This frontend does not need `DATABASE_URL`, a database password or `TURN_SHARED_SECRET`. `/api/rooms` forwards creation to Render, which saves the initial board in Neon before returning the invite. The classroom derives `/classroom/ROOM_ID` on the Render host. This repository uses its custom Node WebSocket hub on Render; adopting Vercel's WebSocket APIs would require a different hub adapter and shared live-state architecture.
+Account sign-in runs on the Next.js frontend and requires its own server-side access to `DATABASE_URL`, `BETTER_AUTH_SECRET`, and the Google credentials. Set these in the Vercel **Production** environment, even if the database is already configured on Render. Local `.env` edits do not update Vercel. Run `bun run auth:migrate` with the production database settings, register `https://knotleaf-desk.vercel.app/api/auth/callback/google` in the matching Google Web client, and redeploy. `TURN_SHARED_SECRET` stays on Render. `/api/rooms` forwards creation to Render, which saves the initial board in Neon before returning the invite. The classroom derives `/classroom/ROOM_ID` on the Render host. This repository uses its custom Node WebSocket hub on Render; adopting Vercel's WebSocket APIs would require a different hub adapter and shared live-state architecture.
 
 Room clients obtain their WebSocket endpoint at runtime from `/api/collaboration-health`. The serverless API permits up to 55 seconds for room-host startup, within its 60-second function duration; a room is returned only after storage succeeds. Other `NEXT_PUBLIC_*` settings may be embedded at build time. Production and preview deployments have separate environment scopes. If students use a preview domain, add its exact origin to Render's allowlist or use a separate preview hub.
 

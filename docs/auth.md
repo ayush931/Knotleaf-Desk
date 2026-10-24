@@ -13,7 +13,7 @@ For hosted use, set these server-only variables on the **Next.js frontend**, inc
 - `BETTER_AUTH_SECRET`: random secret of at least 32 characters; generate with `openssl rand -base64 48`. Keep it stable across restarts and instances.
 - `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`: OAuth Web application credentials from Google Cloud Console.
 
-Run `bun run auth:migrate` with the same environment before starting the deployment. This idempotently creates Better Auth's namespaced user, account, session, verification and rate-limit tables; it does not modify room tables. Runtime PostgreSQL requests do not run migrations. Hosted auth fails closed if the database, HTTPS origin or secret is missing; local drawing remains available.
+Vercel uses `bun run build:vercel`, which validates the account environment and runs migrations before the Next build. For other hosts, run `bun run auth:migrate` with the same environment before starting the deployment. This idempotently creates Better Auth's namespaced user, account, session, verification and rate-limit tables; it does not modify room tables. Runtime PostgreSQL requests do not run migrations. Hosted auth fails closed if the database, HTTPS origin or secret is missing; local drawing remains available.
 
 Register `${BETTER_AUTH_URL}/api/auth/callback/google` as an authorized redirect URI in Google Cloud Console. For development, use `http://localhost:3000/api/auth/callback/google` and `BETTER_AUTH_URL=http://localhost:3000`. The app uses the exact configured origin for every OAuth callback. The integrated Node server redirects local loopback page visits to `BETTER_AUTH_URL`, so `127.0.0.1` cannot silently change the Google callback or split session cookies. Open the app at that configured origin. Google sign-in is disabled with an explanation when either credential is missing. Never put these credentials in `NEXT_PUBLIC_*` variables. Google consent/testing access must be configured in the Google project.
 
@@ -40,3 +40,9 @@ References: [Better Auth setup](https://better-auth.com/docs/installation), [Goo
 ## Google redirect URI mismatch
 
 For the current local defaults, add exactly `http://localhost:3000/api/auth/callback/google` under **Authorized redirect URIs** on the **Web application** OAuth client matching `GOOGLE_CLIENT_ID`. Adding only `http://localhost:3000` under JavaScript origins is insufficient. The scheme, host, port, path and trailing slash must match. Restart the app after changing `.env`. For a deployed domain, set `BETTER_AUTH_URL` to its HTTPS origin and register that origin plus `/api/auth/callback/google` on the same client. Google Cloud settings cannot be changed by editing `.env`.
+
+## Production runtime boundary
+
+Next.js auth routes import only the PostgreSQL backend and shared options. `server/auth-local.mjs` owns SQLite, directory creation and local secrets; only the integrated development server and local test/migration scripts load it. The dev server registers its local factory in the Node process. Hosted routes never fall back to local disk when the database is unavailable.
+
+Initialization failures return HTTP 503 with a safe `code` and `requestId`. Match that ID in Vercel function logs. Codes distinguish configuration, database connection and schema errors; raw exceptions, connection URLs and credentials are never returned or logged by the route wrapper.

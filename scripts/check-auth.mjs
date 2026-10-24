@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import { mkdtemp, rm, readFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { createDeskAuth, authConfiguration } from '../server/auth.mjs';
+import { authConfiguration } from '../server/auth.mjs';
+import { createLocalDeskAuth as createDeskAuth } from '../server/auth-local.mjs';
 
 const directory = await mkdtemp(path.join(os.tmpdir(), 'knotleaf-auth-'));
 const env = { NODE_ENV: 'test', AUTH_DATA_DIR: directory, BETTER_AUTH_URL: 'http://localhost:3000', GOOGLE_CLIENT_ID: 'test-client', GOOGLE_CLIENT_SECRET: 'test-secret' };
