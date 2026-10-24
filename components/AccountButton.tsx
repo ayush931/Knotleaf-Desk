@@ -87,7 +87,7 @@ function AccountControl({ config }: { config: Config }) {
       <UserRound className="h-3.5 w-3.5" /><span className="hidden max-w-24 truncate min-[420px]:inline">{session ? "Account" : "Sign in"}</span>
     </button>
     <AccountDialog open={open} onClose={close} title={session ? "Your account" : mode === "signup" ? "Create an account" : "Sign in to Knotleaf Desk"}>
-      {isPending && !busy ? <p role="status" className="text-sm text-neutral-400">Checking your session…</p> : sessionError && !busy ? <div className="space-y-3"><p role="alert" className="text-sm text-rose-300">Could not check your session. Check your connection and try again.</p><button className={buttonClass} onClick={() => refetch()}>Try again</button></div> : session ? <div className="space-y-4">
+      {isPending && !busy ? <p role="status" className="text-sm text-neutral-400">Checking your session…</p> : sessionError && !busy ? <div className="space-y-3"><p role="alert" className="text-sm text-rose-300">{sessionError.status >= 500 ? "Sign-in is temporarily unavailable on the server. Try again shortly." : "Could not check your session. Check your connection and try again."}</p><button className={buttonClass} onClick={() => refetch()}>Try again</button></div> : session ? <div className="space-y-4">
         <p className="break-words text-sm text-neutral-200">{session.user.name}<br /><span className="text-neutral-400">{session.user.email}</span></p>
         <p className="text-xs text-neutral-400">Boards and notes stay on this device. Signing out keeps your local work.</p>
         {error && <p role="alert" className="text-sm text-rose-300">{error}</p>}

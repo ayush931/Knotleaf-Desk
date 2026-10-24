@@ -17,6 +17,10 @@ if (local) {
   process.env.COLLAB_ORIGINS = '';
   process.env.COLLAB_DATA_DIR = path.resolve(dataFlag >= 0 ? process.argv[dataFlag + 1] : '.collab-data');
 }
+if (dev && !process.env.DATABASE_URL) {
+  const { createLocalDeskAuth } = await import('./auth-local.mjs');
+  globalThis[Symbol.for('knotleaf.localAuthFactory')] = () => createLocalDeskAuth();
+}
 const portFlag = process.argv.indexOf('--port');
 const hostFlag = process.argv.indexOf('--hostname');
 const port = Number(portFlag >= 0 ? process.argv[portFlag + 1] : process.env.PORT || 3000);
