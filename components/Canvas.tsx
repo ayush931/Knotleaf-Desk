@@ -393,7 +393,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
     const onKey = (e: KeyboardEvent) => {
       if (e.isComposing) return;
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f" && !document.querySelector("dialog[open]")) { e.preventDefault(); setBoardToolsSection("find"); setBoardToolsOpen(true); return; }
-      if (isEditableTarget(e.target) || document.querySelector("dialog[open]")) return;
+      if (isEditableTarget(e.target) || document.querySelector("dialog[open]") || textSizeShortcut(e)) return;
       if (e.key === "?" || (e.key === "/" && (e.ctrlKey || e.metaKey))) {
         e.preventDefault();
         setIsShortcutsOpen((open) => !open);
@@ -828,16 +828,17 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
                       setInlineText(previous => previous ? { ...previous, [format]: !previous[format] } : null);
                       return;
                     }
-                    if (e.key === "Escape" || (e.key === "Enter" && mod)) {
-                      e.preventDefault();
-                      commitInline();
-                      return;
-                    }
+                    // Size first: Mac browsers can report Cmd+Shift+Period as Escape.
                     const sizeDelta = textSizeShortcut(e.nativeEvent);
                     if (sizeDelta) {
                       e.preventDefault();
                       e.stopPropagation();
                       adjustInlineFontSize(sizeDelta);
+                      return;
+                    }
+                    if (e.key === "Escape" || (e.key === "Enter" && mod)) {
+                      e.preventDefault();
+                      commitInline();
                       return;
                     }
 

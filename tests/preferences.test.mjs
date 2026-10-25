@@ -29,3 +29,9 @@ test('document reading preferences persist alongside canvas and export settings'
 test('noise cancellation defaults on and persists independently of drawing settings',()=>{
  expect(loadPreferences().callNoiseSuppression).toBe(true);savePreferences({callNoiseSuppression:false});savePreferences({eraserSize:55});expect(loadPreferences().callNoiseSuppression).toBe(false);expect(normalizePreferences({callNoiseSuppression:'off'}).callNoiseSuppression).toBe(true);
 });
+test('the rich-note typing size is saved and validated',()=>{
+ expect(loadPreferences().noteTypingSize).toBeNull();
+ expect(savePreferences({noteTypingSize:20})).toBe(true);expect(loadPreferences().noteTypingSize).toBe(20);
+ expect(normalizePreferences({noteTypingSize:500}).noteTypingSize).toBeNull();
+ expect(normalizePreferences({noteTypingSize:'18'}).noteTypingSize).toBeNull();
+});

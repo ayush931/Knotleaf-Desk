@@ -10,7 +10,7 @@ export function useCanvasFocus(beforeToggle: () => void, disabled = false) {
       const target = event.target;
       if (disabled || event.repeat || event.isComposing || document.querySelector('dialog[open]') || target instanceof HTMLElement && (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || target.isContentEditable)) return;
       if (event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey && event.key.toLowerCase() === 'z') { event.preventDefault(); event.stopPropagation(); toggle(); }
-      else if (active && event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); exit(); }
+      else if (active && event.key === 'Escape' && !event.metaKey && !event.ctrlKey) { event.preventDefault(); event.stopPropagation(); exit(); }
     };
     window.addEventListener('keydown', keydown, true); return () => window.removeEventListener('keydown', keydown, true);
   }, [active, disabled, toggle, exit]);
