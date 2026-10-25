@@ -1,3 +1,4 @@
+import { capturePointer, isContextPointer, releasePointer } from "@/lib/pointerInput";
 import { CODE_CARD_FILL, DOCUMENT_CARD_FILL } from "./cardAppearance";
 import { sceneFontFamilies } from "./fonts";
 import { HIGHLIGHTER_LIFETIME, HIGHLIGHTER_LIMIT, liveHighlights, type HighlightPoint } from "./highlighter";
@@ -312,6 +313,8 @@ export class CanvasEngine {
   // Interaction
   private gesture: Gesture | null = null;
   private activePointerId: number | null = null;
+  private pinchScale: number | null = null;
+  private lastPointerClient: Point | null = null;
   private draft: CanvasElement | null = null;
   private marqueeRect: Bounds | null = null;
   private hoveredAnchors: Anchor[] = [];
@@ -352,6 +355,7 @@ export class CanvasEngine {
   public onStartInlineText?: (state: InlineTextState) => void;
   public onPickColor?: (color: string) => void;
   public onZoomChange?: (zoom: number) => void;
+  public onStyleChange?: (style: ElementStyleProps) => void;
   public onToolChange?: (tool: Tool) => void;
   public onHistoryChange?: (canUndo: boolean, canRedo: boolean) => void;
 
@@ -681,8 +685,10 @@ export class CanvasEngine {
   public changeFontSize(delta: number) {
     const clamp = (v: number) => Math.max(8, Math.min(96, Math.round(v)));
     const ids = new Set(this.getSelectedElements().filter((e) => e.type === "text" || e.type === "sticky").map((e) => e.id));
+    const first = this.getSelectedElements().find(el => el.type === "text" || el.type === "sticky");
+    this.currentStyle.fontSize = clamp((first && (first.type === "text" || first.type === "sticky") ? first.fontSize : this.currentStyle.fontSize) + delta);
+    this.onStyleChange?.({ ...this.currentStyle });
     if (ids.size === 0) {
-      this.currentStyle.fontSize = clamp(this.currentStyle.fontSize + delta);
       this.requestRender();
       return;
     }
@@ -1488,7 +1494,7 @@ export class CanvasEngine {
   }
 
   private onPointerDown = (e: PointerEvent) => {
-    if (e.button === 2 || e.isPrimary === false || this.gesture) return;
+    if (![0, 1].includes(e.button) || isContextPointer(e) || e.isPrimary === false || this.gesture) return;
     if (!this.replayingClick && !this.readOnly && e.button === 0 && !this.spaceDown) {
       const screen = this.screenPoint(e);
       const pt = this.screenToCanvas(screen.x, screen.y);
@@ -1505,7 +1511,7 @@ export class CanvasEngine {
       if (["text", "doc", "sticky", "code", "eraser"].includes(this.tool) && this.hitTest(pt)) {
         e.preventDefault();
         this.activePointerId = e.pointerId;
-        this.canvas.setPointerCapture?.(e.pointerId);
+        capturePointer(this.canvas, e.pointerId);
         this.pendingClick = { event: e, released: false, timer: setTimeout(() => this.flushPendingClick(), 500) };
         return;
       }
@@ -1518,8 +1524,10 @@ export class CanvasEngine {
       // the canvas would blur it and immediately commit/discard an empty draft.
       e.preventDefault();
     } else if (!this.replayingClick) {
-      this.canvas.setPointerCapture?.(e.pointerId);
+      this.canvas.focus?.({ preventScroll: true });
+      capturePointer(this.canvas, e.pointerId);
     }
+    this.lastPointerClient = { x: e.clientX, y: e.clientY };
     this.shiftDown = e.shiftKey;
     this.altDown = !!e.altKey;
     const sp = this.screenPoint(e);
@@ -1691,12 +1699,14 @@ export class CanvasEngine {
   private onPointerLeave = () => { this.eraserPointer=null;this.requestRender(); };
 
   private onPointerMove = (e: PointerEvent) => {
+    if (e.type === "pointermove" && e.pointerType === "mouse" && e.buttons === 0 && e.pointerId === this.activePointerId) { this.onPointerUp(); return; }
     if (this.pendingClick) {
       if (e.pointerId !== this.pendingClick.event.pointerId) return;
       if (Math.hypot(e.clientX - this.pendingClick.event.clientX, e.clientY - this.pendingClick.event.clientY) <= 4) return;
       this.flushPendingClick();
     }
     if (e.isPrimary === false || (this.activePointerId !== null && e.pointerId !== this.activePointerId)) return;
+    this.lastPointerClient = { x: e.clientX, y: e.clientY };
     this.shiftDown = e.shiftKey;
     this.altDown = !!e.altKey;
     const sp = this.screenPoint(e);
@@ -1748,7 +1758,8 @@ export class CanvasEngine {
   private releasePointer() {
     const id = this.activePointerId;
     this.activePointerId = null;
-    if (id !== null && this.canvas.hasPointerCapture?.(id)) this.canvas.releasePointerCapture(id);
+    this.lastPointerClient = null;
+    if (id !== null) releasePointer(this.canvas, id);
   }
 
   private cancelGesture = () => {
@@ -1777,9 +1788,21 @@ export class CanvasEngine {
     if (e.pointerId === this.activePointerId) this.cancelGesture();
   };
 
+  private onWindowPointerMove = (e: PointerEvent) => {
+    if (e.target !== this.canvas && this.activePointerId === e.pointerId) this.onPointerMove(e);
+  };
+
+  private onWindowPointerUp = (e: PointerEvent) => {
+    if (e.target !== this.canvas && this.activePointerId === e.pointerId) this.onPointerUp(e);
+  };
+
+  private onContextMenu = () => { this.cancelGesture(); };
+
   private onWindowBlur = () => {
     this.spaceDown = false;
     this.shiftDown = false;
+    this.altDown = false;
+    this.pinchScale = null;
     this.cancelGesture();
   };
 
@@ -1793,6 +1816,8 @@ export class CanvasEngine {
     }
     if (e && this.activePointerId !== null && e.pointerId !== this.activePointerId) return;
     if (e && this.gesture?.kind === "highlight") { const sp = this.screenPoint(e); this.addHighlight(this.screenToCanvas(sp.x, sp.y)); }
+    // Trackpads may coalesce the last movement into pointerup. Apply it before commit.
+    if (e && this.gesture && this.gesture.kind !== "highlight" && (!this.lastPointerClient || e.clientX !== this.lastPointerClient.x || e.clientY !== this.lastPointerClient.y)) this.onPointerMove(e);
     const g = this.gesture;
     this.gesture = null;
     this.guides = [];
@@ -1856,7 +1881,7 @@ export class CanvasEngine {
 
   private onDoubleClick = (e: MouseEvent) => {
     if (this.tool === "highlighter") return;
-    if (this.readOnly || this.spaceDown || e.button !== 0) return;
+    if (this.readOnly || this.spaceDown || e.button !== 0 || isContextPointer(e)) return;
     e.preventDefault();
     this.cancelGesture();
     const sp = this.screenPoint(e), pt = this.screenToCanvas(sp.x, sp.y);
@@ -1892,8 +1917,33 @@ export class CanvasEngine {
     this.requestRender();
   };
 
+  // Safari emits GestureEvents for trackpad pinch instead of Chromium's ctrl+wheel.
+  private onGestureStart = (event: Event) => {
+    event.preventDefault();
+    this.cancelGesture();
+    this.pinchScale = 1;
+  };
+
+  private onGestureChange = (event: Event) => {
+    event.preventDefault();
+    if (this.pinchScale === null) return;
+    const { scale, clientX, clientY } = event as Event & { scale?: number; clientX?: number; clientY?: number };
+    if (typeof scale !== "number" || !Number.isFinite(scale) || scale <= 0) return;
+    const rect = this.canvas.getBoundingClientRect();
+    const point = { x: typeof clientX === "number" ? clientX - rect.left : this.canvas.clientWidth / 2, y: typeof clientY === "number" ? clientY - rect.top : this.canvas.clientHeight / 2 };
+    this.setZoom(this.zoom * scale / this.pinchScale, point);
+    this.pinchScale = scale;
+  };
+
+  private onGestureEnd = (event: Event) => {
+    event.preventDefault();
+    this.pinchScale = null;
+  };
+
   private onWheel = (e: WheelEvent) => {
     e.preventDefault();
+    // Momentum scroll must not move the viewport underneath a pointer drag.
+    if (this.gesture || this.pendingClick || this.pinchScale !== null) return;
     const sp = this.screenPoint(e);
     if (e.ctrlKey || e.metaKey) {
       // Trackpad pinch or ctrl+wheel zooms around the pointer.
@@ -2298,13 +2348,12 @@ export class CanvasEngine {
 
   private isTypingTarget(target: EventTarget | null): boolean {
     if (!(target instanceof HTMLElement)) return false;
-    const tag = target.tagName;
-    return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || target.isContentEditable;
+    return !!target.closest("input, textarea, select, button, a[href], [contenteditable]:not([contenteditable='false']), [role='button'], [role='separator']");
   }
 
   private onKeyDown = (e: KeyboardEvent) => {
     if (!this.keyboardEnabled) return;
-    if (e.isComposing || (e.target instanceof HTMLElement && e.target.getAttribute("role") === "separator") || this.isTypingTarget(e.target) || document.querySelector("dialog[open]")) return;
+    if (e.isComposing || this.isTypingTarget(e.target) || document.querySelector("dialog[open]")) return;
     this.shiftDown = e.shiftKey;
     this.altDown = !!e.altKey;
     const mod = e.ctrlKey || e.metaKey;
@@ -2601,8 +2650,15 @@ export class CanvasEngine {
     this.canvas.addEventListener("pointercancel", this.onPointerCancel);
     this.canvas.addEventListener("lostpointercapture", this.onLostPointerCapture);
     window.addEventListener("blur", this.onWindowBlur);
+    window.addEventListener("pointermove", this.onWindowPointerMove, true);
+    window.addEventListener("pointerup", this.onWindowPointerUp, true);
+    window.addEventListener("pointercancel", this.onPointerCancel, true);
+    this.canvas.addEventListener("contextmenu", this.onContextMenu);
     this.canvas.addEventListener("dblclick", this.onDoubleClick);
     this.canvas.addEventListener("wheel", this.onWheel, { passive: false });
+    this.canvas.addEventListener("gesturestart", this.onGestureStart, { passive: false });
+    this.canvas.addEventListener("gesturechange", this.onGestureChange, { passive: false });
+    this.canvas.addEventListener("gestureend", this.onGestureEnd, { passive: false });
     window.addEventListener("keydown", this.onKeyDown);
     window.addEventListener("keyup", this.onKeyUp);
   }
@@ -2622,8 +2678,15 @@ export class CanvasEngine {
     this.canvas.removeEventListener("pointercancel", this.onPointerCancel);
     this.canvas.removeEventListener("lostpointercapture", this.onLostPointerCapture);
     window.removeEventListener("blur", this.onWindowBlur);
+    window.removeEventListener("pointermove", this.onWindowPointerMove, true);
+    window.removeEventListener("pointerup", this.onWindowPointerUp, true);
+    window.removeEventListener("pointercancel", this.onPointerCancel, true);
+    this.canvas.removeEventListener("contextmenu", this.onContextMenu);
     this.canvas.removeEventListener("dblclick", this.onDoubleClick);
     this.canvas.removeEventListener("wheel", this.onWheel);
+    this.canvas.removeEventListener("gesturestart", this.onGestureStart);
+    this.canvas.removeEventListener("gesturechange", this.onGestureChange);
+    this.canvas.removeEventListener("gestureend", this.onGestureEnd);
     window.removeEventListener("keydown", this.onKeyDown);
     window.removeEventListener("keyup", this.onKeyUp);
   }
