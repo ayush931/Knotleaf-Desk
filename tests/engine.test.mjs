@@ -689,7 +689,7 @@ test('document title cannot overlap the first line and list text resets inherite
 });
 
 
-for (const tool of ['select', 'hand', 'rectangle', 'diamond', 'circle', 'arrow', 'line', 'pencil', 'frame', 'text', 'doc', 'sticky', 'code', 'eraser']) {
+for (const tool of ['select', 'hand', 'rectangle', 'diamond', 'circle', 'arrow', 'line', 'pencil', 'frame']) {
   test(`double-click on a border selects existing content with ${tool} active`, () => {
     const { engine, listeners, point } = setup([source]);
     let editor; engine.onStartInlineText = state => { editor = state; };
@@ -730,24 +730,25 @@ test('line bend survives moving endpoints and cancellation restores it', () => {
 });
 
 
-test('click-only tools still work over content after a single click', async () => {
+test('creation and erase tools respond synchronously over existing content without a double-click wait', () => {
   for (const tool of ['doc', 'sticky', 'code', 'text', 'eraser']) {
     const { engine, listeners, point } = setup([source]); let editor;
     engine.onStartInlineText = state => { editor = state; };
-    engine.setTool(tool); listeners.pointerdown(point(130, 120)); listeners.pointerup(point(130, 120));
-    expect(engine.getElements()).toEqual([source]);
-    await new Promise(resolve => setTimeout(resolve, 520));
+    engine.setTool(tool); listeners.pointerdown(point(130, 120));
     if (tool === 'eraser') expect(engine.getElements()).toEqual([]);
-    else if (tool === 'text') expect(editor.kind).toBe('new-text');
+    else if (tool === 'text') expect(engine.gesture.kind).toBe('text-box');
     else expect(engine.getElements()).toHaveLength(2);
+    listeners.pointerup(point(130, 120));
+    if (tool === 'text') expect(editor.kind).toBe('new-text');
     expect(engine.getTool()).toBe(tool === 'eraser' ? 'eraser' : 'select'); engine.destroy();
   }
 });
 
-test('cancelled deferred clicks cannot create or erase content later', async () => {
+test('cancelling an immediate eraser gesture restores the original content without an undo entry', () => {
   const { engine, listeners, point } = setup([source]);
-  engine.setTool('eraser'); listeners.pointerdown(point(130, 120)); listeners.pointercancel(point(130, 120));
-  await new Promise(resolve => setTimeout(resolve, 520));
+  engine.setTool('eraser'); listeners.pointerdown(point(130, 120));
+  expect(engine.getElements()).toEqual([]);
+  listeners.pointercancel(point(130, 120));
   expect(engine.getElements()).toEqual([source]); expect(engine.canUndo()).toBe(false); engine.destroy();
 });
 
@@ -1404,4 +1405,41 @@ test('Mac Command Shift Period increases selected text above 96px, remains undoa
   engine.onKeyDown({ code: 'Period', key: 'Unidentified', metaKey: true, shiftKey: true, target: null, preventDefault() { prevented = true; } });
   expect(prevented).toBe(true); expect(engine.getElements()[0].fontSize).toBe(122); expect(savedSize).toBe(122);
   engine.undo(); expect(engine.getElements()[0].fontSize).toBe(120); engine.destroy();
+});
+
+test('a press-and-hold starts a draft immediately and the first move updates it without a timer', () => {
+  for (const tool of ['rectangle', 'circle', 'pencil', 'line']) {
+    const { engine, listeners, point } = setup([]); engine.setTool(tool);
+    listeners.pointerdown(point(100, 100));
+    expect(engine.gesture.kind).toBe('draft'); expect(engine.draft.type).toBe(tool);
+    listeners.pointermove(point(180, 160));
+    if (tool === 'pencil') expect(engine.draft.points.at(-1)).toEqual({ x: 180, y: 160 });
+    else if (tool === 'line') expect(engine.draft).toMatchObject({ endX: 180, endY: 160 });
+    else expect(engine.draft).toMatchObject({ width: 80, height: 60 });
+    listeners.pointerup(point(180, 160));
+    expect(engine.getElements()).toHaveLength(1); engine.destroy();
+  }
+});
+
+test('fast Pencil strokes preserve coalesced samples and append without copying the draft path', () => {
+  const { engine, listeners, point } = setup([]); engine.setTool('pencil');
+  listeners.pointerdown(point(100, 100)); const points = engine.draft.points;
+  listeners.pointermove({ ...point(160, 140), getCoalescedEvents: () => [point(120, 110), point(140, 150), point(160, 140)] });
+  expect(engine.draft.points).toBe(points);
+  expect(points).toEqual([{ x: 100, y: 100 }, { x: 120, y: 110 }, { x: 140, y: 150 }, { x: 160, y: 140 }]);
+  listeners.pointerup(point(180, 170));
+  expect(engine.getElements()[0].points.at(-1)).toEqual({ x: 180, y: 170 });
+  engine.undo(); expect(engine.getElements()).toHaveLength(0); engine.redo(); expect(engine.getElements()[0].points).toHaveLength(5); engine.destroy();
+});
+
+test('many immediate strokes remain separate and coalesced-event failures do not interrupt drawing', () => {
+  const { engine, listeners, point } = setup([]); engine.setTool('pencil');
+  for (let index = 0; index < 30; index++) {
+    listeners.pointerdown(point(100, index * 10));
+    listeners.pointermove({ ...point(150, index * 10 + 5), getCoalescedEvents() { throw new Error('Not supported'); } });
+    listeners.pointerup(point(160, index * 10 + 8));
+  }
+  expect(engine.getElements()).toHaveLength(30);
+  expect(engine.getTool()).toBe('pencil');
+  expect(engine.getElements().every(el => el.points.length === 3)).toBe(true); engine.destroy();
 });

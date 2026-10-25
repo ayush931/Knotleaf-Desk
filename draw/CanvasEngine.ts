@@ -326,11 +326,6 @@ export class CanvasEngine {
   private shiftDown = false;
   private altDown = false;
   private background = { ...DEFAULT_BACKGROUND };
-  // Delay click-only tools over existing content so a double-click can select
-  // without inserting a note/editor or erasing its intended target first.
-  private pendingClick: { event: PointerEvent; released: boolean; timer: ReturnType<typeof setTimeout> } | null = null;
-  private replayingClick = false;
-
   private guides: Guide[] = [];
 
   // Animation & render scheduling
@@ -387,7 +382,6 @@ export class CanvasEngine {
   // --- Configuration -----------------------------------------------------------
 
   public setTool(tool: Tool) {
-    this.clearPendingClick();
     if (this.gesture) this.cancelGesture();
     this.tool = tool;
     if (tool !== "select") {
@@ -1504,21 +1498,6 @@ export class CanvasEngine {
     return { x: e.clientX - rect.left, y: e.clientY - rect.top };
   }
 
-  private clearPendingClick() {
-    if (this.pendingClick) clearTimeout(this.pendingClick.timer);
-    this.pendingClick = null;
-  }
-
-  private flushPendingClick() {
-    const pending = this.pendingClick;
-    if (!pending) return;
-    this.clearPendingClick();
-    this.replayingClick = true;
-    this.onPointerDown(pending.event);
-    this.replayingClick = false;
-    if (pending.released) this.onPointerUp(pending.event);
-  }
-
   private onPointerDown = (e: PointerEvent) => {
     if (this.gesture?.kind === "draft" && this.gesture.clickMode && e.button === 0 && !isContextPointer(e) && e.isPrimary !== false) {
       e.preventDefault();
@@ -1529,27 +1508,6 @@ export class CanvasEngine {
       return;
     }
     if (![0, 1].includes(e.button) || isContextPointer(e) || e.isPrimary === false || this.gesture) return;
-    if (!this.replayingClick && !this.readOnly && e.button === 0 && !this.spaceDown) {
-      const screen = this.screenPoint(e);
-      const pt = this.screenToCanvas(screen.x, screen.y);
-      const pending = this.pendingClick;
-      if (pending) {
-        if (pending.event.pointerId !== e.pointerId) return;
-        if (Math.hypot(e.clientX - pending.event.clientX, e.clientY - pending.event.clientY) <= 6) {
-          this.clearPendingClick();
-          this.onDoubleClick(e);
-          return;
-        }
-        this.flushPendingClick();
-      }
-      if (["text", "doc", "sticky", "code", "eraser"].includes(this.tool) && this.hitTest(pt)) {
-        e.preventDefault();
-        this.activePointerId = e.pointerId;
-        capturePointer(this.canvas, e.pointerId);
-        this.pendingClick = { event: e, released: false, timer: setTimeout(() => this.flushPendingClick(), 500) };
-        return;
-      }
-    }
     this.activePointerId = e.pointerId;
     if (!this.readOnly && e.button === 0 && !this.spaceDown && !["select", "hand", "eraser", "fill", "eyedropper", "highlighter"].includes(this.tool)) this.onBeforeCreate?.();
     const opensEditor = e.button === 0 && !this.spaceDown && ["doc", "sticky", "code"].includes(this.tool);
@@ -1557,7 +1515,7 @@ export class CanvasEngine {
       // The editor takes focus during this event. A compatibility mousedown on
       // the canvas would blur it and immediately commit/discard an empty draft.
       e.preventDefault();
-    } else if (!this.replayingClick) {
+    } else {
       this.canvas.focus?.({ preventScroll: true });
       capturePointer(this.canvas, e.pointerId);
     }
@@ -1743,11 +1701,6 @@ export class CanvasEngine {
     // A mouse returning with no buttons missed its release. While capture is held the real
     // pointerup still arrives, and some Mac trackpad drags report buttons 0 mid-drag.
     if (e.type === "pointermove" && e.pointerType === "mouse" && e.buttons === 0 && e.pointerId === this.activePointerId && !this.canvas.hasPointerCapture?.(e.pointerId)) { this.onPointerUp(); return; }
-    if (this.pendingClick) {
-      if (e.pointerId !== this.pendingClick.event.pointerId) return;
-      if (Math.hypot(e.clientX - this.pendingClick.event.clientX, e.clientY - this.pendingClick.event.clientY) <= 4) return;
-      this.flushPendingClick();
-    }
     if (e.isPrimary === false || (this.activePointerId !== null && e.pointerId !== this.activePointerId)) return;
     this.lastPointerClient = { x: e.clientX, y: e.clientY };
     this.shiftDown = e.shiftKey;
@@ -1792,6 +1745,14 @@ export class CanvasEngine {
         this.updateMarquee(pt);
         break;
       case "draft":
+        if (this.draft?.type === "pencil" && typeof e.getCoalescedEvents === "function") {
+          let samples: PointerEvent[] = [];
+          try { samples = e.getCoalescedEvents(); } catch { /* Use the dispatched event below. */ }
+          for (const sample of samples) {
+            // Reuse this event's canvas offset; avoid an extra layout read for every sample.
+            this.updateDraft(this.screenToCanvas(sp.x + sample.clientX - e.clientX, sp.y + sample.clientY - e.clientY));
+          }
+        }
         this.updateDraft(pt);
         break;
     }
@@ -1806,7 +1767,6 @@ export class CanvasEngine {
   }
 
   private cancelGesture = () => {
-    this.clearPendingClick();
     if (this.gesture) {
       // This baseline includes remote updates received during the drag.
       this.elements = pruneBindings([...this.committedElements]);
@@ -1824,7 +1784,7 @@ export class CanvasEngine {
   };
 
   private onPointerCancel = (e: PointerEvent) => {
-    if (e.pointerId === this.activePointerId || e.pointerId === this.pendingClick?.event.pointerId) this.cancelGesture();
+    if (e.pointerId === this.activePointerId) this.cancelGesture();
   };
 
   private onLostPointerCapture = (e: PointerEvent) => {
@@ -1850,13 +1810,6 @@ export class CanvasEngine {
   };
 
   private onPointerUp = (e?: PointerEvent) => {
-    if (this.pendingClick) {
-      if (!e || e.pointerId === this.pendingClick.event.pointerId) {
-        this.pendingClick.released = true;
-        this.releasePointer();
-      }
-      return;
-    }
     if (e && this.activePointerId !== null && e.pointerId !== this.activePointerId) return;
     if (e && this.gesture?.kind === "highlight") { const sp = this.screenPoint(e); this.addHighlight(this.screenToCanvas(sp.x, sp.y)); }
     // Trackpads may coalesce the last movement into pointerup. Apply it before commit.
@@ -1971,7 +1924,7 @@ export class CanvasEngine {
     event.preventDefault();
     // Safari reports a second trackpad finger as a gesture. While one finger holds the
     // click and another drags, keep drawing/moving instead of discarding the shape.
-    if (this.gesture || this.pendingClick) return;
+    if (this.gesture) return;
     this.pinchScale = 1;
   };
 
@@ -1994,7 +1947,7 @@ export class CanvasEngine {
   private onWheel = (e: WheelEvent) => {
     e.preventDefault();
     // Momentum scroll must not move the viewport underneath a pointer drag.
-    if (this.gesture || this.pendingClick || this.pinchScale !== null) return;
+    if (this.gesture || this.pinchScale !== null) return;
     const sp = this.screenPoint(e);
     if (e.ctrlKey || e.metaKey) {
       // Trackpad pinch or ctrl+wheel zooms around the pointer.
@@ -2070,7 +2023,10 @@ export class CanvasEngine {
     let target = this.snapPoint(pt);
 
     if (d.type === "pencil") {
-      this.draft = { ...d, points: [...d.points, pt] };
+      // Draft points are transient and unshared until pointerup commits this stroke.
+      // Append in place so a long fast stroke does not copy its entire path on every move.
+      const last = d.points[d.points.length - 1];
+      if (!last || last.x !== pt.x || last.y !== pt.y) d.points.push(pt);
       return;
     }
 
@@ -2747,7 +2703,6 @@ export class CanvasEngine {
   public destroy() {
     this.destroyed = true;
     clearTimeout(this.highlightTimer); this.highlights = []; this.remoteHighlights.clear(); this.onHighlightChange = undefined;
-    this.clearPendingClick();
     this.gesture = null;
     this.releasePointer();
     if (this.animFrameId !== null) cancelAnimationFrame(this.animFrameId);
