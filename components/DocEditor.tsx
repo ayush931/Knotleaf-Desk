@@ -1,5 +1,7 @@
 "use client";
 
+import { textSizeShortcut } from "@/lib/textShortcuts";
+
 import {
   useEffect,
   useLayoutEffect,
@@ -722,8 +724,17 @@ function RichNotesEditor({
         }
       }}
       onKeyDownCapture={(event) => {
-        if (event.nativeEvent.isComposing || !menuOpen) return;
+        if (event.nativeEvent.isComposing) return;
         const target = event.target as HTMLElement;
+        const sizeDelta = textSizeShortcut(event.nativeEvent);
+        if (sizeDelta && editor && target.closest('[contenteditable="true"]')) {
+          event.preventDefault();
+          event.stopPropagation();
+          const currentSize = parseFloat(editor.getAttributes("textStyle").fontSize || "") || appearance.size;
+          editor.chain().setFontSize(`${Math.max(8, Math.min(128, currentSize + sizeDelta))}px`).run();
+          return;
+        }
+        if (!menuOpen) return;
         if (
           !target.closest('[contenteditable="true"]') &&
           !target.closest('[aria-label="Search note blocks"]') &&

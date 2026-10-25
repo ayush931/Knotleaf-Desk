@@ -1,4 +1,5 @@
 "use client";
+import { stepCanvasFontSize, textSizeShortcut } from "@/lib/textShortcuts";
 import { usePointerDrag } from "@/lib/usePointerDrag";
 import { sceneFontFamilies } from "@/draw/fonts";
 
@@ -573,7 +574,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
   const adjustInlineFontSize = (delta: number) => {
     const current = inlineTextStateRef.current;
     if (!current) return;
-    const fontSize = Math.max(8, Math.min(96, current.fontSize + delta));
+    const fontSize = stepCanvasFontSize(current.fontSize, delta);
     setInlineText(previous => previous ? { ...previous, fontSize } : null);
     const style = { ...(engineRef.current?.currentStyle || currentStyle), fontSize };
     if (engineRef.current) engineRef.current.currentStyle = style;
@@ -832,14 +833,11 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
                       commitInline();
                       return;
                     }
-                    if (mod && e.shiftKey && (e.key === ">" || e.key === ".")) {
+                    const sizeDelta = textSizeShortcut(e.nativeEvent);
+                    if (sizeDelta) {
                       e.preventDefault();
-                      adjustInlineFontSize(2);
-                      return;
-                    }
-                    if (mod && e.shiftKey && (e.key === "<" || e.key === ",")) {
-                      e.preventDefault();
-                      adjustInlineFontSize(-2);
+                      e.stopPropagation();
+                      adjustInlineFontSize(sizeDelta);
                       return;
                     }
 

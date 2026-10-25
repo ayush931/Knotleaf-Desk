@@ -64,7 +64,7 @@ const GROUPS: { title: string; items: [string, string][] }[] = [
       ["Ctrl/Cmd+Shift+X", "Strikethrough text"],
       ["Ctrl/Cmd+F or H in notes", "Find and replace notes"],
       ["F3 / Shift+F3 in notes", "Next / previous note match"],
-      ["Ctrl+Shift+> / <", "Increase / decrease font size"],
+      ["Cmd/Ctrl+Shift+> / <", "Increase / decrease font size (period / comma)"],
       ["Ctrl+Enter or Esc", "Finish editing"],
     ],
   },

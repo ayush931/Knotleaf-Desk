@@ -1,3 +1,4 @@
+import { stepCanvasFontSize, textSizeShortcut } from "@/lib/textShortcuts";
 import { capturePointer, isContextPointer, releasePointer } from "@/lib/pointerInput";
 import { CODE_CARD_FILL, DOCUMENT_CARD_FILL } from "./cardAppearance";
 import { sceneFontFamilies } from "./fonts";
@@ -681,9 +682,9 @@ export class CanvasEngine {
     this.commit();
   }
 
-  /** Steps the font size of selected text (Ctrl+Shift+. / Ctrl+Shift+,). */
+  /** Steps selected text size and the saved default (Cmd/Ctrl+Shift+Period / Comma). */
   public changeFontSize(delta: number) {
-    const clamp = (v: number) => Math.max(8, Math.min(96, Math.round(v)));
+    const clamp = (v: number) => stepCanvasFontSize(v, 0);
     const ids = new Set(this.getSelectedElements().filter((e) => e.type === "text" || e.type === "sticky").map((e) => e.id));
     const first = this.getSelectedElements().find(el => el.type === "text" || el.type === "sticky");
     this.currentStyle.fontSize = clamp((first && (first.type === "text" || first.type === "sticky") ? first.fontSize : this.currentStyle.fontSize) + delta);
@@ -2358,6 +2359,12 @@ export class CanvasEngine {
     this.altDown = !!e.altKey;
     const mod = e.ctrlKey || e.metaKey;
     const key = e.key.toLowerCase();
+    const sizeDelta = textSizeShortcut(e);
+    if (sizeDelta && !this.readOnly) {
+      e.preventDefault();
+      this.changeFontSize(sizeDelta);
+      return;
+    }
 
     if (e.code === "Space" && !e.repeat) {
       this.spaceDown = true;
@@ -2421,16 +2428,6 @@ export class CanvasEngine {
         case "0":
           e.preventDefault();
           this.resetZoom();
-          return;
-        case ">":
-        case ".":
-          e.preventDefault();
-          this.changeFontSize(2);
-          return;
-        case "<":
-        case ",":
-          e.preventDefault();
-          this.changeFontSize(-2);
           return;
         case "]":
           e.preventDefault();

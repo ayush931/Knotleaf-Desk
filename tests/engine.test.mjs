@@ -1294,3 +1294,14 @@ test('a mouse returning after a missed release cannot leave the canvas stuck dra
   expect(engine.gesture).toBe(null); expect(engine.activePointerId).toBe(null);
   expect(engine.getElements()[0]).toMatchObject({ x: 160, y: 150 }); engine.destroy();
 });
+
+test('Mac Command Shift Period increases selected text above 96px, remains undoable and notifies preferences', () => {
+  const text = { ...base, id: 'large', type: 'text', x: 100, y: 100, width: 500, height: 180, text: 'Large', fontSize: 120, fontFamily: 'sans', textAlign: 'left' };
+  const { engine, listeners, point } = setup([text]); let savedSize;
+  engine.onStyleChange = style => { savedSize = style.fontSize; };
+  listeners.pointerdown(point(150, 160)); listeners.pointerup(point(150, 160));
+  let prevented = false;
+  engine.onKeyDown({ code: 'Period', key: 'Unidentified', metaKey: true, shiftKey: true, target: null, preventDefault() { prevented = true; } });
+  expect(prevented).toBe(true); expect(engine.getElements()[0].fontSize).toBe(122); expect(savedSize).toBe(122);
+  engine.undo(); expect(engine.getElements()[0].fontSize).toBe(120); engine.destroy();
+});

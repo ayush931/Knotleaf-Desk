@@ -307,3 +307,45 @@ test('panel resize survives missing capture and follows only its pointer through
   await act(async () => window.dispatchEvent(event('pointermove', 1, 100)));
   expect(points).toEqual([40, 80]);
 });
+
+test('Mac Command Shift Period and Comma resize inline text and save the next-text size', async () => {
+  await renderBoard(); const editor = await startText();
+  await typeText(editor, 'Mac shortcut');
+  const size = parseFloat(editor.style.fontSize);
+  const key = (code, value) => new browser.KeyboardEvent('keydown', { code, key: value, metaKey: true, shiftKey: true, bubbles: true, cancelable: true });
+  const increase = key('Period', 'Unidentified');
+  await act(async () => editor.dispatchEvent(increase));
+  expect(increase.defaultPrevented).toBe(true);
+  expect(parseFloat(editor.style.fontSize)).toBe(size + 2);
+  expect(editor.value).toBe('Mac shortcut');
+  expect(JSON.parse(localStorage.getItem('knotleaf.preferences.v1')).style.fontSize).toBe(size + 2);
+  await act(async () => editor.dispatchEvent(key('Comma', '<')));
+  expect(parseFloat(editor.style.fontSize)).toBe(size);
+});
+
+test('Mac text-size shortcut works while focus is on an Appearance button', async () => {
+  const id = await renderBoard(); const editor = await startText();
+  await typeText(editor, 'Selected text');
+  await act(async () => editor.dispatchEvent(new browser.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
+  const size = getBoard(id).elements[0].fontSize;
+  await clickNamed('Open appearance settings');
+  const control = named('Increase font size'); control.focus();
+  const increase = new browser.KeyboardEvent('keydown', { code: 'Period', key: '>', metaKey: true, shiftKey: true, bubbles: true, cancelable: true });
+  await act(async () => control.dispatchEvent(increase));
+  expect(increase.defaultPrevented).toBe(true);
+  expect(getBoard(id).elements[0].fontSize).toBe(size + 2);
+  expect(JSON.parse(localStorage.getItem('knotleaf.preferences.v1')).style.fontSize).toBe(size + 2);
+});
+
+test('Mac text-size shortcut changes visual Notes text while its editor has focus', async () => {
+  const { DocEditor } = await import('../components/DocEditor.tsx');
+  await act(async () => root.render(React.createElement(DocEditor, { value: 'A note', onChange() {}, onExportMarkdown() {}, theme: 'dark' })));
+  const editor = document.querySelector('[contenteditable="true"]');
+  expect(editor).not.toBeNull(); editor.focus();
+  const increase = new browser.KeyboardEvent('keydown', { code: 'Period', key: '.', metaKey: true, shiftKey: true, bubbles: true, cancelable: true });
+  await act(async () => editor.dispatchEvent(increase));
+  expect(increase.defaultPrevented).toBe(true);
+  expect(named('Text size').value).toBe('18');
+  await act(async () => editor.dispatchEvent(new browser.KeyboardEvent('keydown', { code: 'Comma', key: '<', metaKey: true, shiftKey: true, bubbles: true, cancelable: true })));
+  expect(named('Text size').value).toBe('16');
+});
