@@ -1257,6 +1257,21 @@ test('trackpad scroll momentum does not shift the viewport underneath a shape dr
   expect(engine.getViewport().pan).toEqual({ x: -40, y: -60 }); engine.destroy();
 });
 
+test('a second trackpad finger during a quick draw or move keeps the shape and does not zoom', () => {
+  const gesture = scale => ({ scale, clientX: 200, clientY: 200, preventDefault() {} });
+  for (const tool of ['rectangle', 'circle', 'arrow']) {
+    const { engine, listeners, point } = setup([]); engine.setTool(tool);
+    listeners.pointerdown(point(100, 100)); listeners.pointermove(point(150, 140));
+    listeners.gesturestart(gesture(1)); listeners.gesturechange(gesture(1.4));
+    listeners.pointermove(point(300, 250)); listeners.gestureend(gesture(1.4)); listeners.pointerup(point(300, 250));
+    expect(engine.getElements()).toHaveLength(1); expect(engine.getElements()[0].type).toBe(tool); expect(engine.getZoom()).toBe(1);
+    engine.destroy();
+  }
+  const { engine, listeners, point } = setup([source]);
+  listeners.pointerdown(point(150, 130)); listeners.gesturestart(gesture(1)); listeners.pointermove(point(210, 180)); listeners.pointerup(point(210, 180));
+  expect(engine.getElements()[0]).toMatchObject({ x: 160, y: 150 }); engine.destroy();
+});
+
 test('Safari cumulative pinch scales zoom the canvas and ignore duplicate wheel zoom', () => {
   const { engine, listeners, point } = setup([]);
   const gesture = scale => ({ scale, clientX: 200, clientY: 200, preventDefault() {} });
