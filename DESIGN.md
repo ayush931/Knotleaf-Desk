@@ -93,7 +93,7 @@ Document notes use one typography contract for textarea and highlighted source, 
 
 RefreshWebApp is a compact header action beside the existing app controls. Its icon remains visible at narrow widths; the text label appears on wide screens. Busy state preserves button dimensions, reduced motion disables the spinner, and failures use a body-portaled dismissible alert above the canvas.
 
-Double-clicking inside rectangles, diamonds and ellipses starts attached text across tools. Their screen-sized border band selects instead. Existing attached text reopens for editing; Alt+double-click remains supported. Other elements retain their selection/editing behavior. Lines reuse arrows’ center diamond and compact numeric bend field, with zero for straight. No new visual tokens or overlay patterns.
+Double-clicking inside rectangles, diamonds and ellipses starts attached text in Select or non-destructive drawing tools. Active text/card creation and Eraser instead respond to the first press without waiting for double-click intent. Their screen-sized border band selects instead. Existing attached text reopens for editing; Alt+double-click remains supported. Other elements retain their selection/editing behavior. Lines reuse arrows’ center diamond and compact numeric bend field, with zero for straight. No new visual tokens or overlay patterns.
 
 The separate Paint workspace and raster-editor code are removed. The whiteboard retains freehand drawing, shapes, text, connectors and existing embedded images. There is no Paint toolbar entry or `.kpaint` workflow.
 
@@ -222,4 +222,6 @@ Shape, frame, line and arrow tools support Excalidraw-style click-to-draw: a pre
 
 Arrows default to straight routing. With the Arrow tool, starting or ending inside a shape binds to that shape's anchor facing the other end (recomputed as the pointer moves); an end still inside the start shape leaves the arrow unbound so clicks inside a shape draw nothing. In Select, only the visible 7px connection dot starts an arrow, and clicking a dot without dragging never enters click-to-draw.
 
-Safari reports a second trackpad finger (one finger holding the click, another dragging) as gesturestart. While a pointer gesture or pending click is active, gesture events are ignored instead of cancelling the drag, matching how wheel input is already ignored mid-drag. Header actions stay inline only from 1440px; below that (13" MacBooks at 1280–1439px) they live in the ⋯ menu so the title, save status and view switcher never wrap or truncate.
+Safari reports a second trackpad finger (one finger holding the click, another dragging) as gesturestart. While a pointer gesture is active, gesture events are ignored instead of cancelling the drag, matching how wheel input is already ignored mid-drag. Header actions stay inline only from 1440px; below that (13" MacBooks at 1280–1439px) they live in the ⋯ menu so the title, save status and view switcher never wrap or truncate.
+
+Drawing tools act on the first press, including over existing content; no 500ms intent timer delays creation or erasing. Fast Pencil input retains browser-coalesced samples where available, with a normal-event fallback. Its transient point buffer grows in place while paints remain frame-aligned; committed scene snapshots and undo history remain immutable.
