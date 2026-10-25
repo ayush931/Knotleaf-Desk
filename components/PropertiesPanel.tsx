@@ -120,7 +120,7 @@ export function PropertiesPanel({
   const activeOpacity = selectedElement ? selectedElement.opacity : currentStyle.opacity;
 
   const activeRouting: ArrowRouting =
-    arrowEl ? arrowEl.routing || arrowEl.elbow || "straight" : currentStyle.arrowRouting || "elbow";
+    arrowEl ? arrowEl.routing || arrowEl.elbow || "straight" : currentStyle.arrowRouting || "straight";
   const activeHeadStart: ArrowHead =
     (arrowEl?.arrowHeadStart as ArrowHead) || currentStyle.arrowHeadStart || "none";
   const activeHeadEnd: ArrowHead =

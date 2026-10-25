@@ -104,7 +104,8 @@ type Gesture =
   | { kind: "endpoint"; handle: Handle; snapshot: ArrowElement | LineElement }
   | { kind: "marquee"; start: Point; base: Set<string> }
   /** clickMode: released without dragging, so the draft follows the pointer until the next click. */
-  | { kind: "draft"; origin: Point; downClient?: Point; clickMode?: boolean };
+  /** startShapeId: arrow started inside a shape; its start anchor follows the free end. */
+  | { kind: "draft"; origin: Point; downClient?: Point; clickMode?: boolean; startShapeId?: string };
 
 interface Anchor {
   anchor: AnchorPosition;
@@ -1344,6 +1345,29 @@ export class CanvasEngine {
     return best;
   }
 
+  /** Topmost shape an arrow end can attach to, ignoring connectors, freehand and frames. */
+  private bindableShapeAt(pt: Point, excludeId?: string): CanvasElement | null {
+    const tol = 7 / this.zoom;
+    for (let i = this.elements.length - 1; i >= 0; i--) {
+      const el = this.elements[i];
+      if (el.id === excludeId || !getElementAnchors(el).length) continue;
+      if (this.hitElement(el, pt, tol)) return el;
+    }
+    return null;
+  }
+
+  private boundsCenter(el: CanvasElement): Point {
+    const b = getElementBounds(el);
+    return { x: (b.minX + b.maxX) / 2, y: (b.minY + b.maxY) / 2 };
+  }
+
+  /** Anchor of a shape closest to a point, used to attach an arrow on the facing side. */
+  private facingAnchor(shape: CanvasElement, toward: Point): Anchor | null {
+    let best: Anchor | null = null;
+    for (const a of getElementAnchors(shape)) if (!best || Math.hypot(toward.x - a.x, toward.y - a.y) < Math.hypot(toward.x - best.x, toward.y - best.y)) best = a;
+    return best;
+  }
+
   private hitTest(pt: Point): CanvasElement | null {
     const tol = 7 / this.zoom;
     for (let i = this.elements.length - 1; i >= 0; i--) {
@@ -1581,10 +1605,12 @@ export class CanvasEngine {
     // Hovering an unrelated shape must not turn an ordinary move into an arrow.
     if (this.tool === "select" && selected.length === 1 && !e.shiftKey && !selectedHandle) {
       const snap = this.findNearestAnchor(pt, undefined, selected[0].id);
-      if (snap && Math.hypot(pt.x - snap.x, pt.y - snap.y) < 10 / this.zoom) {
+      // Only the visible connection dot starts an arrow; grabbing the outline beside it moves the shape.
+      if (snap && Math.hypot(pt.x - snap.x, pt.y - snap.y) < 7 / this.zoom) {
         const arrow = this.createDraft({ x: snap.x, y: snap.y }, "arrow") as ArrowElement;
         this.draft = { ...arrow, startBinding: { elementId: snap.elementId, anchor: snap.anchor } };
-        this.gesture = { kind: "draft", origin: this.snapPoint(pt), downClient: { x: e.clientX, y: e.clientY } };
+        // No downClient: clicking a dot without dragging must not start click-to-draw.
+        this.gesture = { kind: "draft", origin: this.snapPoint(pt) };
         this.requestRender();
         return;
       }
@@ -1697,10 +1723,15 @@ export class CanvasEngine {
     this.draft = this.createDraft(pt);
     if (this.draft.type === "arrow") {
       const snap = this.findNearestAnchor(pt);
+      const shape = snap ? null : this.bindableShapeAt(pt);
       if (snap) {
         this.draft = { ...this.draft, startX: snap.x, startY: snap.y, startBinding: { elementId: snap.elementId, anchor: snap.anchor } } as ArrowElement;
         this.hoveredAnchors = snap.all;
         this.snapTarget = { anchor: snap.anchor };
+      } else if (shape) {
+        // Like Excalidraw, starting inside a shape attaches to it on the side facing the arrow's end.
+        this.gesture = { ...this.gesture, startShapeId: shape.id } as Gesture;
+        this.hoveredAnchors = getElementAnchors(shape);
       }
     }
     this.requestRender();
@@ -2015,7 +2046,7 @@ export class CanvasEngine {
           startY: pt.y,
           endX: pt.x,
           endY: pt.y,
-          routing: style.arrowRouting || "elbow",
+          routing: style.arrowRouting || "straight",
           arrowHeadStart: style.arrowHeadStart || "none",
           arrowHeadEnd: style.arrowHeadEnd || "arrow",
           animated: style.arrowAnimated || false,
@@ -2044,17 +2075,36 @@ export class CanvasEngine {
     if (d.type === "arrow" || d.type === "line") {
       if (d.type === "line" && this.shiftDown) target = this.constrainAngle(origin, target);
       if (d.type === "arrow") {
+        const startShapeId = this.gesture?.kind === "draft" ? this.gesture.startShapeId : undefined;
+        const startShape = startShapeId ? this.elements.find(el => el.id === startShapeId) : undefined;
+        // Free end inside a shape attaches to that shape's side facing the start, like Excalidraw.
         const snap = this.findNearestAnchor(pt, d.id);
-        if (snap) {
+        const endShape = snap ? null : this.bindableShapeAt(pt, startShapeId);
+        const endAnchor = endShape ? this.facingAnchor(endShape, startShape ? this.boundsCenter(startShape) : origin) : null;
+        let next: ArrowElement;
+        if (snap && snap.elementId !== startShapeId) {
           this.hoveredAnchors = snap.all;
           this.snapTarget = { anchor: snap.anchor };
-          this.draft = { ...d, endX: snap.x, endY: snap.y, endBinding: { elementId: snap.elementId, anchor: snap.anchor } } as ArrowElement;
-          return;
+          next = { ...d, endX: snap.x, endY: snap.y, endBinding: { elementId: snap.elementId, anchor: snap.anchor } } as ArrowElement;
+        } else if (endShape && endAnchor) {
+          this.hoveredAnchors = getElementAnchors(endShape);
+          this.snapTarget = { anchor: endAnchor.anchor };
+          next = { ...d, endX: endAnchor.x, endY: endAnchor.y, endBinding: { elementId: endShape.id, anchor: endAnchor.anchor } } as ArrowElement;
+        } else {
+          this.hoveredAnchors = startShape ? getElementAnchors(startShape) : [];
+          this.snapTarget = null;
+          const end = this.shiftDown ? this.constrainAngle(origin, pt) : pt;
+          next = { ...d, endX: end.x, endY: end.y, endBinding: undefined } as ArrowElement;
         }
-        this.hoveredAnchors = [];
-        this.snapTarget = null;
-        const end = this.shiftDown ? this.constrainAngle(origin, pt) : pt;
-        this.draft = { ...d, endX: end.x, endY: end.y, endBinding: undefined } as ArrowElement;
+        if (startShape && this.hitElement(startShape, pt, 7 / this.zoom)) {
+          // Still inside the starting shape: stay unattached so a click there draws nothing.
+          const from = this.gesture?.kind === "draft" ? this.gesture.origin : origin;
+          next = { ...next, startX: from.x, startY: from.y, startBinding: undefined };
+        } else if (startShape) {
+          const start = this.facingAnchor(startShape, { x: next.endX, y: next.endY });
+          if (start) next = { ...next, startX: start.x, startY: start.y, startBinding: { elementId: startShape.id, anchor: start.anchor } };
+        }
+        this.draft = next;
         return;
       }
       this.draft = { ...d, endX: target.x, endY: target.y } as LineElement;
