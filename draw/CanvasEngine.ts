@@ -103,7 +103,8 @@ type Gesture =
   | { kind: "resize"; handle: Handle; origin: Point; snapshot: CanvasElement }
   | { kind: "endpoint"; handle: Handle; snapshot: ArrowElement | LineElement }
   | { kind: "marquee"; start: Point; base: Set<string> }
-  | { kind: "draft"; origin: Point };
+  /** clickMode: released without dragging, so the draft follows the pointer until the next click. */
+  | { kind: "draft"; origin: Point; downClient?: Point; clickMode?: boolean };
 
 interface Anchor {
   anchor: AnchorPosition;
@@ -1495,6 +1496,14 @@ export class CanvasEngine {
   }
 
   private onPointerDown = (e: PointerEvent) => {
+    if (this.gesture?.kind === "draft" && this.gesture.clickMode && e.button === 0 && !isContextPointer(e) && e.isPrimary !== false) {
+      e.preventDefault();
+      this.shiftDown = e.shiftKey; this.altDown = !!e.altKey;
+      const sp = this.screenPoint(e);
+      this.updateDraft(this.screenToCanvas(sp.x, sp.y));
+      this.finishClickDraft();
+      return;
+    }
     if (![0, 1].includes(e.button) || isContextPointer(e) || e.isPrimary === false || this.gesture) return;
     if (!this.replayingClick && !this.readOnly && e.button === 0 && !this.spaceDown) {
       const screen = this.screenPoint(e);
@@ -1575,7 +1584,7 @@ export class CanvasEngine {
       if (snap && Math.hypot(pt.x - snap.x, pt.y - snap.y) < 10 / this.zoom) {
         const arrow = this.createDraft({ x: snap.x, y: snap.y }, "arrow") as ArrowElement;
         this.draft = { ...arrow, startBinding: { elementId: snap.elementId, anchor: snap.anchor } };
-        this.gesture = { kind: "draft", origin: this.snapPoint(pt) };
+        this.gesture = { kind: "draft", origin: this.snapPoint(pt), downClient: { x: e.clientX, y: e.clientY } };
         this.requestRender();
         return;
       }
@@ -1684,7 +1693,7 @@ export class CanvasEngine {
       return;
     }
 
-    this.gesture = { kind: "draft", origin: this.snapPoint(pt) };
+    this.gesture = { kind: "draft", origin: this.snapPoint(pt), downClient: { x: e.clientX, y: e.clientY } };
     this.draft = this.createDraft(pt);
     if (this.draft.type === "arrow") {
       const snap = this.findNearestAnchor(pt);
@@ -1858,6 +1867,12 @@ export class CanvasEngine {
         this.emitSelection();
         break;
       case "draft":
+        // Excalidraw-style click-to-draw: a trackpad click without dragging keeps drawing
+        // until the next click, so the button need not be held down.
+        if (e && !g.clickMode && g.downClient && this.draft && this.draft.type !== "pencil" && Math.hypot(e.clientX - g.downClient.x, e.clientY - g.downClient.y) < 4) {
+          this.gesture = { ...g, clickMode: true };
+          break;
+        }
         this.finishDraft();
         break;
       case "pan":
@@ -2074,6 +2089,16 @@ export class CanvasEngine {
     this.selectedIds = new Set([id]);
     this.updateCursor();
     this.emitTool();
+  }
+
+  private finishClickDraft() {
+    this.gesture = null;
+    this.guides = [];
+    this.snapTarget = null;
+    this.hoveredAnchors = [];
+    this.finishDraft();
+    this.updateCursor();
+    this.requestRender();
   }
 
   private finishDraft() {
@@ -2456,6 +2481,7 @@ export class CanvasEngine {
         }
         return;
       case "Escape":
+        if (this.gesture?.kind === "draft" && this.gesture.clickMode) { e.preventDefault(); this.finishClickDraft(); return; }
         this.cancelGesture();
         this.selectedIds.clear();
         this.emitSelection();

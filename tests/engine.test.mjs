@@ -1313,6 +1313,41 @@ test('a marquee dragged inside a frame selects only what it touches', () => {
   expect(emits).toBeLessThan(5); engine.destroy();
 });
 
+test('click, move, click draws a shape without holding the trackpad button', () => {
+  for (const tool of ['rectangle', 'circle', 'diamond', 'frame']) {
+    const { engine, listeners, point } = setup([]); engine.setTool(tool);
+    listeners.pointerdown(point(100, 100)); listeners.pointerup(point(100, 100));
+    expect(engine.getElements()).toHaveLength(0); expect(engine.gesture?.clickMode).toBe(true);
+    listeners.pointermove({ ...point(260, 220), type: 'pointermove', pointerType: 'mouse', buttons: 0 });
+    expect(engine.draft).toMatchObject({ width: 160, height: 120 });
+    listeners.pointerdown(point(260, 220)); listeners.pointerup(point(260, 220));
+    expect(engine.getElements()).toHaveLength(1);
+    expect(engine.getElements()[0]).toMatchObject({ type: tool, x: 100, y: 100, width: 160, height: 120 });
+    expect(engine.gesture).toBe(null); expect(engine.canUndo()).toBe(true); engine.destroy();
+  }
+});
+
+test('click-to-draw lines and arrows, Escape keeps the drawn arrow, and pencil still needs a drag', () => {
+  let { engine, listeners, point } = setup([]); engine.setTool('line');
+  listeners.pointerdown(point(50, 50)); listeners.pointerup(point(51, 50));
+  listeners.pointermove(point(250, 50)); listeners.pointerdown(point(250, 50)); listeners.pointerup(point(250, 50));
+  expect(engine.getElements()[0]).toMatchObject({ type: 'line', startX: 50, startY: 50, endX: 250, endY: 50 }); engine.destroy();
+  ({ engine, listeners, point } = setup([])); engine.setTool('arrow');
+  listeners.pointerdown(point(50, 400)); listeners.pointerup(point(50, 400)); listeners.pointermove(point(300, 400));
+  engine.onKeyDown({ key: 'Escape', code: 'Escape', target: null, preventDefault() {} });
+  expect(engine.getElements()).toHaveLength(1); expect(engine.getElements()[0].type).toBe('arrow'); expect(engine.gesture).toBe(null); engine.destroy();
+  ({ engine, listeners, point } = setup([])); engine.setTool('pencil');
+  listeners.pointerdown(point(50, 50)); listeners.pointerup(point(50, 50));
+  expect(engine.gesture).toBe(null); engine.destroy();
+});
+
+test('switching tools abandons an unfinished click-to-draw shape', () => {
+  const { engine, listeners, point } = setup([]); engine.setTool('rectangle');
+  listeners.pointerdown(point(100, 100)); listeners.pointerup(point(100, 100)); listeners.pointermove(point(200, 200));
+  engine.setTool('select');
+  expect(engine.gesture).toBe(null); expect(engine.draft).toBe(null); expect(engine.getElements()).toHaveLength(0); engine.destroy();
+});
+
 test('a mouse returning after a missed release cannot leave the canvas stuck dragging', () => {
   const { engine, listeners, point } = setup([source]);
   listeners.pointerdown(point(150, 130)); listeners.pointermove(point(210, 180));

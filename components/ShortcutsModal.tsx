@@ -47,6 +47,7 @@ const GROUPS: { title: string; items: [string, string][] }[] = [
       ["Arrow keys", "Nudge (Shift = 10px)"],
       ["Ctrl+] / Ctrl+[", "Bring to front / send to back"],
       ["Shift+drag", "Add to selection; constrain shape or line"],
+      ["Click, move, click", "Draw a shape, line or arrow without holding the button · Esc finishes"],
     ],
   },
   {
