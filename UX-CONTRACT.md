@@ -209,3 +209,5 @@ Mac text-size shortcuts use Command+Shift+Period (>) and Command+Shift+Comma (<)
 Cmd/Ctrl+Shift+Period always increases text size, including when the browser reports it as Escape; it never finishes the inline edit. The rich-note typing size persists in knotleaf.preferences.v1 (`noteTypingSize`, 8–128 px, null when equal to the note default) across new paragraphs and reloads. Dragging a selection box inside a frame selects only the elements it touches.
 
 Trackpad users never need to hold the button to draw a rectangle, ellipse, diamond, frame, line or arrow: click to start, move, click to place. Escape places the shape drawn so far; switching tools discards it. Drawing by dragging behaves exactly as before.
+
+New arrows are straight unless the user picks Elbow or Curved (a saved routing preference is kept). An arrow drawn from inside one shape to inside another attaches to their facing sides. Grabbing a selected circle or shape outline next to a connection dot moves it; only pressing the dot itself draws a connector.
