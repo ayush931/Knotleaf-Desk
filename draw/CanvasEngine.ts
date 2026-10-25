@@ -1969,7 +1969,9 @@ export class CanvasEngine {
   // Safari emits GestureEvents for trackpad pinch instead of Chromium's ctrl+wheel.
   private onGestureStart = (event: Event) => {
     event.preventDefault();
-    this.cancelGesture();
+    // Safari reports a second trackpad finger as a gesture. While one finger holds the
+    // click and another drags, keep drawing/moving instead of discarding the shape.
+    if (this.gesture || this.pendingClick) return;
     this.pinchScale = 1;
   };
 

@@ -215,7 +215,7 @@ export function BoardHeader({
           )}
         </div>
 
-        {saveError ? <button role="status" onClick={onRetrySave} title="Storage is full or unavailable. Retry saving or export a JSON backup." className="rounded px-2 py-1 text-[10px] text-amber-400 hover:bg-amber-500/10">Not saved · retry</button> : <span className="hidden lg:flex items-center gap-1.5 text-[10px] text-emerald-400"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />Saved locally</span>}
+        {saveError ? <button role="status" onClick={onRetrySave} title="Storage is full or unavailable. Retry saving or export a JSON backup." className="rounded px-2 py-1 text-[10px] text-amber-400 hover:bg-amber-500/10">Not saved · retry</button> : <span className="hidden lg:flex shrink-0 items-center gap-1.5 whitespace-nowrap text-[10px] text-emerald-400"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />Saved locally</span>}
 
       </div>
 
@@ -224,8 +224,8 @@ export function BoardHeader({
       </nav>
       <AccountButton />
       {/* Right Section: Actions */}
-      <button ref={actionsButton} type="button" aria-label="Board actions" aria-expanded={actionsOpen} aria-controls="board-actions" onClick={() => setActionsOpen(value => !value)} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-neutral-400 hover:bg-neutral-800 hover:text-white xl:hidden"><MoreHorizontal className="h-4 w-4" /></button>
-      <div ref={actionsPanel} id="board-actions" onKeyDown={event => { if (event.key === "Escape" && !event.nativeEvent.isComposing) { event.stopPropagation(); setActionsOpen(false); actionsButton.current?.focus(); } }} className={`header-actions absolute right-2 top-12 max-w-[calc(100vw-1rem)] flex-wrap items-center gap-1 rounded-xl border border-neutral-700 bg-[#18181b] p-2 shadow-lg xl:static xl:flex xl:max-w-none xl:shrink-0 xl:flex-nowrap xl:rounded-none xl:border-0 xl:bg-transparent xl:p-0 xl:shadow-none ${actionsOpen ? "flex" : "hidden"}`}>
+      <button ref={actionsButton} type="button" aria-label="Board actions" aria-expanded={actionsOpen} aria-controls="board-actions" onClick={() => setActionsOpen(value => !value)} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-neutral-400 hover:bg-neutral-800 hover:text-white min-[1440px]:hidden"><MoreHorizontal className="h-4 w-4" /></button>
+      <div ref={actionsPanel} id="board-actions" onKeyDown={event => { if (event.key === "Escape" && !event.nativeEvent.isComposing) { event.stopPropagation(); setActionsOpen(false); actionsButton.current?.focus(); } }} className={`header-actions absolute right-2 top-12 max-w-[calc(100vw-1rem)] flex-wrap items-center gap-1 rounded-xl border border-neutral-700 bg-[#18181b] p-2 shadow-lg min-[1440px]:static min-[1440px]:flex min-[1440px]:max-w-none min-[1440px]:shrink-0 min-[1440px]:flex-nowrap min-[1440px]:rounded-none min-[1440px]:border-0 min-[1440px]:bg-transparent min-[1440px]:p-0 min-[1440px]:shadow-none ${actionsOpen ? "flex" : "hidden"}`}>
         <button aria-label="Board tools" onClick={onOpenBoardTools} className="min-[480px]:hidden rounded-lg p-1.5 text-xs text-neutral-300 hover:bg-neutral-800"><Search className="mr-1 inline h-3.5 w-3.5" />Board tools</button>
         <button aria-label="Open project or notes" onClick={() => importFile.current?.click()} className="min-[480px]:hidden rounded-lg p-1.5 text-xs text-neutral-300 hover:bg-neutral-800"><FolderOpen className="mr-1 inline h-3.5 w-3.5" />Open project</button>
         <RefreshWebApp onBeforeRefresh={onBeforeRefresh} recording={recording} />

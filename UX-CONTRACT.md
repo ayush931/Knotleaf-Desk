@@ -211,3 +211,5 @@ Cmd/Ctrl+Shift+Period always increases text size, including when the browser rep
 Trackpad users never need to hold the button to draw a rectangle, ellipse, diamond, frame, line or arrow: click to start, move, click to place. Escape places the shape drawn so far; switching tools discards it. Drawing by dragging behaves exactly as before.
 
 New arrows are straight unless the user picks Elbow or Curved (a saved routing preference is kept). An arrow drawn from inside one shape to inside another attaches to their facing sides. Grabbing a selected circle or shape outline next to a connection dot moves it; only pressing the dot itself draws a connector.
+
+A fast click-hold-drag on a Mac trackpad never discards the shape being drawn or moved, even if a second finger touches the pad; pinch zoom applies only when no drag is in progress. At 1280–1439px wide the header shows title, "Saved locally", view switcher, account and a ⋯ menu with all board actions, without wrapping.
