@@ -1,4 +1,5 @@
 "use client";
+import { usePointerDrag } from "@/lib/usePointerDrag";
 import { sceneFontFamilies } from "@/draw/fonts";
 
 import { Heading1, List, CheckSquare, Quote, Check, PanelsTopLeft, Bug, Download, X } from "lucide-react";
@@ -113,6 +114,12 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
   const narrowSplit = splitBounds.width < 640;
   const splitRef = useRef<HTMLElement>(null);
   const clampNotesWidth = (width: number) => Math.max(220, Math.min(width, splitBounds.width - 280));
+  const beginSplitDrag = usePointerDrag(event => {
+    const bounds = splitRef.current?.getBoundingClientRect();
+    if (!bounds) return;
+    if (narrowSplit) setNotesHeight(Math.max(160, Math.min(event.clientY - bounds.top, bounds.height - 160)));
+    else setNotesWidth(clampNotesWidth(event.clientX - bounds.left));
+  });
   useEffect(() => {
     const element = splitRef.current;
     if (!element) return;
@@ -236,6 +243,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
       persist({ ...boardRef.current, elements });
       refreshBoardsList();
     };
+    engine.onStyleChange = style => setCurrentStyle(style);
     engine.onPickColor = color => setCurrentStyle(previous => ({ ...previous, stroke: color }));
     engine.onSelectionChange = (selected) => setSelectedElements(selected);
     engine.onOpenIconPicker = () => setIsIconPickerOpen(true);
@@ -563,7 +571,13 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
 
   // Inline text editing
   const adjustInlineFontSize = (delta: number) => {
-    setInlineText((prev) => (prev ? { ...prev, fontSize: Math.max(8, Math.min(96, prev.fontSize + delta)) } : prev));
+    const current = inlineTextStateRef.current;
+    if (!current) return;
+    const fontSize = Math.max(8, Math.min(96, current.fontSize + delta));
+    setInlineText(previous => previous ? { ...previous, fontSize } : null);
+    const style = { ...(engineRef.current?.currentStyle || currentStyle), fontSize };
+    if (engineRef.current) engineRef.current.currentStyle = style;
+    setCurrentStyle(style);
   };
 
   // Floating document quick-format action
@@ -766,7 +780,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
           const delta = e.key === "ArrowRight" || e.key === "ArrowDown" ? 20 : -20;
           if (narrowSplit) setNotesHeight(h => Math.max(160, Math.min(e.key === "Home" ? 160 : e.key === "End" ? Infinity : h + delta, splitBounds.height - 160)));
           else setNotesWidth(w => clampNotesWidth(e.key === "Home" ? 220 : e.key === "End" ? Infinity : w + delta));
-        } }} onPointerDown={e => { e.currentTarget.setPointerCapture(e.pointerId); }} onPointerMove={e => { if (!e.currentTarget.hasPointerCapture(e.pointerId)) return; const bounds = splitRef.current?.getBoundingClientRect(); if (bounds) { if (narrowSplit) setNotesHeight(Math.max(160, Math.min(e.clientY - bounds.top, bounds.height - 160))); else setNotesWidth(clampNotesWidth(e.clientX - bounds.left)); } }} onPointerUp={e => { e.currentTarget.releasePointerCapture(e.pointerId); }} />}
+        } }} onPointerDown={beginSplitDrag} />}
 
         <div
           ref={containerRef}
@@ -776,7 +790,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
           className={`relative min-h-0 min-w-0 flex-1 h-full overflow-hidden bg-[#121212] ${(viewMode === "notes" || viewMode === "slides") && !isPresentationOpen && !focusMode ? "hidden" : ""}`}
         >
             {dragFiles&&<div aria-hidden="true" className="pointer-events-none absolute inset-2 z-40 flex items-center justify-center rounded-xl border-2 border-dashed border-blue-400 bg-blue-500/10 text-sm text-blue-200">Drop images or files onto this board</div>}
-            <canvas ref={canvasRef} className="block touch-none" style={{ backgroundColor: "#fafafa", backgroundImage: "conic-gradient(#d4d4d8 25%, transparent 0 50%, #d4d4d8 0 75%, transparent 0)", backgroundSize: "16px 16px" }} />
+            <canvas ref={canvasRef} tabIndex={0} aria-label="Drawing canvas" className="block touch-none select-none" style={{ backgroundColor: "#fafafa", backgroundImage: "conic-gradient(#d4d4d8 25%, transparent 0 50%, #d4d4d8 0 75%, transparent 0)", backgroundSize: "16px 16px" }} />
 
             {codeElement?.type === "text" && <CodeEditor background={codeElement} key={codeElement.id} value={codeElement.text} language={codeElement.codeLanguage || "auto"} fontSize={codeElement.fontSize} zoom={codeViewport.zoom} x={(codeElement.x - 16) * codeViewport.zoom + codeViewport.pan.x} y={(codeElement.y - 16) * codeViewport.zoom + codeViewport.pan.y} width={codeElement.width} height={codeElement.height} onChange={(text, language) => engineRef.current?.updateCode(codeElement.id, text, language)} onClose={() => { engineRef.current?.finishCode(); setCodeId(null); }} />}
             {inlineText && (
@@ -1003,7 +1017,6 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
                   if (isInlineTextual) adjustInlineFontSize(delta);
                   else {
                     engineRef.current?.changeFontSize(delta);
-                    if (engineRef.current) setCurrentStyle({ ...engineRef.current.currentStyle });
                   }
                 }}
                 theme={theme}

@@ -2,6 +2,7 @@ import { test, expect, beforeAll, afterAll, beforeEach, afterEach } from 'bun:te
 import React, { act } from 'react';
 import { Window } from 'happy-dom';
 import { Canvas } from '../components/Canvas.tsx';
+import { usePointerDrag } from '../lib/usePointerDrag.ts';
 import { AppRouterContext } from 'next/dist/shared/lib/app-router-context.shared-runtime.js';
 import { SearchParamsContext } from 'next/dist/shared/lib/hooks-client-context.shared-runtime.js';
 import { createBoard, setActiveBoardId, getOrCreateDefaultBoard, getBoard } from '../lib/storage.ts';
@@ -258,4 +259,51 @@ test('uploads have one toolbar action and eraser exposes uncapped numeric size a
  await act(async()=>document.querySelector('[aria-label="Eraser (E)"]').click());const size=document.getElementById('eraser-size');expect(size.getAttribute('max')).toBeNull();expect(size.value).toBe('24');
  await act(async()=>document.querySelector('[aria-label="Increase eraser size"]').click());expect(size.value).toBe('30');expect([...document.querySelector('[aria-label="Erase"]').options].map(o=>o.value)).toEqual(['all','drawings','objects']);
  expect(document.querySelector('[aria-label="Appearance settings"]')).toBeNull();
+});
+
+test('chosen font size persists for new text and survives a complete canvas remount', async () => {
+  const id = await renderBoard();
+  let editor = await startText();
+  await typeText(editor, 'First size');
+  await clickNamed('Open appearance settings');
+  await clickNamed('Increase font size');
+  await clickNamed('Increase font size');
+  const size = parseFloat(editor.style.fontSize);
+  expect(JSON.parse(localStorage.getItem('knotleaf.preferences.v1')).style.fontSize).toBe(size);
+  await act(async () => editor.dispatchEvent(new browser.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
+  expect(getBoard(id).elements[0].fontSize).toBe(size);
+  await clickNamed('Text & Bullets (T)');
+  await boardPointer('pointerdown', 400, 300); await boardPointer('pointerup', 400, 300);
+  editor = named('Edit text'); expect(parseFloat(editor.style.fontSize)).toBe(size);
+  await typeText(editor, 'Second size');
+  await act(async () => editor.dispatchEvent(new browser.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
+  await act(async () => root.render(null));
+  await act(async () => root.render(React.createElement(AppRouterContext.Provider, { value: router }, React.createElement(SearchParamsContext.Provider, { value: new URLSearchParams() }, React.createElement(Canvas)))));
+  await clickNamed('Text & Bullets (T)');
+  await boardPointer('pointerdown', 700, 500); await boardPointer('pointerup', 700, 500);
+  editor = named('Edit text');
+  expect(parseFloat(editor.style.fontSize)).toBe(size);
+});
+
+
+test('panel resize survives missing capture and follows only its pointer through final release', async () => {
+  const points = [];
+  function Handle() {
+    const begin = usePointerDrag(event => points.push(event.clientX));
+    return React.createElement('button', { onPointerDown: begin, 'aria-label': 'Test resize' }, 'Resize');
+  }
+  await act(async () => root.render(React.createElement(Handle)));
+  const handle = named('Test resize');
+  handle.setPointerCapture = () => { throw new Error('Capture unavailable'); };
+  const event = (type, pointerId, clientX, button = 0) => new browser.PointerEvent(type, { bubbles: true, cancelable: true, pointerId, clientX, button, isPrimary: true });
+  await act(async () => handle.dispatchEvent(event('pointerdown', 1, 10, 2)));
+  await act(async () => window.dispatchEvent(event('pointermove', 1, 20)));
+  expect(points).toEqual([]);
+  await act(async () => handle.dispatchEvent(event('pointerdown', 1, 10)));
+  expect(document.activeElement).toBe(handle);
+  await act(async () => window.dispatchEvent(event('pointermove', 2, 30)));
+  await act(async () => window.dispatchEvent(event('pointermove', 1, 40)));
+  await act(async () => window.dispatchEvent(event('pointerup', 1, 80)));
+  await act(async () => window.dispatchEvent(event('pointermove', 1, 100)));
+  expect(points).toEqual([40, 80]);
 });

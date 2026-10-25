@@ -1213,3 +1213,84 @@ test('hidden canvas ignores editing shortcuts and restores them when canvas beco
   engine.onKeyDown({key:'Delete',code:'Delete',target:null,preventDefault(){}});expect(engine.getElements()).toHaveLength(1);
   engine.setKeyboardEnabled(true);engine.onKeyDown({key:'Delete',code:'Delete',target:null,preventDefault(){}});expect(engine.getElements()).toHaveLength(0);engine.destroy();
 });
+
+test('trackpad release coordinates complete a drag even without a final pointermove', () => {
+  const { engine, listeners, point } = setup([source]);
+  listeners.pointerdown(point(150, 130)); listeners.pointerup({ ...point(210, 180), type: 'pointerup', pointerType: 'mouse', buttons: 0 });
+  expect(engine.getElements()[0]).toMatchObject({ x: 160, y: 150 });
+  expect(engine.canUndo()).toBe(true);
+  engine.undo(); expect(engine.getElements()[0]).toEqual(source); engine.destroy();
+});
+
+test('failed pointer capture still allows dragging and releasing outside the canvas', () => {
+  const { engine, listeners, point } = setup([source]);
+  engine.canvas.setPointerCapture = () => { throw new Error('NotFoundError'); };
+  expect(() => listeners.pointerdown(point(150, 130))).not.toThrow();
+  engine.onWindowPointerMove({ ...point(210, 180), target: {} });
+  engine.onWindowPointerUp({ ...point(220, 190), target: {} });
+  expect(engine.getElements()[0]).toMatchObject({ x: 170, y: 160 });
+  expect(engine.gesture).toBe(null);
+  expect(engine.activePointerId).toBe(null); engine.destroy();
+});
+
+test('already released browser capture cannot interrupt a committed drag', () => {
+  const { engine, listeners, point } = setup([source]);
+  engine.canvas.hasPointerCapture = () => true;
+  engine.canvas.releasePointerCapture = () => { throw new Error('InvalidStateError'); };
+  listeners.pointerdown(point(150, 130)); listeners.pointermove(point(210, 180));
+  expect(() => listeners.pointerup(point(210, 180))).not.toThrow();
+  expect(engine.canUndo()).toBe(true); expect(engine.activePointerId).toBe(null); engine.destroy();
+});
+
+test('trackpad scroll momentum does not shift the viewport underneath a shape drag', () => {
+  const { engine, listeners, point } = setup([source]);
+  listeners.pointerdown(point(150, 130));
+  const viewport = engine.getViewport();
+  listeners.wheel({ ...point(150, 130), deltaX: 40, deltaY: 60 });
+  expect(engine.getViewport()).toEqual(viewport);
+  listeners.pointerup(point(210, 180));
+  listeners.wheel({ ...point(150, 130), deltaX: 40, deltaY: 60 });
+  expect(engine.getViewport().pan).toEqual({ x: -40, y: -60 }); engine.destroy();
+});
+
+test('Safari cumulative pinch scales zoom the canvas and ignore duplicate wheel zoom', () => {
+  const { engine, listeners, point } = setup([]);
+  const gesture = scale => ({ scale, clientX: 200, clientY: 200, preventDefault() {} });
+  listeners.gesturestart(gesture(1)); listeners.gesturechange(gesture(1.5));
+  expect(engine.getZoom()).toBeCloseTo(1.5);
+  listeners.wheel({ ...point(200, 200), ctrlKey: true, deltaY: -100 });
+  expect(engine.getZoom()).toBeCloseTo(1.5);
+  listeners.gesturechange(gesture(2)); expect(engine.getZoom()).toBeCloseTo(2);
+  listeners.gestureend(gesture(2));
+  listeners.wheel({ ...point(200, 200), ctrlKey: true, deltaY: -100 });
+  expect(engine.getZoom()).toBeGreaterThan(2); engine.destroy();
+});
+
+test('changing selected text size also updates the next-text default and notifies preferences', () => {
+  const text = { ...base, id: 'sized', type: 'text', x: 100, y: 100, width: 100, height: 30, text: 'Size', fontSize: 32, fontFamily: 'sans', textAlign: 'left' };
+  const { engine, listeners, point } = setup([text]); let style;
+  engine.onStyleChange = value => { style = value; };
+  listeners.pointerdown(point(120, 115)); listeners.pointerup(point(120, 115));
+  engine.changeFontSize(2);
+  expect(engine.getElements()[0].fontSize).toBe(34);
+  expect(style.fontSize).toBe(34); expect(engine.currentStyle.fontSize).toBe(34);
+  engine.setTool('text'); let editor; engine.onStartInlineText = value => { editor = value; };
+  listeners.pointerdown(point(400, 400)); listeners.pointerup(point(400, 400));
+  expect(editor.fontSize).toBe(34); engine.destroy();
+});
+
+test('Space on a focused button is reserved for native activation, not canvas panning', () => {
+  const { engine } = setup([]);
+  const button = new HTMLElement(); button.closest = () => button;
+  let prevented = false;
+  engine.onKeyDown({ key: ' ', code: 'Space', target: button, preventDefault() { prevented = true; } });
+  expect(prevented).toBe(false); expect(engine.spaceDown).toBe(false); engine.destroy();
+});
+
+test('a mouse returning after a missed release cannot leave the canvas stuck dragging', () => {
+  const { engine, listeners, point } = setup([source]);
+  listeners.pointerdown(point(150, 130)); listeners.pointermove(point(210, 180));
+  listeners.pointermove({ ...point(900, 600), type: 'pointermove', pointerType: 'mouse', buttons: 0 });
+  expect(engine.gesture).toBe(null); expect(engine.activePointerId).toBe(null);
+  expect(engine.getElements()[0]).toMatchObject({ x: 160, y: 150 }); engine.destroy();
+});
