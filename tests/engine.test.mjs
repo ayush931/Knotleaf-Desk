@@ -47,6 +47,10 @@ test('all font families render, remain editable, and survive undo/redo', () => {
     engine.destroy();
   }
 });
+test('new sticky notes use the saved text size', () => {
+  const { engine, listeners, point } = setup([]); engine.currentStyle.fontSize = 22; engine.setTool('sticky');
+  listeners.pointerdown(point(100, 100)); expect(engine.getElements()[0].fontSize).toBe(22); engine.destroy();
+});
 test('document and sticky creation use the chosen font', () => {
   for (const tool of ['doc', 'sticky']) {
     const { engine, listeners, point } = setup([]); engine.currentStyle.fontFamily = 'rounded'; engine.setTool(tool);
@@ -1287,10 +1291,43 @@ test('Space on a focused button is reserved for native activation, not canvas pa
   expect(prevented).toBe(false); expect(engine.spaceDown).toBe(false); engine.destroy();
 });
 
+test('a captured Mac trackpad drag reporting no buttons keeps moving until the real release', () => {
+  const { engine, listeners, point } = setup([source]);
+  engine.canvas.hasPointerCapture = () => true;
+  listeners.pointerdown(point(150, 130));
+  listeners.pointermove({ ...point(180, 150), type: 'pointermove', pointerType: 'mouse', buttons: 0 });
+  expect(engine.gesture?.kind).toBe('move');
+  listeners.pointerup({ ...point(210, 180), type: 'pointerup', pointerType: 'mouse', buttons: 0 });
+  expect(engine.gesture).toBe(null); expect(engine.getElements()[0]).toMatchObject({ x: 160, y: 150 }); engine.destroy();
+});
+
+test('a marquee dragged inside a frame selects only what it touches', () => {
+  const frame = { ...source, id: 'big', type: 'frame', title: 'Area', x: 0, y: 0, width: 900, height: 600 };
+  const small = { ...source, id: 'small', x: 300, y: 300, width: 40, height: 40 };
+  const { engine, listeners, point } = setup([frame, small]);
+  let emits = 0; engine.onSelectionChange = () => { emits++; };
+  listeners.pointerdown(point(250, 250));
+  for (let x = 360; x <= 380; x += 2) listeners.pointermove(point(x, 360));
+  listeners.pointerup(point(380, 360));
+  expect([...engine.selectedIds]).toEqual(['small']);
+  expect(emits).toBeLessThan(5); engine.destroy();
+});
+
 test('a mouse returning after a missed release cannot leave the canvas stuck dragging', () => {
   const { engine, listeners, point } = setup([source]);
   listeners.pointerdown(point(150, 130)); listeners.pointermove(point(210, 180));
   listeners.pointermove({ ...point(900, 600), type: 'pointermove', pointerType: 'mouse', buttons: 0 });
   expect(engine.gesture).toBe(null); expect(engine.activePointerId).toBe(null);
   expect(engine.getElements()[0]).toMatchObject({ x: 160, y: 150 }); engine.destroy();
+});
+
+test('Mac Command Shift Period increases selected text above 96px, remains undoable and notifies preferences', () => {
+  const text = { ...base, id: 'large', type: 'text', x: 100, y: 100, width: 500, height: 180, text: 'Large', fontSize: 120, fontFamily: 'sans', textAlign: 'left' };
+  const { engine, listeners, point } = setup([text]); let savedSize;
+  engine.onStyleChange = style => { savedSize = style.fontSize; };
+  listeners.pointerdown(point(150, 160)); listeners.pointerup(point(150, 160));
+  let prevented = false;
+  engine.onKeyDown({ code: 'Period', key: 'Unidentified', metaKey: true, shiftKey: true, target: null, preventDefault() { prevented = true; } });
+  expect(prevented).toBe(true); expect(engine.getElements()[0].fontSize).toBe(122); expect(savedSize).toBe(122);
+  engine.undo(); expect(engine.getElements()[0].fontSize).toBe(120); engine.destroy();
 });

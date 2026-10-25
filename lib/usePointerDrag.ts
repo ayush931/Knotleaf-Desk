@@ -16,7 +16,7 @@ export function usePointerDrag(onMove: (event: PointerEvent) => void) {
     };
     const update = (event: PointerEvent) => {
       if (event.pointerId === active.current?.id) {
-        if (event.pointerType === "mouse" && event.buttons === 0) { stop(); return; }
+        if (event.pointerType === "mouse" && event.buttons === 0 && !active.current.target.hasPointerCapture?.(event.pointerId)) { stop(); return; }
         event.preventDefault(); move.current(event);
       }
     };

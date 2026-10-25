@@ -307,3 +307,85 @@ test('panel resize survives missing capture and follows only its pointer through
   await act(async () => window.dispatchEvent(event('pointermove', 1, 100)));
   expect(points).toEqual([40, 80]);
 });
+
+test('Mac Command Shift Period and Comma resize inline text and save the next-text size', async () => {
+  await renderBoard(); const editor = await startText();
+  await typeText(editor, 'Mac shortcut');
+  const size = parseFloat(editor.style.fontSize);
+  const key = (code, value) => new browser.KeyboardEvent('keydown', { code, key: value, metaKey: true, shiftKey: true, bubbles: true, cancelable: true });
+  const increase = key('Period', 'Unidentified');
+  await act(async () => editor.dispatchEvent(increase));
+  expect(increase.defaultPrevented).toBe(true);
+  expect(parseFloat(editor.style.fontSize)).toBe(size + 2);
+  expect(editor.value).toBe('Mac shortcut');
+  expect(JSON.parse(localStorage.getItem('knotleaf.preferences.v1')).style.fontSize).toBe(size + 2);
+  await act(async () => editor.dispatchEvent(key('Comma', '<')));
+  expect(parseFloat(editor.style.fontSize)).toBe(size);
+});
+
+test('Mac Command Shift Period reported as Escape grows inline text instead of finishing the edit', async () => {
+  await renderBoard(); const editor = await startText();
+  await typeText(editor, 'Still editing');
+  const size = parseFloat(editor.style.fontSize);
+  const increase = new browser.KeyboardEvent('keydown', { key: 'Escape', metaKey: true, shiftKey: true, bubbles: true, cancelable: true });
+  await act(async () => editor.dispatchEvent(increase));
+  expect(increase.defaultPrevented).toBe(true);
+  expect(document.querySelector('textarea[aria-label="Edit text"]')).toBe(editor);
+  expect(parseFloat(editor.style.fontSize)).toBe(size + 2);
+});
+
+test('the shortcut text size is used for the next new text instead of the default', async () => {
+  const id = await renderBoard(); let editor = await startText();
+  await typeText(editor, 'First');
+  const size = parseFloat(editor.style.fontSize);
+  await act(async () => editor.dispatchEvent(new browser.KeyboardEvent('keydown', { code: 'Period', key: '>', metaKey: true, shiftKey: true, bubbles: true, cancelable: true })));
+  await act(async () => editor.dispatchEvent(new browser.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
+  await clickNamed('Text & Bullets (T)'); await boardPointer('pointerdown', 400, 400); await boardPointer('pointerup', 400, 400);
+  await act(async () => new Promise(resolve => window.requestAnimationFrame(resolve)));
+  editor = named('Edit text');
+  expect(parseFloat(editor.style.fontSize)).toBe(size + 2);
+  await typeText(editor, 'Second');
+  await act(async () => editor.dispatchEvent(new browser.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
+  expect(getBoard(id).elements.map(el => el.fontSize)).toEqual([size + 2, size + 2]);
+});
+
+test('Mac text-size shortcut works while focus is on an Appearance button', async () => {
+  const id = await renderBoard(); const editor = await startText();
+  await typeText(editor, 'Selected text');
+  await act(async () => editor.dispatchEvent(new browser.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
+  const size = getBoard(id).elements[0].fontSize;
+  await clickNamed('Open appearance settings');
+  const control = named('Increase font size'); control.focus();
+  const increase = new browser.KeyboardEvent('keydown', { code: 'Period', key: '>', metaKey: true, shiftKey: true, bubbles: true, cancelable: true });
+  await act(async () => control.dispatchEvent(increase));
+  expect(increase.defaultPrevented).toBe(true);
+  expect(getBoard(id).elements[0].fontSize).toBe(size + 2);
+  expect(JSON.parse(localStorage.getItem('knotleaf.preferences.v1')).style.fontSize).toBe(size + 2);
+});
+
+test('Mac text-size shortcut changes visual Notes text while its editor has focus', async () => {
+  const { DocEditor } = await import('../components/DocEditor.tsx');
+  await act(async () => root.render(React.createElement(DocEditor, { value: 'A note', onChange() {}, onExportMarkdown() {}, theme: 'dark' })));
+  const editor = document.querySelector('[contenteditable="true"]');
+  expect(editor).not.toBeNull(); editor.focus();
+  const increase = new browser.KeyboardEvent('keydown', { code: 'Period', key: '.', metaKey: true, shiftKey: true, bubbles: true, cancelable: true });
+  await act(async () => editor.dispatchEvent(increase));
+  expect(increase.defaultPrevented).toBe(true);
+  expect(named('Text size').value).toBe('18');
+  await act(async () => editor.dispatchEvent(new browser.KeyboardEvent('keydown', { code: 'Comma', key: '<', metaKey: true, shiftKey: true, bubbles: true, cancelable: true })));
+  expect(named('Text size').value).toBe('16');
+});
+
+test('Notes remember the shortcut text size for new typing after a remount', async () => {
+  const { DocEditor } = await import('../components/DocEditor.tsx');
+  const props = { value: 'A note', onChange() {}, onExportMarkdown() {}, theme: 'dark' };
+  await act(async () => root.render(React.createElement(DocEditor, props)));
+  let editor = document.querySelector('[contenteditable="true"]'); editor.focus();
+  await act(async () => editor.dispatchEvent(new browser.KeyboardEvent('keydown', { code: 'Period', key: '>', metaKey: true, shiftKey: true, bubbles: true, cancelable: true })));
+  expect(JSON.parse(localStorage.getItem('knotleaf.preferences.v1')).noteTypingSize).toBe(18);
+  await act(async () => root.render(null));
+  await act(async () => root.render(React.createElement(DocEditor, props)));
+  editor = document.querySelector('[contenteditable="true"]'); editor.focus();
+  await act(async () => { await new Promise(resolve => setTimeout(resolve, 0)); });
+  expect(named('Text size').value).toBe('18');
+});

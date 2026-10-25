@@ -1,5 +1,7 @@
 "use client";
 
+import { stepNoteFontSize, textSizeShortcut } from "@/lib/textShortcuts";
+
 import {
   useEffect,
   useLayoutEffect,
@@ -144,6 +146,15 @@ function RichNotesEditor({
   useEffect(() => {
     savePreferences({ noteAppearance: appearance });
   }, [appearance]);
+  // The last picked text size survives new paragraphs, blocks and reloads.
+  const [typingSize, setTypingSize] = useState(
+    () => loadPreferences().noteTypingSize,
+  );
+  const rememberTypingSize = (size: number) => {
+    const next = size === appearance.size ? null : size;
+    setTypingSize(next);
+    savePreferences({ noteTypingSize: next });
+  };
   const [find, setFind] = useState(false),
     [query, setQuery] = useState(""),
     [replacement, setReplacement] = useState(""),
@@ -244,6 +255,25 @@ function RichNotesEditor({
     index = matches.length
       ? Math.min(Math.max(active, 0), matches.length - 1)
       : -1;
+  useEffect(() => {
+    if (!editor || !typingSize) return;
+    // Paragraph text without an explicit size picks up the remembered size as the next typing style.
+    const applyTypingSize = () => {
+      if (editor.isDestroyed || !editor.isEditable) return;
+      const { empty, $from } = editor.state.selection;
+      if (!empty || $from.parent.type.name !== "paragraph") return;
+      if (editor.getAttributes("textStyle").fontSize) return;
+      editor.commands.setFontSize(`${typingSize}px`);
+    };
+    const schedule = () => queueMicrotask(applyTypingSize);
+    schedule();
+    editor.on("selectionUpdate", schedule);
+    editor.on("focus", schedule);
+    return () => {
+      editor.off("selectionUpdate", schedule);
+      editor.off("focus", schedule);
+    };
+  }, [editor, typingSize]);
   useEffect(() => {
     if (!editor || value === published.current) return;
     applyRemoteNotes(editor, value);
@@ -722,8 +752,19 @@ function RichNotesEditor({
         }
       }}
       onKeyDownCapture={(event) => {
-        if (event.nativeEvent.isComposing || !menuOpen) return;
+        if (event.nativeEvent.isComposing) return;
         const target = event.target as HTMLElement;
+        const sizeDelta = textSizeShortcut(event.nativeEvent);
+        if (sizeDelta && editor && target.closest('[contenteditable="true"]')) {
+          event.preventDefault();
+          event.stopPropagation();
+          const currentSize = parseFloat(editor.getAttributes("textStyle").fontSize || "") || typingSize || appearance.size;
+          const nextSize = stepNoteFontSize(currentSize, sizeDelta);
+          editor.chain().setFontSize(`${nextSize}px`).run();
+          rememberTypingSize(nextSize);
+          return;
+        }
+        if (!menuOpen) return;
         if (
           !target.closest('[contenteditable="true"]') &&
           !target.closest('[aria-label="Search note blocks"]') &&
@@ -915,6 +956,7 @@ function RichNotesEditor({
             appearance={appearance}
             font={state?.font}
             size={state?.size}
+            onTypingSize={rememberTypingSize}
           />
 
           {tools.slice(0, 3).map((t) => (

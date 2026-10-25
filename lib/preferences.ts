@@ -12,12 +12,14 @@ export interface Preferences {
   notesWidth: number;
   notesHeight: number;
   noteAppearance: NoteAppearance;
+  /** Last rich-note text size picked by shortcut or size input; null follows the note default. */
+  noteTypingSize: number | null;
   exportFormat: string;
   exportScope: 'project' | 'canvas' | 'notes';
   exportScale: number;
   exportTransparent: boolean;
 }
-const defaults = (): Preferences => ({ version:1, callNoiseSuppression:true, style:{...DEFAULT_STYLE}, eraserSize:24, eraserMode:'all', notesWidth:360, notesHeight:300, noteAppearance:{...DEFAULT_NOTE_APPEARANCE}, exportFormat:'project', exportScope:'project', exportScale:2, exportTransparent:false });
+const defaults = (): Preferences => ({ version:1, callNoiseSuppression:true, style:{...DEFAULT_STYLE}, eraserSize:24, eraserMode:'all', notesWidth:360, notesHeight:300, noteAppearance:{...DEFAULT_NOTE_APPEARANCE}, noteTypingSize:null, exportFormat:'project', exportScope:'project', exportScale:2, exportTransparent:false });
 const finite = (n: unknown, min: number, max=Number.MAX_VALUE): n is number => typeof n==='number' && Number.isFinite(n) && n>=min && n<=max;
 const color = (value: unknown): value is string => typeof value==='string' && (value==='transparent' || /^#[\da-f]{6}$/i.test(value));
 export function normalizePreferences(value: unknown): Preferences {
@@ -39,6 +41,7 @@ export function normalizePreferences(value: unknown): Preferences {
   if(finite(data.notesWidth,220))result.notesWidth=data.notesWidth;
   if(finite(data.notesHeight,160))result.notesHeight=data.notesHeight;
   result.noteAppearance=normalizeNoteAppearance(data.noteAppearance);
+  if(finite(data.noteTypingSize,8,128))result.noteTypingSize=Math.round(data.noteTypingSize);
   if(['project','pdf','png','jpeg','webp','svg','markdown','drawio','json'].includes(String(data.exportFormat)))result.exportFormat=String(data.exportFormat);
   if(['project','canvas','notes'].includes(String(data.exportScope)))result.exportScope=data.exportScope as Preferences['exportScope'];
   if([1,2,3].includes(data.exportScale as number))result.exportScale=data.exportScale as number;

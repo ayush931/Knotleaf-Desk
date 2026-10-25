@@ -1,4 +1,5 @@
 "use client";
+import { textSizeShortcut } from "@/lib/textShortcuts";
 import { cardBackground } from "@/draw/cardAppearance";
 
 import React, { useLayoutEffect, useRef } from "react";
@@ -266,7 +267,12 @@ export function PropertiesPanel({
   return (
     <div style={{ top: topOffset, maxHeight: `calc(100% - ${topOffset + 64}px)` }}
       id="appearance-settings" role="region" aria-label="Appearance settings"
-      onKeyDown={event => { if (event.key === "Escape" && !event.nativeEvent.isComposing) { event.preventDefault(); event.stopPropagation(); close(); } }}
+      onKeyDown={event => {
+        const sizeDelta = textSizeShortcut(event.nativeEvent);
+        if (sizeDelta && isTextual) {
+          event.preventDefault(); event.stopPropagation(); onChangeFontSize(sizeDelta); return;
+        }
+        if (event.key === "Escape" && !event.nativeEvent.isComposing) { event.preventDefault(); event.stopPropagation(); close(); } }}
       onMouseDown={event => { if (preserveTextFocus && event.target instanceof HTMLElement && event.target.closest("button, summary")) event.preventDefault(); }}
       className="absolute left-2 z-30 flex w-72 max-w-[calc(100%-1rem)] flex-col overflow-hidden rounded-xl border border-neutral-700 bg-[#18181b]/95 text-neutral-200 shadow-xl backdrop-blur-xl select-none"
     >
@@ -291,9 +297,9 @@ export function PropertiesPanel({
             })}
           </div>
           <div className="flex items-center gap-1">
-            <button onClick={() => onChangeFontSize(-2)} title="Smaller (Ctrl+Shift+<)" aria-label="Decrease font size" className="w-7 h-7 rounded-md bg-neutral-800 hover:bg-neutral-700 text-sm">−</button>
+            <button onClick={() => onChangeFontSize(-2)} title="Smaller (Cmd/Ctrl+Shift+Comma)" aria-label="Decrease font size" aria-keyshortcuts="Meta+Shift+Comma Control+Shift+Comma" className="w-7 h-7 rounded-md bg-neutral-800 hover:bg-neutral-700 text-sm">−</button>
             <span className="flex-1 text-center text-xs font-mono tabular-nums">{Math.round(activeFontSize)}px</span>
-            <button onClick={() => onChangeFontSize(2)} title="Larger (Ctrl+Shift+>)" aria-label="Increase font size" className="w-7 h-7 rounded-md bg-neutral-800 hover:bg-neutral-700 text-sm">+</button>
+            <button onClick={() => onChangeFontSize(2)} title="Larger (Cmd/Ctrl+Shift+Period)" aria-label="Increase font size" aria-keyshortcuts="Meta+Shift+Period Control+Shift+Period" className="w-7 h-7 rounded-md bg-neutral-800 hover:bg-neutral-700 text-sm">+</button>
           </div>
           <div role="group" aria-label="Font family" className="grid grid-cols-2 gap-1 p-0.5 mt-1.5 rounded-lg bg-neutral-800 text-[11px]">
             {QUICK_FONTS.map(({ id: fam, label }) => (

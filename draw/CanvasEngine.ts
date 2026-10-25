@@ -1,3 +1,4 @@
+import { stepCanvasFontSize, textSizeShortcut } from "@/lib/textShortcuts";
 import { capturePointer, isContextPointer, releasePointer } from "@/lib/pointerInput";
 import { CODE_CARD_FILL, DOCUMENT_CARD_FILL } from "./cardAppearance";
 import { sceneFontFamilies } from "./fonts";
@@ -681,9 +682,9 @@ export class CanvasEngine {
     this.commit();
   }
 
-  /** Steps the font size of selected text (Ctrl+Shift+. / Ctrl+Shift+,). */
+  /** Steps selected text size and the saved default (Cmd/Ctrl+Shift+Period / Comma). */
   public changeFontSize(delta: number) {
-    const clamp = (v: number) => Math.max(8, Math.min(96, Math.round(v)));
+    const clamp = (v: number) => stepCanvasFontSize(v, 0);
     const ids = new Set(this.getSelectedElements().filter((e) => e.type === "text" || e.type === "sticky").map((e) => e.id));
     const first = this.getSelectedElements().find(el => el.type === "text" || el.type === "sticky");
     this.currentStyle.fontSize = clamp((first && (first.type === "text" || first.type === "sticky") ? first.fontSize : this.currentStyle.fontSize) + delta);
@@ -1665,7 +1666,7 @@ export class CanvasEngine {
         text: "",
         color: this.currentStyle.fill === "transparent" ? "#FEF08A" : this.currentStyle.fill,
         fontFamily: this.currentStyle.fontFamily,
-        fontSize: 15,
+        fontSize: this.currentStyle.fontSize,
         stroke: "#1E293B",
         strokeWidth: 1,
         strokeStyle: "solid",
@@ -1699,7 +1700,9 @@ export class CanvasEngine {
   private onPointerLeave = () => { this.eraserPointer=null;this.requestRender(); };
 
   private onPointerMove = (e: PointerEvent) => {
-    if (e.type === "pointermove" && e.pointerType === "mouse" && e.buttons === 0 && e.pointerId === this.activePointerId) { this.onPointerUp(); return; }
+    // A mouse returning with no buttons missed its release. While capture is held the real
+    // pointerup still arrives, and some Mac trackpad drags report buttons 0 mid-drag.
+    if (e.type === "pointermove" && e.pointerType === "mouse" && e.buttons === 0 && e.pointerId === this.activePointerId && !this.canvas.hasPointerCapture?.(e.pointerId)) { this.onPointerUp(); return; }
     if (this.pendingClick) {
       if (e.pointerId !== this.pendingClick.event.pointerId) return;
       if (Math.hypot(e.clientX - this.pendingClick.event.clientX, e.clientY - this.pendingClick.event.clientY) <= 4) return;
@@ -2266,10 +2269,14 @@ export class CanvasEngine {
     for (const el of this.elements) {
       const b = getElementBounds(el);
       const hit = b.maxX >= rect.minX && b.minX <= rect.maxX && b.maxY >= rect.minY && b.minY <= rect.maxY;
-      if (hit) next.add(el.id);
+      // Dragging out a box inside a frame or large shape selects what the box touches, not its surroundings.
+      const encloses = b.minX < rect.minX && b.maxX > rect.maxX && b.minY < rect.minY && b.maxY > rect.maxY;
+      if (hit && !encloses) next.add(el.id);
     }
+    // Trackpads report moves at display rate; only re-render React when the selection changes.
+    const changed = next.size !== this.selectedIds.size || [...next].some(id => !this.selectedIds.has(id));
     this.selectedIds = next;
-    this.emitSelection();
+    if (changed) this.emitSelection();
   }
 
   private eraseAt(pt: Point) {
@@ -2358,6 +2365,12 @@ export class CanvasEngine {
     this.altDown = !!e.altKey;
     const mod = e.ctrlKey || e.metaKey;
     const key = e.key.toLowerCase();
+    const sizeDelta = textSizeShortcut(e);
+    if (sizeDelta && !this.readOnly) {
+      e.preventDefault();
+      this.changeFontSize(sizeDelta);
+      return;
+    }
 
     if (e.code === "Space" && !e.repeat) {
       this.spaceDown = true;
@@ -2421,16 +2434,6 @@ export class CanvasEngine {
         case "0":
           e.preventDefault();
           this.resetZoom();
-          return;
-        case ">":
-        case ".":
-          e.preventDefault();
-          this.changeFontSize(2);
-          return;
-        case "<":
-        case ",":
-          e.preventDefault();
-          this.changeFontSize(-2);
           return;
         case "]":
           e.preventDefault();

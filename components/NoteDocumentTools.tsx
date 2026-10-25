@@ -32,11 +32,13 @@ export function NoteTypographyTools({
   appearance,
   font,
   size,
+  onTypingSize,
 }: {
   editor: Editor | null;
   appearance: NoteAppearance;
   font?: string;
   size?: string;
+  onTypingSize?: (size: number) => void;
 }) {
   const errorId = useId();
   const input = useRef<HTMLInputElement>(null),
@@ -55,6 +57,7 @@ export function NoteTypographyTools({
     const chain = editor?.chain();
     if (focus) chain?.focus();
     chain?.setFontSize(`${value}px`).run();
+    onTypingSize?.(value!);
   };
   return (
     <>

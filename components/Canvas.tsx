@@ -1,4 +1,5 @@
 "use client";
+import { stepCanvasFontSize, textSizeShortcut } from "@/lib/textShortcuts";
 import { usePointerDrag } from "@/lib/usePointerDrag";
 import { sceneFontFamilies } from "@/draw/fonts";
 
@@ -392,7 +393,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
     const onKey = (e: KeyboardEvent) => {
       if (e.isComposing) return;
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f" && !document.querySelector("dialog[open]")) { e.preventDefault(); setBoardToolsSection("find"); setBoardToolsOpen(true); return; }
-      if (isEditableTarget(e.target) || document.querySelector("dialog[open]")) return;
+      if (isEditableTarget(e.target) || document.querySelector("dialog[open]") || textSizeShortcut(e)) return;
       if (e.key === "?" || (e.key === "/" && (e.ctrlKey || e.metaKey))) {
         e.preventDefault();
         setIsShortcutsOpen((open) => !open);
@@ -573,7 +574,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
   const adjustInlineFontSize = (delta: number) => {
     const current = inlineTextStateRef.current;
     if (!current) return;
-    const fontSize = Math.max(8, Math.min(96, current.fontSize + delta));
+    const fontSize = stepCanvasFontSize(current.fontSize, delta);
     setInlineText(previous => previous ? { ...previous, fontSize } : null);
     const style = { ...(engineRef.current?.currentStyle || currentStyle), fontSize };
     if (engineRef.current) engineRef.current.currentStyle = style;
@@ -827,19 +828,17 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
                       setInlineText(previous => previous ? { ...previous, [format]: !previous[format] } : null);
                       return;
                     }
+                    // Size first: Mac browsers can report Cmd+Shift+Period as Escape.
+                    const sizeDelta = textSizeShortcut(e.nativeEvent);
+                    if (sizeDelta) {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      adjustInlineFontSize(sizeDelta);
+                      return;
+                    }
                     if (e.key === "Escape" || (e.key === "Enter" && mod)) {
                       e.preventDefault();
                       commitInline();
-                      return;
-                    }
-                    if (mod && e.shiftKey && (e.key === ">" || e.key === ".")) {
-                      e.preventDefault();
-                      adjustInlineFontSize(2);
-                      return;
-                    }
-                    if (mod && e.shiftKey && (e.key === "<" || e.key === ",")) {
-                      e.preventDefault();
-                      adjustInlineFontSize(-2);
                       return;
                     }
 
