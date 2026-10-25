@@ -279,7 +279,7 @@ export const DEFAULT_STYLE: ElementStyleProps = {
   fontSize: 16,
   fontFamily: "sans",
   textAlign: "left",
-  arrowRouting: "elbow",
+  arrowRouting: "straight",
   arrowHeadStart: "none",
   arrowHeadEnd: "arrow",
   arrowAnimated: false,

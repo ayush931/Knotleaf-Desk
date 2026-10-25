@@ -11,9 +11,9 @@ test('manually opened Arrow inspector exposes all routing modes', () => {
   const html = renderToStaticMarkup(React.createElement(PropertiesPanel, { ...props, selectedTool: 'arrow' }));
   expect(html).toContain('aria-label="Arrow routing"');
   for (const label of ['Straight', 'Elbow', 'Curved']) expect(html).toContain(label);
-  expect(html).toMatch(/aria-pressed="true"[^>]*>(?:(?!<\/button>).)*Elbow/s);
+  expect(html).toMatch(/aria-pressed="true"[^>]*>(?:(?!<\/button>).)*Straight/s);
 });
-test('legacy arrows without routing show Straight even when new arrows default to Elbow', () => {
+test('legacy arrows without routing show Straight', () => {
   const html = renderToStaticMarkup(React.createElement(PropertiesPanel, { ...props, selectedElement: { ...DEFAULT_STYLE, id: 'legacy', type: 'arrow' } }));
   expect(html).toMatch(/aria-pressed="true"[^>]*>(?:(?!<\/button>).)*Straight/s);
 });

@@ -1341,6 +1341,30 @@ test('click-to-draw lines and arrows, Escape keeps the drawn arrow, and pencil s
   expect(engine.gesture).toBe(null); engine.destroy();
 });
 
+test('grabbing a selected circle outline beside a connection dot moves it instead of drawing an arrow', () => {
+  const ring = { ...base, id: 'ring', type: 'circle', x: 100, y: 100, width: 200, height: 150 };
+  const { engine, listeners, point } = setup([ring]); engine.selectAll();
+  listeners.pointerdown(point(299, 183)); listeners.pointermove(point(349, 183)); listeners.pointerup(point(349, 183));
+  expect(engine.getElements()).toHaveLength(1); expect(engine.getElements()[0]).toMatchObject({ type: 'circle', x: 150 });
+  listeners.pointerdown(point(350, 175)); listeners.pointerup(point(350, 175));
+  expect(engine.gesture).toBe(null); expect(engine.getElements()).toHaveLength(1); engine.destroy();
+});
+
+test('arrows drawn from inside one shape to inside another attach to their facing sides and draw straight', () => {
+  const a = { ...base, id: 'a', type: 'circle', x: 100, y: 100, width: 100, height: 100 };
+  const b = { ...base, id: 'b', type: 'rectangle', x: 500, y: 300, width: 100, height: 100 };
+  for (const clickMode of [false, true]) {
+    const { engine, listeners, point } = setup([a, b]); engine.setTool('arrow');
+    listeners.pointerdown(point(150, 150));
+    if (clickMode) { listeners.pointerup(point(150, 150)); listeners.pointermove(point(550, 350)); listeners.pointerdown(point(550, 350)); }
+    else listeners.pointermove(point(550, 350));
+    listeners.pointerup(point(550, 350));
+    const arrow = engine.getElements().find(el => el.type === 'arrow');
+    expect(arrow).toMatchObject({ routing: 'straight', startX: 200, startY: 150, endX: 500, endY: 350, startBinding: { elementId: 'a', anchor: 'right' }, endBinding: { elementId: 'b', anchor: 'left' } });
+    engine.destroy();
+  }
+});
+
 test('switching tools abandons an unfinished click-to-draw shape', () => {
   const { engine, listeners, point } = setup([]); engine.setTool('rectangle');
   listeners.pointerdown(point(100, 100)); listeners.pointerup(point(100, 100)); listeners.pointermove(point(200, 200));
