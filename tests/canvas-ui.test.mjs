@@ -413,3 +413,17 @@ test('drawing toolbar labels appear immediately on hover and focus, including di
   await act(async () => window.dispatchEvent(new browser.Event('resize')));
   expect(document.querySelector('[role="tooltip"]')).toBeNull();
 });
+
+test('personal canvas schedules warmup before Share is opened and cancels scheduled work on unmount', async () => {
+  const originalIdle = window.requestIdleCallback, originalCancel = window.cancelIdleCallback;
+  let scheduled = 0, cancelled;
+  window.requestIdleCallback = (_callback, options) => { scheduled++; expect(options.timeout).toBe(1000); return 91; };
+  window.cancelIdleCallback = id => { cancelled = id; };
+  try {
+    await renderBoard();
+    expect(scheduled).toBe(1);
+    expect(document.querySelector('[aria-labelledby="room-title"]').open).toBe(false);
+    await act(async () => root.render(null));
+    expect(cancelled).toBe(91);
+  } finally { window.requestIdleCallback = originalIdle; window.cancelIdleCallback = originalCancel; }
+});

@@ -389,6 +389,8 @@ export function Classroom({
         aria-label="Open live call"
         aria-expanded={open}
         title="Live call · video, screen sharing and local recording"
+        onPointerEnter={() => { if (!roomId) void warmRoomServer(); }}
+        onFocus={() => { if (!roomId) void warmRoomServer(); }}
         onClick={() => setOpen((previous) => !previous)}
         className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs text-blue-400 hover:bg-blue-500/10"
       >

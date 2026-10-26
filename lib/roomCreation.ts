@@ -64,7 +64,7 @@ export async function createRoomFromBoard(
   return { id: data.id, savedLocally };
 }
 
-// Intent-only warmup: no room is created, no board data is sent, and no polling keeps a host awake.
+// Background/intent warmup: no room is created, no board data is sent, and no polling keeps a host awake.
 let warming:
   { origin: string; until: number; promise: Promise<void> } | undefined;
 export function warmRoomServer(): Promise<void> {
@@ -73,7 +73,7 @@ export function warmRoomServer(): Promise<void> {
     return warming.promise;
   const entry = {
     origin,
-    until: Date.now() + 60000,
+    until: Infinity,
     promise: Promise.resolve(),
   };
   entry.promise = fetch("/api/rooms", {
@@ -85,6 +85,8 @@ export function warmRoomServer(): Promise<void> {
     .then(async (response) => {
       if (!response.ok) throw new Error("Room warmup unavailable");
       const data = await response.json();
+      entry.until = Date.now() + 60000;
+      if (window.location.origin !== origin) return;
       if (typeof data.websocketUrl === "string")
         rememberRoomServerUrl(data.websocketUrl);
     })
@@ -93,4 +95,14 @@ export function warmRoomServer(): Promise<void> {
     });
   warming = entry;
   return entry.promise;
+}
+
+/** Warm once after the personal workspace paints; never keep a sleeping host alive with polling. */
+export function scheduleRoomWarmup(): () => void {
+  if (typeof window.requestIdleCallback === "function") {
+    const id = window.requestIdleCallback(() => { void warmRoomServer(); }, { timeout: 1000 });
+    return () => window.cancelIdleCallback(id);
+  }
+  const id = window.setTimeout(() => { void warmRoomServer(); }, 1000);
+  return () => window.clearTimeout(id);
 }
