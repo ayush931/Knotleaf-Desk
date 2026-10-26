@@ -389,3 +389,27 @@ test('Notes remember the shortcut text size for new typing after a remount', asy
   await act(async () => { await new Promise(resolve => setTimeout(resolve, 0)); });
   expect(named('Text size').value).toBe('18');
 });
+
+test('drawing toolbar labels appear immediately on hover and focus, including disabled actions', async () => {
+  const { TopToolbar } = await import('../components/TopToolbar.tsx');
+  await act(async () => root.render(React.createElement(TopToolbar, { selectedTool: 'rectangle', setSelectedTool() {}, onUndo() {}, onRedo() {}, canUndo: false, canRedo: false, onOpenIconPicker() {}, onUploadAssets() {}, theme: 'dark' })));
+  for (const button of document.querySelectorAll('[role="toolbar"] button')) {
+    await act(async () => button.parentElement.dispatchEvent(new browser.MouseEvent('mouseover', { bubbles: true })));
+    const tip = document.querySelector('[role="tooltip"]');
+    expect(tip).not.toBeNull();
+    expect(tip.textContent).toContain(button.getAttribute('aria-label').split(' (')[0]);
+    expect(button.getAttribute('aria-describedby')).toBe(tip.id);
+    expect(tip.parentElement).toBe(document.body);
+    await act(async () => button.parentElement.dispatchEvent(new browser.MouseEvent('mouseout', { bubbles: true, relatedTarget: document.body })));
+    expect(document.querySelector('[role="tooltip"]')).toBeNull();
+  }
+  const rectangle = document.querySelector('[aria-label="Rectangle (R)"]');
+  await act(async () => rectangle.focus());
+  expect(document.querySelector('[role="tooltip"]').textContent).toBe('Rectangle (R)');
+  await act(async () => document.dispatchEvent(new browser.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
+  expect(document.querySelector('[role="tooltip"]')).toBeNull();
+  expect(document.activeElement).toBe(rectangle);
+  await act(async () => { rectangle.blur(); rectangle.focus(); });
+  await act(async () => window.dispatchEvent(new browser.Event('resize')));
+  expect(document.querySelector('[role="tooltip"]')).toBeNull();
+});

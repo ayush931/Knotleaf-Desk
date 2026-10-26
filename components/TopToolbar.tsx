@@ -1,6 +1,7 @@
 "use client";
 
 import React, { memo, useLayoutEffect, useRef } from "react";
+import { TooltipButton } from "./TooltipButton";
 import { Tool, Theme } from "@/draw/types";
 import {
   MousePointer2,
@@ -79,7 +80,7 @@ export const TopToolbar = memo(function TopToolbar({
     const observer = new ResizeObserver(update); observer.observe(element);
     return () => observer.disconnect();
   }, [onHeightChange]);
-  const iconBtn = `shrink-0 p-2 rounded-lg flex items-center justify-center transition disabled:opacity-35 disabled:pointer-events-none text-neutral-400 hover:bg-neutral-800 hover:text-white`;
+  const iconBtn = `shrink-0 p-2 rounded-lg flex items-center justify-center transition disabled:opacity-35 disabled:cursor-not-allowed cursor-pointer text-neutral-400 hover:bg-neutral-800 hover:text-white`;
 
   return (
     <div ref={toolbar} className="absolute top-1.5 left-1/2 -translate-x-1/2 z-30 w-max max-w-[calc(100%-0.75rem)]">
@@ -88,19 +89,19 @@ export const TopToolbar = memo(function TopToolbar({
         aria-label="Drawing tools"
         className="flex items-center gap-0.5 p-1 rounded-xl border shadow-sm backdrop-blur-md flex-nowrap justify-start overflow-x-auto overscroll-x-contain bg-[#18181b]/95 border-[#27272a] shadow-black/10"
       >
-        <button onClick={onUndo} disabled={!canUndo} title="Undo (Ctrl/Cmd+Z)" aria-label="Undo" className={iconBtn}>
+        <TooltipButton onClick={onUndo} disabled={!canUndo} title="Undo (Ctrl/Cmd+Z)" aria-label="Undo" className={iconBtn}>
           <Undo2 className="w-4 h-4" />
-        </button>
-        <button onClick={onRedo} disabled={!canRedo} title="Redo (Ctrl/Cmd+Shift+Z)" aria-label="Redo" className={iconBtn}>
+        </TooltipButton>
+        <TooltipButton onClick={onRedo} disabled={!canRedo} title="Redo (Ctrl/Cmd+Shift+Z)" aria-label="Redo" className={iconBtn}>
           <Redo2 className="w-4 h-4" />
-        </button>
+        </TooltipButton>
         <span className="h-5 w-px mx-1 bg-[#27272a]" />
 
-        {onUploadAssets&&<button type="button" aria-label="Upload image or file" title="Upload image or file · stored on this device" disabled={uploadingAssets} onClick={onUploadAssets} className={iconBtn}><ImagePlus className="h-4 w-4"/></button>}
+        {onUploadAssets&&<TooltipButton type="button" aria-label="Upload image or file" title="Upload image or file · stored on this device" disabled={uploadingAssets} onClick={onUploadAssets} className={iconBtn}><ImagePlus className="h-4 w-4"/></TooltipButton>}
         {TOOLS.map((t) => {
           const active = selectedTool === t.id;
           return (
-            <button
+            <TooltipButton
               key={t.id}
               onClick={() => setSelectedTool(t.id)}
               title={`${t.label} (${t.key})${t.hint ? ` · ${t.hint}` : ""}`}
@@ -114,12 +115,12 @@ export const TopToolbar = memo(function TopToolbar({
               }`}
             >
               {t.icon}
-            </button>
+            </TooltipButton>
           );
         })}
 
         <span className="h-5 w-px mx-1 bg-[#27272a]" />
-        <button
+        <TooltipButton
           onClick={onOpenIconPicker}
           title="Insert icon (I)"
           aria-label="Insert icon (I)" aria-keyshortcuts="i"
@@ -127,7 +128,7 @@ export const TopToolbar = memo(function TopToolbar({
         >
           <Shapes className="w-4 h-4" />
 
-        </button>
+        </TooltipButton>
       </div>
     </div>
   );
