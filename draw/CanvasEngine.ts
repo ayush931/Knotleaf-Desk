@@ -105,7 +105,7 @@ type Gesture =
   | { kind: "marquee"; start: Point; base: Set<string> }
   /** clickMode: released without dragging, so the draft follows the pointer until the next click. */
   /** startShapeId: arrow started inside a shape; its start anchor follows the free end. */
-  | { kind: "draft"; origin: Point; downClient?: Point; clickMode?: boolean; startShapeId?: string };
+  | { kind: "draft"; origin: Point; downClient?: Point; dragged?: boolean; clickMode?: boolean; startShapeId?: string };
 
 interface Anchor {
   anchor: AnchorPosition;
@@ -1508,6 +1508,8 @@ export class CanvasEngine {
       return;
     }
     if (![0, 1].includes(e.button) || isContextPointer(e) || e.isPrimary === false || this.gesture) return;
+    // Own the gesture immediately, including Safari compatibility mouse events.
+    e.preventDefault();
     this.activePointerId = e.pointerId;
     if (!this.readOnly && e.button === 0 && !this.spaceDown && !["select", "hand", "eraser", "fill", "eyedropper", "highlighter"].includes(this.tool)) this.onBeforeCreate?.();
     const opensEditor = e.button === 0 && !this.spaceDown && ["doc", "sticky", "code"].includes(this.tool);
@@ -1745,6 +1747,7 @@ export class CanvasEngine {
         this.updateMarquee(pt);
         break;
       case "draft":
+        if (g.downClient && Math.hypot(e.clientX - g.downClient.x, e.clientY - g.downClient.y) >= 4) g.dragged = true;
         if (this.draft?.type === "pencil" && typeof e.getCoalescedEvents === "function") {
           let samples: PointerEvent[] = [];
           try { samples = e.getCoalescedEvents(); } catch { /* Use the dispatched event below. */ }
@@ -1788,7 +1791,9 @@ export class CanvasEngine {
   };
 
   private onLostPointerCapture = (e: PointerEvent) => {
-    if (e.pointerId === this.activePointerId) this.cancelGesture();
+    // Capture loss is not cancellation. Keep the draft and let the window
+    // listeners finish it; reclaim capture if the button is still held.
+    if (e.pointerId === this.activePointerId && e.buttons > 0) capturePointer(this.canvas, e.pointerId);
   };
 
   private onWindowPointerMove = (e: PointerEvent) => {
@@ -1853,7 +1858,7 @@ export class CanvasEngine {
       case "draft":
         // Excalidraw-style click-to-draw: a trackpad click without dragging keeps drawing
         // until the next click, so the button need not be held down.
-        if (e && !g.clickMode && g.downClient && this.draft && this.draft.type !== "pencil" && Math.hypot(e.clientX - g.downClient.x, e.clientY - g.downClient.y) < 4) {
+        if (e && !g.dragged && !g.clickMode && g.downClient && this.draft && this.draft.type !== "pencil" && Math.hypot(e.clientX - g.downClient.x, e.clientY - g.downClient.y) < 4) {
           this.gesture = { ...g, clickMode: true };
           break;
         }

@@ -491,7 +491,7 @@ test('document card ports sit at the outer selection boundary', () => {
 });
 
 test('cancelled drags restore local work while retaining peer additions', () => {
-  for (const cancellation of ['pointercancel', 'lostpointercapture', 'Escape']) {
+  for (const cancellation of ['pointercancel', 'Escape']) {
     const { engine, listeners, point } = setup([source, target]);
     listeners.pointerdown(point(150, 130)); listeners.pointermove(point(200, 180));
     const added = { ...source, id: 'peer-add', x: 750 };
@@ -1408,13 +1408,13 @@ test('Mac Command Shift Period increases selected text above 96px, remains undoa
 });
 
 test('a press-and-hold starts a draft immediately and the first move updates it without a timer', () => {
-  for (const tool of ['rectangle', 'circle', 'pencil', 'line']) {
+  for (const tool of ['rectangle', 'circle', 'diamond', 'frame', 'arrow', 'pencil', 'line']) {
     const { engine, listeners, point } = setup([]); engine.setTool(tool);
     listeners.pointerdown(point(100, 100));
     expect(engine.gesture.kind).toBe('draft'); expect(engine.draft.type).toBe(tool);
     listeners.pointermove(point(180, 160));
     if (tool === 'pencil') expect(engine.draft.points.at(-1)).toEqual({ x: 180, y: 160 });
-    else if (tool === 'line') expect(engine.draft).toMatchObject({ endX: 180, endY: 160 });
+    else if (tool === 'line' || tool === 'arrow') expect(engine.draft).toMatchObject({ endX: 180, endY: 160 });
     else expect(engine.draft).toMatchObject({ width: 80, height: 60 });
     listeners.pointerup(point(180, 160));
     expect(engine.getElements()).toHaveLength(1); engine.destroy();
@@ -1442,4 +1442,50 @@ test('many immediate strokes remain separate and coalesced-event failures do not
   expect(engine.getElements()).toHaveLength(30);
   expect(engine.getTool()).toBe('pencil');
   expect(engine.getElements().every(el => el.points.length === 3)).toBe(true); engine.destroy();
+});
+
+
+for (const tool of ['circle', 'arrow', 'rectangle', 'diamond', 'frame', 'line']) {
+  test(`${tool} keeps its draft through capture loss and commits the window release`, () => {
+    const { engine, listeners, point } = setup([]);
+    engine.setTool(tool);
+    let prevented = false;
+    listeners.pointerdown({ ...point(100, 100), preventDefault() { prevented = true; } });
+    expect(prevented).toBe(true);
+    listeners.pointermove(point(160, 140));
+    const draftId = engine.draft.id;
+    listeners.lostpointercapture({ ...point(160, 140), buttons: 0 });
+    expect(engine.draft.id).toBe(draftId);
+    engine.onWindowPointerMove({ ...point(220, 180), target: {}, buttons: 1, type: 'pointermove', pointerType: 'mouse' });
+    engine.onWindowPointerUp({ ...point(260, 220), target: {}, buttons: 0, type: 'pointerup', pointerType: 'mouse' });
+    expect(engine.getElements()).toHaveLength(1);
+    expect(engine.getElements()[0]).toMatchObject({ id: draftId, type: tool, width: 160, height: 120 });
+    expect(engine.gesture).toBeNull();
+    engine.undo(); expect(engine.getElements()).toHaveLength(0);
+    engine.redo(); expect(engine.getElements()).toHaveLength(1);
+    engine.destroy();
+  });
+
+  test(`${tool} returning near its origin finishes the drag instead of entering click mode`, () => {
+    const { engine, listeners, point } = setup([]);
+    engine.setTool(tool);
+    listeners.pointerdown(point(100, 100));
+    listeners.pointermove(point(180, 160));
+    listeners.pointerup(point(102, 102));
+    expect(engine.gesture).toBeNull(); expect(engine.draft).toBeNull();
+    listeners.pointermove(point(400, 400));
+    expect(engine.draft).toBeNull();
+    engine.destroy();
+  });
+}
+
+test('capture loss during a move preserves the artwork, while a subsequent cancel restores it', () => {
+  const { engine, listeners, point, captures } = setup([source]);
+  listeners.pointerdown(point(150, 130)); listeners.pointermove(point(210, 180));
+  listeners.lostpointercapture({ ...point(210, 180), buttons: 1 });
+  expect(captures).toEqual([1, 1]);
+  expect(engine.getElements()[0]).toMatchObject({ x: 160, y: 150 });
+  listeners.pointercancel(point(210, 180));
+  expect(engine.getElements()).toEqual([source]); expect(engine.canUndo()).toBe(false);
+  engine.destroy();
 });
