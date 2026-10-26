@@ -1489,3 +1489,29 @@ test('capture loss during a move preserves the artwork, while a subsequent cance
   expect(engine.getElements()).toEqual([source]); expect(engine.canUndo()).toBe(false);
   engine.destroy();
 });
+
+for (const tool of ['rectangle', 'circle', 'diamond', 'frame', 'line', 'arrow']) {
+  test(`${tool} matches Rectangle for immediate press-drag-release, selection and undo`, () => {
+    for (const zoom of [0.5, 1, 2]) {
+      const { engine, listeners, point } = setup([]);
+      engine.zoom = zoom; engine.setTool(tool);
+      listeners.pointerdown(point(300, 300));
+      expect(engine.draft.type).toBe(tool);
+      listeners.pointermove(point(220, 240));
+      const draft = engine.draft;
+      if (tool === 'arrow' || tool === 'line') {
+        expect(draft.endX).toBe(220 / zoom); expect(draft.endY).toBe(240 / zoom);
+      } else {
+        expect(draft.width).toBe(80 / zoom); expect(draft.height).toBe(60 / zoom);
+      }
+      listeners.pointerup({ ...point(200, 200), type: 'pointerup', buttons: 0 });
+      expect(engine.getElements()).toHaveLength(1);
+      expect(engine.getTool()).toBe('select');
+      expect(engine.getSelectedElements()[0].id).toBe(draft.id);
+      expect(engine.gesture).toBeNull(); expect(engine.draft).toBeNull();
+      engine.undo(); expect(engine.getElements()).toHaveLength(0);
+      engine.redo(); expect(engine.getElements()).toHaveLength(1);
+      engine.destroy();
+    }
+  });
+}
