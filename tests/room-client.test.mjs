@@ -100,3 +100,42 @@ test('cancelling one configuration caller does not cancel another caller sharing
  const controller=new AbortController(),first=getRoomServerUrl(controller.signal),second=getRoomServerUrl();controller.abort(new Error('Closed panel'));
  await expect(first).rejects.toThrow('Closed panel');finish(Response.json({collaboration:true,websocketUrl:'/collaboration'}));expect(await second).toBe('ws://localhost:3000/collaboration');
 });
+
+test('background warmup waits for idle, is cancellable and sends no board data', async () => {
+ const { scheduleRoomWarmup } = await import('../lib/roomCreation.ts');
+ window.location.origin = 'https://idle-warm.example';
+ let idle, cancelled, calls = 0;
+ window.requestIdleCallback = (callback, options) => { idle = callback; expect(options.timeout).toBe(1000); return 7; };
+ window.cancelIdleCallback = id => { cancelled = id; };
+ globalThis.fetch = async (_url, options) => { calls++; expect(JSON.parse(options.body)).toEqual({ warmup: true }); return Response.json({ ready: true }); };
+ const cancel = scheduleRoomWarmup(); expect(calls).toBe(0); cancel(); expect(cancelled).toBe(7);
+ scheduleRoomWarmup(); idle(); await Promise.resolve(); expect(calls).toBe(1);
+});
+
+test('background warmup has a cancellable fallback when idle callbacks are unavailable', async () => {
+ const { scheduleRoomWarmup } = await import('../lib/roomCreation.ts');
+ let delay, cancelled;
+ window.setTimeout = (_callback, milliseconds) => { delay = milliseconds; return 8; };
+ window.clearTimeout = id => { cancelled = id; };
+ const cancel = scheduleRoomWarmup(); expect(delay).toBe(1000); cancel(); expect(cancelled).toBe(8);
+});
+
+test('a slow warmup stays single-flight and never blocks a real creation request', async () => {
+ const { warmRoomServer } = await import('../lib/roomCreation.ts');
+ window.location.origin = 'https://slow-warm.example';
+ const originalNow = Date.now, now = originalNow(), id = crypto.randomUUID();
+ let finish, requests = 0;
+ globalThis.fetch = async (_url, options) => {
+  requests++;
+  if (JSON.parse(options.body).warmup) return new Promise(resolve => finish = resolve);
+  return Response.json({ id, title: 'Ready', expiresAt: new Date(now + 86400000).toISOString() }, { status: 201 });
+ };
+ try {
+  const pending = warmRoomServer();
+  Date.now = () => now + 61000;
+  expect(warmRoomServer()).toBe(pending); expect(requests).toBe(1);
+  expect((await createRoomFromBoard(createBoard('Fast'))).id).toBe(id); expect(requests).toBe(2);
+  finish(Response.json({ ready: true })); await pending;
+  await warmRoomServer(); expect(requests).toBe(2);
+ } finally { Date.now = originalNow; }
+});

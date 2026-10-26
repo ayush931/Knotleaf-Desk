@@ -54,3 +54,24 @@ test('room persistence strips browser-only assets before creating a database sna
  try{const store=createRoomStore('',directory);const room=await createStoredRoom(store,{title:'Private files',elements:[{id:'local',type:'image',localOnly:true,source:'data:image/png;base64,aGVsbG8=',imageName:'private.png',x:0,y:0,width:10,height:10,stroke:'#fff',strokeWidth:1,strokeStyle:'solid',fill:'transparent',fillStyle:'none',roundness:'sharp',opacity:1,zIndex:0}],markdownNotes:''},'http://localhost:3000');
  const record=await store.load(room.id);expect(record.snapshot.elements).toEqual([]);const doc=new Y.Doc();Y.applyUpdate(doc,new Uint8Array(Buffer.from(record.state,'base64')));expect(doc.getMap('elements').size).toBe(0);doc.destroy();}finally{await rm(directory,{recursive:true,force:true});}
 });
+
+test('batched initialization retains the entire scene and returns an invite only after storage confirms', async () => {
+ const elements = Array.from({ length: 1000 }, (_, index) => ({ id: `text-${index}`, type: 'text', text: `Label ${index}`, fontSize: 20, fontFamily: 'sans', textAlign: 'left', x: index, y: 10, width: 100, height: 30, stroke: '#fff', strokeWidth: 1, strokeStyle: 'solid', fill: 'transparent', fillStyle: 'none', roundness: 'sharp', opacity: 1, zIndex: index }));
+ let complete, stored, resolved = false;
+ const creation = createStoredRoom({ create: (...args) => { stored = args; return new Promise(resolve => complete = resolve); } }, { title: 'Large board', elements, markdownNotes: '# Notes' }, 'https://desk.example');
+ void creation.then(() => { resolved = true; });
+ await Promise.resolve(); expect(resolved).toBe(false);
+ const doc = new Y.Doc();
+ try {
+  Y.applyUpdate(doc, new Uint8Array(Buffer.from(stored[2], 'base64')));
+  expect(doc.getMap('elements').size).toBe(1000);
+  const { elementTextKey } = await import('../lib/sharedElementText.mjs');
+  for (const element of elements) expect(doc.getText(elementTextKey(element)).toString()).toBe(element.text);
+  expect(doc.getText('notes').toString()).toBe('# Notes');
+  expect(stored[3].elements).toEqual(elements);
+  expect(doc.getMap('meta').get('initialized')).toBe('true');
+  complete(); const room = await creation;
+  expect(room.id).toBe(stored[0]); expect(room.path).toBe(`/canvas/${stored[0]}`);
+ } finally { doc.destroy(); }
+ await expect(createStoredRoom({ async create() { throw new Error('Storage unavailable'); } }, { title: 'Failure', elements: [] }, 'https://desk.example')).rejects.toThrow('Storage unavailable');
+});

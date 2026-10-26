@@ -14,11 +14,14 @@ export async function createStoredRoom(store, board, base) {
   const access=issueHostAccess();
   const createdAt = Date.now(), expiresAt = new Date(createdAt + ROOM_LIFETIME_MS).toISOString();
   try {
-    doc.getMap('meta').set('initialized','true'); doc.getMap('meta').set('title',title);
-    doc.getMap('meta').set('expiresAt', expiresAt);
-    doc.getMap('meta').set('background', JSON.stringify(normalizeBackground(board.background)));
-    for (const el of board.elements) { if (elementTextKey(el)) { doc.getText(elementTextKey(el)).insert(0,el.text); doc.getMap('elements').set(el.id,{...el,text:''}); } else doc.getMap('elements').set(el.id,el); }
-    doc.getText('notes').insert(0,board.markdownNotes);
+    // One initialization transaction avoids per-element Yjs cleanup/update work.
+    doc.transact(() => {
+      doc.getMap('meta').set('initialized','true'); doc.getMap('meta').set('title',title);
+      doc.getMap('meta').set('expiresAt', expiresAt);
+      doc.getMap('meta').set('background', JSON.stringify(normalizeBackground(board.background)));
+      for (const el of board.elements) { if (elementTextKey(el)) { doc.getText(elementTextKey(el)).insert(0,el.text); doc.getMap('elements').set(el.id,{...el,text:''}); } else doc.getMap('elements').set(el.id,el); }
+      doc.getText('notes').insert(0,board.markdownNotes);
+    });
     await store.create(id,title,Buffer.from(Y.encodeStateAsUpdate(doc)).toString('base64'),{title,elements:board.elements,markdownNotes:board.markdownNotes,background:normalizeBackground(board.background)},`${base.replace(/\/$/,'')}/canvas/${id}`,createdAt,access.hash);
   } finally { doc.destroy(); }
   return { id,title,persistent:true,path:`/canvas/${id}`,expiresAt,hostToken:access.token };

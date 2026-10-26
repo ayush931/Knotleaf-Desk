@@ -12,7 +12,7 @@ import { isLocalAsset } from "@/lib/localAssets.mjs";
 import { prepareAssets, downloadAttachment } from "@/lib/assetUpload";
 import { RoomSession, type Collaborator } from "@/lib/collaboration";
 import { getRoomServerUrl, checkRoomAvailable, RoomExpiredError } from "@/lib/roomConnection";
-import { createRoomFromBoard } from "@/lib/roomCreation";
+import { createRoomFromBoard, scheduleRoomWarmup } from "@/lib/roomCreation";
 import { normalizeBackground } from "@/lib/background.mjs";
 import { useCanvasFocus } from "@/lib/useCanvasFocus";
 import { Classroom } from "./Classroom";
@@ -194,6 +194,10 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
   } };
 
   const refreshBoardsList = useCallback(() => setBoardsList(getAllBoards()), []);
+
+  useEffect(() => {
+    if (!initialRoomId) return scheduleRoomWarmup();
+  }, [initialRoomId]);
 
   // Multi-tab sync: reload the active board when another tab changes it.
   useEffect(() => {
