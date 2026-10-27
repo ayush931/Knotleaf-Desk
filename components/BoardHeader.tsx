@@ -9,6 +9,7 @@ import {
   MoreHorizontal,
   Maximize2,
   FolderOpen,
+  HardDrive,
   Search,
   Sparkles,
   Grid,
@@ -53,8 +54,9 @@ interface BoardHeaderProps {
   onExportJson: () => void;
   onExportProject: (scope: ExportScope) => void;
   onExportPdf: (scope: ExportScope) => Promise<void>;
-  onImportFile: (text: string, filename: string) => void;
-  onExportMarkdown: () => void;
+  onImportFile: (file: File) => Promise<void>;
+  onOpenUploadedFiles?: () => void;
+  onExportMarkdown: () => void | Promise<void>;
   onCopyClipboard: () => Promise<boolean>;
   onTogglePresentation: () => void;
   onShowShortcuts: () => void;
@@ -62,6 +64,7 @@ interface BoardHeaderProps {
 
 export function BoardHeader({
   onBeforeRefresh,
+  onOpenUploadedFiles,
   recording,
   title,
   onFocusCanvas,
@@ -167,6 +170,7 @@ export function BoardHeader({
   return (
     <header className="fixed top-0 left-0 right-0 h-11 z-40 px-2 gap-1 sm:gap-2 flex items-center justify-between border-b backdrop-blur-md select-none bg-[#121212]/95 border-[#27272a] text-[#f4f4f5]">
       {onFocusCanvas && <button onClick={onFocusCanvas} aria-label="Focus canvas" aria-keyshortcuts="Shift+Z" title="Focus canvas · Shift+Z" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-neutral-400 hover:bg-neutral-800 hover:text-white focus-visible:outline-2 focus-visible:outline-blue-500"><Maximize2 className="h-4 w-4" /></button>}
+
       {/* Left Section: Menu & Title */}
       <div className="flex min-w-0 flex-1 items-center gap-1 sm:gap-2">
         <button
@@ -179,8 +183,9 @@ export function BoardHeader({
         </button>
 
         <button aria-label="Board tools: find, history, templates and report a bug" title="Board tools · Find, history, templates & report a bug (Ctrl/Cmd+F)" onClick={onOpenBoardTools} className="hidden min-[480px]:block rounded-lg p-1.5 text-neutral-400 hover:bg-neutral-800 hover:text-white"><Search className="h-4 w-4" /></button>
-        <input ref={importFile} type="file" accept=".knotleaf,.json,.md,.markdown" className="hidden" onChange={async e => { const file = e.target.files?.[0]; e.target.value = ""; if (!file) return; try { if (file.size > 50_000_000) throw new Error("This file exceeds the 50 MB import limit."); onImportFile(await file.text(), file.name); setExportError(""); } catch (error) { setExportError(error instanceof Error ? error.message : "Could not open this project."); setShowExportMenu(true); } }} />
+        <input ref={importFile} type="file" aria-label="Import project or Markdown" accept=".knotleaf,.json,.md,.markdown" className="hidden" onChange={event=>{const file=event.target.files?.[0];event.target.value="";if(file)void onImportFile(file);}} />
         <button aria-label="Open project or notes" title="Open .knotleaf, .json or Markdown notes" onClick={() => importFile.current?.click()} className="hidden min-[480px]:block rounded-lg p-1.5 text-neutral-400 hover:bg-neutral-800 hover:text-white"><FolderOpen className="h-4 w-4" /></button>
+        {onOpenUploadedFiles&&<button type="button" aria-label="Manage uploaded Markdown" title="Uploaded Markdown · storage and cleanup" onClick={onOpenUploadedFiles} className="rounded-lg p-1.5 text-neutral-400 hover:bg-neutral-800 hover:text-white"><HardDrive className="h-4 w-4"/></button>}
         <div className="flex min-w-0 items-center gap-2">
           {/* The app mark is shared with the website favicon. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -330,7 +335,7 @@ export function BoardHeader({
                     else if (["png", "jpeg", "webp"].includes(format)) await onExportImage(format as RasterFormat, selected, transparent, exportScale);
                     else if (format === "svg") await onExportSvg(selected, transparent);
                     else if (format === "drawio") onExportDrawio(selected);
-                    else if (format === "markdown") onExportMarkdown();
+                    else if (format === "markdown") await onExportMarkdown();
                     else onExportJson();
                     setShowExportMenu(false);
                   } catch (error) { setExportError(error instanceof Error ? error.message : "Download failed. Please try again."); }

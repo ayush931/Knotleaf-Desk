@@ -222,6 +222,9 @@ export interface Workspace { id: string; name: string; createdAt: number }
 export interface BackgroundSettings { fill: string; fillStyle: FillStyle; fillOpacity: number }
 
 export interface Board {
+  /** Local uploaded Markdown reference; file bytes are stored separately in IndexedDB. */
+  importedMarkdownId?: string;
+  largeMarkdown?: boolean;
   background?: BackgroundSettings;
   roomExpiresAt?: number;
   workspaceId?: string;

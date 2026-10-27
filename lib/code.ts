@@ -1,11 +1,14 @@
 import hljs from 'highlight.js/lib/common';
 export const CODE_LANGUAGES = ['auto', 'plaintext', 'javascript', 'typescript', 'python', 'java', 'cpp', 'c', 'csharp', 'go', 'rust', 'sql', 'json', 'xml', 'css', 'bash', 'yaml', 'markdown'];
-const cache = new Map<string, { language: string; html: string; lines: { text: string; color: string }[][] }>();
+type HighlightedCode = { language: string; html: string; lines: { text: string; color: string }[][] };
+const cache = new Map<string, { value: HighlightedCode; bytes: number }>();
+const CACHE_BYTES = 1_000_000;
+let cachedBytes = 0;
 const palette: Record<string, string> = { keyword: '#b8a8c4', literal: '#b8a8c4', string: '#afbaa8', comment: '#808995' };
 export function highlightCode(code: string, requested = 'auto') {
   const source = code.slice(0, 100_000), key = requested + '\0' + source;
-  const cached = cache.get(key); if (cached) return cached;
-  const result = requested !== 'auto' && hljs.getLanguage(requested) ? hljs.highlight(source, { language: requested, ignoreIllegals: true }) : hljs.highlightAuto(source, CODE_LANGUAGES.filter(l => l !== 'auto' && hljs.getLanguage(l)));
+  const cached = cache.get(key); if (cached) return cached.value;
+  const result = source.length > 16_384 ? hljs.highlight(source, { language: 'plaintext' }) : requested !== 'auto' && hljs.getLanguage(requested) ? hljs.highlight(source, { language: requested, ignoreIllegals: true }) : hljs.highlightAuto(source, CODE_LANGUAGES.filter(l => l !== 'auto' && hljs.getLanguage(l)));
   const lines: { text: string; color: string }[][] = [[]], colors = ['#d4d4d8'];
   for (const match of result.value.matchAll(/<span class="([^"]*)">|(<\/span>)|([^<]+)/g)) {
     if (match[1]) { const kind = match[1].split(/\s+/).find(c => c.startsWith('hljs-'))?.slice(5) || ''; colors.push(palette[kind] || colors.at(-1)!); }
@@ -13,7 +16,10 @@ export function highlightCode(code: string, requested = 'auto') {
     else { const value = match[3].replace(/&(amp|lt|gt|quot|#x27|#39);/g, entity => ({ '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#x27;': "'", '&#39;': "'" }[entity]!)); value.split('\n').forEach((text, i) => { if (i) lines.push([]); lines.at(-1)!.push({ text, color: colors.at(-1) || '#d4d4d8' }); }); }
   }
   const value = { html: result.value, language: result.language || 'plaintext', lines };
-  cache.set(key, value); if (cache.size > 40) cache.delete(cache.keys().next().value!); return value;
+  const bytes = (key.length + value.html.length + source.length) * 2 + lines.reduce((total,line)=>total+line.length*64,0);
+  if(bytes<=CACHE_BYTES){cache.set(key,{value,bytes});cachedBytes+=bytes;}
+  while(cache.size>40||cachedBytes>CACHE_BYTES){const oldest=cache.keys().next().value!;cachedBytes-=cache.get(oldest)!.bytes;cache.delete(oldest);}
+  return value;
 }
 
 export function expandCodeTabs(code: string) {

@@ -332,6 +332,7 @@ export class CanvasEngine {
   // Animation & render scheduling
   private flowOffset = 0;
   private animFrameId: number | null = null;
+  private renderingActive = true;
   private renderQueued = false;
   private requestedFonts = new Set<FontFamily>();
 
@@ -395,6 +396,12 @@ export class CanvasEngine {
   }
 
   public setBackground(value: unknown) { this.background = normalizeBackground(value); this.requestRender(); }
+
+  public setRenderingActive(active: boolean) {
+    this.renderingActive = active;
+    if (!active && this.animFrameId !== null) { cancelAnimationFrame(this.animFrameId); this.animFrameId = null; }
+    if (active) this.requestRender();
+  }
 
   public getTool(): Tool {
     return this.tool;
@@ -1191,7 +1198,7 @@ export class CanvasEngine {
 
   private requestRender() {
     this.onViewportChange?.(this.getViewport());
-    if (this.renderQueued || this.destroyed) return;
+    if (this.renderQueued || this.destroyed || !this.renderingActive) return;
     this.renderQueued = true;
     requestAnimationFrame(() => {
       this.renderQueued = false;
@@ -1210,7 +1217,7 @@ export class CanvasEngine {
   }
 
   private draw() {
-    if (this.destroyed) return;
+    if (this.destroyed || !this.renderingActive) return;
     this.prepareFonts();
     const ctx = this.ctx;
     const w = this.cssWidth;

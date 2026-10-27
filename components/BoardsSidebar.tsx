@@ -11,7 +11,7 @@ interface Props {
   isOpen: boolean; onClose: () => void; boards: BoardSummary[]; activeBoardId: string;
   onSelectBoard: (id: string) => void; onCreateBoard: (title?: string) => void;
   onDuplicateBoard: (id: string) => void; onDeleteBoard: (id: string) => void;
-  onImportJson: (json: string, filename?: string) => void; theme: Theme;
+  onImportFile: (file: File) => Promise<void>; theme: Theme;
   workspaces: Workspace[]; workspaceId: string; onChangeWorkspace: (id: string) => void;
   onCreateWorkspace: (name: string) => void; onMoveBoard: (id: string, workspaceId: string) => void;
 }
@@ -21,7 +21,6 @@ export function BoardsSidebar(p: Props) {
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
   const [deleting, setDeleting] = useState<string | null>(null);
-  const [error, setError] = useState("");
   const dialog = useRef<HTMLDialogElement>(null);
   const file = useRef<HTMLInputElement>(null);
   const searchInput = useRef<HTMLInputElement>(null);
@@ -75,8 +74,7 @@ export function BoardsSidebar(p: Props) {
           {!filtered.length && <div className="px-4 py-10 text-center"><FolderOpen className="mx-auto mb-3 h-7 w-7 text-neutral-600" /><p className="text-sm text-neutral-300">{search ? "No matching boards" : "A space for your next idea"}</p><p className="mt-2 text-xs text-neutral-500">{search ? "Try another search or clear the filter." : "Create a board to start drawing and taking notes."}</p></div>}
         </div>
         <div className="space-y-3 border-t border-neutral-800 p-4">
-          {error && <p role="alert" className="text-xs text-rose-400">{error}</p>}
-          <input ref={file} type="file" accept=".knotleaf,.json,.md,.markdown" className="hidden" onChange={async e => { const selected = e.target.files?.[0]; e.target.value = ""; if (!selected) return; try { setError(""); if (selected.size > 50_000_000) throw new Error("This file exceeds the 50 MB import limit."); p.onImportJson(await selected.text(), selected.name); } catch (error) { setError(error instanceof Error ? error.message : "Could not open this file. Choose a Knotleaf, JSON, or Markdown file."); } }} />
+          <input ref={file} type="file" aria-label="Import project or Markdown from workspace" accept=".knotleaf,.json,.md,.markdown" className="hidden" onChange={event=>{const selected=event.target.files?.[0];event.target.value="";if(!selected)return;p.onClose();void p.onImportFile(selected);}} />
           <button onClick={() => file.current?.click()} className="flex w-full items-center justify-center gap-2 rounded-lg border border-neutral-700 py-2 text-xs text-neutral-300 hover:bg-neutral-800"><Upload className="h-3.5 w-3.5" />Open project or notes</button>
           <p className="text-center text-[11px] text-neutral-500">Local workspaces · saved on this device</p>
         </div>

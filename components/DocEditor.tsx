@@ -1,5 +1,7 @@
 "use client";
 
+import { PagedNotesSource } from "./PagedNotesSource";
+import { LARGE_MARKDOWN_BYTES } from "@/lib/markdownFiles";
 import { stepNoteFontSize, textSizeShortcut } from "@/lib/textShortcuts";
 
 import {
@@ -87,6 +89,7 @@ interface DocEditorProps {
 }
 export function DocEditor(props: DocEditorProps) {
   const [source, setSource] = useState(false);
+  if (props.value.length >= LARGE_MARKDOWN_BYTES) return <PagedNotesSource {...props}/>;
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col">
       {source ? (
