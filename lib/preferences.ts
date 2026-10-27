@@ -1,5 +1,6 @@
 import { DEFAULT_STYLE, type ElementStyleProps } from '@/draw/types';
 import { normalizeNoteAppearance, DEFAULT_NOTE_APPEARANCE, type NoteAppearance } from './notesDocument';
+import { normalizeToolColors, type ToolColorPreferences } from '@/draw/toolColors';
 import { FONT_OPTIONS } from '@/draw/fonts';
 
 const KEY = 'knotleaf.preferences.v1';
@@ -7,6 +8,7 @@ export interface Preferences {
   version: 1;
   callNoiseSuppression: boolean;
   style: ElementStyleProps;
+  toolColors: ToolColorPreferences;
   eraserSize: number;
   eraserMode: 'all' | 'drawings' | 'objects';
   notesWidth: number;
@@ -19,7 +21,7 @@ export interface Preferences {
   exportScale: number;
   exportTransparent: boolean;
 }
-const defaults = (): Preferences => ({ version:1, callNoiseSuppression:true, style:{...DEFAULT_STYLE}, eraserSize:24, eraserMode:'all', notesWidth:360, notesHeight:300, noteAppearance:{...DEFAULT_NOTE_APPEARANCE}, noteTypingSize:null, exportFormat:'project', exportScope:'project', exportScale:2, exportTransparent:false });
+const defaults = (): Preferences => ({ version:1, callNoiseSuppression:true, style:{...DEFAULT_STYLE}, toolColors:normalizeToolColors(undefined), eraserSize:24, eraserMode:'all', notesWidth:360, notesHeight:300, noteAppearance:{...DEFAULT_NOTE_APPEARANCE}, noteTypingSize:null, exportFormat:'project', exportScope:'project', exportScale:2, exportTransparent:false });
 const finite = (n: unknown, min: number, max=Number.MAX_VALUE): n is number => typeof n==='number' && Number.isFinite(n) && n>=min && n<=max;
 const color = (value: unknown): value is string => typeof value==='string' && (value==='transparent' || /^#[\da-f]{6}$/i.test(value));
 export function normalizePreferences(value: unknown): Preferences {
@@ -36,6 +38,7 @@ export function normalizePreferences(value: unknown): Preferences {
   const choices: Record<string,string[]>={strokeStyle:['solid','dashed','dotted','rough'],fillStyle:['none','solid','semi','hachure','crosshatch','dots'],roundness:['sharp','rounded'],fontFamily:FONT_OPTIONS.map(f=>f.id),textAlign:['left','center','right'],arrowRouting:['straight','elbow','curved'],arrowHeadStart:['none','arrow','diamond','dot','bar'],arrowHeadEnd:['none','arrow','diamond','dot','bar']};
   for(const[key,allowed]of Object.entries(choices)){const value=style[key];if(typeof value==='string'&&allowed.includes(value))Object.assign(result.style,{[key]:value});}
   for(const key of ['bold','italic','underline','strikethrough','arrowAnimated'] as const)if(typeof style[key]==='boolean')result.style[key]=style[key];
+  result.toolColors=normalizeToolColors(data.toolColors,result.style);
   if(finite(data.eraserSize,Number.MIN_VALUE))result.eraserSize=data.eraserSize;
   if(['all','drawings','objects'].includes(String(data.eraserMode)))result.eraserMode=data.eraserMode as Preferences['eraserMode'];
   if(finite(data.notesWidth,220))result.notesWidth=data.notesWidth;

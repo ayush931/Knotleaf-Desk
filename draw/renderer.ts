@@ -187,9 +187,14 @@ function pointsBounds(pts: Point[]): Bounds {
   return { minX, minY, maxX, maxY };
 }
 
-/** Connector ports stay outside content; selection itself adds no margin. */
+/** Selection has a small screen-space gap; connector geometry stays in canvas space. */
 export const TEXT_PORT_PADDING = 8;
-export const SELECTION_PADDING = 0;
+export const SELECTION_PADDING = 3;
+export function getSelectionPadding(el: CanvasElement, zoom: number) {
+  const pad = SELECTION_PADDING / (zoom || 1);
+  // Text ports have a fixed content offset; keep the outline inside those ports at low zoom.
+  return el.type === "text" ? Math.min(pad, TEXT_PORT_PADDING / 2) : pad;
+}
 
 export function getElementAnchors(el: CanvasElement): { anchor: AnchorPosition; x: number; y: number }[] {
   if (el.type === "arrow" || el.type === "line" || el.type === "pencil" || el.type === "frame") return [];
@@ -1682,7 +1687,7 @@ export function drawSelection(ctx: CanvasRenderingContext2D, el: CanvasElement, 
     }
   } else {
     const b = getElementBounds(el);
-    const pad = SELECTION_PADDING;
+    const pad = getSelectionPadding(el, z);
     drawBoundsOutline(ctx, b, z, pad, false);
     drawResizeHandles(ctx, b, z, el.type === "frame", pad);
   }

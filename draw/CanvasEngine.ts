@@ -41,6 +41,7 @@ import {
   getElementAnchors,
   getElementBounds,
   getResizeHandles,
+  getSelectionPadding,
   SELECTION_PADDING,
   measureTextBlock,
   layoutDocument,
@@ -100,8 +101,8 @@ type Gesture =
       duplicated: boolean;
       originalSelection: Set<string>;
     }
-  | { kind: "resize"; handle: Handle; origin: Point; snapshot: CanvasElement }
-  | { kind: "endpoint"; handle: Handle; snapshot: ArrowElement | LineElement }
+  | { kind: "resize"; handle: Handle; origin: Point; moved?: boolean; snapshot: CanvasElement }
+  | { kind: "endpoint"; handle: Handle; origin: Point; moved?: boolean; snapshot: ArrowElement | LineElement }
   | { kind: "marquee"; start: Point; base: Set<string> }
   /** clickMode: released without dragging, so the draft follows the pointer until the next click. */
   /** startShapeId: arrow started inside a shape; its start anchor follows the free end. */
@@ -592,7 +593,7 @@ export class CanvasEngine {
     this.elements = this.elements.map((el) => {
       if (!ids.has(el.id)) return el;
       const next = { ...el, ...props } as CanvasElement;
-      return next.type === "text" ? this.remeasureText(next) : next.type === "sticky" ? this.fitSticky(next) : next;
+      return next.type === "text" && el.type === "text" ? this.remeasureChangedText(el, next) : next.type === "sticky" ? this.fitSticky(next) : next;
     });
     this.elements = resolveBindings(this.elements, new Set(ids));
     this.commit();
@@ -656,6 +657,12 @@ export class CanvasEngine {
     setFont(this.ctx, el.fontSize || 15, el.fontFamily || "sans", el.bold ? 700 : 400, el.italic);
     const height = Math.max(80, el.height, wrapText(this.ctx, el.text, width - 24).length * (el.fontSize || 15) * 1.35 + 28);
     return { ...el, width, height };
+  }
+
+  private remeasureChangedText(before: TextElement, next: TextElement): TextElement {
+    const layout = (el: TextElement) => [el.text, el.fontSize, el.fontFamily, el.textAlign || "left", !!el.bold, !!el.italic, !!el.underline, !!el.strikethrough, el.width, el.height, !!el.textBox, !!el.isDocCard, !!el.isCodeCard];
+    const previous = layout(before);
+    return layout(next).some((value, index) => value !== previous[index]) ? this.remeasureText(next) : next;
   }
 
   private remeasureText(el: TextElement): TextElement {
@@ -978,7 +985,7 @@ export class CanvasEngine {
         if (info.kind === "text" && el.type === "text") {
           if (!trimmed && !el.isDocCard && !preview) continue;
           next.push(
-            this.remeasureText({
+            this.remeasureChangedText(el, {
               ...el,
               text,
               fontSize: info.fontSize,
@@ -1251,9 +1258,9 @@ export class CanvasEngine {
     }
 
     if (selected.length > 1) {
-      for (const el of selected) drawBoundsOutline(ctx, getElementBounds(el, this.elements), this.zoom, 0);
+      for (const el of selected) drawBoundsOutline(ctx, getElementBounds(el, this.elements), this.zoom, getSelectionPadding(el, this.zoom));
       const group = unionBounds(selected.map(el => getElementBounds(el, this.elements)));
-      if (group) drawBoundsOutline(ctx, group, this.zoom, 0);
+      if (group) drawBoundsOutline(ctx, group, this.zoom, SELECTION_PADDING / this.zoom);
     }
 
     if (this.gesture?.kind === "text-box") {
@@ -1468,7 +1475,7 @@ export class CanvasEngine {
     }
 
     const bounds = getElementBounds(el);
-    const handles = getResizeHandles(bounds, this.zoom, el.type === "frame", SELECTION_PADDING);
+    const handles = getResizeHandles(bounds, this.zoom, el.type === "frame", getSelectionPadding(el, this.zoom));
     for (const { handle, x, y } of handles) {
       if (near(x, y)) return handle;
     }
@@ -1476,7 +1483,7 @@ export class CanvasEngine {
     // The outline is draggable for one-axis resizing. Leave the circular
     // connector hit areas free so the same gesture cannot start both actions.
     if (el.type !== "frame" && getElementAnchors(el).some(port => Math.hypot(pt.x - port.x, pt.y - port.y) < 10 / this.zoom)) return null;
-    const pad = SELECTION_PADDING;
+    const pad = getSelectionPadding(el, this.zoom);
     const edgeTolerance = (el.type === "text" || el.type === "icon" ? 2 : 6) / this.zoom;
     const x0 = bounds.minX - pad, x1 = bounds.maxX + pad;
     const y0 = bounds.minY - pad, y1 = bounds.maxY + pad;
@@ -1580,7 +1587,7 @@ export class CanvasEngine {
         const handle = selectedHandle;
         if (handle) {
           this.gesture = handle === "start" || handle === "end" || handle === "mid"
-            ? { kind: "endpoint", handle, snapshot: selected[0] as ArrowElement | LineElement }
+            ? { kind: "endpoint", handle, origin: pt, snapshot: selected[0] as ArrowElement | LineElement }
             : { kind: "resize", handle, origin: pt, snapshot: selected[0] };
           this.canvas.style.cursor = HANDLE_CURSOR[handle];
           return;
@@ -2148,7 +2155,7 @@ export class CanvasEngine {
     const rawDy = pt.y - g.origin.y;
     const dx = this.snapToGrid ? Math.round(rawDx / SNAP_GRID) * SNAP_GRID : rawDx;
     const dy = this.snapToGrid ? Math.round(rawDy / SNAP_GRID) * SNAP_GRID : rawDy;
-    if (dx === 0 && dy === 0 && !g.moved) return;
+    if (!g.moved && Math.hypot(rawDx, rawDy) * this.zoom < 3) return;
     if (g.duplicate && !g.duplicated && !g.moved) {
       if (!this.altDown) g.duplicate = false;
       else {
@@ -2182,6 +2189,8 @@ export class CanvasEngine {
   private resizeSelection(pt: Point) {
     const g = this.gesture;
     if (!g || g.kind !== "resize") return;
+    if (!g.moved && Math.hypot(pt.x - g.origin.x, pt.y - g.origin.y) * this.zoom < 3) return;
+    g.moved = true;
     const snapshot = g.snapshot;
     const bounds = getElementBounds(snapshot);
     const tightText = snapshot.type === "text" && !snapshot.textBox && !snapshot.isDocCard && !snapshot.isCodeCard && snapshot.fill === "transparent";
@@ -2235,6 +2244,8 @@ export class CanvasEngine {
   private moveEndpoint(pt: Point) {
     const g = this.gesture;
     if (!g || g.kind !== "endpoint") return;
+    if (!g.moved && Math.hypot(pt.x - g.origin.x, pt.y - g.origin.y) * this.zoom < 3) return;
+    g.moved = true;
     const el = g.snapshot;
     const id = el.id;
 
