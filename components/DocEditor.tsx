@@ -1,5 +1,7 @@
 "use client";
 
+import { MarkdownWorkspace } from "./MarkdownWorkspace";
+import type { MarkdownView } from "@/lib/markdownWorkspace";
 import { PagedNotesSource } from "./PagedNotesSource";
 import { LARGE_MARKDOWN_BYTES } from "@/lib/markdownFiles";
 import { stepNoteFontSize, textSizeShortcut } from "@/lib/textShortcuts";
@@ -34,6 +36,7 @@ import {
   Copy,
   ListTree,
   Code2,
+  BookOpen,
   Plus,
   PanelTopClose,
   Maximize2,
@@ -76,6 +79,9 @@ import {
 } from "@/lib/richNotes";
 
 interface DocEditorProps {
+  saveStatus?:string;
+  initialMarkdownView?: MarkdownView;
+  markdownViewToken?:number;
   value: string;
   onChange: (value: string) => void;
   onExportMarkdown: () => void;
@@ -89,7 +95,12 @@ interface DocEditorProps {
 }
 export function DocEditor(props: DocEditorProps) {
   const [source, setSource] = useState(false);
-  if (props.value.length >= LARGE_MARKDOWN_BYTES) return <PagedNotesSource {...props}/>;
+  const [markdownView,setMarkdownView]=useState<MarkdownView|undefined>(props.initialMarkdownView);
+  const [viewToken,setViewToken]=useState(props.markdownViewToken);
+  if(props.markdownViewToken!==undefined&&props.markdownViewToken!==viewToken){setViewToken(props.markdownViewToken);if(props.initialMarkdownView)setMarkdownView(props.initialMarkdownView);}
+  const openPreview=()=>{savePreferences({markdownWorkspace:{...loadPreferences().markdownWorkspace,mode:'preview'}});setMarkdownView('preview');};
+  if (props.value.length >= LARGE_MARKDOWN_BYTES) return <PagedNotesSource {...props} initialView={props.initialMarkdownView}/>;
+  if(markdownView)return <MarkdownWorkspace value={props.value} onChange={props.onChange} title={props.title} documentKey={props.noteId} initialView={markdownView} status={props.saveStatus} viewToken={props.markdownViewToken} onDownload={props.onExportMarkdown} onWriting={()=>setMarkdownView(undefined)}/>;
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col">
       {source ? (
@@ -109,7 +120,7 @@ export function DocEditor(props: DocEditorProps) {
           </div>
         </>
       ) : (
-        <RichNotesEditor {...props} onSource={() => setSource(true)} />
+        <RichNotesEditor {...props} onSource={() => setSource(true)} onPreview={openPreview} />
       )}
     </div>
   );
@@ -120,12 +131,13 @@ function RichNotesEditor({
   onExportMarkdown,
   focusRange,
   onSource,
+  onPreview,
   noteId,
   title,
   getNotes,
   onOpenNote,
   onCreateNote,
-}: DocEditorProps & { onSource: () => void }) {
+}: DocEditorProps & { onSource: () => void; onPreview:()=>void }) {
   const change = useRef(onChange),
     latest = useRef(value),
     published = useRef(value);
@@ -897,6 +909,7 @@ function RichNotesEditor({
                 <Copy className="h-4 w-4" />
               </button>
 
+              <button type="button" className="note-tool" title="Read Markdown · source, preview and split" aria-label="Open Markdown preview" onClick={onPreview}><BookOpen className="h-4 w-4"/></button>
               <button
                 type="button"
                 className="note-tool"
