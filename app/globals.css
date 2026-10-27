@@ -255,8 +255,8 @@ dialog::backdrop { background: rgb(0 0 0 / 55%); backdrop-filter: blur(3px); }
   .markdown-panes-split { flex-direction: column; }
   .markdown-panes-split > section + section { border-left: 0; border-top: 1px solid #27272a; }
   .markdown-workspace-body { flex-direction: column; }
-  .markdown-outline { width: 100%; max-height: 160px; border-right: 0; border-bottom: 1px solid #27272a; }
-  .markdown-settings { position: fixed; top: 72px; right: 12px; max-height: calc(100dvh - 100px); overflow-y: auto; }
+  .markdown-outline { width: min(260px, 100%); }
+  .markdown-settings { right: 4px; }
   .markdown-scope { display: none; }
 }
 @media (forced-colors: active) {
@@ -282,3 +282,25 @@ dialog::backdrop { background: rgb(0 0 0 / 55%); backdrop-filter: blur(3px); }
 .markdown-image img[hidden] { display: none; }
 .markdown-workspace button:disabled { opacity: .4; }
 .markdown-workspace .note-tool:disabled:hover { background: transparent; }
+
+/* Document chrome stays bounded on laptop screens and narrow canvas splits. */
+.markdown-workspace-header .note-tool { flex-shrink: 0; }
+.markdown-workspace-header .markdown-scope { display: none; }
+.markdown-settings, .markdown-section-options { max-height: min(420px, calc(100dvh - 180px)); overflow-y: auto; }
+.markdown-file-actions .note-tool { display: flex; align-items: center; justify-content: flex-start; gap: 6px; padding: 6px; font-size: 11px; }
+.markdown-section-navigation .note-tool { padding: 3px; }
+.markdown-outline .note-tool { flex-shrink: 0; }
+@container (max-width: 620px) {
+  .markdown-view-label, .markdown-extra-stat { display: none; }
+  .markdown-document-stats { gap: 6px; }
+}
+@container (max-width: 380px) {
+  .markdown-document-title > svg, .markdown-section-progress { display: none; }
+  .markdown-document-title { gap: 0; }
+  .markdown-workspace-header { gap: 4px; padding-inline: 4px; }
+}
+
+.markdown-workspace-footer .note-tool { flex-shrink: 0; white-space: nowrap; font-size: 10px; padding: 2px 4px; }
+@container (max-width: 620px) {
+  .markdown-has-footer-actions .markdown-document-stats { display: none; }
+}

@@ -174,3 +174,28 @@ test('preview failure offers source recovery without discarding the document',as
   await act(async()=>[...document.querySelectorAll('button')].find(button=>button.textContent==='Open Markdown source').click());expect(recovered).toBe(true);
  }finally{console.error=original;}
 });
+
+test('compact options preserve formatting selection and dismiss with Escape or outside press',async()=>{
+ await act(async()=>root.render(React.createElement(WorkspaceHarness,{initial:'hello',view:'source'})));
+ const options=named('Markdown options').closest('details');
+ expect(options.open).toBe(false);expect(document.querySelector('.markdown-source-pane [role="toolbar"]')).toBeNull();expect(document.querySelector('.markdown-reader-label')).toBeNull();
+ const source=named('Markdown source');source.setSelectionRange(0,5);
+ await act(async()=>{options.open=true;named('Markdown bold').click();});
+ expect(source.value).toBe('**hello**');expect(options.open).toBe(false);
+ await act(async()=>{options.open=true;named('Markdown reading size').focus();named('Markdown reading size').dispatchEvent(new browser.KeyboardEvent('keydown',{key:'Escape',bubbles:true}));});
+ expect(options.open).toBe(false);expect(document.activeElement).toBe(named('Markdown options'));
+ await act(async()=>{options.open=true;source.dispatchEvent(new browser.PointerEvent('pointerdown',{bubbles:true}));});expect(options.open).toBe(false);
+ await act(async()=>named('Markdown outline').click());expect(document.querySelector('.markdown-outline').classList.contains('absolute')).toBe(true);
+ await act(async()=>named('Close Markdown outline').click());expect(document.querySelector('.markdown-outline')).toBeNull();expect(document.activeElement).toBe(named('Markdown outline'));
+});
+test('section options keep jump navigation and help behind the compact row',async()=>{
+ const {MarkdownSectionNavigation}=await import('../components/MarkdownSectionNavigation.tsx');let page;
+ await act(async()=>root.render(React.createElement(MarkdownSectionNavigation,{page:0,pages:30,onNavigate:next=>{page=next;},help:'Preview is section-based.'})));
+ const menu=named('Markdown section navigation options').closest('details');expect(menu.open).toBe(false);expect(named('Previous section').disabled).toBe(true);expect(named('Next section').disabled).toBe(false);
+ await act(async()=>{menu.open=true;});await inputValue(named('Go to Markdown section'),'20');
+ await act(async()=>named('Go to Markdown section').closest('form').dispatchEvent(new browser.Event('submit',{bubbles:true,cancelable:true})));
+ expect(page).toBe(19);expect(menu.open).toBe(false);expect(document.activeElement).toBe(named('Markdown section navigation options'));
+ await act(async()=>root.render(React.createElement(MarkdownSectionNavigation,{page:1,pages:30,disabled:true,onNavigate:next=>{page=next;},help:'Save first.'})));
+ expect(named('Previous section').disabled).toBe(true);expect(named('Next section').disabled).toBe(true);
+ await act(async()=>named('Go to Markdown section').closest('form').dispatchEvent(new browser.Event('submit',{bubbles:true,cancelable:true})));expect(page).toBe(19);
+});
