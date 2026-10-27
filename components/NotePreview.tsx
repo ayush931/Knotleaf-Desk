@@ -8,9 +8,11 @@ import { readNoteHref } from "@/lib/notesDocument";
 export function NotePreview({
   value,
   onOpenNote,
+  highlight = true,
 }: {
   value: string;
   onOpenNote?: (id: string) => boolean;
+  highlight?: boolean;
 }) {
   const [appearance] = useState(() => loadPreferences().noteAppearance);
   const html = useMemo(() => {
@@ -19,7 +21,7 @@ export function NotePreview({
       value ||
         "*Your notes will appear here. Switch to Edit to start writing.*",
     );
-    template.content.querySelectorAll("pre code").forEach((code) => {
+    if (highlight) template.content.querySelectorAll("pre code").forEach((code) => {
       code.innerHTML = highlightCode(
         code.textContent || "",
         code.className.replace("language-", "") || "auto",
@@ -34,7 +36,7 @@ export function NotePreview({
       anchor.rel = "noopener noreferrer";
     });
     return template.innerHTML;
-  }, [value]);
+  }, [value, highlight]);
   return (
     <article
       className="notes-rich mx-auto"

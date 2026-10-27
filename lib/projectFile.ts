@@ -3,7 +3,9 @@ export const PROJECT_FORMAT = 'knotleaf.project';
 export const PROJECT_VERSION = 1;
 export type ExportScope = 'project' | 'canvas' | 'notes';
 export function serializeProject(board: Board, scope: ExportScope = 'project'): string {
+  if(board.largeMarkdown&&scope!=="canvas")throw new Error('Download the uploaded Markdown separately from Uploaded Markdown. Large files are not embedded in project backups.');
   const copy: Board = structuredClone(board);
+  delete copy.importedMarkdownId; delete copy.largeMarkdown;
   delete copy.workspaceId; // Imports choose a workspace on the receiving device.
   if (scope === 'canvas') { copy.markdownNotes = ''; copy.viewMode = 'canvas'; }
   if (scope === 'notes') { copy.elements = []; copy.viewMode = 'notes'; }

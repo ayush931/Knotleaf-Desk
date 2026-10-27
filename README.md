@@ -161,7 +161,7 @@ Core libraries: [Next.js](https://nextjs.org/), [React](https://react.dev/), [Lu
 
 ## Portable file format and PDF details
 
-A `.knotleaf` file is UTF-8 JSON with `format: "knotleaf.project"`, `version: 1`, an export `scope`, and the board data. A full project retains the canvas and Markdown source, element IDs and connector bindings, embedded SVG icons, formatting and settings. Canvas-only and notes-only files include only that selected content. Room presence and server history are not part of the file. Files open as independent personal boards, not as room invitations. Unknown format versions and duplicate element IDs are rejected. The import limit is 50 MB.
+A `.knotleaf` file is UTF-8 JSON with `format: "knotleaf.project"`, `version: 1`, an export `scope`, and the board data. A full project retains the canvas and Markdown source, element IDs and connector bindings, embedded SVG icons, formatting and settings. Canvas-only and notes-only files include only that selected content. Room presence and server history are not part of the file. Files open as independent personal boards, not as room invitations. Unknown format versions and duplicate element IDs are rejected. Project/JSON backups have a 50 MB import limit. Markdown uploads use separate browser file storage and are not subject to that limit; available device/browser space still applies.
 
 PDF is generated locally in the browser. The whole drawing is fitted onto a landscape or portrait page; notes follow on portrait pages, with text-line-aware page breaks and Unicode rendered using browser fonts. PDF pages are rasterized for consistent SVG/icon/Markdown rendering and are not searchable text. External Markdown images are represented by their alt text; the original image links remain in the editable backup. Notes are limited to 500 PDF pages per export. Export a `.knotleaf` project to preserve editable work even when PDF or image generation fails.
 
@@ -237,3 +237,12 @@ The Presentation Guide is an explicit native-dialog help workspace, closed by de
 ## Sign-in
 
 Google and email/password sign-in are available from **Sign in** beside the view controls in the header (account icon on smaller screens). New users can create an email/password account. Local development stores accounts in `.auth-data/`; hosted accounts use PostgreSQL. See [account setup and environment variables](docs/auth.md) for migrations and Google credentials. Signing in does not sync or restrict browser-local boards.
+
+
+### Large Markdown and uploaded-file storage
+
+Use **Open project or notes** in the header or workspace to import Markdown. Progress shows the current stage and byte-based preparation percentage; **Cancel import** removes partial file data and leaves the current project intact. Markdown uploads are stored as Blobs in IndexedDB instead of filling localStorage. Files from 128 KB open in large-file mode: one bounded section is loaded, edited and saved at a time, with optional section previews and full `.md` download. Section boundaries can fall inside a Markdown block. Existing oversized inline notes also use paged source editing; save/discard those section changes explicitly.
+
+**Uploaded Markdown** (the storage icon beside Open) lists names, sizes and last use, with Open, Download and confirmed Delete actions. The default cleanup removes imported files after **7 days without use**; choose **Keep until I delete** to retain them. Cleanup runs on app open/foreground or **Clean up now**, keeps the current file, removes related imported-note caches/history, and preserves unrelated personal projects and drawings. Incomplete imports are removed after a day. Deleting an upload removes its linked imported notes; download a copy first if needed. Browser storage can be cleared or evicted by the browser, so keep independent backups.
+
+Large-file notes stay on this device and download as Markdown. They are not embedded into room content, JSON/Knotleaf backups or whole-document PDFs; canvas-only exports remain available. Download the `.md` separately for transfer. Whole-file syntax highlighting, rich-document trees and background canvas animations are avoided in large-file Notes view. CPU, memory and temperature still depend on the device, browser, file and other running apps.

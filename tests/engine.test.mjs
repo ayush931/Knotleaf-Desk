@@ -1569,3 +1569,12 @@ test('reopening unchanged aligned text and changing its color preserve its align
     engine.undo(); expect(engine.getElements()[0].stroke).toBe('#fff'); engine.destroy();
   }
 });
+
+test('hidden canvas and animated arrows stop painting until rendering is enabled again', () => {
+ const animated={...arrow,animated:true};
+ const {engine}=setup([source,target,animated]);
+ let paints=0;engine.ctx.clearRect=()=>{paints++;};
+ engine.setRenderingActive(false);engine.render();engine.tickAnimation();
+ expect(paints).toBe(0);expect(engine.animFrameId).toBeNull();
+ engine.setRenderingActive(true);engine.render();expect(paints).toBeGreaterThan(0);engine.destroy();
+});

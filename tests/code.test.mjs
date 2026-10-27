@@ -65,3 +65,10 @@ test('server migrates legacy canvas text once and keeps intentionally empty shar
   doc.getText('text:old').delete(0,'Existing writing'.length);expect(readElementText(doc,element).text).toBe('');
  }finally{doc.destroy();}
 });
+
+test('large code avoids automatic language detection and highlight cache uses a byte budget',()=>{
+ const long='value '.repeat(4000),large=highlightCode(long,'auto');expect(large.language).toBe('plaintext');expect(large.html).toContain('value');
+ const first=highlightCode('const memoryBudgetTest = true;','javascript');
+ for(let index=0;index<24;index++)highlightCode(String(index)+'a'.repeat(10000),'plaintext');
+ expect(highlightCode('const memoryBudgetTest = true;','javascript')).not.toBe(first);
+});

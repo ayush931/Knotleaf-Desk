@@ -98,7 +98,9 @@ function slug(title: string) {
 }
 
 export function exportToJson(board: Board): void {
-  const url = URL.createObjectURL(new Blob([JSON.stringify(board, null, 2)], { type: "application/json" }));
+  if(board.largeMarkdown)throw new Error("Download this document as Markdown from Uploaded Markdown. Large files are not embedded in JSON backups.");
+  const portable={...board};delete portable.importedMarkdownId;delete portable.largeMarkdown;
+  const url = URL.createObjectURL(new Blob([JSON.stringify(portable, null, 2)], { type: "application/json" }));
   download(url, `${slug(board.title)}-${board.id}.json`);
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }

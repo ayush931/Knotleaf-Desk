@@ -152,6 +152,7 @@ export function clearBoard(id: string): Board | null {
   if (!board) return null;
   board.elements = [];
   board.markdownNotes = "";
+  delete board.importedMarkdownId; delete board.largeMarkdown;
   board.updatedAt = Date.now();
   saveBoard(board);
   return board;
@@ -220,6 +221,8 @@ export function importBoardFromJson(jsonStr: string): Board | null {
       throw new Error("Invalid board format");
     }
     if (new Set(parsed.elements.map(el => el.id)).size !== parsed.elements.length) throw new Error("Duplicate element IDs in this backup.");
+    // Device-local file references are not portable project content.
+    delete parsed.importedMarkdownId; delete parsed.largeMarkdown;
     parsed.createdAt = Number.isFinite(parsed.createdAt) ? parsed.createdAt : Date.now();
     parsed.markdownNotes = typeof parsed.markdownNotes === "string" ? parsed.markdownNotes : "";
     parsed.background = normalizeBackground(parsed.background);

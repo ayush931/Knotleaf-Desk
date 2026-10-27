@@ -6,6 +6,7 @@ import { FONT_OPTIONS } from '@/draw/fonts';
 const KEY = 'knotleaf.preferences.v1';
 export interface Preferences {
   version: 1;
+  markdownRetentionDays: 0 | 7;
   callNoiseSuppression: boolean;
   style: ElementStyleProps;
   toolColors: ToolColorPreferences;
@@ -21,7 +22,7 @@ export interface Preferences {
   exportScale: number;
   exportTransparent: boolean;
 }
-const defaults = (): Preferences => ({ version:1, callNoiseSuppression:true, style:{...DEFAULT_STYLE}, toolColors:normalizeToolColors(undefined), eraserSize:24, eraserMode:'all', notesWidth:360, notesHeight:300, noteAppearance:{...DEFAULT_NOTE_APPEARANCE}, noteTypingSize:null, exportFormat:'project', exportScope:'project', exportScale:2, exportTransparent:false });
+const defaults = (): Preferences => ({ version:1, markdownRetentionDays:7, callNoiseSuppression:true, style:{...DEFAULT_STYLE}, toolColors:normalizeToolColors(undefined), eraserSize:24, eraserMode:'all', notesWidth:360, notesHeight:300, noteAppearance:{...DEFAULT_NOTE_APPEARANCE}, noteTypingSize:null, exportFormat:'project', exportScope:'project', exportScale:2, exportTransparent:false });
 const finite = (n: unknown, min: number, max=Number.MAX_VALUE): n is number => typeof n==='number' && Number.isFinite(n) && n>=min && n<=max;
 const color = (value: unknown): value is string => typeof value==='string' && (value==='transparent' || /^#[\da-f]{6}$/i.test(value));
 export function normalizePreferences(value: unknown): Preferences {
@@ -29,6 +30,7 @@ export function normalizePreferences(value: unknown): Preferences {
   if (!value || typeof value!=='object') return result;
   const data=value as Record<string,unknown>;
   if (data.version!==undefined && data.version!==1) return result;
+  if(data.markdownRetentionDays===0||data.markdownRetentionDays===7)result.markdownRetentionDays=data.markdownRetentionDays;
   if(typeof data.callNoiseSuppression==='boolean')result.callNoiseSuppression=data.callNoiseSuppression;
   const style=data.style && typeof data.style==='object'?data.style as Record<string,unknown>:{};
   for(const key of ['stroke','fill'] as const)if(color(style[key]))result.style[key]=style[key];
