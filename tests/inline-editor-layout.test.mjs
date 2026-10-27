@@ -25,3 +25,11 @@ test('typed text determines editor width after the placeholder disappears', () =
   const layout = inlineEditorLayout({ ...base, text: 'Hi' });
   expect(layout.width).toBe(40);
 });
+
+test('typed free text uses the canvas alignment width without adding editor-only space', () => {
+ for (const zoom of [0.5, 1, 2]) {
+  const layout = inlineEditorLayout({ ...base, text: 'Hi', zoom, contentWidth: 14 * zoom });
+  expect(layout.width).toBe(14 * zoom); expect(layout.left).toBe(base.screenX);
+  expect(inlineEditorLayout({ ...base, text: 'Hi', contentWidth: 420 * zoom }).width).toBe(420 * zoom);
+ }
+});

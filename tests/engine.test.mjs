@@ -6,7 +6,7 @@ import { TEMPLATES } from '../draw/templatesData.ts';
 import { isValidElement } from '../lib/elementValidation.mjs';
 import { unionBounds } from '../draw/renderer.ts';
 import { setFont } from '../draw/renderer.ts';
-import { computeArrowPath, computeLinePath, drawElement, layoutDocument, drawSelection, drawElementAnchors, getElementAnchors, getElementBounds, textContentBounds, measureTextBlock } from '../draw/renderer.ts';
+import { computeArrowPath, computeLinePath, drawElement, layoutDocument, drawSelection, drawElementAnchors, getSelectionPadding, getElementAnchors, getElementBounds, textContentBounds, measureTextBlock } from '../draw/renderer.ts';
 const savedGlobals = new Map();
 beforeAll(() => {
   for (const [key, value] of Object.entries({
@@ -342,7 +342,7 @@ test('selection paints one connector per side and only corner resize squares at 
     drawElementAnchors(ctx, getElementAnchors(source), null, zoom);
     expect(squares).toHaveLength(4); expect(circles).toHaveLength(4);
     expect(circles.map(([x, y]) => [x, y])).toEqual([[160, 100], [220, 140], [160, 180], [100, 140]]);
-    const pad = 0, half = 4 / zoom;
+    const pad = getSelectionPadding(source, zoom), half = 4 / zoom;
     expect(squares.map(([x, y]) => [x + half, y + half])).toEqual([[100 - pad, 100 - pad], [220 + pad, 100 - pad], [220 + pad, 180 + pad], [100 - pad, 180 + pad]]);
   }
 });
@@ -438,8 +438,8 @@ test('resize dragging follows displacement without jumping from the padded handl
     const from = engine.canvasToScreen(220 + 5 / zoom, 180 + 5 / zoom);
     drag(from.x, from.y, from.x, from.y);
     expect(engine.getElements()[0]).toEqual(source); expect(engine.canUndo()).toBe(false);
-    drag(from.x, from.y, from.x + 2 * zoom, from.y + 3 * zoom);
-    expect(engine.getElements()[0]).toMatchObject({ x: 100, y: 100, width: 122, height: 83 }); engine.destroy();
+    drag(from.x, from.y, from.x + 4, from.y + 5);
+    expect(engine.getElements()[0]).toMatchObject({ x: 100, y: 100, width: 120 + 4 / zoom, height: 80 + 5 / zoom }); engine.destroy();
   }
 });
 
@@ -785,11 +785,11 @@ test('a completed shape still paints its blue outline after the pointer moves aw
   engine.ctx.strokeRect = (...rect) => outlines.push({ rect, color: engine.ctx.strokeStyle });
   engine.setTool('rectangle'); drag(100, 100, 180, 160);
   listeners.pointermove(point(900, 650)); engine.draw();
-  expect(outlines).toContainEqual({ rect: [100, 100, 80, 60], color: '#3B82F6' });
+  expect(outlines).toContainEqual({ rect: [97, 97, 86, 66], color: '#3B82F6' });
   expect(engine.getTool()).toBe('select');
   drag(500, 500, 500, 500); expect(engine.getSelectedElements()).toEqual([]);
   outlines.length = 0; engine.draw();
-  expect(outlines).not.toContainEqual({ rect: [100, 100, 80, 60], color: '#3B82F6' });
+  expect(outlines).not.toContainEqual({ rect: [97, 97, 86, 66], color: '#3B82F6' });
   engine.destroy();
 });
 
@@ -884,7 +884,8 @@ test('text connectors remain outside the tight selection outline at every zoom',
   for (const zoom of [0.5, 1, 2, 3]) {
     const { engine, drag } = setup([text]); engine.selectAll(); engine.setZoom(zoom, { x: 0, y: 0 });
     const boxes = []; engine.ctx.strokeRect = (...box) => boxes.push(box); engine.draw();
-    expect(boxes).toContainEqual([100, 100, 120, 32.400000000000006]);
+    const pad = getSelectionPadding(text, zoom);
+    expect(boxes).toContainEqual([100 - pad, 100 - pad, 120 + pad * 2, 32.400000000000006 + pad * 2]);
     const ports = getElementAnchors(text); expect(ports.find(p => p.anchor === 'right')).toEqual({ anchor: 'right', x: 228, y: 116.2 });
     const from = engine.canvasToScreen(228, 116.2), to = engine.canvasToScreen(400, 200); drag(from.x, from.y, to.x, to.y);
     expect(engine.getElements().find(el => el.type === 'arrow')).toMatchObject({ startX: 228, startY: 116.2, startBinding: { elementId: 'plain', anchor: 'right' } }); engine.destroy();
@@ -1148,11 +1149,13 @@ test('room undo orders local assets and shared edits without sending image bytes
 });
 
 
-test('selection outlines add zero padding to every boxed element at all zoom levels',()=>{
+test('selection outlines leave a small gap outside content at all zoom levels',()=>{
  const elements=[source,{...source,type:'diamond'},{...source,type:'circle'},{...source,type:'frame',title:'Frame'},{...source,type:'image',source:'data:image/png;base64,aGVsbG8=',imageName:'Image'},{...source,type:'icon',iconId:'arch-client',width:48,height:48},{...source,type:'text',text:'Text',fontSize:20,fontFamily:'sans',isDocCard:false},{...source,type:'text',text:'Card',fontSize:20,fontFamily:'sans',isDocCard:true},{...source,type:'sticky',text:'Note',fontSize:20,fontFamily:'sans',color:'#fff'}];
  for(const element of elements)for(const zoom of [.25,1,3]){
   const rects=[],ctx=new Proxy({strokeRect:(...rect)=>rects.push(rect)},{get:(o,k)=>k in o?o[k]:()=>{}});const bounds=getElementBounds(element);drawSelection(ctx,element,zoom);
-  expect(rects[0]).toEqual([bounds.minX,bounds.minY,bounds.maxX-bounds.minX,bounds.maxY-bounds.minY]);
+  const pad=getSelectionPadding(element,zoom);
+  expect(pad*zoom).toBeGreaterThan(0);expect(pad*zoom).toBeLessThanOrEqual(3);
+  expect(rects[0]).toEqual([bounds.minX-pad,bounds.minY-pad,bounds.maxX-bounds.minX+pad*2,bounds.maxY-bounds.minY+pad*2]);
  }
 });
 test('curved line bounds follow the visible curve rather than its distant control point',()=>{
@@ -1515,3 +1518,54 @@ for (const tool of ['rectangle', 'circle', 'diamond', 'frame', 'line', 'arrow'])
     }
   });
 }
+
+for (const zoom of [0.5, 1, 2]) {
+  test(`click jitter leaves artwork in place at ${zoom}x, including snapping and resize handles`, () => {
+    for (const snapToGrid of [false, true]) {
+      const nearby = { ...source, id: 'nearby', x: 102, y: 300 };
+      const { engine, listeners, point } = setup([source, nearby]);
+      engine.zoom = zoom; engine.snapToGrid = snapToGrid;
+      const start = engine.canvasToScreen(150, 130);
+      listeners.pointerdown(point(start.x, start.y));
+      listeners.pointermove(point(start.x + 0.5, start.y + 0.5));
+      listeners.pointerup(point(start.x + 1, start.y + 1));
+      expect(engine.getElements()).toEqual([source, nearby]); expect(engine.canUndo()).toBe(false);
+      const pad = getSelectionPadding(source, zoom);
+      const corner = engine.canvasToScreen(source.x - pad, source.y - pad);
+      listeners.pointerdown(point(corner.x, corner.y));
+      listeners.pointermove(point(corner.x + 1, corner.y + 1));
+      listeners.pointerup(point(corner.x + 1, corner.y + 1));
+      expect(engine.getElements()).toEqual([source, nearby]); expect(engine.canUndo()).toBe(false);
+      // A deliberate move still follows the original press without losing its initial displacement.
+      engine.snapToGrid = false;
+      listeners.pointerdown(point(start.x, start.y));
+      listeners.pointermove({ ...point(start.x + 20, start.y + 20), altKey: true });
+      listeners.pointerup({ ...point(start.x + 20, start.y + 20), altKey: true });
+      expect(engine.getElements()[0]).toMatchObject({ x: source.x + 20 / zoom, y: source.y + 20 / zoom });
+      engine.undo(); expect(engine.getElements()).toEqual([source, nearby]); engine.destroy();
+    }
+  });
+}
+
+test('click jitter on line endpoints and bend handles does not move or bend the line', () => {
+  const line = { ...base, id: 'line', type: 'line', startX: 100, startY: 100, endX: 300, endY: 200, x: 100, y: 100, width: 200, height: 100 };
+  for (const [x, y] of [[100, 100], [200, 150], [300, 200]]) {
+    const { engine, listeners, point } = setup([line]); engine.selectAll();
+    listeners.pointerdown(point(x, y)); listeners.pointermove(point(x + 1, y + 1)); listeners.pointerup(point(x + 1, y + 1));
+    expect(engine.getElements()).toEqual([line]); expect(engine.canUndo()).toBe(false); engine.destroy();
+  }
+});
+
+test('reopening unchanged aligned text and changing its color preserve its alignment box and position', () => {
+  for (const align of ['left', 'center', 'right']) {
+    const text = { ...base, id: 'text', type: 'text', x: 100, y: 100, width: 420, height: 50, text: 'Short', fontSize: 24, fontFamily: 'sans', textAlign: align };
+    const { engine, listeners, point } = setup([text]); let editor;
+    engine.onStartInlineText = info => { editor = info; };
+    listeners.dblclick(point(200, 120)); expect(editor.elementId).toBe(text.id);
+    engine.commitInlineText(editor);
+    expect(engine.getElements()[0]).toMatchObject({ x: 100, y: 100, width: 420, height: 50 });
+    engine.updateSelectedElement({ stroke: '#ff0000' });
+    expect(engine.getElements()[0]).toMatchObject({ x: 100, y: 100, width: 420, height: 50, stroke: '#ff0000' });
+    engine.undo(); expect(engine.getElements()[0].stroke).toBe('#fff'); engine.destroy();
+  }
+});

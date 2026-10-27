@@ -427,3 +427,50 @@ test('personal canvas schedules warmup before Share is opened and cancels schedu
     expect(cancelled).toBe(91);
   } finally { window.requestIdleCallback = originalIdle; window.cancelIdleCallback = originalCancel; }
 });
+
+test('shape colors stay on the selected object and each new drawing tool remembers its own colors', async () => {
+  const id = await renderBoard();
+  const initial = (await import('../draw/types.ts')).DEFAULT_STYLE;
+  await clickNamed('Rectangle (R)'); await clickNamed('Open appearance settings');
+  await clickNamed('Color #EF4444'); await clickNamed('Background #48596b');
+  await boardPointer('pointerdown', 100, 100); await boardPointer('pointermove', 220, 200); await boardPointer('pointerup', 220, 200);
+  expect(getBoard(id).elements[0]).toMatchObject({ stroke: '#EF4444', fill: '#48596b' });
+  // Editing one selected shape must not recolor its siblings or overwrite any creation defaults.
+  await clickNamed('Color #10B981');
+  expect(getBoard(id).elements[0].stroke).toBe('#10B981');
+  await clickNamed('Ellipse (O)');
+  await boardPointer('pointerdown', 350, 100); await boardPointer('pointermove', 470, 200); await boardPointer('pointerup', 470, 200);
+  expect(getBoard(id).elements[1]).toMatchObject({ stroke: initial.stroke, fill: initial.fill });
+  await clickNamed('Text & Bullets (T)');
+  await boardPointer('pointerdown', 100, 350); await boardPointer('pointerup', 100, 350);
+  let editor = named('Edit text'); expect(editor.style.color).not.toBe('rgb(239, 68, 68)');
+  await typeText(editor, 'Independent text');
+  await act(async () => editor.dispatchEvent(new browser.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
+  expect(getBoard(id).elements[2].stroke).toBe(initial.stroke);
+  await clickNamed('Rectangle (R)');
+  await boardPointer('pointerdown', 550, 100); await boardPointer('pointermove', 670, 200); await boardPointer('pointerup', 670, 200);
+  expect(getBoard(id).elements[3]).toMatchObject({ stroke: '#EF4444', fill: '#48596b' });
+  expect(getBoard(id).elements[0].stroke).toBe('#10B981');
+  await act(async () => root.render(null));
+  await act(async () => root.render(React.createElement(AppRouterContext.Provider, { value: router }, React.createElement(SearchParamsContext.Provider, { value: new URLSearchParams() }, React.createElement(Canvas)))));
+  await clickNamed('Rectangle (R)');
+  await boardPointer('pointerdown', 550, 350); await boardPointer('pointermove', 670, 450); await boardPointer('pointerup', 670, 450);
+  expect(getBoard(id).elements[4]).toMatchObject({ stroke: '#EF4444', fill: '#48596b' });
+});
+
+test('text editor alignment width and position match saved text before and after clicking away', async () => {
+  const id = await renderBoard();
+  const editor = await startText();
+  await typeText(editor, 'Aligned words');
+  await clickNamed('Open appearance settings');
+  const align = [...document.querySelectorAll('[aria-label="Appearance settings"] button')].find(button => button.textContent === 'center');
+  await act(async () => align.click());
+  const width = parseFloat(editor.style.width), left = parseFloat(editor.style.left), top = parseFloat(editor.style.top);
+  await act(async () => editor.dispatchEvent(new browser.FocusEvent('focusout', { bubbles: true, relatedTarget: document.querySelector('main canvas') })));
+  const saved = getBoard(id).elements[0];
+  expect(saved.width).toBe(width); expect(saved.x).toBe(left); expect(saved.y).toBe(top); expect(saved.textAlign).toBe('center');
+  await act(async () => document.querySelector('main canvas').dispatchEvent(new browser.MouseEvent('dblclick', { bubbles: true, clientX: left + 30, clientY: top + 15 })));
+  const reopened = named('Edit text'); expect(parseFloat(reopened.style.width)).toBe(width); expect(parseFloat(reopened.style.left)).toBe(left);
+  await act(async () => reopened.dispatchEvent(new browser.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
+  expect(getBoard(id).elements[0]).toMatchObject({ x: saved.x, y: saved.y, width: saved.width, height: saved.height });
+});

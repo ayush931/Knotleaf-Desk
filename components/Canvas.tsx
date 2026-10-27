@@ -18,8 +18,9 @@ import { useCanvasFocus } from "@/lib/useCanvasFocus";
 import { Classroom } from "./Classroom";
 import { CollaborationPanel } from "./CollaborationPanel";
 import { CanvasEngine } from "@/draw/CanvasEngine";
-import { loadCanvasFonts, setFont } from "@/draw/renderer";
+import { loadCanvasFonts, setFont, measureTextBlock } from "@/draw/renderer";
 import { fontCssStack } from "@/draw/fonts";
+import { isColorTool, pickToolColors, type ColorTool } from "@/draw/toolColors";
 import { inlineEditorLayout } from "@/draw/inlineEditorLayout";
 import {
   Tool,
@@ -175,7 +176,10 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
     }
     renderInlineText(next);
   }, []);
-  const [currentStyle, setCurrentStyle] = useState<ElementStyleProps>(() => ({ ...preferences.style }));
+  const [currentStyle, setCurrentStyle] = useState<ElementStyleProps>(() => ({ ...preferences.style, ...preferences.toolColors.rectangle }));
+
+  const toolColorsRef = useRef(preferences.toolColors);
+  const colorToolRef = useRef<ColorTool>("rectangle");
 
   const selectedElement = selectedElements.length === 1 ? selectedElements[0] : null;
   const librarySelection = useMemo(() => { if (!selectedElements.length) return []; const ids = new Set(selectedElements.map(el => el.id)); return board.elements.filter(el => ids.has(el.id) || el.type === "text" && !!el.containerId && ids.has(el.containerId)); }, [selectedElements, board.elements]);
@@ -249,7 +253,11 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
       refreshBoardsList();
     };
     engine.onStyleChange = style => setCurrentStyle(style);
-    engine.onPickColor = color => setCurrentStyle(previous => ({ ...previous, stroke: color }));
+    engine.onPickColor = color => {
+      toolColorsRef.current = { ...toolColorsRef.current, [colorToolRef.current]: { ...toolColorsRef.current[colorToolRef.current], stroke: color } };
+      savePreferences({ toolColors: toolColorsRef.current });
+      setCurrentStyle(previous => ({ ...previous, stroke: color }));
+    };
     engine.onSelectionChange = (selected) => setSelectedElements(selected);
     engine.onOpenIconPicker = () => setIsIconPickerOpen(true);
     engine.onEditCode = setCodeId;
@@ -262,7 +270,14 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
     };
     engine.onStartInlineText = state => { inlineTextStateRef.current = state; setInlineText(state); };
     engine.onZoomChange = (z) => setZoom(z);
-    engine.onToolChange = (t) => setSelectedTool(t);
+    engine.onToolChange = (t) => {
+      if (isColorTool(t)) {
+        colorToolRef.current = t;
+        engine.currentStyle = { ...engine.currentStyle, ...toolColorsRef.current[t] };
+        setCurrentStyle({ ...engine.currentStyle });
+      }
+      setSelectedTool(t);
+    };
     engine.onHistoryChange = (u, r) => {
       if (!sessionRef.current) { setCanUndo(u); setCanRedo(r); } else {setCanUndo(sessionRef.current.undo.undoStack.length>0||engine.hasLocalAssetUndo());setCanRedo(sessionRef.current.undo.redoStack.length>0||engine.hasLocalAssetRedo());}
     };
@@ -666,7 +681,10 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
       if (!context) return;
       context.save();
       setFont(context, inlineText.fontSize, inlineText.fontFamily, inlineText.bold ? 700 : 400, inlineText.italic);
-      const layout = inlineEditorLayout({ ...inlineText, placeholder: inlinePlaceholder, measure: text => context.measureText(text).width, zoom,
+      const freeText = !inlineText.boxWidth && (inlineText.kind === "new-text" || inlineText.kind === "text" && selectedElement?.type === "text" && !selectedElement.isDocCard && !selectedElement.isCodeCard);
+      const unchangedText = selectedElement?.type === "text" && inlineText.text === selectedElement.text && inlineText.fontSize === selectedElement.fontSize && inlineText.fontFamily === selectedElement.fontFamily && inlineText.align === (selectedElement.textAlign || "left") && !!inlineText.bold === !!selectedElement.bold && !!inlineText.italic === !!selectedElement.italic;
+      const contentWidth = freeText ? (unchangedText ? selectedElement.width : measureTextBlock(context, inlineText.text, inlineText.fontSize, inlineText.fontFamily, inlineText).width) * zoom : undefined;
+      const layout = inlineEditorLayout({ ...inlineText, contentWidth, placeholder: inlinePlaceholder, measure: text => context.measureText(text).width, zoom,
         preferredWidth: inlineText.boxWidth ? inlineText.boxWidth*zoom : inlineText.kind === "sticky" || selectedElement?.type === "text" && selectedElement.isDocCard ? inlineText.screenWidth : undefined,
         viewportWidth: containerRef.current?.clientWidth || 900, viewportHeight: containerRef.current?.clientHeight || 600 });
       context.restore();
@@ -960,6 +978,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
                     borderRadius: 0,
                     padding: 0,
                     outline: inlineText.boxWidth ? "1px solid #3b82f6" : "none",
+                    outlineOffset: "3px",
                     resize: "none",
                     overflowX: "auto",
                     boxShadow: "none",
@@ -1004,8 +1023,20 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
                 currentStyle={isInlineTextual ? { ...currentStyle, fontSize: inlineText!.fontSize, fontFamily: inlineText!.fontFamily, textAlign: inlineText!.align, stroke: inlineText!.color, bold: inlineText!.bold, italic: inlineText!.italic, underline: inlineText!.underline, strikethrough: inlineText!.strikethrough } : currentStyle}
                 onUpdateStyle={(st) => {
                   if (isInlineTextual) updateInlineStyle(st);
-                  setCurrentStyle((prev) => ({ ...prev, ...st }));
-                  if (engineRef.current) engineRef.current.currentStyle = { ...engineRef.current.currentStyle, ...st };
+                  const { stroke, fill, fillStyle, fillOpacity, ...otherStyle } = st;
+                  const editingExisting = selectedElements.length > 0 || isInlineTextual && inlineText?.kind !== "new-text";
+                  const defaults = editingExisting ? otherStyle : st;
+                  const nextStyle = { ...(engineRef.current?.currentStyle || currentStyle), ...defaults };
+                  if (editingExisting && selectedElements.length > 1) {
+                    engineRef.current?.updateSelectedElement({ ...("stroke" in st ? { stroke } : {}), ...("fill" in st ? { fill } : {}), ...("fillStyle" in st ? { fillStyle } : {}), ...("fillOpacity" in st ? { fillOpacity } : {}) });
+                  }
+                  if (!editingExisting) {
+                    const tool = isInlineTextual ? "text" : colorToolRef.current;
+                    toolColorsRef.current = { ...toolColorsRef.current, [tool]: pickToolColors(nextStyle) };
+                    savePreferences({ toolColors: toolColorsRef.current });
+                  }
+                  setCurrentStyle(nextStyle);
+                  if (engineRef.current) engineRef.current.currentStyle = nextStyle;
                 }}
                 onUpdateElement={(props) => {
                   if (isInlineTextual && "text" in props && typeof props.text === "string") setInlineText(previous => previous ? { ...previous, text: props.text! } : null);

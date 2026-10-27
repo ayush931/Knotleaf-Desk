@@ -35,3 +35,17 @@ test('the rich-note typing size is saved and validated',()=>{
  expect(normalizePreferences({noteTypingSize:500}).noteTypingSize).toBeNull();
  expect(normalizePreferences({noteTypingSize:'18'}).noteTypingSize).toBeNull();
 });
+
+test('drawing tools retain independent colors through reloads and unrelated preference saves', () => {
+ const legacy = normalizePreferences({ style: { ...DEFAULT_STYLE, stroke: '#123456' } });
+ expect(legacy.toolColors.rectangle.stroke).toBe('#123456'); expect(legacy.toolColors.text.stroke).toBe('#123456');
+ const colors = loadPreferences().toolColors;
+ colors.rectangle.stroke = '#ef4444'; colors.rectangle.fill = '#48596b'; colors.rectangle.fillStyle = 'solid';
+ savePreferences({ toolColors: colors }); savePreferences({ notesWidth: 450 });
+ expect(loadPreferences().toolColors.rectangle).toMatchObject({ stroke: '#ef4444', fill: '#48596b', fillStyle: 'solid' });
+ expect(loadPreferences().toolColors.text.stroke).toBe(DEFAULT_STYLE.stroke);
+ expect(loadPreferences().toolColors.circle.fill).toBe(DEFAULT_STYLE.fill);
+ const malformed = normalizePreferences({ toolColors: { rectangle: { stroke: 'bad', fillOpacity: 2 }, text: { stroke: '#22c55e' } } });
+ expect(malformed.toolColors.rectangle).toEqual(loadPreferences().toolColors.circle);
+ expect(malformed.toolColors.text.stroke).toBe('#22c55e');
+});
