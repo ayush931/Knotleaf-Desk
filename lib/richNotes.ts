@@ -239,11 +239,16 @@ const NoteHeading = Heading.extend({
 });
 let markdownManager: MarkdownManager | undefined;
 /** Render only schema-owned HTML; imported scripts/events and arbitrary CSS never survive. */
-export function notesToSafeHtml(value: string): string {
+export function notesToSafeHtml(value: string, options: { deferImages?: boolean } = {}): string {
   markdownManager ||= new MarkdownManager({
     extensions: richNotesExtensions(),
   });
   const json = markdownManager.parse(value);
+  const imageSources: (string | null)[] = [];
+  if(options.deferImages){
+    const defer=(node:JSONContent)=>{if(node.type==='image'){imageSources.push(typeof node.attrs?.src==='string'?node.attrs.src:null);node.attrs={...node.attrs,src:null};}node.content?.forEach(defer);};
+    defer(json);
+  }
   noteSchema ||= getSchema(richNotesExtensions());
   const fragment = DOMSerializer.fromSchema(noteSchema).serializeFragment(
     noteSchema.nodeFromJSON(json).content,
@@ -251,6 +256,7 @@ export function notesToSafeHtml(value: string): string {
   );
   const host = document.createElement("div");
   host.append(fragment);
+  if(options.deferImages)host.querySelectorAll('img').forEach((image,index)=>{const src=imageSources[index];if(src)image.setAttribute('data-markdown-image-src',src);});
   return host.innerHTML;
 }
 export function richNotesExtensions() {

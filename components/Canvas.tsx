@@ -9,6 +9,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState, useLayoutEffe
 import type { RoomMessage, RoomChatProps } from "@/lib/roomChat";
 import { importLocalFile, cleanupImportedMarkdown, downloadImportedMarkdown } from "@/lib/markdownImports";
 import { touchMarkdownFile, getMarkdownFile, markdownDownloadBlob, type ImportOptions, type MarkdownFileInfo } from "@/lib/markdownFiles";
+import type { MarkdownView } from "@/lib/markdownWorkspace";
 import { FileImportController, type FileImportHandle } from "./FileImportController";
 import { MarkdownFileLibrary } from "./MarkdownFileLibrary";
 import { loadPreferences, savePreferences } from "@/lib/preferences";
@@ -157,6 +158,8 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
   const [presentationIndex, setPresentationIndex] = useState(0);
   const presentationViewport = useRef<{ zoom: number; pan: { x: number; y: number } } | null>(null);
   const importCoordinator=useRef<FileImportHandle>(null);
+  const [markdownViewRequest,setMarkdownViewRequest]=useState<{id:string;mode:MarkdownView;token:number}>();
+  const markdownViewToken=useRef(0);
   const [uploadedFilesOpen, setUploadedFilesOpen] = useState(false);
   const [boardToolsOpen, setBoardToolsOpen] = useState(false);
   const [boardToolsSection, setBoardToolsSection] = useState<"find" | "report">("find");
@@ -624,18 +627,19 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
     refreshBoardsList();
     handleSelectBoard(getBoard(boardRef.current.id)?.id || getOrCreateDefaultBoard().id);
   };
-  const openUploadedFile = async (file: MarkdownFileInfo) => {
+  const openUploadedFile = async (file: MarkdownFileInfo, view?:MarkdownView) => {
+    const requestView=(id:string)=>{if(view){savePreferences({markdownWorkspace:{...loadPreferences().markdownWorkspace,mode:view}});setMarkdownViewRequest({id,mode:view,token:++markdownViewToken.current});}else setMarkdownViewRequest(undefined);};
     if(!await getMarkdownFile(file.id))throw new Error("This uploaded file was deleted or expired.");
     let existing=file.boardId?getBoard(file.boardId):null;
     if(!existing)for(const summary of getAllBoards()){const candidate=getBoard(summary.id);if(candidate?.importedMarkdownId===file.id){existing=candidate;break;}}
-    if(existing){existing.viewMode="notes";if(!saveBoard(existing))throw new Error("Could not open notes. Check browser storage.");await touchMarkdownFile(file.id,existing.id);handleSelectBoard(existing.id);return;}
+    if(existing){existing.viewMode="notes";if(!saveBoard(existing))throw new Error("Could not open notes. Check browser storage.");await touchMarkdownFile(file.id,existing.id);requestView(existing.id);handleSelectBoard(existing.id);return;}
     const content=file.large?"":(await (await markdownDownloadBlob(file.id)).text()).replace(/^\uFEFF/,"");
     const previousId=boardRef.current.id;
     const next=createBoard(file.name.replace(/\.(md|markdown)$/i,""),undefined,workspaceId);
     next.importedMarkdownId=file.id;next.largeMarkdown=file.large;next.viewMode="notes";next.markdownNotes=content;
     try {
       if(!saveBoard(next))throw new Error("Could not create the notes project. Free browser storage and retry.");
-      await touchMarkdownFile(file.id,next.id);handleSelectBoard(next.id);
+      await touchMarkdownFile(file.id,next.id);requestView(next.id);handleSelectBoard(next.id);
     } catch(error) {deleteBoard(next.id);setActiveBoardId(previousId);throw error;}
   };
 
@@ -855,7 +859,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
           for (const elements of groups) { const canvas = await renderToCanvas(elements,snapshot.theme,1,false,snapshot.elements,snapshot.background,snapshot.gridType); if(canvas) { images.push(canvas.toDataURL("image/png")); canvas.width=canvas.height=1; } }
           return images;
         }} /></React.Suspense>}
-        {(viewMode === "notes" || viewMode === "split") && !isPresentationOpen && <section aria-label="Board notes" style={viewMode === "split" ? narrowSplit ? { width: "100%", height: Math.min(notesHeight, splitBounds.height - 160) } : { width: Math.min(notesWidth, splitBounds.width - 280) } : undefined} className={`board-notes min-h-0 ${focusMode ? "hidden" : ""} ${viewMode === "notes" ? "w-full min-w-0 flex-1" : "shrink-0"}`}><React.Suspense fallback={<div role="status" className="h-full bg-[#18181b] p-4 text-xs text-neutral-400">Opening notes…</div>}>{board.largeMarkdown&&board.importedMarkdownId?<LargeMarkdownNotes key={board.importedMarkdownId} fileId={board.importedMarkdownId} onDownload={handleExportMarkdown}/>:<DocEditor key={`${board.id}:${noteFocus?.token || 0}`} focusRange={noteFocus} noteId={board.id} title={board.title} getNotes={()=>getAllBoards().filter(summary=>!isRoomBoardId(summary.id)&&(summary.workspaceId||"personal")===workspaceId).map(summary=>getBoard(summary.id)).filter((note):note is Board=>!!note).map(({id,title,markdownNotes})=>({id,title,markdownNotes}))} onOpenNote={id=>{const note=getBoard(id);if(!note)return false;note.viewMode="notes";if(!saveBoard(note))return false;handleSelectBoard(id);return true;}} onCreateNote={title=>{const currentId=boardRef.current.id;try{const note=createBoard(title,undefined,workspaceId);note.viewMode="notes";if(!saveBoard(note))throw new Error("Could not save note");refreshBoardsList();return {id:note.id,title:note.title,markdownNotes:note.markdownNotes};}finally{setActiveBoardId(currentId);}}} value={board.markdownNotes || ""} onChange={markdownNotes => persist({ ...boardRef.current, markdownNotes })} onExportMarkdown={handleExportMarkdown} theme={theme} />}</React.Suspense></section>}
+        {(viewMode === "notes" || viewMode === "split") && !isPresentationOpen && <section aria-label="Board notes" style={viewMode === "split" ? narrowSplit ? { width: "100%", height: Math.min(notesHeight, splitBounds.height - 160) } : { width: Math.min(notesWidth, splitBounds.width - 280) } : undefined} className={`board-notes min-h-0 ${focusMode ? "hidden" : ""} ${viewMode === "notes" ? "w-full min-w-0 flex-1" : "shrink-0"}`}><React.Suspense fallback={<div role="status" className="h-full bg-[#18181b] p-4 text-xs text-neutral-400">Opening notes…</div>}>{board.largeMarkdown&&board.importedMarkdownId?<LargeMarkdownNotes initialView={markdownViewRequest?.id===board.id?markdownViewRequest.mode:undefined} viewToken={markdownViewRequest?.id===board.id?markdownViewRequest.token:undefined} key={board.importedMarkdownId} fileId={board.importedMarkdownId} onDownload={handleExportMarkdown}/>:<DocEditor saveStatus={saveError?"Not saved · retry from the header":"Saved on this device"} initialMarkdownView={markdownViewRequest?.id===board.id?markdownViewRequest.mode:undefined} markdownViewToken={markdownViewRequest?.id===board.id?markdownViewRequest.token:undefined} key={`${board.id}:${noteFocus?.token || 0}`} focusRange={noteFocus} noteId={board.id} title={board.title} getNotes={()=>getAllBoards().filter(summary=>!isRoomBoardId(summary.id)&&(summary.workspaceId||"personal")===workspaceId).map(summary=>getBoard(summary.id)).filter((note):note is Board=>!!note).map(({id,title,markdownNotes})=>({id,title,markdownNotes}))} onOpenNote={id=>{const note=getBoard(id);if(!note)return false;note.viewMode="notes";if(!saveBoard(note))return false;handleSelectBoard(id);return true;}} onCreateNote={title=>{const currentId=boardRef.current.id;try{const note=createBoard(title,undefined,workspaceId);note.viewMode="notes";if(!saveBoard(note))throw new Error("Could not save note");refreshBoardsList();return {id:note.id,title:note.title,markdownNotes:note.markdownNotes};}finally{setActiveBoardId(currentId);}}} value={board.markdownNotes || ""} onChange={markdownNotes => persist({ ...boardRef.current, markdownNotes })} onExportMarkdown={handleExportMarkdown} theme={theme} />}</React.Suspense></section>}
         {viewMode === "split" && !isPresentationOpen && !focusMode && <div role="separator" aria-label="Resize notes panel" aria-orientation={narrowSplit ? "horizontal" : "vertical"} aria-valuemin={narrowSplit ? 160 : 220} aria-valuemax={narrowSplit ? Math.max(160, splitBounds.height - 160) : Math.max(220, splitBounds.width - 280)} aria-valuenow={Math.round(narrowSplit ? notesHeight : notesWidth)} tabIndex={0} className={`split-handle z-30 shrink-0 touch-none bg-neutral-800 hover:bg-blue-500 focus-visible:bg-blue-500 focus-visible:outline-none ${narrowSplit ? "h-1.5 w-full cursor-row-resize" : "w-1.5 cursor-col-resize"}`} onDoubleClick={() => { setNotesWidth(360); setNotesHeight(300); }} onKeyDown={e => { if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"].includes(e.key)) {
           e.preventDefault(); e.stopPropagation();
           const delta = e.key === "ArrowRight" || e.key === "ArrowDown" ? 20 : -20;

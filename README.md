@@ -246,3 +246,10 @@ Use **Open project or notes** in the header or workspace to import Markdown. Pro
 **Uploaded Markdown** (the storage icon beside Open) lists names, sizes and last use, with Open, Download and confirmed Delete actions. The default cleanup removes imported files after **7 days without use**; choose **Keep until I delete** to retain them. Cleanup runs on app open/foreground or **Clean up now**, keeps the current file, removes related imported-note caches/history, and preserves unrelated personal projects and drawings. Incomplete imports are removed after a day. Deleting an upload removes its linked imported notes; download a copy first if needed. Browser storage can be cleared or evicted by the browser, so keep independent backups.
 
 Large-file notes stay on this device and download as Markdown. They are not embedded into room content, JSON/Knotleaf backups or whole-document PDFs; canvas-only exports remain available. Download the `.md` separately for transfer. Whole-file syntax highlighting, rich-document trees and background canvas animations are avoided in large-file Notes view. CPU, memory and temperature still depend on the device, browser, file and other running apps.
+
+
+### Markdown reading workspace
+
+Choose **Preview** in **Uploaded Markdown**, or **Open Markdown preview** in Notes. Switch between **Source**, **Preview** and **Split**, with linked scrolling, heading outline, line numbers, go-to-line, formatting shortcuts and literal find/replace with Undo. Reading settings offer charcoal or paper pages, text size, page width and source wrapping; full screen keeps document controls available. Code blocks have Copy actions, wide tables scroll independently, and images load only when requested.
+
+Large documents preview only the current section to keep processing bounded. Markdown blocks crossing a section boundary may look incomplete until viewed in an external whole-file reader. Preview follows edits after a short delay; source and downloads stay accessible if preview fails.
