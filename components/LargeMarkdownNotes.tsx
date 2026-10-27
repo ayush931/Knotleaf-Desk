@@ -1,5 +1,6 @@
 "use client";
 import React, { useEffect, useRef, useState } from 'react';
+import { MarkdownSectionNavigation } from './MarkdownSectionNavigation';
 import { MarkdownWorkspace } from './MarkdownWorkspace';
 import type { MarkdownView } from '@/lib/markdownWorkspace';
 import { getMarkdownFile, readMarkdownSection, saveMarkdownPage, type MarkdownFileInfo } from '@/lib/markdownFiles';
@@ -48,15 +49,7 @@ export function LargeMarkdownNotes({ fileId, onDownload, initialView, viewToken 
   const pages=info?info.offsets.length-1:0;
   const percent=info&&info.size?Math.round((info.offsets[page+1]||0)/info.size*100):100;
   return <MarkdownWorkspace title={info?.name||'Markdown file'} value={text} documentKey={`${fileId}:${page}`} initialView={initialView} viewToken={viewToken} sourceLabel="Large Markdown section" scopeLabel={pages>1?`Section ${page+1} of ${pages}`:'Document'} status={status} busy={busy} lightweight onDownload={()=>flush().then(onDownload)} navigation={<>
-    <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-neutral-800 p-3 text-xs">
-      <button type="button" className="note-tool" disabled={busy||page===0} onClick={()=>void navigate(page-1)}>Previous section</button>
-      <span>{pages?`Section ${page+1} of ${pages} · ${percent}% through file`:'Opening Markdown…'}</span>
-      <button type="button" className="note-tool" disabled={busy||page+1>=pages} onClick={()=>void navigate(page+1)}>Next section</button>
-      <form noValidate onSubmit={event=>{event.preventDefault();const field=new FormData(event.currentTarget).get('section');const next=Number(field);if(Number.isInteger(next)&&next>=1&&next<=pages)void navigate(next-1);}} className="flex items-center gap-1">
-        <label>Section <input name="section" aria-label="Go to Markdown section" type="number" min={1} max={pages||1} defaultValue={1} className="w-20 rounded border border-neutral-700 bg-neutral-950 p-1" /></label><button type="submit" disabled={busy} className="note-tool">Go</button>
-      </form>
-    </div>
-    <p className="shrink-0 px-3 py-2 text-xs text-neutral-400">Preview covers the current section. A Markdown block may continue in another section.</p>
+    <MarkdownSectionNavigation page={page} pages={pages} disabled={busy} progress={percent} onNavigate={next=>void navigate(next)} help="Preview covers the current section. A Markdown block may continue in another section."/>
     {error&&<div role="alert" className="flex shrink-0 flex-wrap items-center gap-2 px-3 py-2 text-sm text-rose-300"><p>{error}</p><button type="button" className="note-tool" onClick={()=>{const blob=new Blob([text],{type:'text/markdown'});void import('@/lib/markdownFiles').then(module=>module.downloadMarkdownBlob(blob,`section-${page+1}.md`));}}>Download current section</button><button type="button" className="note-tool" onClick={()=>{if(!info){setBusy(true);setError('');setRetry(value=>value+1);}else void flush().catch(()=>undefined);}}>{info?'Retry save':'Retry loading'}</button></div>}
 </>} onChange={next=>{setText(next);draft.current={page,text:next,dirty:true};setStatus('Unsaved changes');clearTimeout(timer.current);timer.current=setTimeout(()=>void flushRef.current().catch(()=>undefined),600);}}/>;
 }
