@@ -49,3 +49,15 @@ test('drawing tools retain independent colors through reloads and unrelated pref
  expect(malformed.toolColors.rectangle).toEqual(loadPreferences().toolColors.circle);
  expect(malformed.toolColors.text.stroke).toBe('#22c55e');
 });
+
+test('selected-object color edits remember only changed fields for the matching tool types',async()=>{
+ const {rememberToolColors,colorToolForElement}=await import('../draw/toolColors.ts');
+ const original=loadPreferences().toolColors;
+ original.rectangle.fill='#48596b';original.rectangle.fillStyle='solid';original.text.fill='#674c4b';
+ const next=rememberToolColors(original,['rectangle','text','rectangle'],{stroke:'#FFFFFF',fontSize:28});
+ expect(next.rectangle).toEqual({...original.rectangle,stroke:'#FFFFFF'});expect(next.text).toEqual({...original.text,stroke:'#FFFFFF'});
+ expect(next.circle).toBe(original.circle);expect(original.rectangle.fill).toBe('#48596b');expect(next).not.toBe(original);
+ expect(rememberToolColors(next,['rectangle'],{fontSize:32})).toBe(next);
+ expect(colorToolForElement({type:'text',isCodeCard:true,isDocCard:true})).toBe('code');expect(colorToolForElement({type:'text',isDocCard:true})).toBe('doc');expect(colorToolForElement({type:'text'})).toBe('text');expect(colorToolForElement({type:'icon'})).toBeUndefined();
+ savePreferences({toolColors:next});savePreferences({notesWidth:500});expect(loadPreferences().toolColors.rectangle).toEqual(next.rectangle);expect(loadPreferences().toolColors.text.fill).toBe('#674c4b');
+});
