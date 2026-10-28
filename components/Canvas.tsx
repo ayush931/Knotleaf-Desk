@@ -16,7 +16,7 @@ import { loadPreferences, savePreferences } from "@/lib/preferences";
 import { isLocalAsset } from "@/lib/localAssets.mjs";
 import { prepareAssets, downloadAttachment } from "@/lib/assetUpload";
 import { RoomSession, type Collaborator } from "@/lib/collaboration";
-import { getRoomServerUrl, checkRoomAvailable, RoomExpiredError } from "@/lib/roomConnection";
+import { getRoomServerUrl, checkRoomAvailable, RoomExpiredError, roomInviteUrl } from "@/lib/roomConnection";
 import { createRoomFromBoard, scheduleRoomWarmup } from "@/lib/roomCreation";
 import { normalizeBackground } from "@/lib/background.mjs";
 import { useCanvasFocus } from "@/lib/useCanvasFocus";
@@ -761,7 +761,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
     const operation = (async () => {
       const { id, savedLocally } = await createRoomFromBoard(boardRef.current);
       setSaveError(!savedLocally);
-      router.push(`/canvas/${id}${openClassroom ? "?classroom=1" : ""}`);
+      router.push(new URL(roomInviteUrl(id,openClassroom)).pathname);
     })();
     creatingRoomRef.current = operation;
     void operation.finally(() => { creatingRoomRef.current = null; }).catch(() => undefined);

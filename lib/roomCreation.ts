@@ -49,6 +49,7 @@ export async function createRoomFromBoard(
   if (typeof data.websocketUrl === "string") {
     try {
       rememberRoomServerUrl(data.websocketUrl);
+      if(data.wakeRoomServer===true)wakeRoomHost(data.websocketUrl);
     } catch {
       /* Resolve configuration normally if the hint is invalid. */
     }
@@ -87,8 +88,10 @@ export function warmRoomServer(): Promise<void> {
       const data = await response.json();
       entry.until = Date.now() + 60000;
       if (window.location.origin !== origin) return;
-      if (typeof data.websocketUrl === "string")
+      if (typeof data.websocketUrl === "string") {
         rememberRoomServerUrl(data.websocketUrl);
+        if(data.wakeRoomServer===true)wakeRoomHost(data.websocketUrl);
+      }
     })
     .catch(() => {
       if (warming === entry) warming = undefined;
@@ -105,4 +108,18 @@ export function scheduleRoomWarmup(): () => void {
   }
   const id = window.setTimeout(() => { void warmRoomServer(); }, 1000);
   return () => window.clearTimeout(id);
+}
+
+
+let hostWake: {key:string;until:number} | undefined;
+/** Deduplicate independent video-host wakes across warmup and creation, without awaiting them. */
+function wakeRoomHost(endpoint:string) {
+  const origin=window.location.origin,url=new URL(endpoint,origin);
+  url.protocol=url.protocol==='wss:'?'https:':'http:';url.pathname='/api/rooms';url.search='';url.hash='';
+  const key=`${origin}:${url}`;
+  if(hostWake?.key===key&&hostWake.until>Date.now())return;
+  const entry={key,until:Infinity};hostWake=entry;
+  const failed=()=>{if(hostWake===entry){hostWake=undefined;warming=undefined;}};
+  void fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({warmup:true}),signal:AbortSignal.timeout(60000)})
+    .then(response=>{if(response.ok)entry.until=Date.now()+60000;else failed();}).catch(failed);
 }

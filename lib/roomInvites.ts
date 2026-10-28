@@ -1,3 +1,4 @@
+import { roomIdFromCode } from "./shortRoomCode";
 const ROOM_ID =
   /^[a-f\d]{8}-[a-f\d]{4}-4[a-f\d]{3}-[89ab][a-f\d]{3}-[a-f\d]{12}$/i;
 export const isRoomInviteId = (id: string) => ROOM_ID.test(id);
@@ -16,17 +17,18 @@ export function parseRoomInvite(
     throw new Error("Paste a valid room link or room ID.");
   }
   const match = url.pathname.match(/^\/canvas\/([^/]+)\/?$/);
+  const short=url.pathname.match(/^\/([rv])\/([^/]+)\/?$/);
+  const decoded=short?roomIdFromCode(short[2]):null;
   if (
     !["http:", "https:"].includes(url.protocol) ||
     url.username ||
     url.password ||
-    !match ||
-    !ROOM_ID.test(match[1])
+    (!decoded&&(!match||!ROOM_ID.test(match[1])))
   )
     throw new Error("Paste a valid room link or room ID.");
-  const id = match[1].toLowerCase();
+  const id = decoded || match![1].toLowerCase();
   url.pathname = `/canvas/${id}`;
-  const call = openCall || url.searchParams.get("classroom") === "1";
+  const call = openCall || short?.[1] === "v" || url.searchParams.get("classroom") === "1";
   if (call) url.searchParams.set("classroom", "1");
   return { id, href: url.href, origin: url.origin, call };
 }

@@ -75,3 +75,18 @@ test('batched initialization retains the entire scene and returns an invite only
  } finally { doc.destroy(); }
  await expect(createStoredRoom({ async create() { throw new Error('Storage unavailable'); } }, { title: 'Failure', elements: [] }, 'https://desk.example')).rejects.toThrow('Storage unavailable');
 });
+
+test('frontend room creation persists a hub-readable document without contacting or awaiting the video host',async()=>{
+ const {createFrontendRoom}=await import('../server/frontend-rooms.mjs');
+ const directory=await mkdtemp(path.join(os.tmpdir(),'knotleaf-frontend-rooms-'));
+ try{
+  const store=createRoomStore('',directory);
+  const warmed=await createFrontendRoom(store,{warmup:true},'https://desk.example','wss://sleeping.invalid/collaboration');
+  expect(warmed).toEqual({ready:true,wakeRoomServer:true,websocketUrl:'wss://sleeping.invalid/collaboration'});
+  const room=await createFrontendRoom(store,{title:'Instant link',elements:[],markdownNotes:'# Saved before invite'},'https://desk.example','wss://sleeping.invalid/collaboration');
+  const fromHub=await createRoomStore('',directory).load(room.id);expect(fromHub).toBeTruthy();expect(fromHub.snapshot.markdownNotes).toBe('# Saved before invite');
+  expect(room.hostToken).toHaveLength(64);expect(await store.verifyHost(room.id,room.hostToken)).toBe(true);expect(room.websocketUrl).toContain('sleeping.invalid');
+  const doc=new Y.Doc();Y.applyUpdate(doc,new Uint8Array(Buffer.from(fromHub.state,'base64')));expect(doc.getText('notes').toString()).toBe('# Saved before invite');doc.destroy();
+  await expect(createFrontendRoom({async create(){throw new Error('Storage down');}},{title:'No false success',elements:[]},'https://desk.example','wss://host')).rejects.toThrow('Storage down');
+ }finally{await rm(directory,{recursive:true,force:true});}
+});

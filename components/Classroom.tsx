@@ -3,7 +3,7 @@ import { loadPreferences, savePreferences } from "@/lib/preferences";
 import { warmRoomServer } from "@/lib/roomCreation";
 import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import {
   Video,
   X,
@@ -119,8 +119,9 @@ export function Classroom({
     setOpen(false);
     requestAnimationFrame(() => trigger.current?.focus());
   };
+  const pathname=usePathname();
   const [open, setOpen] = useState(
-      () => !!roomId && search.get("classroom") === "1",
+      () => !!roomId && (search.get("classroom") === "1" || pathname?.startsWith("/v/")),
     ),
     [name, setName] = useState(""),
     [state, setState] = useState<ClassState | null>(null),

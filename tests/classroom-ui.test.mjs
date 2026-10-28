@@ -89,7 +89,7 @@ test('call invite is visible before joining, copyable, and selectable when clipb
  Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async text=>{copied=text;}}});
  try{
   await render({roomId},'classroom=1');const link=panel().querySelector('[aria-label="Call invite link"]');
-  expect(link.value).toBe(`https://desk.example/canvas/${roomId}?classroom=1`);
+  expect(link.value).toBe(`https://desk.example/v/${(await import('../lib/shortRoomCode.ts')).shortRoomCode(roomId)}`);
   await act(async()=>button('Copy').click());expect(copied).toBe(link.value);expect(panel().textContent).toContain('Invite link copied');
   navigator.clipboard.writeText=async()=>{throw new Error('Blocked');};await act(async()=>button('Copy').click());expect(document.activeElement).toBe(link);expect(link.selectionEnd).toBe(link.value.length);expect(panel().textContent).toContain('Select and copy');
  }finally{if(original)Object.defineProperty(navigator,'clipboard',original);else delete navigator.clipboard;}
@@ -205,4 +205,11 @@ test('call expansion and header full-screen controls use the call surface and re
  await render();await act(async()=>trigger().click());await act(async()=>document.querySelector('[aria-label="Expand call"]').click());expect(panel().classList.contains('inset-3')).toBe(true);
  let requests=0;panel().requestFullscreen=async()=>{requests++;};await act(async()=>document.querySelector('[aria-label="Full screen call"]').click());expect(requests).toBe(1);
  await act(async()=>document.querySelector('[aria-label="Restore call size"]').click());expect(panel().classList.contains('inset-3')).toBe(false);
+});
+
+test('opening a short video invite immediately opens the call panel',async()=>{
+ const {PathnameContext}=await import('next/dist/shared/lib/hooks-client-context.shared-runtime.js');
+ const {shortRoomCode}=await import('../lib/shortRoomCode.ts');const roomId=crypto.randomUUID();
+ await act(async()=>root.render(React.createElement(PathnameContext.Provider,{value:`/v/${shortRoomCode(roomId)}`},React.createElement(SearchParamsContext.Provider,{value:new URLSearchParams()},React.createElement(Classroom,{roomId})))));
+ expect(panel()).not.toBeNull();expect(panel().querySelector('[aria-label="Call invite link"]').value).toContain('/v/');
 });

@@ -1,3 +1,5 @@
+import { shortRoomCode } from "./shortRoomCode";
+import { isRoomInviteId } from "./roomInvites";
 const CONFIG_TTL = 30000;
 let cached: { origin: string; url: string; until: number } | undefined;
 let pending: { origin: string; result: Promise<string> } | undefined;
@@ -80,6 +82,7 @@ export async function getRoomServerUrl(signal?: AbortSignal): Promise<string> {
 }
 
 export function roomInviteUrl(roomId: string, classroom = false): string {
+  if(isRoomInviteId(roomId))return `${window.location.origin}/${classroom?"v":"r"}/${shortRoomCode(roomId)}`;
   return `${window.location.origin}/canvas/${encodeURIComponent(roomId)}${classroom ? "?classroom=1" : ""}`;
 }
 
