@@ -435,7 +435,7 @@ test('shape colors stay on the selected object and each new drawing tool remembe
   await clickNamed('Color #EF4444'); await clickNamed('Background #48596b');
   await boardPointer('pointerdown', 100, 100); await boardPointer('pointermove', 220, 200); await boardPointer('pointerup', 220, 200);
   expect(getBoard(id).elements[0]).toMatchObject({ stroke: '#EF4444', fill: '#48596b' });
-  // Editing one selected shape must not recolor its siblings or overwrite any creation defaults.
+  // Editing a selected shape remembers its type only; siblings and other tool defaults stay independent.
   await clickNamed('Color #10B981');
   expect(getBoard(id).elements[0].stroke).toBe('#10B981');
   await clickNamed('Ellipse (O)');
@@ -449,13 +449,13 @@ test('shape colors stay on the selected object and each new drawing tool remembe
   expect(getBoard(id).elements[2].stroke).toBe(initial.stroke);
   await clickNamed('Rectangle (R)');
   await boardPointer('pointerdown', 550, 100); await boardPointer('pointermove', 670, 200); await boardPointer('pointerup', 670, 200);
-  expect(getBoard(id).elements[3]).toMatchObject({ stroke: '#EF4444', fill: '#48596b' });
+  expect(getBoard(id).elements[3]).toMatchObject({ stroke: '#10B981', fill: '#48596b' });
   expect(getBoard(id).elements[0].stroke).toBe('#10B981');
   await act(async () => root.render(null));
   await act(async () => root.render(React.createElement(AppRouterContext.Provider, { value: router }, React.createElement(SearchParamsContext.Provider, { value: new URLSearchParams() }, React.createElement(Canvas)))));
   await clickNamed('Rectangle (R)');
   await boardPointer('pointerdown', 550, 350); await boardPointer('pointermove', 670, 450); await boardPointer('pointerup', 670, 450);
-  expect(getBoard(id).elements[4]).toMatchObject({ stroke: '#EF4444', fill: '#48596b' });
+  expect(getBoard(id).elements[4]).toMatchObject({ stroke: '#10B981', fill: '#48596b' });
 });
 
 test('text editor alignment width and position match saved text before and after clicking away', async () => {
@@ -473,4 +473,27 @@ test('text editor alignment width and position match saved text before and after
   const reopened = named('Edit text'); expect(parseFloat(reopened.style.width)).toBe(width); expect(parseFloat(reopened.style.left)).toBe(left);
   await act(async () => reopened.dispatchEvent(new browser.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
   expect(getBoard(id).elements[0]).toMatchObject({ x: saved.x, y: saved.y, width: saved.width, height: saved.height });
+});
+
+test('changing selected text from green to white survives reopening and stays separate from shape colors',async()=>{
+ const id=await renderBoard();
+ await clickNamed('Rectangle (R)');await clickNamed('Open appearance settings');await clickNamed('Color #EF4444');
+ await boardPointer('pointerdown',350,100);await boardPointer('pointermove',470,200);await boardPointer('pointerup',470,200);
+ let editor=await startText();await typeText(editor,'Original');if(!named('Color #10B981'))await clickNamed('Open appearance settings');await clickNamed('Color #10B981');
+ await act(async()=>editor.dispatchEvent(new browser.KeyboardEvent('keydown',{key:'Escape',bubbles:true})));
+ expect(getBoard(id).elements[1].stroke).toBe('#10B981');
+ // Reopen an existing text editor; its color edit must become the text tool default.
+ await boardPointer('dblclick',102,102);editor=named('Edit text');expect(editor).toBeTruthy();
+ if(!named('Color #FFFFFF'))await clickNamed('Open appearance settings');
+ await clickNamed('Color #FFFFFF');
+ await act(async()=>editor.dispatchEvent(new browser.KeyboardEvent('keydown',{key:'Escape',bubbles:true})));
+ expect(getBoard(id).elements[1].stroke).toBe('#FFFFFF');
+ expect(JSON.parse(localStorage.getItem('knotleaf.preferences.v1')).toolColors.text.stroke).toBe('#FFFFFF');
+ await act(async()=>root.render(null));
+ await act(async()=>root.render(React.createElement(AppRouterContext.Provider,{value:router},React.createElement(SearchParamsContext.Provider,{value:new URLSearchParams()},React.createElement(Canvas)))));
+ editor=await startText();expect(editor.style.color.toLowerCase()).toBe('#ffffff');await typeText(editor,'After reopening');
+ await act(async()=>editor.dispatchEvent(new browser.KeyboardEvent('keydown',{key:'Escape',bubbles:true})));
+ expect(getBoard(id).elements[2].stroke).toBe('#FFFFFF');
+ await clickNamed('Rectangle (R)');await boardPointer('pointerdown',550,100);await boardPointer('pointermove',670,200);await boardPointer('pointerup',670,200);
+ expect(getBoard(id).elements[3].stroke).toBe('#EF4444');expect(getBoard(id).elements[0].stroke).toBe('#EF4444');
 });

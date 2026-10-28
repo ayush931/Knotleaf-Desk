@@ -25,7 +25,7 @@ import { CollaborationPanel } from "./CollaborationPanel";
 import { CanvasEngine } from "@/draw/CanvasEngine";
 import { loadCanvasFonts, setFont, measureTextBlock } from "@/draw/renderer";
 import { fontCssStack } from "@/draw/fonts";
-import { isColorTool, pickToolColors, type ColorTool } from "@/draw/toolColors";
+import { isColorTool, colorToolForElement, rememberToolColors, type ColorTool } from "@/draw/toolColors";
 import { inlineEditorLayout } from "@/draw/inlineEditorLayout";
 import {
   Tool,
@@ -1092,10 +1092,15 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
                   if (editingExisting && selectedElements.length > 1) {
                     engineRef.current?.updateSelectedElement({ ...("stroke" in st ? { stroke } : {}), ...("fill" in st ? { fill } : {}), ...("fillStyle" in st ? { fillStyle } : {}), ...("fillOpacity" in st ? { fillOpacity } : {}) });
                   }
-                  if (!editingExisting) {
-                    const tool = isInlineTextual ? "text" : colorToolRef.current;
-                    toolColorsRef.current = { ...toolColorsRef.current, [tool]: pickToolColors(nextStyle) };
-                    savePreferences({ toolColors: toolColorsRef.current });
+                  const editedElement = isInlineTextual && inlineText?.elementId ? engineRef.current?.getElements().find(element=>element.id===inlineText.elementId) : undefined;
+                  const tools: ColorTool[] = isInlineTextual
+                    ? [editedElement ? colorToolForElement(editedElement) : inlineText?.kind === "sticky" ? "sticky" : "text"].filter((tool):tool is ColorTool=>!!tool)
+                    : editingExisting ? selectedElements.map(colorToolForElement).filter((tool):tool is ColorTool=>!!tool) : [colorToolRef.current];
+                  const remembered = rememberToolColors(toolColorsRef.current,tools,st);
+                  if(remembered!==toolColorsRef.current){
+                    toolColorsRef.current=remembered;
+                    savePreferences({toolColors:remembered});
+                    Object.assign(nextStyle,remembered[colorToolRef.current]);
                   }
                   setCurrentStyle(nextStyle);
                   if (engineRef.current) engineRef.current.currentStyle = nextStyle;

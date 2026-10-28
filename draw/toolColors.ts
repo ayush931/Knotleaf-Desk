@@ -1,4 +1,4 @@
-import { DEFAULT_STYLE, type ElementStyleProps, type Tool } from './types';
+import { DEFAULT_STYLE, type CanvasElement, type ElementStyleProps, type Tool } from './types';
 
 export const COLOR_TOOLS = ['rectangle', 'diamond', 'circle', 'arrow', 'line', 'pencil', 'text', 'code', 'doc', 'sticky', 'frame'] as const;
 export type ColorTool = typeof COLOR_TOOLS[number];
@@ -20,4 +20,19 @@ export function normalizeToolColors(value: unknown, legacyStyle = DEFAULT_STYLE)
     if (typeof colors.fillOpacity === 'number' && Number.isFinite(colors.fillOpacity) && colors.fillOpacity >= 0 && colors.fillOpacity <= 1) next.fillOpacity = colors.fillOpacity;
     return [tool, next];
   })) as ToolColorPreferences;
+}
+
+/** Cards are stored as text elements but keep their own creation preferences. */
+export function colorToolForElement(element: CanvasElement): ColorTool | undefined {
+  if(element.type==='text')return element.isCodeCard?'code':element.isDocCard?'doc':'text';
+  return isColorTool(element.type as Tool)?element.type as ColorTool:undefined;
+}
+/** Remember only explicitly changed color fields, never a selected object's other colors. */
+export function rememberToolColors(preferences: ToolColorPreferences, tools: readonly ColorTool[], style: Partial<ElementStyleProps>): ToolColorPreferences {
+  const patch: Partial<ToolColors> = {};
+  for(const key of ['stroke','fill','fillStyle','fillOpacity'] as const)if(style[key]!==undefined)Object.assign(patch,{[key]:style[key]});
+  if(!Object.keys(patch).length||!tools.length)return preferences;
+  const next={...preferences};
+  for(const tool of new Set(tools))next[tool]={...next[tool],...patch};
+  return next;
 }
