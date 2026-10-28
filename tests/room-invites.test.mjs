@@ -35,3 +35,15 @@ test("joining rejects unsafe URLs, invalid paths, embedded credentials and parti
       "valid",
     );
 });
+
+test('short room and video links retain the full UUID capability and join behavior',async()=>{
+ const {shortRoomCode,roomIdFromCode}=await import('../lib/shortRoomCode.ts');
+ for(let i=0;i<500;i++){const id=crypto.randomUUID(),code=shortRoomCode(id);expect(code).toHaveLength(22);expect(roomIdFromCode(code)).toBe(id);}
+ const code=shortRoomCode(id);
+ expect(parseRoomInvite(`https://desk.example/r/${code}`,'https://desk.example')).toMatchObject({id,call:false});
+ expect(parseRoomInvite(`https://desk.example/v/${code}`,'https://desk.example')).toMatchObject({id,call:true,href:`https://desk.example/canvas/${id}?classroom=1`});
+ expect(parseRoomInvite(`https://desk.example/r/${code}`,'https://desk.example',true).call).toBe(true);
+ for(const input of ['bad','.'.repeat(22),'A'.repeat(22),code+'x',code.slice(0,21)+'B'])expect(roomIdFromCode(input)).toBeNull();
+ expect(()=>parseRoomInvite('https://user:secret@desk.example/v/'+code,'https://desk.example')).toThrow('valid');
+ expect(()=>parseRoomInvite('https://desk.example/v/invalid','https://desk.example')).toThrow('valid');
+});

@@ -27,9 +27,9 @@ GOOGLE_CLIENT_SECRET=YOUR_GOOGLE_WEB_CLIENT_SECRET
 
 Install: `bun install --frozen-lockfile`. Build: `bun run build:vercel` (validates account settings and migrates its schema before building).
 
-Account sign-in runs on the Next.js frontend and requires its own server-side access to `DATABASE_URL`, `BETTER_AUTH_SECRET`, and the Google credentials. Set these in the Vercel **Production** environment, even if the database is already configured on Render. Local `.env` edits do not update Vercel. Run `bun run auth:migrate` with the production database settings, register `https://knotleaf-desk.vercel.app/api/auth/callback/google` in the matching Google Web client, and redeploy. `TURN_SHARED_SECRET` stays on Render. `/api/rooms` forwards creation to Render, which saves the initial board in Neon before returning the invite. The classroom derives `/classroom/ROOM_ID` on the Render host. This repository uses its custom Node WebSocket hub on Render; adopting Vercel's WebSocket APIs would require a different hub adapter and shared live-state architecture.
+Account sign-in runs on the Next.js frontend and requires its own server-side access to `DATABASE_URL`, `BETTER_AUTH_SECRET`, and the Google credentials. Set these in the Vercel **Production** environment, even if the database is already configured on Render. Local `.env` edits do not update Vercel. Run `bun run auth:migrate` with the production database settings, register `https://knotleaf-desk.vercel.app/api/auth/callback/google` in the matching Google Web client, and redeploy. `TURN_SHARED_SECRET` stays on Render. `/api/rooms` saves the initial board directly in Neon when the frontend has the same room `DATABASE_URL` as Render. It returns the invite after the save and wakes Render independently; without that database setting it retains the proxy path through Render. The classroom derives `/classroom/ROOM_ID` on the Render host. This repository uses its custom Node WebSocket hub on Render; adopting Vercel's WebSocket APIs would require a different hub adapter and shared live-state architecture.
 
-Room clients obtain their WebSocket endpoint at runtime from `/api/collaboration-health`. The serverless API permits up to 55 seconds for room-host startup, within its 60-second function duration; a room is returned only after storage succeeds. Other `NEXT_PUBLIC_*` settings may be embedded at build time. Production and preview deployments have separate environment scopes. If students use a preview domain, add its exact origin to Render's allowlist or use a separate preview hub.
+Room clients obtain their WebSocket endpoint at runtime from `/api/collaboration-health`. The proxy fallback permits up to 55 seconds for room-host startup, within its 60-second function duration; a room is returned only after storage succeeds. Other `NEXT_PUBLIC_*` settings may be embedded at build time. Production and preview deployments have separate environment scopes. If students use a preview domain, add its exact origin to Render's allowlist or use a separate preview hub.
 
 ## 2. Render — excalidraw-tl7h.onrender.com
 
@@ -138,3 +138,11 @@ Verify with separate browser profiles: create as host, join the invite as partic
 ## Optional account sign-in
 
 Configure account variables on the Next.js host, run `bun run auth:migrate` against its PostgreSQL database, and register the Google callback URI before enabling Google sign-in. See [account deployment and API contract](docs/auth.md). Account sessions are independent of the room host and do not change invite permissions.
+
+## Fast room creation and short invites
+
+Use the **same room database** for the Vercel `DATABASE_URL` and the Render `DATABASE_URL`. Vercel then creates durable rooms directly with the existing room schema/pool, without the extra Render HTTP hop or its cold-start wait. This uses server-only credentials; no database URL is exposed to the browser. If the frontend has no database URL, the previous origin-checked proxy remains available. A database failure returns an error rather than an unpersisted link.
+
+Warmup prepares frontend storage, then the browser wakes the configured hub with its existing CORS-protected warmup endpoint. A pending host wake never blocks creation. Short `/r/CODE` and `/v/CODE` pages decode the full UUID locally and render the existing room app, so there is no third-party shortener or database lookup on the short-link path.
+
+Direct creation improves time to a usable invite; it cannot make a sleeping free Render process handle video traffic before that process wakes. Keep the hub on always-running hosting if the actual first camera connection must consistently be immediate. This change does not alter the hosting plan or incur a paid upgrade.

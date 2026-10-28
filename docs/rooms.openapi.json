@@ -1,0 +1,224 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Knotleaf room creation",
+    "version": "1.0.0",
+    "description": "Rooms expire 24 hours after creation. Frontend uses its configured room PostgreSQL directly, otherwise proxies to the hub. Short /r/CODE and /v/CODE pages encode the full room UUID and perform no shortening-service request or redirect. Both frontend and hub must use the same room database."
+  },
+  "servers": [
+    {
+      "url": "http://127.0.0.1:3001"
+    }
+  ],
+  "paths": {
+    "/api/rooms": {
+      "post": {
+        "operationId": "createRoomOrWarmup",
+        "description": "Requires an allowed Origin header. 201 follows durable room storage. Warmup creates no room; wakeRoomServer tells browsers to wake the video hub independently using its origin-checked POST warmup endpoint. Creation never waits for that background fetch. Host-token ownership and existing UUID API paths are unchanged.",
+        "parameters": [
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "http://127.0.0.1:3001"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "required": [
+                      "title",
+                      "elements"
+                    ],
+                    "properties": {
+                      "title": {
+                        "type": "string"
+                      },
+                      "elements": {
+                        "type": "array",
+                        "items": {
+                          "type": "object"
+                        }
+                      },
+                      "markdownNotes": {
+                        "type": "string",
+                        "default": ""
+                      },
+                      "background": {
+                        "type": "object"
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "warmup"
+                    ],
+                    "properties": {
+                      "warmup": {
+                        "type": "boolean",
+                        "enum": [
+                          true
+                        ]
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Persisted room.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "id",
+                    "title",
+                    "persistent",
+                    "path",
+                    "expiresAt",
+                    "hostToken",
+                    "websocketUrl"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "persistent": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "path": {
+                      "type": "string",
+                      "example": "/canvas/13273f26-6320-490d-a3f4-5c38cafb32fa"
+                    },
+                    "expiresAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "hostToken": {
+                      "type": "string",
+                      "description": "Private creator capability. Never place in invites, shared state or logs.",
+                      "pattern": "^[a-f0-9]{64}$"
+                    },
+                    "websocketUrl": {
+                      "type": "string"
+                    },
+                    "wakeRoomServer": {
+                      "type": "boolean",
+                      "description": "Wake the video hub in the background; do not await it before showing the invite."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Storage ready; no room created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "ready",
+                    "websocketUrl"
+                  ],
+                  "properties": {
+                    "ready": {
+                      "type": "boolean"
+                    },
+                    "websocketUrl": {
+                      "type": "string"
+                    },
+                    "wakeRoomServer": {
+                      "type": "boolean",
+                      "description": "Frontend-direct warmup responses request an independent hub wake; direct creation responses can request the same deduplicated wake."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request or storage failure. No successful invite is returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request or storage failure. No successful invite is returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request or storage failure. No successful invite is returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Request or storage failure. No successful invite is returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

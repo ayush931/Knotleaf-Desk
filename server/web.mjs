@@ -33,7 +33,7 @@ const handler = web.getRequestHandler();
 const server = http.createServer((request, response) => {
   if (['GET', 'HEAD'].includes(request.method)) {
     const pathname = (request.url || '/').split('?')[0];
-    if (['/', '/signin', '/signup', '/present'].includes(pathname) || pathname.startsWith('/canvas/')) {
+    if (['/', '/signin', '/signup', '/present'].includes(pathname) || pathname.startsWith('/canvas/') || pathname.startsWith('/r/') || pathname.startsWith('/v/')) {
       const target = canonicalAuthPageURL(`http://${request.headers.host}${request.url}`, process.env.BETTER_AUTH_URL);
       if (target) { response.writeHead(307, { Location: target, 'Cache-Control': 'no-store' }); response.end(); return; }
     }

@@ -139,3 +139,33 @@ test('a slow warmup stays single-flight and never blocks a real creation request
   await warmRoomServer(); expect(requests).toBe(2);
  } finally { Date.now = originalNow; }
 });
+
+test('short invites require no network call or shortening service',async()=>{
+ const {shortRoomCode}=await import('../lib/shortRoomCode.ts');const id=crypto.randomUUID();
+ globalThis.fetch=async()=>{throw new Error('Shortening must work offline');};
+ expect(roomInviteUrl(id)).toBe(`http://localhost:3000/r/${shortRoomCode(id)}`);
+ expect(roomInviteUrl(id,true)).toBe(`http://localhost:3000/v/${shortRoomCode(id)}`);
+});
+test('frontend storage warmup starts the video host independently and never delays creation',async()=>{
+ const {warmRoomServer}=await import('../lib/roomCreation.ts');window.location.origin='https://direct-store.example';
+ const calls=[];let finishWake;const id=crypto.randomUUID();
+ globalThis.fetch=async(url,options)=>{
+  calls.push(String(url));const body=JSON.parse(options.body);
+  if(String(url).startsWith('https://rooms.example/'))return new Promise(resolve=>{finishWake=resolve;});
+  return body.warmup?Response.json({ready:true,websocketUrl:'wss://rooms.example/collaboration',wakeRoomServer:true}):Response.json({id,title:'Fast call',websocketUrl:'wss://rooms.example/collaboration'},{status:201});
+ };
+ await warmRoomServer();expect(calls).toEqual(['/api/rooms','https://rooms.example/api/rooms']);
+ const created=await createRoomFromBoard(createBoard('Fast'));expect(created.id).toBe(id);expect(calls).toHaveLength(3);
+ finishWake(new Response(null,{status:200}));
+});
+
+test('creation wakes a sleeping host without awaiting it even if background preparation has not run',async()=>{
+ window.location.origin='https://creation-wake.example';let wakeRequests=0,finish;const id=crypto.randomUUID();
+ globalThis.fetch=async(url)=>{
+  if(String(url).startsWith('https://sleeping.example/')){wakeRequests++;return new Promise(resolve=>finish=resolve);}
+  return Response.json({id,title:'Ready link',websocketUrl:'wss://sleeping.example/collaboration',wakeRoomServer:true},{status:201});
+ };
+ const room=await createRoomFromBoard(createBoard('Create immediately'));expect(room.id).toBe(id);expect(wakeRequests).toBe(1);
+ await createRoomFromBoard(createBoard('Next call'));expect(wakeRequests).toBe(1);
+ finish(new Response(null,{status:200}));
+});
