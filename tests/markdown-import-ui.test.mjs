@@ -26,6 +26,17 @@ const props={onBeforeRefresh:noop,saveError:false,onRetrySave:noop,viewMode:'can
 function ImportHeader({onImportFile}){const ref=React.useRef(null);return React.createElement(React.Fragment,null,React.createElement(FileImportController,{ref,onImport:onImportFile}),React.createElement(BoardHeader,{...props,onImportFile:file=>ref.current.start(file)}));}
 const options=()=>({signal:new AbortController().signal,onProgress(){}});
 async function until(check){for(let count=0;count<200;count++){await act(async()=>{await new Promise(resolve=>setTimeout(resolve,5));});if(check())return;}throw new Error('Timed out waiting for UI: '+document.body.textContent);}
+test('copy selection is available only with selected elements and reports clipboard failures',async()=>{
+ const calls=[];let succeed=true;
+ const render=count=>root.render(React.createElement(BoardHeader,{...props,selectionCount:count,onImportFile:async()=>{},onCopyClipboard:async selection=>{calls.push(selection);return succeed;}}));
+ await act(async()=>render(0));await act(async()=>document.querySelector('[aria-label="Export board"]').click());
+ const button=()=>[...document.querySelectorAll('button')].find(item=>item.textContent.startsWith('Copy selection as image'));
+ expect(button().disabled).toBe(true);
+ await act(async()=>render(2));expect(button().disabled).toBe(false);
+ await act(async()=>button().click());expect(calls).toEqual([true]);expect(document.querySelector('[role="status"]').textContent).toContain('Selection image copied');
+ succeed=false;await act(async()=>button().click());expect(document.querySelector('[role="status"]').textContent).toContain('Copy failed');
+ await act(async()=>[...document.querySelectorAll('button')].find(item=>item.textContent==='Copy canvas image').click());expect(calls).toEqual([true,true,false]);
+});
 test('import toast shows real percentages, Cancel aborts the operation, and duplicate selection is blocked',async()=>{
  let calls=0,aborted=false;
  await act(async()=>root.render(React.createElement(ImportHeader,{onImportFile:async(_file,{signal,onProgress})=>{calls++;onProgress({phase:'Preparing Markdown',percent:47});return new Promise((resolve,reject)=>signal.addEventListener('abort',()=>{aborted=true;reject(signal.reason);},{once:true}));}})));
