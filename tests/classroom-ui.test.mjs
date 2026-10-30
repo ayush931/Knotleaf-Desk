@@ -213,3 +213,29 @@ test('opening a short video invite immediately opens the call panel',async()=>{
  await act(async()=>root.render(React.createElement(PathnameContext.Provider,{value:`/v/${shortRoomCode(roomId)}`},React.createElement(SearchParamsContext.Provider,{value:new URLSearchParams()},React.createElement(Classroom,{roomId})))));
  expect(panel()).not.toBeNull();expect(panel().querySelector('[aria-label="Call invite link"]').value).toContain('/v/');
 });
+
+test('joined call shows the total count, preserves controls while reconnecting, and requests mic and camera by default',async()=>{
+ const {resetRoomConnectionCache}=await import('../lib/roomConnection.ts');resetRoomConnectionCache();
+ const saved=new Map(),sockets=[],captures=[],notifications=[];
+ const {CallSounds}=await import('../lib/callSounds.ts');const originalPlay=CallSounds.prototype.play;CallSounds.prototype.play=function(kind){notifications.push(kind);};
+ const roomId=crypto.randomUUID(),chat={selfId:1,messages:[],connected:true,onSend(){}};
+ class Stream{addEventListener(){}removeEventListener(){}constructor(tracks=[]){this.tracks=tracks;}getTracks(){return this.tracks;}getAudioTracks(){return this.tracks.filter(track=>track.kind==='audio');}getVideoTracks(){return this.tracks.filter(track=>track.kind==='video');}}
+ class Socket{readyState=1;constructor(){sockets.push(this);}send(){}close(){this.readyState=3;}receive(message){this.onmessage?.({data:JSON.stringify(message)});}}
+ class PC{connectionState='new';getTransceivers(){return [];}close(){}}
+ const media=navigator.mediaDevices;
+ const source=Object.getOwnPropertyDescriptor(window.HTMLMediaElement.prototype,'srcObject');Object.defineProperty(window.HTMLMediaElement.prototype,'srcObject',{configurable:true,writable:true,value:null});
+ const replacements={WebSocket:Socket,RTCPeerConnection:PC,MediaStream:Stream,fetch:async()=>Response.json({collaboration:true,websocketUrl:'/collaboration'})};
+ for(const [key,value]of Object.entries(replacements)){saved.set(key,Object.getOwnPropertyDescriptor(globalThis,key));Object.defineProperty(globalThis,key,{configurable:true,writable:true,value});}
+ Object.defineProperty(navigator,'mediaDevices',{configurable:true,value:{getUserMedia:async options=>{captures.push(options);return new Stream([{kind:options.audio?'audio':'video',stop(){}}]);}}});
+ try{
+  await render({roomId,roomChat:chat},'classroom=1');const input=panel().querySelector('input:not([readonly])');await act(async()=>{Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value').set.call(input,'Teacher');input.dispatchEvent(new window.Event('input',{bubbles:true}));});
+  await act(async()=>button('Join call').click());expect(sockets).toHaveLength(1);
+  await act(async()=>sockets[0].receive({type:'welcome',id:'z',peers:[],iceServers:[],maxParticipants:8}));
+  expect(captures.some(options=>options.audio)).toBe(true);expect(captures.some(options=>options.video)).toBe(true);expect(panel().querySelector('[aria-label="Total participants"]').textContent).toContain('1 participants');
+  await act(async()=>sockets[0].receive({type:'joined',peer:{id:'a',name:'Guest',media:{mic:false,camera:false,screen:false}}}));expect(panel().querySelector('[aria-label="Total participants"]').textContent).toContain('2 participants');
+  await render({roomId,roomChat:{...chat,messages:[{id:'incoming',author:2,name:'Guest',text:'Hello',at:Date.now()}]}},'classroom=1');expect(notifications).toEqual(['join','chat']);
+  await render({roomId,roomChat:{...chat,messages:[{id:'incoming',author:2,name:'Guest',text:'Hello',at:Date.now()},{id:'own',author:1,name:'Teacher',text:'My reply',at:Date.now()}]}},'classroom=1');expect(notifications).toEqual(['join','chat']);
+  await act(async()=>{sockets[0].readyState=3;sockets[0].onclose({code:1006});});expect(button('Leave call')).toBeDefined();expect(panel().textContent).toContain('Reconnecting');expect(button('Rejoin call')).toBeUndefined();
+  await act(async()=>button('Leave call').click());
+ }finally{CallSounds.prototype.play=originalPlay;await act(async()=>root.render(null));if(source)Object.defineProperty(window.HTMLMediaElement.prototype,'srcObject',source);if(media)Object.defineProperty(navigator,'mediaDevices',{configurable:true,value:media});else delete navigator.mediaDevices;for(const [key,value]of saved){if(value)Object.defineProperty(globalThis,key,value);else delete globalThis[key];}resetRoomConnectionCache();}
+});
