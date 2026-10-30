@@ -569,6 +569,8 @@ function PresentationEditor({
             <PresentationThemes
               open={themeGallery}
               value={deck.theme}
+              deck={deck}
+              slide={slides[active]}
               onChange={(theme) => update({ theme })}
               onClose={() => setThemeGallery(false)}
             />
