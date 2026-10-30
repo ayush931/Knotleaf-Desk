@@ -606,8 +606,9 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
   // Export
   const exportElements = (selection: boolean) => selection ? engineRef.current?.getSelectionForExport() || [] : engineRef.current?.getElements() || [];
   const handleExportImage = (format: RasterFormat, selection: boolean, transparent: boolean, scale: number) => exportToRaster(exportElements(selection), theme, format, transparent, scale, boardRef.current.elements, boardRef.current.background, boardRef.current.gridType || "dot");
-  const handleCopyClipboard = async () => {
-    return engineRef.current ? await copyPngToClipboard(engineRef.current.getElements(), theme, boardRef.current.background, boardRef.current.gridType || "dot") : false;
+  const handleCopyClipboard = async (selection: boolean) => {
+    const engine = engineRef.current;
+    return engine ? await copyPngToClipboard(exportElements(selection), theme, boardRef.current.background, boardRef.current.gridType || "dot", engine.getElements()) : false;
   };
   const handleExportJson = () => exportToJson(boardRef.current);
   const handleExportMarkdown = async () => {

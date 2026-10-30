@@ -124,13 +124,11 @@ export function PresentationDesign({
               <option key={value} value={value}>
                 {(
                   {
-                    none: "Clean surface",
-                    grid: "Fine grid",
-                    dots: "Dot matrix",
-                    topo: "Contour lines",
-                    beams: "Diagonal rules",
-                    waves: "Contour waves",
-                    mesh: "Soft light wash",
+                    none: "None",
+                    slide: "Slide",
+                    fade: "Fade",
+                    zoom: "Zoom",
+                    lift: "Lift",
                   } as Record<string, string>
                 )[value] || value}
               </option>

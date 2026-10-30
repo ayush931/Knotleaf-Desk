@@ -1,21 +1,27 @@
 "use client";
-import { useEffect, useId, useRef } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { SlideSurface } from "./PresentationSlide";
 import { parseSlides } from "@/lib/presentations/model";
 import { Check, X } from "lucide-react";
-import { THEMES, type DeckTheme } from "@/lib/presentations/model";
+import { THEMES, type DeckTheme, type Deck, type Slide } from "@/lib/presentations/model";
 /** A visual theme gallery, rather than a text-only font/color selector. */
 export function PresentationThemes({
   open,
   value,
+  deck,
+  slide,
   onChange,
   onClose,
 }: {
   open: boolean;
   value: DeckTheme;
+  deck: Deck;
+  slide: Slide;
   onChange: (theme: DeckTheme) => void;
   onClose: () => void;
 }) {
+  const [tone, setTone] = useState<"all" | "light" | "dark">("all");
+  const [preview, setPreview] = useState<"current" | "sample">("current");
   const dialog = useRef<HTMLDialogElement>(null),
     titleId = useId();
   useEffect(() => {
@@ -50,9 +56,25 @@ export function PresentationThemes({
           <X size={18} />
         </button>
       </div>
+      <div className="mb-4 flex flex-wrap items-center gap-3 border-y border-neutral-700 py-3 text-xs">
+        <fieldset className="flex items-center gap-1" aria-label="Filter themes by appearance">
+          <legend className="sr-only">Filter themes by appearance</legend>
+          {(["all", "light", "dark"] as const).map(option => <button key={option} type="button" aria-pressed={tone === option} onClick={() => setTone(option)} className={`rounded-md px-3 py-1.5 capitalize focus-visible:outline-2 focus-visible:outline-blue-400 ${tone === option ? "bg-blue-600 text-white" : "text-neutral-300 hover:bg-neutral-800"}`}>{option}</button>)}
+        </fieldset>
+        <label className="ml-auto flex items-center gap-2 text-neutral-300">Preview
+          <select aria-label="Theme preview content" value={preview} onChange={event => setPreview(event.target.value as "current" | "sample")} className="rounded border border-neutral-700 bg-neutral-900 px-2 py-1.5 text-neutral-100"><option value="current">Current slide</option><option value="sample">Sample slide</option></select>
+        </label>
+      </div>
+      {slide.theme && preview === "current" && <p className="mb-3 text-xs text-amber-300">This slide has its own theme override. The gallery previews the deck theme; the override remains in effect after selection.</p>}
+      {(deck.backgroundColor || deck.backgroundImage || deck.headingFont || deck.bodyFont || deck.bodySize || (deck.backdrop && deck.backdrop !== "theme")) && <p className="mb-3 text-xs text-neutral-400">Your custom background, typography and backdrop settings remain applied in these previews.</p>}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {open &&
-          Object.entries(THEMES).map(([id, theme]) => (
+          Object.entries(THEMES).filter(([, theme]) => {
+            const hex = theme.background.slice(1);
+            const channels = [0, 2, 4].map(index => parseInt(hex.slice(index, index + 2), 16));
+            const light = (channels[0] * 299 + channels[1] * 587 + channels[2] * 114) / 1000 >= 150;
+            return tone === "all" || (tone === "light" ? light : !light);
+          }).map(([id, theme]) => (
             <button
               key={id}
               type="button"
@@ -64,21 +86,11 @@ export function PresentationThemes({
                 onClose();
               }}
             >
-              <div className="pointer-events-none aspect-video">
+              <div aria-hidden="true" className="pointer-events-none aspect-video">
                 <SlideSurface
                   lazy
-                  slide={
-                    parseSlides(
-                      "# A clear perspective.\n\nInsight. Direction. Next steps.\n\n**Built around your ideas.**",
-                    )[0]
-                  }
-                  deck={{
-                    version: 1,
-                    title: "Theme preview",
-                    source: "",
-                    theme: id as DeckTheme,
-                    layout: "standard",
-                  }}
+                  slide={preview === "current" ? { ...slide, theme: undefined } : parseSlides("# A clear perspective.\n\nInsight. Direction. Next steps.\n\n**Built around your ideas.**")[0]}
+                  deck={{ ...deck, theme: id as DeckTheme }}
                 />
               </div>
               <div className="flex items-center justify-between gap-2 bg-neutral-900 px-3 py-2.5">

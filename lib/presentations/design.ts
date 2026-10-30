@@ -50,6 +50,13 @@ const palette = (
   wash: `radial-gradient(ellipse at 100% 0%, ${accent}18 0%, ${background} 75%)`,
 });
 export const EXTRA_THEMES = {
+  grove: palette(
+    "Grove · thoughtful and natural",
+    "#102b2b",
+    "#f0f8f2",
+    "#a8e1bb",
+    "#bbd0c2",
+  ),
   blueprint: palette(
     "Blueprint · precise navy",
     "#172538",
@@ -160,6 +167,7 @@ export function themeBackdrop(theme: string, backdrop?: Backdrop) {
   if (backdrop && backdrop !== "theme") return backdrop;
   const backgrounds: Record<string, string> = {
     midnight: "mesh",
+    grove: "none",
     paper: "none",
     slate: "topo",
     ocean: "none",
@@ -193,6 +201,7 @@ export function themeTypography(theme: string): {
     { heading: FontFamily; body: FontFamily; size: number }
   > = {
     midnight: { heading: "manrope", body: "sans", size: 30 },
+    grove: { heading: "manrope", body: "sans", size: 30 },
     studio: { heading: "sans", body: "sans", size: 30 },
     paper: { heading: "playfair", body: "serif", size: 29 },
     slate: { heading: "manrope", body: "sans", size: 30 },

@@ -79,9 +79,9 @@ export async function exportToPng(
   return exportToRaster(elements, theme, "png", transparent, scale, scene, background, gridType);
 }
 
-export async function copyPngToClipboard(elements: CanvasElement[], theme: Theme, background?: BackgroundSettings, gridType: GridType = "dot"): Promise<boolean> {
+export async function copyPngToClipboard(elements: CanvasElement[], theme: Theme, background?: BackgroundSettings, gridType: GridType = "dot", scene: CanvasElement[] = elements): Promise<boolean> {
   if (typeof ClipboardItem === "undefined" || !navigator.clipboard?.write) return false;
-  const png = renderToCanvas(elements, theme, 2, false, elements, background, gridType).then(canvas => {
+  const png = renderToCanvas(elements, theme, 2, false, scene, background, gridType).then(canvas => {
     if (!canvas) throw new Error("Add something to the canvas before copying an image.");
     return encodeRaster(canvas);
   });

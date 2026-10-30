@@ -14,7 +14,6 @@ import {
   Sparkles,
   Grid,
   Download,
-  Check,
   Copy,
   Play,
   Magnet,
@@ -57,7 +56,7 @@ interface BoardHeaderProps {
   onImportFile: (file: File) => Promise<void>;
   onOpenUploadedFiles?: () => void;
   onExportMarkdown: () => void | Promise<void>;
-  onCopyClipboard: () => Promise<boolean>;
+  onCopyClipboard: (selection: boolean) => Promise<boolean>;
   onTogglePresentation: () => void;
   onShowShortcuts: () => void;
 }
@@ -113,14 +112,13 @@ export function BoardHeader({
   const [exportSelection, setExportSelection] = useState(false);
   const [transparent, setTransparent] = useState(preferences.exportTransparent);
   const [exportScale, setExportScale] = useState(preferences.exportScale);
-  const [copyError, setCopyError] = useState(false);
+  const [copyStatus, setCopyStatus] = useState<{ selection: boolean; success: boolean } | null>(null);
   const copyPending = useRef(false);
   const [copying, setCopying] = useState(false);
   const [clearOpen, setClearOpen] = useState(false);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [localTitle, setLocalTitle] = useState(title);
   const [showExportMenu, setShowExportMenu] = useState(false);
-  const [copiedSuccess, setCopiedSuccess] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState("");
   const exportMenuRef = useRef<HTMLDivElement>(null);
@@ -151,13 +149,12 @@ export function BoardHeader({
     }
   };
 
-  const handleCopyImage = async () => {
+  const handleCopyImage = async (selection: boolean) => {
     if (copyPending.current) return;
-    copyPending.current = true; setCopying(true);
+    copyPending.current = true; setCopying(true); setCopyStatus(null);
     try {
-      const success = await onCopyClipboard().catch(() => false);
-      setCopyError(!success); setCopiedSuccess(success);
-      setTimeout(() => setCopiedSuccess(false), 2000);
+      const success = await onCopyClipboard(selection).catch(() => false);
+      setCopyStatus({ selection, success });
     } finally { copyPending.current = false; setCopying(false); }
   };
 
@@ -341,7 +338,9 @@ export function BoardHeader({
                   } catch (error) { setExportError(error instanceof Error ? error.message : "Download failed. Please try again."); }
                   finally { setExporting(false); }
                 }} className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-white hover:bg-blue-500 disabled:opacity-60"><Download className="h-3.5 w-3.5" />{exporting ? "Preparing download…" : "Download"}</button>
-                <button disabled={copying || exporting} aria-busy={copying} onClick={handleCopyImage} className="flex w-full items-center justify-center gap-2 rounded-lg border border-neutral-700 px-3 py-2 hover:bg-neutral-800">{copiedSuccess ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}{copying ? "Copying image…" : copiedSuccess ? "Image copied" : copyError ? "Copy failed · download PNG" : "Copy canvas image"}</button>
+                <button disabled={copying || exporting} aria-busy={copying} onClick={() => handleCopyImage(false)} className="flex w-full items-center justify-center gap-2 rounded-lg border border-neutral-700 px-3 py-2 hover:bg-neutral-800 disabled:opacity-60"><Copy className="h-3.5 w-3.5" />Copy canvas image</button>
+                <button disabled={!selectionCount || copying || exporting} onClick={() => handleCopyImage(true)} className="flex w-full items-center justify-center gap-2 rounded-lg border border-neutral-700 px-3 py-2 hover:bg-neutral-800 disabled:opacity-60"><Copy className="h-3.5 w-3.5" />Copy selection as image ({selectionCount})</button>
+                {copyStatus && <p role="status" className={copyStatus.success ? "text-emerald-400" : "text-rose-400"}>{copyStatus.success ? `${copyStatus.selection ? "Selection" : "Canvas"} image copied.` : "Copy failed. Try downloading a PNG instead."}</p>}
               </div>
             </div>
           )}
