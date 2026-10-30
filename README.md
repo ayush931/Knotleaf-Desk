@@ -259,3 +259,10 @@ The Markdown toolbar stays on one row on laptop and narrow split screens. Use **
 Room and video invites now use short, first-party `/r/CODE` and `/v/CODE` links. The 22-character code encodes the full random room UUID; no external shortener, extra lookup or redirect is needed. Existing `/canvas/UUID` links and pasted short links still work. Call links open the call panel automatically, and room expiry remains 24 hours.
 
 With the same room `DATABASE_URL` configured on the frontend and hub, room creation saves directly to PostgreSQL and does not wait for the video host to wake. Background warmup wakes that host separately. The free Render host can still delay the actual camera/signaling connection after inactivity; consistently immediate video joining requires an always-running hub. See [the room API contract](docs/rooms.openapi.json).
+
+
+### Call continuity and notifications
+
+Joining requests the microphone and camera by default; allow access in the browser or use the call controls if permission is denied. You can mute or turn the camera off at any time. Switching apps, hiding the window or minimizing the call does not leave it. Temporary connection loss triggers automatic reconnection while retaining your media choices. The server reserves the same participant identity/role for two minutes; longer outages can rejoin as a fresh participant. **Leave call** stops capture and retries immediately.
+
+The toolbar shows the total participant count and a **Sounds on/off** control. New participants and incoming chat messages play quiet local tones; your own messages and existing chat history do not. Browser audio restrictions can require a Join/click gesture before sounds work. Closing the browser, OS suspension, loss of network, room expiry and host removal can still interrupt or end a call.

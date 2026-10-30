@@ -7,13 +7,14 @@ async function mocked(action){
  const track=kind=>{const t={kind,label:kind==='audio'?'USB microphone':'Camera',id:crypto.randomUUID(),stopped:false,stop(){this.stopped=true;}};tracks.push(t);return t;};
  class Socket{readyState=1;sent=[];constructor(){sockets.push(this);}send(raw){this.sent.push(JSON.parse(raw));}receive(message){this.onmessage?.({data:JSON.stringify(message)});}close(){this.readyState=3;this.onclose?.();}}
  class PC{connectionState='new';signalingState='stable';transceivers=[];candidates=[];constructor(){pcs.push(this);}addTransceiver(source){const kind=typeof source==='string'?source:source.kind;const slot={kind,sender:{track:typeof source==='string'?null:source,async replaceTrack(t){this.track=t;}}};this.transceivers.push(slot);return slot;}getTransceivers(){return this.transceivers;}async setLocalDescription(){const type=this.remoteDescription?.type==='offer'?'answer':'offer';this.localDescription={type,sdp:'v=0',toJSON(){return {type:this.type,sdp:this.sdp};}};this.signalingState=type==='offer'?'have-local-offer':'stable';}async setRemoteDescription(d){this.remoteDescription=d;this.signalingState=d.type==='offer'?'have-remote-offer':'stable';}async addIceCandidate(c){this.candidates.push(c);}restartIce(){this.restarted=true;}close(){this.connectionState='closed';}}
- const values={WebSocket:Socket,RTCPeerConnection:PC,MediaStream:Stream,navigator:{mediaDevices:{getUserMedia:async options=>new Stream([track(options.audio?'audio':'video')]),getDisplayMedia:async()=>new Stream([track('video'),track('audio')])}}};
+ const lifecycle=new EventTarget(),page=new EventTarget();page.visibilityState='visible';
+ const values={window:lifecycle,document:page,WebSocket:Socket,RTCPeerConnection:PC,MediaStream:Stream,navigator:{mediaDevices:{getUserMedia:async options=>new Stream([track(options.audio?'audio':'video')]),getDisplayMedia:async()=>new Stream([track('video'),track('audio')])}}};
  for(const [key,value]of Object.entries(values)){saved.set(key,Object.getOwnPropertyDescriptor(globalThis,key));Object.defineProperty(globalThis,key,{value,configurable:true,writable:true});}
- try{await action({sockets,pcs,tracks,track});}finally{for(const [key,descriptor]of saved)if(descriptor)Object.defineProperty(globalThis,key,descriptor);else delete globalThis[key];}
+ try{await action({sockets,pcs,tracks,track,lifecycle,page});}finally{for(const [key,descriptor]of saved)if(descriptor)Object.defineProperty(globalThis,key,descriptor);else delete globalThis[key];}
 }
 test('native classroom uses four media slots, updates tracks and releases devices when leaving',async()=>mocked(async({sockets,pcs,tracks})=>{
  const session=new ClassroomSession('ws://localhost/classroom/room','Teacher');let state;session.onState=next=>{state=next;};
- const socket=sockets[0];socket.onopen();expect(socket.sent[0]).toEqual({type:'join',name:'Teacher'});
+ const socket=sockets[0];socket.onopen();expect(socket.sent[0]).toEqual({type:'join',name:'Teacher',resume:true});
  socket.receive({type:'welcome',id:'a',peers:[{id:'b',name:'Student',media:{mic:false,camera:false,screen:false}}],iceServers:[],maxParticipants:8});expect(pcs[0].transceivers.map(t=>t.kind)).toEqual(['audio','video','video','audio']);
  await session.toggle('mic');await session.toggle('camera');await session.toggleScreen(false,true);expect(state.media).toEqual({mic:true,camera:true,screen:true});expect(pcs[0].transceivers.every(t=>t.sender.track)).toBe(true);
  await session.toggleScreen();expect(state.media.screen).toBe(false);expect(pcs[0].transceivers[2].sender.track).toBe(null);
@@ -118,4 +119,33 @@ test('removal releases devices and exposes disconnected state before a delayed s
  let finish;navigator.mediaDevices.getUserMedia=()=>new Promise(resolve=>finish=resolve);const switching=session.selectMicrophone('usb');let closing=false;socket.close=()=>{closing=true;};let notice='';session.onError=message=>notice=message;socket.receive({type:'moderation',action:'remove',by:'Host'});
  expect(closing).toBe(true);expect(socket.readyState).toBe(1);expect(state.status).toBe('disconnected');expect(state.media).toEqual({mic:false,camera:false,screen:false});expect(state.peers).toHaveLength(0);expect(tracks.every(t=>t.stopped)).toBe(true);expect(pcs.every(p=>p.connectionState==='closed')).toBe(true);expect(notice).toContain('removed');
  const late=track('audio');finish(new MediaStream([late]));await switching;expect(late.stopped).toBe(true);socket.onclose({code:4003});expect(state.status).toBe('disconnected');session.close();
+}));
+
+test('a temporary socket loss retains local media and peer connections and automatically resumes identity',async()=>mocked(async({sockets,pcs,tracks})=>{
+ const session=new ClassroomSession('ws://localhost/classroom/room','Teacher',{startWithMedia:true});let state;session.onState=value=>state=value;
+ sockets[0].receive({type:'welcome',id:'a',resumeToken:'private-resume',peers:[{id:'z',name:'Guest',media:{mic:false,camera:false,screen:false}}],iceServers:[],maxParticipants:8});
+ await until(()=>state.media.mic&&state.media.camera);const pc=pcs[0];
+ sockets[0].readyState=3;sockets[0].onclose({code:1006});expect(state.status).toBe('reconnecting');expect(tracks.every(track=>!track.stopped)).toBe(true);expect(pc.connectionState).not.toBe('closed');
+ await until(()=>sockets.length===2);sockets[1].onopen();expect(sockets[1].sent[0].resumeToken).toBe('private-resume');
+ sockets[1].receive({type:'welcome',id:'a',resumeToken:'private-resume',peers:[{id:'z',name:'Guest',media:{mic:false,camera:false,screen:false}}],iceServers:[],maxParticipants:8});
+ expect(state.status).toBe('connected');expect(pcs).toHaveLength(1);expect(tracks).toHaveLength(2);expect(state.media).toMatchObject({mic:true,camera:true});expect(sockets[1].sent.at(-1)).toMatchObject({type:'media',mic:true,camera:true});
+ session.close();expect(tracks.every(track=>track.stopped)).toBe(true);expect(sockets[1].sent.at(-1)).toEqual({type:'leave'});
+}));
+test('leaving during reconnect cancels retries and terminal expiry or removal stops media',async()=>mocked(async({sockets,tracks})=>{
+ const session=new ClassroomSession('ws://localhost/classroom/room','Guest');let state;session.onState=value=>state=value;sockets[0].receive({type:'welcome',id:'a',peers:[],iceServers:[],maxParticipants:8});await session.toggle('mic');sockets[0].readyState=3;sockets[0].onclose({code:1006});session.close();await new Promise(resolve=>setTimeout(resolve,600));expect(sockets).toHaveLength(1);expect(tracks[0].stopped).toBe(true);
+ const next=new ClassroomSession('ws://localhost/classroom/room','Guest');next.onState=value=>state=value;sockets[1].receive({type:'welcome',id:'b',peers:[],iceServers:[],maxParticipants:8});await next.toggle('mic');sockets[1].onclose({code:4001});expect(state.status).toBe('disconnected');expect(tracks.every(track=>track.stopped)).toBe(true);next.close();
+}));
+test('default capture failures leave the call joined and activity sounds exclude own chat and duplicate joins',async()=>mocked(async({sockets})=>{
+ navigator.mediaDevices.getUserMedia=async()=>{throw new Error('Denied');};
+ const session=new ClassroomSession('ws://localhost/classroom/room','Guest',{startWithMedia:true});let state,error;const activity=[];session.onState=value=>state=value;session.onError=value=>error=value;session.onActivity=kind=>activity.push(kind);
+ sockets[0].receive({type:'welcome',id:'a',peers:[],iceServers:[],maxParticipants:8});await until(()=>!!error);expect(state.status).toBe('connected');expect(state.media).toMatchObject({mic:false,camera:false});
+ const peer={id:'z',name:'Other',media:{mic:false,camera:false,screen:false}};sockets[0].receive({type:'joined',peer});sockets[0].receive({type:'joined',peer});sockets[0].receive({type:'chat',id:'a',text:'Mine'});sockets[0].receive({type:'chat',id:'z',text:'Incoming'});expect(activity).toEqual(['join','chat']);session.close();
+}));
+
+test('blur and a hidden window never end the call; returning online resumes without another Join',async()=>mocked(async({sockets,tracks,lifecycle,page})=>{
+ const session=new ClassroomSession('ws://localhost/classroom/room','Guest',{startWithMedia:true});let state;session.onState=value=>state=value;
+ sockets[0].receive({type:'welcome',id:'a',peers:[],iceServers:[],maxParticipants:8});await until(()=>state.media.mic&&state.media.camera);
+ lifecycle.dispatchEvent(new Event('blur'));page.visibilityState='hidden';page.dispatchEvent(new Event('visibilitychange'));expect(state.status).toBe('connected');expect(tracks.every(track=>!track.stopped)).toBe(true);expect(sockets).toHaveLength(1);
+ sockets[0].readyState=3;sockets[0].onclose({code:1006});lifecycle.dispatchEvent(new Event('online'));expect(sockets).toHaveLength(2);session.close();
+ lifecycle.dispatchEvent(new Event('focus'));expect(sockets).toHaveLength(2);
 }));

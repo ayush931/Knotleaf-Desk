@@ -1,4 +1,4 @@
-import { randomUUID, createHmac } from "node:crypto";
+import { randomUUID, randomBytes, createHmac } from "node:crypto";
 import { WebSocketServer } from "ws";
 import { validRoomId } from "./database.mjs";
 export function classroomIceConfig(id, env = process.env) {
@@ -31,9 +31,11 @@ export function attachClassroomServer(
     origins = [],
     maxParticipants = 8,
     iceConfig = classroomIceConfig,
+    reconnectGraceMs = 120000,
   } = {},
 ) {
   const rooms = new Map();
+  const revoked=new Map();
   const sockets = new WebSocketServer({
     noServer: true,
     maxPayload: 64 * 1024,
@@ -74,7 +76,7 @@ export function attachClassroomServer(
     }
     if (socket.destroyed) return;
     sockets.handleUpgrade(request, socket, head, (ws) => {
-      const id = randomUUID();
+      let id = randomUUID();
       let joined = false,
         joining = false,
         alive = true,
@@ -150,12 +152,15 @@ export function attachClassroomServer(
           }
           if (ws.readyState !== 1) return;
           const room = rooms.get(roomId) || new Map();
+          const resumed=typeof message.resumeToken==='string'&&message.resumeToken.length===43?[...room.values()].find(peer=>peer.resumeToken===message.resumeToken):undefined;
+          for(const [token,record]of revoked)if(record.expiresAt<=Date.now())revoked.delete(token);
+          if(revoked.get(message.resumeToken)?.roomId===roomId){ws.close(4003,'Removed by host');return;}
           const hasOwner = stored.hasHost || !!stored.hostTokenHash;
           const reserveHost =
             hasOwner &&
             !host &&
             ![...room.values()].some((peer) => peer.role === "host");
-          if (room.size >= limit || (reserveHost && room.size >= limit - 1)) {
+          if (!resumed&&(room.size >= limit || (reserveHost && room.size >= limit - 1))) {
             send(ws, {
               type: "error",
               message: `This peer-to-peer call is full (${limit} people; a place is reserved for the host).`,
@@ -163,19 +168,24 @@ export function attachClassroomServer(
             ws.close(1008, "Call full");
             return;
           }
-          const role = host ? "host" : "participant";
-          const peer = {
+          const role = resumed?.role || (host ? "host" : "participant");
+          if(resumed){id=resumed.id;clearTimeout(resumed.disconnectTimer);resumed.socket.close(4004,'Session resumed');}
+          const peer = resumed || {
             id,
             name: message.name.trim(),
             role,
             media: { mic: false, camera: false, screen: false },
             socket: ws,
+            resumeToken:message.resume===true?randomBytes(32).toString('base64url'):undefined,
           };
+          peer.socket=ws;peer.disconnectTimer=undefined;
           send(ws, {
             type: "welcome",
+            resumeToken:peer.resumeToken,
+            muted:peer.muted===true,
             id,
             role,
-            peers: [...room.values()].map(({ id, name, media, role }) => ({
+            peers: [...room.values()].filter(peer=>peer.id!==id).map(({ id, name, media, role }) => ({
               id,
               name,
               media,
@@ -188,7 +198,7 @@ export function attachClassroomServer(
           rooms.set(roomId, room);
           joined = true;
           clearTimeout(deadline);
-          broadcast(
+          if(!resumed)broadcast(
             room,
             {
               type: "joined",
@@ -199,7 +209,8 @@ export function attachClassroomServer(
           return;
         }
         const room = rooms.get(roomId);
-        if (!room?.has(id)) return;
+        if (!room?.has(id)||room.get(id).socket!==ws) return;
+        if(message.type==='leave'){room.get(id).resumeToken=undefined;ws.close(1000,'Left call');return;}
         if (message.type === "moderate") {
           const actor = room.get(id),
             action = message.action;
@@ -217,6 +228,7 @@ export function attachClassroomServer(
             (actor.role === "host" || target.role === "participant");
           const mute = (target) => {
             target.media = { ...target.media, mic: false };
+            target.muted=true;
             send(target.socket, {
               type: "moderation",
               action: "mute",
@@ -253,6 +265,8 @@ export function attachClassroomServer(
             broadcast(room, { type: "role", id: target.id, role: target.role });
           } else if (action === "mute") mute(target);
           else if (action === "remove") {
+            if(target.resumeToken)revoked.set(target.resumeToken,{roomId,expiresAt:Number.isFinite(expires)?expires:Date.now()+86400000});
+            clearTimeout(target.disconnectTimer);
             room.delete(target.id);
             send(target.socket, {
               type: "moderation",
@@ -298,6 +312,7 @@ export function attachClassroomServer(
             screen: message.screen === true,
           };
           room.get(id).media = media;
+          if(media.mic)room.get(id).muted=false;
           broadcast(room, { type: "media", id, media }, id);
         } else if (
           message.type === "chat" &&
@@ -315,28 +330,34 @@ export function attachClassroomServer(
         }
       });
       ws.on("error", () => {});
-      ws.on("close", () => {
+      ws.on("close", (code) => {
         clearTimeout(deadline);
         clearTimeout(expiryTimer);
         clearInterval(heartbeat);
         const room = rooms.get(roomId);
-        if (joined && room?.has(id)) {
-          room.delete(id);
-          broadcast(room, { type: "left", id });
-          if (!room.size) rooms.delete(roomId);
+        if (joined && room?.has(id)&&room.get(id).socket===ws) {
+          const peer=room.get(id);
+          const remove=()=>{if(room.get(id)!==peer||peer.socket!==ws)return;room.delete(id);broadcast(room,{type:'left',id});if(!room.size)rooms.delete(roomId);};
+          if(peer.resumeToken&&![1000,1008,4001,4003,4004].includes(code)){
+            peer.disconnectTimer=setTimeout(remove,reconnectGraceMs);peer.disconnectTimer.unref?.();
+          }else remove();
         }
       });
     });
   });
   return {
     expireRoom: (id) => {
+      for(const [token,record]of revoked)if(record.roomId===id)revoked.delete(token);
       for (const peer of rooms.get(id)?.values() || []) {
+        clearTimeout(peer.disconnectTimer);
         peer.socket.removeAllListeners("message");
         peer.socket.close(4001, "Room expired after 24 hours");
       }
       rooms.delete(id);
     },
     close: () => {
+      for(const room of rooms.values())for(const peer of room.values())clearTimeout(peer.disconnectTimer);
+      rooms.clear();revoked.clear();
       for (const socket of sockets.clients) socket.terminate();
       sockets.close();
     },

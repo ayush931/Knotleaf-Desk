@@ -27,7 +27,7 @@ export interface ClassState {
   microphoneLabel: string;
   noiseSuppression: boolean;
   audioProcessing: { echoCancellation?: boolean; noiseSuppression?: boolean };
-  status: "joining" | "connected" | "disconnected";
+  status: "joining" | "connected" | "reconnecting" | "disconnected";
   peers: ClassPeer[];
   media: ClassMedia;
   camera: MediaStream | null;
@@ -61,7 +61,22 @@ export function classroomSocketUrl(base: string, roomId: string) {
 export class ClassroomSession {
   onState?: (state: ClassState) => void;
   onError?: (message: string) => void;
-  private socket: WebSocket;
+  onActivity?: (kind:"join"|"chat") => void;
+  private socket!: WebSocket;
+  private retryTimer?: ReturnType<typeof setTimeout>;
+  private connectTimer?: ReturnType<typeof setTimeout>;
+  private retries=0;
+  private resumeToken="";
+  private terminal=false;
+  private startedMedia=false;
+  private url:string;
+  private options:{noiseSuppression?:boolean;hostToken?:string;startWithMedia?:boolean};
+  private recover=()=>{
+    if(this.closed||this.terminal)return;
+    if(this.state.status!=="connected"&&this.socket.readyState>1){clearTimeout(this.retryTimer);this.connect();}
+    else for(const peer of this.peers.values())if(['failed','disconnected'].includes(peer.pc.connectionState))peer.pc.restartIce();
+  };
+  private visible=()=>{if(typeof document!=="undefined"&&document.visibilityState==="visible")this.recover();};
   private id = "";
   private closed = false;
   private iceServers: RTCIceServer[] = [];
@@ -90,35 +105,35 @@ export class ClassroomSession {
   constructor(
     url: string,
     private name: string,
-    options: { noiseSuppression?: boolean; hostToken?: string } = {},
+    options: { noiseSuppression?: boolean; hostToken?: string; startWithMedia?:boolean } = {},
   ) {
-    this.state.noiseSuppression = options.noiseSuppression ?? true;
-    this.socket = new WebSocket(url);
-    this.socket.onopen = () =>
-      this.send({
-        type: "join",
-        name,
-        ...(options.hostToken ? { hostToken: options.hostToken } : {}),
-      });
-    this.socket.onmessage = (e) => {
-      try {
-        this.receive(JSON.parse(e.data));
-      } catch {
-        this.onError?.(
-          "Invalid response from the call server. Leave and rejoin.",
-        );
+    this.url=url;this.options=options;
+    this.state.noiseSuppression=options.noiseSuppression??true;
+    if(typeof window!=="undefined"){window.addEventListener?.('online',this.recover);window.addEventListener?.('focus',this.recover);}
+    if(typeof document!=="undefined")document.addEventListener('visibilitychange',this.visible);
+    this.connect();
+  }
+  private connect(){
+    if(this.closed||this.terminal)return;
+    const previous=this.socket;
+    if(previous){previous.onclose=null;previous.onmessage=null;previous.onerror=null;previous.onopen=null;previous.close();}
+    clearTimeout(this.connectTimer);
+    const socket=this.socket=new WebSocket(this.url);
+    this.connectTimer=setTimeout(()=>{if(this.socket===socket&&this.state.status!=="connected")socket.close();},15000);
+    socket.onopen=()=>{if(this.socket===socket)this.send({type:'join',name:this.name,resume:true,...(this.resumeToken?{resumeToken:this.resumeToken}:{}),...(this.options.hostToken?{hostToken:this.options.hostToken}:{})});};
+    socket.onmessage=e=>{if(this.socket!==socket)return;try{this.receive(JSON.parse(e.data));}catch{this.onError?.('Invalid response from the call server. Reconnecting…');socket.close();}};
+    socket.onerror=()=>{}; // Close drives retry; a transient socket error never releases media.
+    socket.onclose=(event)=>{
+      if(this.socket!==socket||this.closed)return;
+      clearTimeout(this.connectTimer);
+      const code=event?.code;
+      if(code===4001||code===4003||code===1008||code===4004){
+        this.terminal=true;
+        this.onError?.(code===4001?'This room expired after 24 hours.':code===4003?'You were removed from this call by a host or co-host.':code===4004?'This call session was resumed in another connection.':'The call server rejected the join. Check the room or retry.');
+        this.disconnectCall();return;
       }
-    };
-    this.socket.onerror = () =>
-      this.onError?.(
-        "Could not reach the call server. Check your connection and the room server.",
-      );
-    this.socket.onclose = (event) => {
-      if (event.code === 4003)
-        this.onError?.("You were removed from this call by a host or co-host.");
-      if (event.code === 4001)
-        this.onError?.("This room expired after 24 hours.");
-      if (!this.closed) this.disconnectCall();
+      this.state.status='reconnecting';this.emit();
+      this.retryTimer=setTimeout(()=>this.connect(),Math.min(10000,500*2**Math.min(this.retries++,5)));
     };
   }
   private emit() {
@@ -134,11 +149,16 @@ export class ClassroomSession {
       });
   }
   private send(data: unknown) {
-    if (this.socket.readyState === 1) this.socket.send(JSON.stringify(data));
+    if (!this.closed && this.socket.readyState === 1) this.socket.send(JSON.stringify(data));
   }
   private receive(message: { type: string; [key: string]: unknown }) {
     if (this.closed) return;
     if (message.type === "welcome") {
+      clearTimeout(this.connectTimer);clearTimeout(this.retryTimer);this.retries=0;
+      if(this.id&&this.id!==message.id)this.dropPeers();
+      this.resumeToken=typeof message.resumeToken==='string'?message.resumeToken:'';
+      const present=new Set((message.peers as {id:string}[]).map(peer=>peer.id));
+      for(const [id,peer]of this.peers)if(!present.has(id)){peer.pc.close();this.peers.delete(id);}
       this.id = message.id as string;
       this.state.id = this.id;
       this.state.role =
@@ -155,8 +175,15 @@ export class ClassroomSession {
         media: ClassMedia;
       }[])
         this.addPeer(peer);
-      this.emit();
+      if(message.muted===true&&this.state.media.mic)void this.muteFromHost('Host');
+      this.publishMedia();
+      for(const peer of this.peers.values()){
+        if(peer.pc.signalingState==='have-local-offer'&&peer.pc.localDescription)this.send({type:'signal',to:peer.view.id,description:peer.pc.localDescription.toJSON()});
+        if(peer.pc.connectionState==='failed'||peer.pc.connectionState==='disconnected')peer.pc.restartIce();
+      }
+      if(this.options.startWithMedia&&!this.startedMedia){this.startedMedia=true;void Promise.allSettled([this.toggle('mic'),this.toggle('camera')]).then(results=>{if(!this.closed&&!this.terminal&&results.some(result=>result.status==='rejected'))this.onError?.('Microphone or camera could not start. Allow browser access or turn them on using the call controls.');});}
     } else if (message.type === "joined") {
+      const joining=message.peer as {id:string};if(!this.peers.has(joining.id)&&joining.id!==this.id)this.onActivity?.("join");
       this.addPeer(
         message.peer as { id: string; name: string; media: ClassMedia },
       );
@@ -190,6 +217,7 @@ export class ClassroomSession {
       else if (message.action === "remove") {
         this.onError?.("You were removed from this call by a host or co-host.");
         // Reverse proxies may delay the socket's closing handshake. Release devices now.
+        this.terminal=true;clearTimeout(this.retryTimer);clearTimeout(this.connectTimer);
         this.disconnectCall();
         this.socket.close(1000, "Removed from call");
       }
@@ -205,6 +233,7 @@ export class ClassroomSession {
             );
         });
     } else if (message.type === "chat") {
+      if(message.id!==this.id)this.onActivity?.("chat");
       this.state.messages = [
         ...this.state.messages,
         {
@@ -278,6 +307,7 @@ export class ClassroomSession {
       this.emit();
     };
     pc.onconnectionstatechange = () => {
+      if(pc.connectionState==="connected")peer.restarts=0;
       if (pc.connectionState === "failed") {
         if (peer.restarts++ < 2) pc.restartIce();
         else
@@ -386,6 +416,7 @@ export class ClassroomSession {
   private async muteFromHost(name: string) {
     ++this.micGeneration;
     this.tracks[0]?.stop();
+    this.state.media.mic=false;
     await this.replace(0, null);
     if (this.closed) return;
     this.state.microphone = null;
@@ -407,7 +438,7 @@ export class ClassroomSession {
   async setNoiseSuppression(enabled: boolean) {
     if (
       this.closed ||
-      this.state.status !== "connected" ||
+      !["connected","reconnecting"].includes(this.state.status) ||
       this.pending.has("mic")
     )
       return;
@@ -487,7 +518,7 @@ export class ClassroomSession {
   async selectMicrophone(deviceId: string) {
     if (
       this.closed ||
-      this.state.status !== "connected" ||
+      !["connected","reconnecting"].includes(this.state.status) ||
       this.pending.has("mic")
     )
       return;
@@ -506,7 +537,7 @@ export class ClassroomSession {
       });
       if (
         this.closed ||
-        this.state.status !== "connected" ||
+        !["connected","reconnecting"].includes(this.state.status) ||
         generation !== this.micGeneration
       ) {
         stream.getTracks().forEach((t) => t.stop());
@@ -517,7 +548,7 @@ export class ClassroomSession {
       await this.replace(0, track);
       if (
         this.closed ||
-        this.state.status !== "connected" ||
+        !["connected","reconnecting"].includes(this.state.status) ||
         generation !== this.micGeneration
       ) {
         track.stop();
@@ -535,7 +566,7 @@ export class ClassroomSession {
   async toggle(kind: "mic" | "camera") {
     if (
       this.closed ||
-      this.state.status !== "connected" ||
+      !["connected","reconnecting"].includes(this.state.status) ||
       this.pending.has(kind)
     )
       return;
@@ -569,7 +600,7 @@ export class ClassroomSession {
         );
         if (
           this.closed ||
-          this.state.status !== "connected" ||
+          !["connected","reconnecting"].includes(this.state.status) ||
           (kind === "mic" && generation !== this.micGeneration)
         ) {
           stream.getTracks().forEach((t) => t.stop());
@@ -579,7 +610,7 @@ export class ClassroomSession {
         await this.replace(index, track);
         if (
           this.closed ||
-          this.state.status !== "connected" ||
+          !["connected","reconnecting"].includes(this.state.status) ||
           (kind === "mic" && generation !== this.micGeneration)
         ) {
           track.stop();
@@ -606,7 +637,7 @@ export class ClassroomSession {
   async toggleScreen(changeSource = false, shareTabAudio = false) {
     if (
       this.closed ||
-      this.state.status !== "connected" ||
+      !["connected","reconnecting"].includes(this.state.status) ||
       this.pending.has("screen")
     )
       return;
@@ -619,7 +650,7 @@ export class ClassroomSession {
       const stream = await navigator.mediaDevices.getDisplayMedia(
         screenCaptureOptions(shareTabAudio),
       );
-      if (this.closed || this.state.status !== "connected") {
+      if (this.closed || !["connected","reconnecting"].includes(this.state.status)) {
         stream.getTracks().forEach((t) => t.stop());
         return;
       }
@@ -641,7 +672,7 @@ export class ClassroomSession {
       this.state.screen = stream;
       await this.replace(2, video);
       await this.replace(3, stream.getAudioTracks()[0] || null);
-      if (this.closed || this.state.status !== "connected") {
+      if (this.closed || !["connected","reconnecting"].includes(this.state.status)) {
         stream.getTracks().forEach((t) => t.stop());
         previous?.getTracks().forEach((t) => t.stop());
         return;
@@ -691,9 +722,13 @@ export class ClassroomSession {
   }
   close() {
     if (this.closed) return;
+    this.send({type:'leave'});
     this.closed = true;
+    clearTimeout(this.retryTimer);clearTimeout(this.connectTimer);
+    if(typeof window!=="undefined"){window.removeEventListener?.('online',this.recover);window.removeEventListener?.('focus',this.recover);}
+    if(typeof document!=="undefined")document.removeEventListener('visibilitychange',this.visible);
     this.socket.onclose = null;
-    this.socket.close();
+    this.socket.close(1000,"Left call");
     this.stopMedia();
     this.dropPeers();
   }

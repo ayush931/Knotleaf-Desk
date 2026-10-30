@@ -8,6 +8,7 @@ export interface RoomMessage {
   at: number;
 }
 export interface RoomChatProps {
+  selfId?: number;
   messages: RoomMessage[];
   connected: boolean;
   onSend: (text: string) => void;
