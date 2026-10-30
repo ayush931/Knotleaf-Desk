@@ -106,7 +106,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
   });
   const boardRef = useRef(board);
   const sessionRef = useRef<RoomSession | null>(null);
-  const [roomMessages, setRoomMessages] = useState<{ roomId?: string; messages: RoomMessage[] }>({ messages: [] });
+  const [roomMessages, setRoomMessages] = useState<{ roomId?: string; selfId?:number; messages: RoomMessage[] }>({ messages: [] });
   const [roomStatus, setRoomStatus] = useState("connecting");
   const [roomReady, setRoomReady] = useState(!initialRoomId);
   const [roomError, setRoomError] = useState("");
@@ -203,7 +203,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
     sessionRef.current?.update(next);
   }, [setBoard, setHistoryError]);
 
-  const roomChat: RoomChatProps = { messages: roomMessages.roomId === initialRoomId ? roomMessages.messages : [], connected: roomReady && roomStatus === "connected", onSend: text => {
+  const roomChat: RoomChatProps = { selfId:roomMessages.roomId===initialRoomId?roomMessages.selfId:undefined, messages: roomMessages.roomId === initialRoomId ? roomMessages.messages : [], connected: roomReady && roomStatus === "connected", onSend: text => {
     if (!sessionRef.current) throw new Error("The room is not connected. Wait and try again.");
     sessionRef.current.sendChat(text);
   } };
@@ -328,13 +328,13 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
       session = new RoomSession(url, initialRoomId, boardRef.current);
       sessionRef.current = session;
       session.onExpired = () => {
-        setRoomMessages({ roomId: initialRoomId, messages: [] });
+        setRoomMessages({ roomId: initialRoomId, selfId:session!.doc.clientID, messages: [] });
         clearTimeout(timer); deleteBoard(initialRoomId); refreshBoardsList();
         setRoomStatus("expired"); setRoomReady(false); setRoomError("This room expired and was deleted after 24 hours.");
         const next = { ...boardRef.current, elements: [], markdownNotes: "" };
         boardRef.current = next; setBoard(next); engine?.applyRemoteElements([]);
       };
-      session.onChat = messages => setRoomMessages({ roomId: initialRoomId, messages });
+      session.onChat = messages => setRoomMessages({ roomId: initialRoomId, selfId:session!.doc.clientID, messages });
       session.onStatus = setRoomStatus;
       session.onRemote = (elements, markdownNotes, title, background) => {
         clearTimeout(timer); setRoomError("");

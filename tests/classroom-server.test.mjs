@@ -41,3 +41,22 @@ test('creator host access and co-host moderation are verified by the server and 
   expect(JSON.stringify(co.messages)).not.toContain(room.hostToken);
  }finally{for(const client of clients)client.terminate();call.close();await new Promise(r=>server.close(r));await store.close();await rm(directory,{recursive:true,force:true});}
 });
+
+test('temporary signaling loss resumes the same slot and role without duplicate join sounds, while Leave removes it',async()=>{
+ const server=http.createServer(),roomId=crypto.randomUUID(),call=attachClassroomServer(server,{store:{load:async()=>({hasHost:true}),verifyHost:async(_id,token)=>token==='host'},maxParticipants:2,origins:['https://desk.example']});
+ await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));const clients=[];
+ const join=async(name,extra={})=>{const socket=new WebSocket(`ws://127.0.0.1:${server.address().port}/classroom/${roomId}`,undefined,{headers:{Origin:'https://desk.example'}}),messages=[];clients.push(socket);socket.on('message',raw=>messages.push(JSON.parse(raw)));await new Promise((resolve,reject)=>{socket.once('open',resolve);socket.once('error',reject);});socket.send(JSON.stringify({type:'join',name,resume:true,...extra}));await wait(()=>messages.some(message=>message.type==='welcome'));return {socket,messages,welcome:messages.find(message=>message.type==='welcome')};};
+ try{
+  const host=await join('Host',{hostToken:'host'}),guest=await join('Guest');
+  host.socket.send(JSON.stringify({type:'moderate',action:'promote',target:guest.welcome.id}));await wait(()=>guest.messages.some(message=>message.type==='role'));
+  const joins=host.messages.filter(message=>message.type==='joined').length;
+  guest.socket.terminate();await new Promise(resolve=>setTimeout(resolve,20));expect(host.messages.some(message=>message.type==='left')).toBe(false);
+  const resumed=await join('Guest',{resumeToken:guest.welcome.resumeToken});expect(resumed.welcome.id).toBe(guest.welcome.id);expect(resumed.welcome.role).toBe('cohost');expect(host.messages.filter(message=>message.type==='joined')).toHaveLength(joins);
+  expect(JSON.stringify(host.messages)).not.toContain(guest.welcome.resumeToken);
+  resumed.socket.terminate();await new Promise(resolve=>setTimeout(resolve,20));host.socket.send(JSON.stringify({type:'moderate',action:'mute',target:resumed.welcome.id}));await new Promise(resolve=>setTimeout(resolve,20));
+  const muted=await join('Guest',{resumeToken:guest.welcome.resumeToken});expect(muted.welcome.muted).toBe(true);
+  muted.socket.send(JSON.stringify({type:'leave'}));await wait(()=>host.messages.some(message=>message.type==='left'&&message.id===guest.welcome.id));
+  const next=await join('Next');host.socket.send(JSON.stringify({type:'moderate',action:'remove',target:next.welcome.id}));await wait(()=>host.messages.some(message=>message.type==='left'&&message.id===next.welcome.id));
+  const removed=new WebSocket(`ws://127.0.0.1:${server.address().port}/classroom/${roomId}`,undefined,{headers:{Origin:'https://desk.example'}});clients.push(removed);await new Promise(resolve=>removed.once('open',resolve));removed.send(JSON.stringify({type:'join',name:'Next',resume:true,resumeToken:next.welcome.resumeToken}));expect(await new Promise(resolve=>removed.once('close',code=>resolve(code)))).toBe(4003);
+ }finally{for(const client of clients)client.terminate();call.close();await new Promise(resolve=>server.close(resolve));}
+});

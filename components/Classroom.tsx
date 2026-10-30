@@ -1,5 +1,6 @@
 "use client";
 import { loadPreferences, savePreferences } from "@/lib/preferences";
+import { CallSounds } from "@/lib/callSounds";
 import { warmRoomServer } from "@/lib/roomCreation";
 import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -132,14 +133,25 @@ export function Classroom({
     ),
     [shareTabAudio, setShareTabAudio] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
+  const sounds=useRef<CallSounds|null>(null);
+  const [soundsEnabled,setSoundsEnabled]=useState(true);
   const client = useRef<ClassroomSession | null>(null),
     input = useRef<HTMLInputElement>(null);
   useEffect(() => {
     if (open && !roomId) void warmRoomServer();
   }, [open, roomId]);
+  const seenChat=useRef<Set<string>|null>(null);
+  const chatMessages=roomChat?.messages,chatConnected=roomChat?.connected,chatSelfId=roomChat?.selfId;
+  useEffect(()=>{
+    if(!chatMessages)return;
+    const ids=new Set(chatMessages.map(message=>message.id));
+    if(chatConnected&&seenChat.current&&chatMessages.some(message=>!seenChat.current!.has(message.id)&&message.author!==chatSelfId))sounds.current?.play('chat');
+    seenChat.current=chatConnected?ids:null;
+  },[chatMessages,chatConnected,chatSelfId]);
   const joinAbort = useRef<AbortController | null>(null);
   useEffect(
     () => () => {
+      sounds.current?.close();
       joinAbort.current?.abort();
       if (client.current) {
         client.current.onState = undefined;
@@ -167,6 +179,7 @@ export function Classroom({
       setError("Calls need a current browser over HTTPS (or localhost).");
       return;
     }
+    sounds.current??=new CallSounds();sounds.current.enabled=soundsEnabled;sounds.current.unlock();
     onName?.(name.trim());
     client.current?.close();
     setError("");
@@ -181,9 +194,10 @@ export function Classroom({
       const session = new ClassroomSession(
         classroomSocketUrl(base, roomId),
         name.trim(),
-        { noiseSuppression, hostToken: getRoomHostAccess(roomId) },
+        { noiseSuppression, hostToken: getRoomHostAccess(roomId), startWithMedia:true },
       );
       client.current = session;
+      session.onActivity=kind=>sounds.current?.play(kind);
       session.onState = (next) => {
         setState(next);
         if (next.status !== "joining") setBusy("");
@@ -203,6 +217,7 @@ export function Classroom({
     }
   };
   const leave = () => {
+    sounds.current?.close();
     joinAbort.current?.abort();
     if (client.current) {
       client.current.onState = undefined;
@@ -330,7 +345,7 @@ export function Classroom({
         ?.focus();
     }
   }, [open, chatOpen, panelId]);
-  const connected = state?.status === "connected";
+  const connected = state?.status === "connected" || state?.status === "reconnecting";
   const speaking = useCallSpeaking(
     state
       ? [
@@ -553,7 +568,7 @@ export function Classroom({
                 >
                   <p className="text-sm text-neutral-400">
                     Talk and share your screen while working on the same canvas,
-                    code and notes. Camera and microphone start off.
+                    code and notes. Camera and microphone start on after you join and allow browser access.
                   </p>
                   <label className="block text-xs">
                     Your display name
@@ -591,6 +606,9 @@ export function Classroom({
                     aria-label="Call controls"
                     className="flex flex-wrap gap-2"
                   >
+                    <span role="status" aria-label="Total participants" className="self-center px-1 text-xs text-neutral-400">{state.peers.length+1} participants</span>
+                    <button type="button" className={control} aria-label="Call notification sounds" aria-pressed={soundsEnabled} onClick={()=>{const enabled=!soundsEnabled;setSoundsEnabled(enabled);if(sounds.current){sounds.current.enabled=enabled;if(enabled)sounds.current.unlock();}}}>Sounds {soundsEnabled?'on':'off'}</button>
+                    {state.status==='reconnecting'&&<span role="status" className="self-center text-xs text-amber-300">Reconnecting… keeping your call open.</span>}
                     <button
                       className={`${control} ${state.media.mic ? "text-blue-300" : ""}`}
                       disabled={!!busy}
