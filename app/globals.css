@@ -304,3 +304,54 @@ dialog::backdrop { background: rgb(0 0 0 / 55%); backdrop-filter: blur(3px); }
 @container (max-width: 620px) {
   .markdown-has-footer-actions .markdown-document-stats { display: none; }
 }
+
+/* App theme adapter: neutral utilities and legacy shell surfaces share one palette.
+   Canvas artwork, slide palettes, color swatches and paper-reader colors stay explicit. */
+html.light {
+  color-scheme: light;
+  --color-neutral-950: #f4f4f5;
+  --color-neutral-900: #ffffff;
+  --color-neutral-800: #e4e4e7;
+  --color-neutral-700: #d4d4d8;
+  --color-neutral-600: #71717a;
+  --color-neutral-500: #62626b;
+  --color-neutral-400: #52525b;
+  --color-neutral-300: #3f3f46;
+  --color-neutral-200: #27272a;
+  --color-neutral-100: #18181b;
+  --color-neutral-50: #09090b;
+  --scrollbar-thumb: #a1a1aa;
+  --scrollbar-track: #f4f4f5;
+  --scrollbar-hover: #71717a;
+  --scrollbar-active: #52525b;
+  --desk-background: #f4f4f5;
+  --desk-surface: #ffffff;
+  --desk-ink: #18181b;
+  --desk-border: #d4d4d8;
+}
+html.light body { background: var(--desk-background); color: var(--desk-ink); }
+html.light :is([class~="bg-[#121212]"], [class~="bg-[#141416]"], [class~="bg-[#151517]"]) { background-color: var(--desk-background); }
+html.light :is([class~="bg-[#18181b]"], [class~="bg-[#202124]"]) { background-color: var(--desk-surface); }
+html.light [class~="bg-[#121212]/95"] { background-color: color-mix(in srgb, var(--desk-background) 95%, transparent); }
+html.light [class~="bg-[#18181b]/95"] { background-color: color-mix(in srgb, var(--desk-surface) 95%, transparent); }
+html.light [class~="border-[#27272a]"] { border-color: var(--desk-border); }
+html.light [class~="bg-[#27272a]"] { background-color: var(--desk-border); }
+html.light :is([class~="text-[#f4f4f5]"], [class~="text-white"]) { color: var(--desk-ink); }
+html.light [class~="hover:text-white"]:hover { color: var(--desk-ink); }
+/* Solid intent buttons keep their white foreground, including hover states. */
+html.light :is([class~="bg-blue-600"], [class~="bg-blue-500"], [class~="bg-red-600"], [class~="bg-emerald-600"]).text-white { color: #ffffff; }
+html.light .canvas-text-editor { --editor-placeholder: #52525b; }
+html.light .canvas-text-editor[data-surface="sticky"] { --editor-placeholder: #475569; }
+html.light :is(.notes-rich .tiptap, .note-preview) { color: var(--desk-ink); }
+html.light :is(.notes-rich .tiptap code, .note-preview code, .notes-rich .tiptap th, .note-preview th) { background-color: #f4f4f5; }
+html.light :is(.notes-rich .tiptap pre, .note-preview pre) { background-color: #f4f4f5; border-color: var(--desk-border); }
+html.light :is(.notes-rich .tiptap pre code, .note-preview pre code) { background-color: transparent; }
+html.light :is(.notes-rich .tiptap a, .note-preview a, [class~="text-blue-400"]) { color: #1d4ed8; }
+html.light :is(.notes-rich .tiptap blockquote, .notes-rich .tiptap [data-type="details"]) { background-color: #fffbeb; color: #44403c; border-color: #a8a29e; }
+html.light :is(.note-tool, .note-preview blockquote, .notes-rich .tiptap li[data-checked="true"] > div > p) { color: #52525b; }
+html.light .note-tool:hover { background: #e4e4e7; color: var(--desk-ink); }
+html.light .notes-rich .tiptap .is-editor-empty:first-child::before { color: #71717a; }
+html.light [class~="text-emerald-400"] { color: #047857; }
+html.light [class~="text-purple-400"] { color: #7e22ce; }
+html.light [class~="text-amber-400"] { color: #92400e; }
+html.light [class~="text-red-400"] { color: #b91c1c; }

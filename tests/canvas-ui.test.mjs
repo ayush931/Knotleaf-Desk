@@ -497,3 +497,23 @@ test('changing selected text from green to white survives reopening and stays se
  await clickNamed('Rectangle (R)');await boardPointer('pointerdown',550,100);await boardPointer('pointermove',670,200);await boardPointer('pointerup',670,200);
  expect(getBoard(id).elements[3].stroke).toBe('#EF4444');expect(getBoard(id).elements[0].stroke).toBe('#EF4444');
 });
+
+test('light mode toggle persists across remounts without recoloring board artwork', async () => {
+ const id=await renderBoard();
+ const original=getBoard(id);
+ expect(document.documentElement.classList.contains('dark')).toBe(true);
+ await clickNamed('Switch to light mode');
+ expect(document.documentElement.classList.contains('light')).toBe(true);
+ expect(document.documentElement.classList.contains('dark')).toBe(false);
+ expect(document.documentElement.style.colorScheme).toBe('light');
+ expect(JSON.parse(localStorage.getItem('knotleaf.preferences.v1')).theme).toBe('light');
+ expect(getBoard(id).background).toEqual(original.background);
+ expect(getBoard(id).elements).toEqual(original.elements);
+ await act(async()=>root.unmount()); root=createRoot(document.getElementById('root'));
+ await act(async()=>root.render(React.createElement(AppRouterContext.Provider,{value:router},React.createElement(SearchParamsContext.Provider,{value:new URLSearchParams()},React.createElement(Canvas)))));
+ expect(named('Switch to dark mode')).not.toBeNull();
+ expect(document.documentElement.classList.contains('light')).toBe(true);
+ await clickNamed('Switch to dark mode');
+ expect(document.documentElement.classList.contains('dark')).toBe(true);
+ expect(document.documentElement.classList.contains('light')).toBe(false);
+});

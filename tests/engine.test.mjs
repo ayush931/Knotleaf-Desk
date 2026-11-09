@@ -1578,3 +1578,82 @@ test('hidden canvas and animated arrows stop painting until rendering is enabled
  expect(paints).toBe(0);expect(engine.animFrameId).toBeNull();
  engine.setRenderingActive(true);engine.render();expect(paints).toBeGreaterThan(0);engine.destroy();
 });
+
+describe('easy connections for both line and arrow endpoints', () => {
+  const a = { ...base, id: 'a', type: 'rectangle', x: 100, y: 100, width: 200, height: 160 };
+  const b = { ...base, id: 'b', type: 'circle', x: 600, y: 300, width: 200, height: 160 };
+  for (const tool of ['line', 'arrow']) {
+    for (const clickMode of [false, true]) {
+      test(`${tool} connects two shape interiors using ${clickMode ? 'click-place' : 'press-drag-release'}`, () => {
+        const { engine, listeners, point, drag } = setup([a, b]); engine.setTool(tool);
+        listeners.pointerdown(point(200, 180));
+        if (clickMode) listeners.pointerup(point(200, 180));
+        listeners.pointermove(point(700, 380));
+        expect(engine.draft.startBinding.elementId).toBe('a');
+        expect(engine.draft.endBinding.elementId).toBe('b');
+        expect(engine.hoveredAnchors).toHaveLength(4);
+        if (clickMode) listeners.pointerdown(point(700, 380));
+        listeners.pointerup(point(700, 380));
+        const connected = engine.getElements().find(el => el.type === tool);
+        expect(connected).toMatchObject({ startBinding: { elementId: 'a', anchor: 'right' }, endBinding: { elementId: 'b', anchor: 'left' }, startX: 300, startY: 180, endX: 600, endY: 380 });
+        drag(200, 180, 230, 220);
+        expect(engine.getElements().find(el => el.id === connected.id)).toMatchObject({ startX: 330, startY: 220, endX: 600, endY: 380 });
+        engine.undo(); expect(engine.getElements().find(el => el.id === connected.id)).toMatchObject({ startX: 300, startY: 180 });
+        engine.redo(); expect(engine.getElements().find(el => el.id === connected.id).startX).toBe(330);
+        engine.destroy();
+      });
+    }
+    for (const end of ['start', 'end']) {
+      test(`${tool} ${end} handle attaches to a whole shape and detaches in empty space`, () => {
+        const free = { ...base, id: 'free', type: tool, x: 350, y: 200, width: 150, height: 100, startX: 350, startY: 200, endX: 500, endY: 300 };
+        const { engine, drag, listeners, point } = setup([a, b, free]);
+        drag(425, 250, 425, 250);
+        const start = end === 'start';
+        drag(start ? 350 : 500, start ? 200 : 300, start ? 200 : 700, start ? 180 : 380);
+        const attached = engine.getElements().find(el => el.id === 'free');
+        expect(attached[`${end}Binding`]).toEqual({ elementId: start ? 'a' : 'b', anchor: start ? 'right' : 'left' });
+        expect(attached[`${start ? 'end' : 'start'}Binding`]).toBeUndefined();
+        listeners.pointerdown(point(attached[`${end}X`], attached[`${end}Y`]));
+        listeners.pointermove(point(450, 550));
+        expect(engine.snapTarget).toBe(null);
+        listeners.pointerup(point(450, 550));
+        expect(engine.getElements().find(el => el.id === 'free')[`${end}Binding`]).toBeUndefined();
+        engine.undo(); expect(engine.getElements().find(el => el.id === 'free')[`${end}Binding`]).toEqual(attached[`${end}Binding`]);
+        engine.destroy();
+      });
+    }
+    test(`${tool} attaches near the perimeter away from any port at multiple zoom levels`, () => {
+      for (const zoom of [.5, 1, 2]) {
+        const { engine, listeners, point } = setup([a]); engine.zoom = zoom; engine.setTool(tool);
+        listeners.pointermove(point(300 * zoom + 10, 130 * zoom));
+        expect(engine.hoveredAnchors).toHaveLength(4);
+        listeners.pointerdown(point(300 * zoom + 10, 130 * zoom));
+        listeners.pointermove(point(500 * zoom, 130 * zoom)); listeners.pointerup(point(500 * zoom, 130 * zoom));
+        expect(engine.getElements().find(el => el.type === tool).startBinding).toEqual({ elementId: 'a', anchor: 'right' });
+        engine.destroy();
+      }
+    });
+  }
+  test('bound lines survive reload, resizing, duplication, body movement and deletion', () => {
+    const line = { ...arrow, type: 'line', bendOffset: 25 };
+    const { engine, drag } = setup(JSON.parse(JSON.stringify([source, target, line])));
+    const path = computeLinePath(line), t = .25;
+    const x = (1-t)**2*line.startX+2*(1-t)*t*path.cpx+t*t*line.endX;
+    const y = (1-t)**2*line.startY+2*(1-t)*t*path.cpy+t*t*line.endY;
+    drag(x,y,x+30,y+30);
+    expect(engine.getElements().find(el => el.id === line.id)).toMatchObject({startX:line.startX,startY:line.startY,endX:line.endX,endY:line.endY,startBinding:line.startBinding,endBinding:line.endBinding});
+    drag(150, 130, 150, 130); engine.updateSelectedElement({ width: 200 });
+    expect(engine.getElements().find(el => el.id === line.id)).toMatchObject({ startX: 300, startBinding: line.startBinding, bendOffset: 25 });
+    engine.selectAll(); engine.duplicateSelected();
+    const copies = engine.getSelectedElements(), copiedLine = copies.find(el => el.type === 'line');
+    expect(copies.some(el => el.id === copiedLine.startBinding.elementId)).toBe(true);
+    expect(copies.some(el => el.id === copiedLine.endBinding.elementId)).toBe(true);
+    // Export keeps real source/target identities for lines as well as arrows.
+    const xml = boardToDrawio({ elements: [source, target, line] });
+    expect(xml).toContain('source="source" target="target"');
+    engine.selectedIds = new Set([source.id]); engine.deleteSelected();
+    expect(engine.getElements().find(el => el.id === line.id).startBinding).toBeUndefined();
+    engine.undo(); expect(engine.getElements().find(el => el.id === line.id).startBinding).toEqual(line.startBinding);
+    engine.destroy();
+  });
+});

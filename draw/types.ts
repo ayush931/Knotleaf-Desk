@@ -35,7 +35,7 @@ export type { FontFamily } from "./fonts";
 export type TextAlign = "left" | "center" | "right";
 export type ViewMode = "canvas" | "split" | "notes" | "slides";
 export type GridType = "dot" | "grid" | "none";
-export type Theme = "dark";
+export type Theme = "dark" | "light";
 
 /** What the in-place text editor is editing. */
 export type InlineTextKind = "new-text" | "text" | "sticky" | "label" | "frame-title";
@@ -139,6 +139,8 @@ export interface ArrowElement extends BaseElement {
 
 export interface LineElement extends BaseElement {
   type: "line";
+  startBinding?: ElementBinding;
+  endBinding?: ElementBinding;
   /** Signed quadratic control-point offset; zero keeps the line straight. */
   bendOffset?: number;
   startX: number;

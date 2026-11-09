@@ -277,6 +277,7 @@ export default function RootLayout({
       suppressHydrationWarning
       className={`dark ${inter.variable} ${caveat.variable} ${firaCode.variable} ${lora.variable} ${nunito.variable} ${condensed.variable} ${patrick.variable} ${fontManrope.variable} ${fontDMSans.variable} ${fontSpaceGrotesk.variable} ${fontOutfit.variable} ${fontQuicksand.variable} ${fontComfortaa.variable} ${fontPlayfairDisplay.variable} ${fontCormorantGaramond.variable} ${fontLibreBaskerville.variable} ${fontDMSerifDisplay.variable} ${fontKalam.variable} ${fontShadowsIntoLight.variable} ${fontIndieFlower.variable} ${fontPermanentMarker.variable} ${fontArchitectsDaughter.variable} ${fontFredoka.variable} ${fontBaloo2.variable} ${fontRighteous.variable} ${fontLobster.variable} ${fontBangers.variable} ${fontAbrilFatface.variable} ${fontSpecialElite.variable} ${fontSpaceMono.variable} ${fontJetBrainsMono.variable}`}
     >
+      <head><script dangerouslySetInnerHTML={{ __html: `(function(){try{var p=JSON.parse(localStorage.getItem('knotleaf.preferences.v1')||'null');var light=p&&p.version===1&&p.theme==='light';document.documentElement.classList.toggle('dark',!light);document.documentElement.classList.toggle('light',!!light);document.documentElement.style.colorScheme=light?'light':'dark';}catch(e){}})();` }} /></head>
       {/* Browser extensions can add body attributes before React hydrates. */}
       <body
         suppressHydrationWarning
