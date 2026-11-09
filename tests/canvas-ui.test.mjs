@@ -502,7 +502,9 @@ test('light mode toggle persists across remounts without recoloring board artwor
  const id=await renderBoard();
  const original=getBoard(id);
  expect(document.documentElement.classList.contains('dark')).toBe(true);
+ expect(named('Switch to light mode').textContent).toBe('Light mode');
  await clickNamed('Switch to light mode');
+ expect(named('Switch to dark mode').textContent).toBe('Dark mode');
  expect(document.documentElement.classList.contains('light')).toBe(true);
  expect(document.documentElement.classList.contains('dark')).toBe(false);
  expect(document.documentElement.style.colorScheme).toBe('light');
