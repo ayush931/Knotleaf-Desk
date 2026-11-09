@@ -98,7 +98,7 @@ function AccountControl({ config }: { config: Config }) {
         })}>{busy ? "Signing out…" : "Sign out"}</button>
       </div> : <>
         <p className="mb-4 text-sm text-neutral-400">{mode === "signup" ? "Use Google or create an account with your email." : "Continue with Google or your email and password."}</p>
-        <div className="flex justify-center"><button type="button" aria-label="Continue with Google" aria-busy={googleBusy} disabled={busy || !config.google} className="inline-flex h-10 w-[252px] max-w-full cursor-pointer items-center justify-center gap-3 rounded-lg border border-neutral-300 bg-white px-4 text-sm font-medium text-neutral-800 shadow-sm transition-colors hover:border-blue-300 hover:bg-blue-50 active:bg-blue-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:cursor-not-allowed disabled:opacity-50" onClick={async () => {
+        <div className="flex justify-center"><button type="button" aria-label="Continue with Google" aria-busy={googleBusy} disabled={busy || !config.google} className="inline-flex h-10 w-[252px] max-w-full cursor-pointer items-center justify-center gap-3 rounded-lg border border-neutral-300 bg-white px-4 text-sm font-medium text-[#262626] shadow-sm transition-colors hover:border-blue-300 hover:bg-blue-50 active:bg-blue-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:cursor-not-allowed disabled:opacity-50" onClick={async () => {
           if (pending.current) return;
           pending.current = true; setBusy(true); setGoogleBusy(true); setError(""); setField("");
           try {

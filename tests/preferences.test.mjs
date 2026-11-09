@@ -61,3 +61,11 @@ test('selected-object color edits remember only changed fields for the matching 
  expect(colorToolForElement({type:'text',isCodeCard:true,isDocCard:true})).toBe('code');expect(colorToolForElement({type:'text',isDocCard:true})).toBe('doc');expect(colorToolForElement({type:'text'})).toBe('text');expect(colorToolForElement({type:'icon'})).toBeUndefined();
  savePreferences({toolColors:next});savePreferences({notesWidth:500});expect(loadPreferences().toolColors.rectangle).toEqual(next.rectangle);expect(loadPreferences().toolColors.text.fill).toBe('#674c4b');
 });
+
+test('workspace theme persists independently and invalid themes recover to dark', () => {
+ expect(loadPreferences().theme).toBe('dark');
+ savePreferences({theme:'light'}); savePreferences({notesWidth:460});
+ expect(loadPreferences().theme).toBe('light');
+ expect(normalizePreferences({theme:'system'}).theme).toBe('dark');
+ savePreferences({theme:'dark'}); expect(loadPreferences().theme).toBe('dark');
+});

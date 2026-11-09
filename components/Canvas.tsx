@@ -145,7 +145,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
   const [toolbarHeight, setToolbarHeight] = useState(44);
   const [selectedElements, setSelectedElements] = useState<CanvasElement[]>([]);
   const [zoom, setZoom] = useState(1);
-  const theme: Theme = "dark";
+  const [theme, setTheme] = useState<Theme>(preferences.theme);
   const [gridType, setGridType] = useState<GridType>(board.gridType || "dot");
   const [snapToGrid, setSnapToGrid] = useState<boolean>(board.snapToGrid || false);
   const [canUndo, setCanUndo] = useState(false);
@@ -251,7 +251,9 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
   // Dark mode: toggle the `dark` class on <html> so Tailwind's dark: variant follows the app toggle.
   useEffect(() => {
     document.documentElement.classList.toggle("dark", theme === "dark");
+    document.documentElement.classList.toggle("light", theme === "light");
     document.documentElement.style.colorScheme = theme;
+    savePreferences({ theme });
   }, [theme]);
 
   // Retire caches from the previous installable version without touching boards.
@@ -816,6 +818,8 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
     >
       {!isPresentationOpen && (
         <div hidden={focusMode}><BoardHeader
+          theme={theme}
+          onToggleTheme={() => setTheme(value => value === "dark" ? "light" : "dark")}
           onFocusCanvas={toggleFocus}
           onBeforeRefresh={prepareRefresh}
           recording={recording}

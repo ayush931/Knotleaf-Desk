@@ -1662,8 +1662,8 @@ export function drawSelection(ctx: CanvasRenderingContext2D, el: CanvasElement, 
   if (el.type === "arrow" || el.type === "line") {
     const r = 5 / z;
     const endpoints = [
-      { x: el.startX, y: el.startY, bound: el.type === "arrow" && !!el.startBinding },
-      { x: el.endX, y: el.endY, bound: el.type === "arrow" && !!el.endBinding },
+      { x: el.startX, y: el.startY, bound: !!el.startBinding },
+      { x: el.endX, y: el.endY, bound: !!el.endBinding },
     ];
     for (const p of endpoints) {
       ctx.fillStyle = p.bound ? ACCENT : "#FFFFFF";

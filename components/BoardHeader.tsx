@@ -6,6 +6,8 @@ import { brandAsset } from "@/lib/brandAssets";
 import React, { useState, useRef, useEffect } from "react";
 import {
   Menu,
+  Sun,
+  Moon,
   MoreHorizontal,
   Maximize2,
   FolderOpen,
@@ -28,6 +30,8 @@ import type { ExportScope } from "@/lib/projectFile";
 import { GridType, ViewMode } from "@/draw/types";
 
 interface BoardHeaderProps {
+  theme: "dark" | "light";
+  onToggleTheme: () => void;
   onBeforeRefresh: () => void | Promise<void>;
   recording?: boolean;
   saveError: boolean;
@@ -62,6 +66,8 @@ interface BoardHeaderProps {
 }
 
 export function BoardHeader({
+  theme,
+  onToggleTheme,
   onBeforeRefresh,
   onOpenUploadedFiles,
   recording,
@@ -224,6 +230,9 @@ export function BoardHeader({
       <nav aria-label="Board view" className="flex shrink-0 items-center gap-0.5 rounded-lg border border-neutral-800 bg-neutral-900 p-0.5">
         {(["canvas", "split", "notes", "slides"] as ViewMode[]).map(mode => <button key={mode} aria-pressed={viewMode === mode} onClick={() => onChangeViewMode(mode)} className={`rounded-md px-1 min-[380px]:px-1.5 sm:px-2 py-1 text-[10px] min-[380px]:text-[11px] font-medium capitalize transition ${viewMode === mode ? "bg-neutral-700 text-white" : "text-neutral-400 hover:bg-neutral-800 hover:text-white"}`}>{mode === "slides" ? "Presentation" : mode}</button>)}
       </nav>
+      <button type="button" onClick={onToggleTheme} aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-neutral-400 hover:bg-neutral-800 hover:text-white">
+        {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+      </button>
       <AccountButton />
       {/* Right Section: Actions */}
       <button ref={actionsButton} type="button" aria-label="Board actions" aria-expanded={actionsOpen} aria-controls="board-actions" onClick={() => setActionsOpen(value => !value)} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-neutral-400 hover:bg-neutral-800 hover:text-white min-[1440px]:hidden"><MoreHorizontal className="h-4 w-4" /></button>

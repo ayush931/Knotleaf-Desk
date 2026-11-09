@@ -140,8 +140,8 @@ function syncLineBox<T extends ArrowElement | LineElement>(el: T): T {
 
 function translateElement(snap: CanvasElement, dx: number, dy: number, movedIds: Set<string>): CanvasElement {
   if (snap.type === "arrow" || snap.type === "line") {
-    const moveStart = snap.type !== "arrow" || !snap.startBinding || movedIds.has(snap.startBinding.elementId);
-    const moveEnd = snap.type !== "arrow" || !snap.endBinding || movedIds.has(snap.endBinding.elementId);
+    const moveStart = !snap.startBinding || movedIds.has(snap.startBinding.elementId);
+    const moveEnd = !snap.endBinding || movedIds.has(snap.endBinding.elementId);
     const next = {
       ...snap,
       startX: snap.startX + (moveStart ? dx : 0),
@@ -158,7 +158,7 @@ function translateElement(snap: CanvasElement, dx: number, dy: number, movedIds:
   return { ...snap, x: snap.x + dx, y: snap.y + dy };
 }
 
-/** Moves arrow endpoints onto the current ports of any bound element that changed. */
+/** Moves connector endpoints onto the current ports of any bound element that changed. */
 function resolveBindings(list: CanvasElement[], changed: Set<string>): CanvasElement[] {
   if (changed.size === 0) return list;
   changed = new Set(changed);
@@ -186,8 +186,8 @@ function resolveBindings(list: CanvasElement[], changed: Set<string>): CanvasEle
     return port ? { x: port.x, y: port.y } : null;
   };
   return list.map((el) => {
-    if (el.type !== "arrow") return el;
-    let next: ArrowElement = el;
+    if (el.type !== "arrow" && el.type !== "line") return el;
+    let next: ArrowElement | LineElement = el;
     let touched = false;
     if (next.startBinding && changed.has(next.startBinding.elementId)) {
       const p = portOf(next.startBinding.elementId, next.startBinding.anchor);
@@ -203,7 +203,7 @@ function resolveBindings(list: CanvasElement[], changed: Set<string>): CanvasEle
         touched = true;
       }
     }
-    return touched ? syncLineBox({ ...next, bendOffset: (next.routing || next.elbow) === "curved" ? next.bendOffset : undefined }) : el;
+    return touched ? syncLineBox({ ...next, bendOffset: next.type === "line" || (next.routing || next.elbow) === "curved" ? next.bendOffset : undefined }) : el;
   });
 }
 
@@ -211,7 +211,7 @@ function resolveBindings(list: CanvasElement[], changed: Set<string>): CanvasEle
 function alignTextPorts(elements: CanvasElement[]): CanvasElement[] {
   const texts = new Map(elements.filter(el => el.type === "text").map(el => [el.id, getElementAnchors(el)]));
   return elements.map(el => {
-    if (el.type !== "arrow") return el;
+    if (el.type !== "arrow" && el.type !== "line") return el;
     const start = el.startBinding && texts.get(el.startBinding.elementId)?.find(port => port.anchor === el.startBinding!.anchor);
     const end = el.endBinding && texts.get(el.endBinding.elementId)?.find(port => port.anchor === el.endBinding!.anchor);
     if ((!start || start.x === el.startX && start.y === el.startY) && (!end || end.x === el.endX && end.y === el.endY)) return el;
@@ -224,7 +224,7 @@ function pruneBindings(list: CanvasElement[]): CanvasElement[] {
   const ids = new Set(list.map((el) => el.id));
   return list.map((el) => {
     if (el.type === "text" && el.containerId && !ids.has(el.containerId)) { const detached = { ...el }; delete detached.containerId; delete detached.containerOffset; return detached; }
-    if (el.type !== "arrow") return el;
+    if (el.type !== "arrow" && el.type !== "line") return el;
     const startGone = !!el.startBinding && !ids.has(el.startBinding.elementId);
     const endGone = !!el.endBinding && !ids.has(el.endBinding.elementId);
     if (!startGone && !endGone) return el;
@@ -932,7 +932,7 @@ export class CanvasEngine {
     this.commit();
   }
 
-  /** Clones elements with fresh ids. Arrows keep bindings only to clones that were also copied. */
+  /** Clones elements with fresh ids. Connectors keep bindings only to clones that were also copied. */
   private cloneElements(source: CanvasElement[], offset: number): CanvasElement[] {
     const idMap = new Map<string, string>();
     source.forEach((el) => idMap.set(el.id, newId()));
@@ -945,7 +945,7 @@ export class CanvasEngine {
         copy.startY += offset;
         copy.endX += offset;
         copy.endY += offset;
-        if (copy.type === "arrow") {
+        if (copy.type === "arrow" || copy.type === "line") {
           const rebind = (b?: { elementId: string; anchor: AnchorPosition }) =>
             b && idMap.has(b.elementId) ? { elementId: idMap.get(b.elementId)!, anchor: b.anchor } : undefined;
           copy.startBinding = rebind(copy.startBinding);
@@ -1355,13 +1355,22 @@ export class CanvasEngine {
 
   /** Topmost shape an arrow end can attach to, ignoring connectors, freehand and frames. */
   private bindableShapeAt(pt: Point, excludeId?: string): CanvasElement | null {
-    const tol = 7 / this.zoom;
+    const tol = 16 / this.zoom;
     for (let i = this.elements.length - 1; i >= 0; i--) {
       const el = this.elements[i];
       if (el.id === excludeId || !getElementAnchors(el).length) continue;
       if (this.hitElement(el, pt, tol)) return el;
     }
     return null;
+  }
+
+  /** Precise ports win; otherwise the whole shape is a forgiving attachment target. */
+  private findAttachment(pt: Point, toward: Point, excludeId?: string) {
+    const port = this.findNearestAnchor(pt, excludeId);
+    if (port) return port;
+    const shape = this.bindableShapeAt(pt, excludeId);
+    const anchor = shape && this.facingAnchor(shape, toward);
+    return shape && anchor ? { elementId: shape.id, ...anchor, all: getElementAnchors(shape) } : null;
   }
 
   private boundsCenter(el: CanvasElement): Point {
@@ -1695,7 +1704,7 @@ export class CanvasEngine {
 
     this.gesture = { kind: "draft", origin: this.snapPoint(pt), downClient: { x: e.clientX, y: e.clientY } };
     this.draft = this.createDraft(pt);
-    if (this.draft.type === "arrow") {
+    if (this.draft.type === "arrow" || this.draft.type === "line") {
       const snap = this.findNearestAnchor(pt);
       const shape = snap ? null : this.bindableShapeAt(pt);
       if (snap) {
@@ -2039,7 +2048,7 @@ export class CanvasEngine {
     const origin = d.type === "arrow" || d.type === "line"
       ? { x: d.startX, y: d.startY }
       : this.gesture?.kind === "draft" ? this.gesture.origin : { x: d.x, y: d.y };
-    let target = this.snapPoint(pt);
+    const target = this.snapPoint(pt);
 
     if (d.type === "pencil") {
       // Draft points are transient and unshared until pointerup commits this stroke.
@@ -2050,41 +2059,36 @@ export class CanvasEngine {
     }
 
     if (d.type === "arrow" || d.type === "line") {
-      if (d.type === "line" && this.shiftDown) target = this.constrainAngle(origin, target);
-      if (d.type === "arrow") {
-        const startShapeId = this.gesture?.kind === "draft" ? this.gesture.startShapeId : undefined;
-        const startShape = startShapeId ? this.elements.find(el => el.id === startShapeId) : undefined;
-        // Free end inside a shape attaches to that shape's side facing the start, like Excalidraw.
-        const snap = this.findNearestAnchor(pt, d.id);
-        const endShape = snap ? null : this.bindableShapeAt(pt, startShapeId);
-        const endAnchor = endShape ? this.facingAnchor(endShape, startShape ? this.boundsCenter(startShape) : origin) : null;
-        let next: ArrowElement;
-        if (snap && snap.elementId !== startShapeId) {
-          this.hoveredAnchors = snap.all;
-          this.snapTarget = { anchor: snap.anchor };
-          next = { ...d, endX: snap.x, endY: snap.y, endBinding: { elementId: snap.elementId, anchor: snap.anchor } } as ArrowElement;
-        } else if (endShape && endAnchor) {
-          this.hoveredAnchors = getElementAnchors(endShape);
-          this.snapTarget = { anchor: endAnchor.anchor };
-          next = { ...d, endX: endAnchor.x, endY: endAnchor.y, endBinding: { elementId: endShape.id, anchor: endAnchor.anchor } } as ArrowElement;
-        } else {
-          this.hoveredAnchors = startShape ? getElementAnchors(startShape) : [];
-          this.snapTarget = null;
-          const end = this.shiftDown ? this.constrainAngle(origin, pt) : pt;
-          next = { ...d, endX: end.x, endY: end.y, endBinding: undefined } as ArrowElement;
-        }
-        if (startShape && this.hitElement(startShape, pt, 7 / this.zoom)) {
-          // Still inside the starting shape: stay unattached so a click there draws nothing.
-          const from = this.gesture?.kind === "draft" ? this.gesture.origin : origin;
-          next = { ...next, startX: from.x, startY: from.y, startBinding: undefined };
-        } else if (startShape) {
-          const start = this.facingAnchor(startShape, { x: next.endX, y: next.endY });
-          if (start) next = { ...next, startX: start.x, startY: start.y, startBinding: { elementId: startShape.id, anchor: start.anchor } };
-        }
-        this.draft = next;
-        return;
+      const startShapeId = this.gesture?.kind === "draft" ? this.gesture.startShapeId : undefined;
+      const startShape = startShapeId ? this.elements.find(el => el.id === startShapeId) : undefined;
+      // Free end inside a shape attaches to that shape's side facing the start, like Excalidraw.
+      const snap = this.findNearestAnchor(pt, d.id);
+      const endShape = snap ? null : this.bindableShapeAt(pt, startShapeId);
+      const endAnchor = endShape ? this.facingAnchor(endShape, startShape ? this.boundsCenter(startShape) : origin) : null;
+      let next: ArrowElement | LineElement;
+      if (snap && snap.elementId !== startShapeId) {
+        this.hoveredAnchors = snap.all;
+        this.snapTarget = { anchor: snap.anchor };
+        next = { ...d, endX: snap.x, endY: snap.y, endBinding: { elementId: snap.elementId, anchor: snap.anchor } } as ArrowElement;
+      } else if (endShape && endAnchor) {
+        this.hoveredAnchors = getElementAnchors(endShape);
+        this.snapTarget = { anchor: endAnchor.anchor };
+        next = { ...d, endX: endAnchor.x, endY: endAnchor.y, endBinding: { elementId: endShape.id, anchor: endAnchor.anchor } } as ArrowElement;
+      } else {
+        this.hoveredAnchors = startShape ? getElementAnchors(startShape) : [];
+        this.snapTarget = null;
+        const end = this.shiftDown ? this.constrainAngle(origin, pt) : pt;
+        next = { ...d, endX: end.x, endY: end.y, endBinding: undefined } as ArrowElement;
       }
-      this.draft = { ...d, endX: target.x, endY: target.y } as LineElement;
+      if (startShape && this.hitElement(startShape, pt, 7 / this.zoom)) {
+        // Still inside the starting shape: stay unattached so a click there draws nothing.
+        const from = this.gesture?.kind === "draft" ? this.gesture.origin : origin;
+        next = { ...next, startX: from.x, startY: from.y, startBinding: undefined };
+      } else if (startShape) {
+        const start = this.facingAnchor(startShape, { x: next.endX, y: next.endY });
+        if (start) next = { ...next, startX: start.x, startY: start.y, startBinding: { elementId: startShape.id, anchor: start.anchor } };
+      }
+      this.draft = next;
       return;
     }
 
@@ -2278,7 +2282,8 @@ export class CanvasEngine {
     }
 
     const isStart = g.handle === "start";
-    const snap = el.type === "arrow" ? this.findNearestAnchor(pt, id) : null;
+    const opposite = isStart ? { x: el.endX, y: el.endY } : { x: el.startX, y: el.startY };
+    const snap = this.findAttachment(pt, opposite, id);
     let x: number;
     let y: number;
     let binding: { elementId: string; anchor: AnchorPosition } | undefined;
@@ -2298,14 +2303,11 @@ export class CanvasEngine {
 
     this.elements = this.elements.map((e) => {
       if (e.id !== id) return e;
-      if (e.type === "arrow") {
+      if (e.type === "arrow" || e.type === "line") {
         const next = isStart
           ? { ...e, startX: x, startY: y, startBinding: binding }
           : { ...e, endX: x, endY: y, endBinding: binding };
         return syncLineBox(next as ArrowElement);
-      }
-      if (e.type === "line") {
-        return syncLineBox(isStart ? { ...e, startX: x, startY: y } : { ...e, endX: x, endY: y });
       }
       return e;
     });
@@ -2371,8 +2373,8 @@ export class CanvasEngine {
     const handle = this.tool === "select" && selected.length === 1 ? this.handleAt(selected[0], pt) : null;
     if (handle) {
       this.canvas.style.cursor = HANDLE_CURSOR[handle];
-    } else if (this.tool === "arrow") {
-      const snap = this.findNearestAnchor(pt);
+    } else if (this.tool === "arrow" || this.tool === "line") {
+      const snap = this.findAttachment(pt, pt);
       this.hoveredAnchors = snap?.all ?? [];
       this.snapTarget = snap ? { anchor: snap.anchor } : null;
       this.updateCursor();
