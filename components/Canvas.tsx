@@ -1,4 +1,5 @@
 "use client";
+import { canvasBackground, canvasElementAppearance, neutralInk } from "@/draw/canvasAppearance";
 import { stepCanvasFontSize, textSizeShortcut } from "@/lib/textShortcuts";
 import { usePointerDrag } from "@/lib/usePointerDrag";
 import { sceneFontFamilies } from "@/draw/fonts";
@@ -18,7 +19,7 @@ import { prepareAssets, downloadAttachment } from "@/lib/assetUpload";
 import { RoomSession, type Collaborator } from "@/lib/collaboration";
 import { getRoomServerUrl, checkRoomAvailable, RoomExpiredError, roomInviteUrl } from "@/lib/roomConnection";
 import { createRoomFromBoard, scheduleRoomWarmup } from "@/lib/roomCreation";
-import { normalizeBackground } from "@/lib/background.mjs";
+import { isLightBackground, normalizeBackground } from "@/lib/background.mjs";
 import { useCanvasFocus } from "@/lib/useCanvasFocus";
 import { Classroom } from "./Classroom";
 import { CollaborationPanel } from "./CollaborationPanel";
@@ -146,6 +147,8 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
   const [selectedElements, setSelectedElements] = useState<CanvasElement[]>([]);
   const [zoom, setZoom] = useState(1);
   const [theme, setTheme] = useState<Theme>(preferences.theme);
+  const displayBackground = canvasBackground(board.background, theme);
+  const lightCanvas = theme === "light" && isLightBackground(displayBackground);
   const [gridType, setGridType] = useState<GridType>(board.gridType || "dot");
   const [snapToGrid, setSnapToGrid] = useState<boolean>(board.snapToGrid || false);
   const [canUndo, setCanUndo] = useState(false);
@@ -839,7 +842,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
           snapToGrid={snapToGrid}
           onToggleSnap={handleToggleSnap}
           selectionCount={selectedElements.length}
-          onExportSvg={(selection, transparent) => exportToSvg(boardRef.current, exportElements(selection), transparent)}
+          onExportSvg={(selection, transparent) => exportToSvg({ ...boardRef.current, theme }, exportElements(selection), transparent)}
           onExportDrawio={selection => exportToDrawio(boardRef.current, exportElements(selection))}
           onExportImage={handleExportImage}
           onExportProject={scope => exportProjectFile(boardRef.current, scope)}
@@ -861,7 +864,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
           const { renderToCanvas } = await import("@/draw/export");
           const groups = frames.length ? frames.map(frame => snapshot.elements.filter(el => el.id === frame.id || el.type !== "frame" && el.x >= frame.x && el.y >= frame.y && el.x + el.width <= frame.x + frame.width && el.y + el.height <= frame.y + frame.height)) : [snapshot.elements];
           const images: string[] = [];
-          for (const elements of groups) { const canvas = await renderToCanvas(elements,snapshot.theme,1,false,snapshot.elements,snapshot.background,snapshot.gridType); if(canvas) { images.push(canvas.toDataURL("image/png")); canvas.width=canvas.height=1; } }
+          for (const elements of groups) { const canvas = await renderToCanvas(elements,theme,1,false,snapshot.elements,snapshot.background,snapshot.gridType); if(canvas) { images.push(canvas.toDataURL("image/png")); canvas.width=canvas.height=1; } }
           return images;
         }} /></React.Suspense>}
         {(viewMode === "notes" || viewMode === "split") && !isPresentationOpen && <section aria-label="Board notes" style={viewMode === "split" ? narrowSplit ? { width: "100%", height: Math.min(notesHeight, splitBounds.height - 160) } : { width: Math.min(notesWidth, splitBounds.width - 280) } : undefined} className={`board-notes min-h-0 ${focusMode ? "hidden" : ""} ${viewMode === "notes" ? "w-full min-w-0 flex-1" : "shrink-0"}`}><React.Suspense fallback={<div role="status" className="h-full bg-[#18181b] p-4 text-xs text-neutral-400">Opening notes…</div>}>{board.largeMarkdown&&board.importedMarkdownId?<LargeMarkdownNotes initialView={markdownViewRequest?.id===board.id?markdownViewRequest.mode:undefined} viewToken={markdownViewRequest?.id===board.id?markdownViewRequest.token:undefined} key={board.importedMarkdownId} fileId={board.importedMarkdownId} onDownload={handleExportMarkdown}/>:<DocEditor saveStatus={saveError?"Not saved · retry from the header":"Saved on this device"} initialMarkdownView={markdownViewRequest?.id===board.id?markdownViewRequest.mode:undefined} markdownViewToken={markdownViewRequest?.id===board.id?markdownViewRequest.token:undefined} key={`${board.id}:${noteFocus?.token || 0}`} focusRange={noteFocus} noteId={board.id} title={board.title} getNotes={()=>getAllBoards().filter(summary=>!isRoomBoardId(summary.id)&&(summary.workspaceId||"personal")===workspaceId).map(summary=>getBoard(summary.id)).filter((note):note is Board=>!!note).map(({id,title,markdownNotes})=>({id,title,markdownNotes}))} onOpenNote={id=>{const note=getBoard(id);if(!note)return false;note.viewMode="notes";if(!saveBoard(note))return false;handleSelectBoard(id);return true;}} onCreateNote={title=>{const currentId=boardRef.current.id;try{const note=createBoard(title,undefined,workspaceId);note.viewMode="notes";if(!saveBoard(note))throw new Error("Could not save note");refreshBoardsList();return {id:note.id,title:note.title,markdownNotes:note.markdownNotes};}finally{setActiveBoardId(currentId);}}} value={board.markdownNotes || ""} onChange={markdownNotes => persist({ ...boardRef.current, markdownNotes })} onExportMarkdown={handleExportMarkdown} theme={theme} />}</React.Suspense></section>}
@@ -880,9 +883,9 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
           className={`relative min-h-0 min-w-0 flex-1 h-full overflow-hidden bg-[#121212] ${(viewMode === "notes" || viewMode === "slides") && !isPresentationOpen && !focusMode ? "hidden" : ""}`}
         >
             {dragFiles&&<div aria-hidden="true" className="pointer-events-none absolute inset-2 z-40 flex items-center justify-center rounded-xl border-2 border-dashed border-blue-400 bg-blue-500/10 text-sm text-blue-200">Drop images or files onto this board</div>}
-            <canvas ref={canvasRef} tabIndex={0} aria-label="Drawing canvas" className="block touch-none select-none" style={{ backgroundColor: "#fafafa", backgroundImage: "conic-gradient(#d4d4d8 25%, transparent 0 50%, #d4d4d8 0 75%, transparent 0)", backgroundSize: "16px 16px" }} />
+            <canvas ref={canvasRef} tabIndex={0} aria-label="Drawing canvas" data-theme={theme} data-background={displayBackground.fill} className="block touch-none select-none" style={{ backgroundColor: "#fafafa", backgroundImage: "conic-gradient(#d4d4d8 25%, transparent 0 50%, #d4d4d8 0 75%, transparent 0)", backgroundSize: "16px 16px" }} />
 
-            {codeElement?.type === "text" && <CodeEditor background={codeElement} key={codeElement.id} value={codeElement.text} language={codeElement.codeLanguage || "auto"} fontSize={codeElement.fontSize} zoom={codeViewport.zoom} x={(codeElement.x - 16) * codeViewport.zoom + codeViewport.pan.x} y={(codeElement.y - 16) * codeViewport.zoom + codeViewport.pan.y} width={codeElement.width} height={codeElement.height} onChange={(text, language) => engineRef.current?.updateCode(codeElement.id, text, language)} onClose={() => { engineRef.current?.finishCode(); setCodeId(null); }} />}
+            {codeElement?.type === "text" && <CodeEditor background={canvasElementAppearance(codeElement, lightCanvas)} key={codeElement.id} value={codeElement.text} language={codeElement.codeLanguage || "auto"} fontSize={codeElement.fontSize} zoom={codeViewport.zoom} x={(codeElement.x - 16) * codeViewport.zoom + codeViewport.pan.x} y={(codeElement.y - 16) * codeViewport.zoom + codeViewport.pan.y} width={codeElement.width} height={codeElement.height} onChange={(text, language) => engineRef.current?.updateCode(codeElement.id, text, language)} onClose={() => { engineRef.current?.finishCode(); setCodeId(null); }} />}
             {inlineText && (
               <>
                 {/* Document-specific list tools; ordinary canvas text stays unobstructed. */}
@@ -1038,7 +1041,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
                     fontStyle: inlineText.italic ? "italic" : "normal",
                     textDecoration: [inlineText.underline && "underline", inlineText.strikethrough && "line-through"].filter(Boolean).join(" ") || "none",
                     textAlign: inlineTextAlign,
-                    color: inlineText.color || "#FFFFFF",
+                    color: selectedElement ? canvasElementAppearance({...selectedElement,stroke:inlineText.color || "#FFFFFF"},lightCanvas).stroke : neutralInk(inlineText.color || "#FFFFFF",lightCanvas),
                     zIndex: 35,
                     background: "transparent",
                     border: "none",

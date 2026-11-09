@@ -1,6 +1,7 @@
+import { canvasBackground, canvasElementAppearance } from "./canvasAppearance";
 import { sceneFontFamilies } from "./fonts";
 import type { Board, CanvasElement, BackgroundSettings, GridType } from "./types";
-import { normalizeBackground, isLightBackground } from "@/lib/background.mjs";
+import { isLightBackground } from "@/lib/background.mjs";
 import { drawCanvasBackground } from "./backgroundFill";
 import { drawElement, getElementBounds, unionBounds, loadCanvasFonts, gridAppearance } from "./renderer";
 import { isEmbeddedImage } from "./imageResource";
@@ -87,7 +88,7 @@ function safeIcon(markup: string, namespace: string) {
   try { return normalizeIconSvg(markup, undefined, namespace).svgMarkup; } catch { return ""; }
 }
 
-export function boardToSvg(elements: CanvasElement[], transparent = false, scene: CanvasElement[] = elements, background?: BackgroundSettings, gridType: GridType = "dot"): string | null {
+export function boardToSvg(elements: CanvasElement[], transparent = false, scene: CanvasElement[] = elements, background?: BackgroundSettings, gridType: GridType = "dot", theme: "dark" | "light" = "dark"): string | null {
   const bounds = unionBounds(elements.map(el => getElementBounds(el, scene)));
   if (!bounds) return null;
   const width = Math.ceil(bounds.maxX - bounds.minX + 80), height = Math.ceil(bounds.maxY - bounds.minY + 80);
@@ -96,20 +97,23 @@ export function boardToSvg(elements: CanvasElement[], transparent = false, scene
     get(target, key) { if (key in target.state) return target.state[key as keyof Paint]; const value = Reflect.get(target, key); return typeof value === "function" ? value.bind(target) : value; },
     set(target, key, value) { if (key in target.state) Reflect.set(target.state, key, value); return true; },
   }) as unknown as CanvasRenderingContext2D;
-  if (!transparent) drawCanvasBackground(ctx, normalizeBackground(background), () => ctx.rect(bounds.minX - 40, bounds.minY - 40, width, height), { x: bounds.minX - 40, y: bounds.minY - 40, width, height });
+  const displayBackground = canvasBackground(background, theme);
+  const lightCanvas = theme === "light" && isLightBackground(displayBackground);
+  if (!transparent) drawCanvasBackground(ctx, displayBackground, () => ctx.rect(bounds.minX - 40, bounds.minY - 40, width, height), { x: bounds.minX - 40, y: bounds.minY - 40, width, height });
   if (!transparent && gridType !== "none") {
-    const { spacing, radius, dotColor, lineColor } = gridAppearance(1, isLightBackground(background));
+    const { spacing, radius, dotColor, lineColor } = gridAppearance(1, isLightBackground(displayBackground));
     const marks = gridType === "dot" ? `<circle cx="${spacing/2}" cy="${spacing/2}" r="${radius}" fill="${dotColor}"/>` : `<path d="M0.5 0V${spacing}M0 0.5H${spacing}" fill="none" stroke="${lineColor}" stroke-width="1"/>`;
     const offset = gridType === "dot" ? -spacing/2 : 0;
     recorder.output.push(`<defs><pattern id="knotleaf-editor-grid" x="${offset}" y="${offset}" width="${spacing}" height="${spacing}" patternUnits="userSpaceOnUse">${marks}</pattern></defs><rect x="${bounds.minX-40}" y="${bounds.minY-40}" width="${width}" height="${height}" fill="url(#knotleaf-editor-grid)"/>`);
   }
-  for (const el of elements) {
+  for (const element of elements) {
+    const el = canvasElementAppearance(element, lightCanvas);
     if (el.type === "image") {
       if (isEmbeddedImage(el.source, el.localOnly ? Infinity : 4_000_000)) recorder.output.push(`<image x="${el.x}" y="${el.y}" width="${el.width}" height="${el.height}" href="${esc(el.source)}" opacity="${el.opacity}" preserveAspectRatio="none"/>`);
       continue;
     }
     // Embed icon glyphs as self-contained SVG; icons have no card or caption.
-    drawElement(ctx, el.type === "icon" ? { ...el, svgMarkup: "" } : el, { theme: "dark", scene });
+    drawElement(ctx, el.type === "icon" ? { ...el, svgMarkup: "" } : el, { theme, scene, lightCanvas });
     if (el.type === "icon") {
       const icon = getIconById(el.iconId), markup = el.svgMarkup ?? icon?.svgPath;
       if (markup) {
@@ -122,7 +126,7 @@ export function boardToSvg(elements: CanvasElement[], transparent = false, scene
 }
 export async function exportToSvg(board: Board, elements = board.elements, transparent = false) {
   await loadCanvasFonts(sceneFontFamilies(elements));
-  const svg = boardToSvg(elements, transparent, board.elements, board.background, board.gridType || "dot");
+  const svg = boardToSvg(elements, transparent, board.elements, board.background, board.gridType || "dot", board.theme);
   if (!svg) throw new Error("Add something to the canvas before exporting SVG.");
   const url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml" }));
   const link = document.createElement("a"); link.href = url; link.download = `${board.title.replace(/[^a-z0-9_-]/gi, "-") || "board"}.svg`; link.click();

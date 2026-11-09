@@ -1,3 +1,4 @@
+import { canvasBackground } from "./canvasAppearance";
 import { stepCanvasFontSize, textSizeShortcut } from "@/lib/textShortcuts";
 import { capturePointer, isContextPointer, releasePointer } from "@/lib/pointerInput";
 import { CODE_CARD_FILL, DOCUMENT_CARD_FILL } from "./cardAppearance";
@@ -35,6 +36,8 @@ import {
   drawBoundsOutline,
   drawElement,
   drawElementAnchors,
+  getConnectorHandles,
+  drawConnectorHandles,
   drawGrid,
   drawMarquee,
   loadCanvasFonts,
@@ -1225,9 +1228,10 @@ export class CanvasEngine {
 
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     ctx.clearRect(0, 0, w, h);
-    drawCanvasBackground(ctx, this.background, () => ctx.rect(0, 0, w, h), { x: 0, y: 0, width: w, height: h });
+    const background = canvasBackground(this.background, this.theme);
+    drawCanvasBackground(ctx, background, () => ctx.rect(0, 0, w, h), { x: 0, y: 0, width: w, height: h });
     const slide = this.elements.find(el => el.id === this.presentationFrameId && el.type === "frame");
-    if (!slide) drawGrid(ctx, w, h, this.pan, this.zoom, this.gridType, isLightBackground(this.background));
+    if (!slide) drawGrid(ctx, w, h, this.pan, this.zoom, this.gridType, isLightBackground(background));
 
     ctx.save();
     ctx.translate(this.pan.x, this.pan.y);
@@ -1245,17 +1249,17 @@ export class CanvasEngine {
       if (el.id === this.editingId) {
         // Text and sticky content is being typed into the overlay, so skip it.
         // Shapes keep their outline and only lose the label being edited.
-        if (el.type === "text") { if(el.isDocCard&&!el.isCodeCard)drawElement(ctx,{...el,text:"",title:undefined},{theme:this.theme,scene:this.elements});continue; }
-        if (el.type === "sticky") { drawElement(ctx, { ...el, text: "" }, { theme: this.theme, scene: this.elements }); continue; }
+        if (el.type === "text") { if(el.isDocCard&&!el.isCodeCard)drawElement(ctx,{...el,text:"",title:undefined},{theme:this.theme,lightCanvas:this.theme === "light" && isLightBackground(background),scene:this.elements});continue; }
+        if (el.type === "sticky") { drawElement(ctx, { ...el, text: "" }, { theme: this.theme, lightCanvas: this.theme === "light" && isLightBackground(background), scene: this.elements }); continue; }
         drawElement(ctx, { ...el, label: undefined, ...(el.type === "frame" ? { title: "" } : {}) } as CanvasElement, {
-          theme: this.theme,
+          theme: this.theme, lightCanvas: this.theme === "light" && isLightBackground(background),
           scene: this.elements,
           zoom: this.zoom,
         });
         continue;
       }
       drawElement(ctx, el, {
-        theme: this.theme,
+        theme: this.theme, lightCanvas: this.theme === "light" && isLightBackground(background),
           scene: this.elements,
         flowOffset: this.flowOffset,
         selected: single?.id === el.id,
@@ -1274,11 +1278,11 @@ export class CanvasEngine {
       const {origin,current}=this.gesture;ctx.save();ctx.strokeStyle=ACCENT;ctx.lineWidth=1/this.zoom;ctx.setLineDash([4/this.zoom,3/this.zoom]);ctx.strokeRect(Math.min(origin.x,current.x),Math.min(origin.y,current.y),Math.abs(current.x-origin.x),Math.abs(current.y-origin.y));ctx.restore();
     }
     if (this.draft) {
-      drawElement(ctx, this.draft, { theme: this.theme, zoom: this.zoom, scene: this.elements });
+      drawElement(ctx, this.draft, { theme: this.theme, lightCanvas: this.theme === "light" && isLightBackground(background), zoom: this.zoom, scene: this.elements });
     }
 
     if (single && this.tool === "select" && !this.gesture && !this.editingId) {
-      drawElementAnchors(ctx, getElementAnchors(single), this.snapTarget?.anchor, this.zoom);
+      drawConnectorHandles(ctx, single, this.zoom, this.snapTarget?.anchor);
     }
 
     if (this.hoveredAnchors.length > 0) {
@@ -1587,13 +1591,13 @@ export class CanvasEngine {
     // In Select, only the selected element exposes connection controls.
     // Hovering an unrelated shape must not turn an ordinary move into an arrow.
     if (this.tool === "select" && selected.length === 1 && !e.shiftKey && !selectedHandle) {
-      const snap = this.findNearestAnchor(pt, undefined, selected[0].id);
-      // Only the visible connection dot starts an arrow; grabbing the outline beside it moves the shape.
-      if (snap && Math.hypot(pt.x - snap.x, pt.y - snap.y) < 7 / this.zoom) {
+      const handle = getConnectorHandles(selected[0], this.zoom).find(h => Math.hypot(pt.x-h.x,pt.y-h.y) <= 12/this.zoom);
+      const snap = handle ? { ...handle, elementId: selected[0].id, x: handle.portX, y: handle.portY } : this.findNearestAnchor(pt, undefined, selected[0].id);
+      if (snap && (handle || Math.hypot(pt.x - snap.x, pt.y - snap.y) < 7 / this.zoom)) {
         const arrow = this.createDraft({ x: snap.x, y: snap.y }, "arrow") as ArrowElement;
         this.draft = { ...arrow, startBinding: { elementId: snap.elementId, anchor: snap.anchor } };
-        // No downClient: clicking a dot without dragging must not start click-to-draw.
-        this.gesture = { kind: "draft", origin: this.snapPoint(pt) };
+        // Outside + handles support click, move, click as well as immediate dragging.
+        this.gesture = { kind: "draft", origin: {x:snap.x,y:snap.y}, ...(handle ? { downClient:{x:e.clientX,y:e.clientY} } : {}) };
         this.requestRender();
         return;
       }
@@ -2061,19 +2065,13 @@ export class CanvasEngine {
     if (d.type === "arrow" || d.type === "line") {
       const startShapeId = this.gesture?.kind === "draft" ? this.gesture.startShapeId : undefined;
       const startShape = startShapeId ? this.elements.find(el => el.id === startShapeId) : undefined;
-      // Free end inside a shape attaches to that shape's side facing the start, like Excalidraw.
-      const snap = this.findNearestAnchor(pt, d.id);
-      const endShape = snap ? null : this.bindableShapeAt(pt, startShapeId);
-      const endAnchor = endShape ? this.facingAnchor(endShape, startShape ? this.boundsCenter(startShape) : origin) : null;
+      // Exclude the source so leaving its connection control cannot snap back to itself.
+      const snap = this.findAttachment(pt, startShape ? this.boundsCenter(startShape) : origin, startShapeId || d.startBinding?.elementId);
       let next: ArrowElement | LineElement;
-      if (snap && snap.elementId !== startShapeId) {
+      if (snap) {
         this.hoveredAnchors = snap.all;
         this.snapTarget = { anchor: snap.anchor };
-        next = { ...d, endX: snap.x, endY: snap.y, endBinding: { elementId: snap.elementId, anchor: snap.anchor } } as ArrowElement;
-      } else if (endShape && endAnchor) {
-        this.hoveredAnchors = getElementAnchors(endShape);
-        this.snapTarget = { anchor: endAnchor.anchor };
-        next = { ...d, endX: endAnchor.x, endY: endAnchor.y, endBinding: { elementId: endShape.id, anchor: endAnchor.anchor } } as ArrowElement;
+        next = { ...d, endX: snap.x, endY: snap.y, endBinding: { elementId: snap.elementId, anchor: snap.anchor } };
       } else {
         this.hoveredAnchors = startShape ? getElementAnchors(startShape) : [];
         this.snapTarget = null;
@@ -2379,8 +2377,9 @@ export class CanvasEngine {
       this.snapTarget = snap ? { anchor: snap.anchor } : null;
       this.updateCursor();
     } else if (this.tool === "select") {
+      const handle = selected.length === 1 ? getConnectorHandles(selected[0], this.zoom).find(h => Math.hypot(pt.x-h.x,pt.y-h.y) <= 12/this.zoom) : null;
       const snap = selected.length === 1 ? this.findNearestAnchor(pt, undefined, selected[0].id) : null;
-      this.snapTarget = snap && Math.hypot(pt.x - snap.x, pt.y - snap.y) < 10 / this.zoom ? { anchor: snap.anchor } : null;
+      this.snapTarget = handle ? {anchor:handle.anchor} : snap && Math.hypot(pt.x - snap.x, pt.y - snap.y) < 7 / this.zoom ? { anchor: snap.anchor } : null;
       this.canvas.style.cursor = this.snapTarget ? "crosshair" : this.hitTest(pt) ? "move" : "default";
     } else this.updateCursor();
     this.requestRender();

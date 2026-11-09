@@ -170,3 +170,11 @@ test('font readiness loads only used families, shares pending work and retries a
   await expect(loadCanvasFonts(['marker'])).rejects.toThrow('Permanent Marker');rejectMarker=false;await loadCanvasFonts(['marker']);expect(requested.filter(q=>q.includes('Permanent Marker'))).toHaveLength(8);expect(requested.some(q=>q.includes('Bangers'))).toBe(false);
  }finally{if(previous)document.fonts=previous;else delete document.fonts;}
 });
+
+test('light SVG export matches the white canvas and readable ink without changing the source',()=>{
+ const shape={...base,type:'rectangle',stroke:'#FFFFFF'};
+ const svg=boardToSvg([shape],false,[shape],undefined,'dot','light');
+ expect(svg).toContain('fill="#ffffff"');expect(svg).toContain('stroke="#1f2937"');expect(shape.stroke).toBe('#FFFFFF');
+ const dark=boardToSvg([shape],false,[shape],undefined,'dot','dark');
+ expect(dark).toContain('fill="#121212"');expect(dark).toContain('stroke="#FFFFFF"');
+});

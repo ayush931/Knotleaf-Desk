@@ -56,3 +56,26 @@ test('every canvas pattern paints the chosen base color first without changing s
   }
   const {ctx,fills}=context();drawCanvasBackground(ctx,{fill:'#121212',fillStyle:'crosshatch',fillOpacity:.4},()=>{}, {x:0,y:0,width:100,height:60});expect(fills[0].alpha).toBe(.4);
 });
+
+test('light canvas changes background and neutral ink reversibly without mutating artwork', async () => {
+ const {canvasBackground,canvasElementAppearance}=await import('../draw/canvasAppearance.ts');
+ const original={...rect,fill:'transparent',fillStyle:'none'};
+ expect(canvasBackground(DEFAULT_BACKGROUND,'light')).toEqual({...DEFAULT_BACKGROUND,fill:'#ffffff'});
+ expect(canvasBackground(DEFAULT_BACKGROUND,'dark')).toEqual(DEFAULT_BACKGROUND);
+ const custom={...DEFAULT_BACKGROUND,fill:'#ec4899',fillStyle:'crosshatch'};
+ expect(canvasBackground(custom,'light')).toEqual(custom);
+ const {ctx,strokes}=context();drawElement(ctx,original,{theme:'light'});
+ expect(strokes.at(-1).color).toBe('#1f2937');expect(original.stroke).toBe('#ffffff');
+ expect(canvasElementAppearance(original,false)).toBe(original);
+ expect(canvasElementAppearance({...original,stroke:'#ef4444'},true).stroke).toBe('#ef4444');
+ expect(canvasElementAppearance({...original,fill:'#101010',fillStyle:'solid',fillOpacity:1},true).stroke).toBe('#ffffff');
+});
+
+test('default document and code cards use readable light surfaces and custom cards retain their colors',async()=>{
+ const {canvasElementAppearance,lightCodeInk}=await import('../draw/canvasAppearance.ts');
+ const card={...rect,fillOpacity:1,type:'text',isDocCard:true,text:'Notes',fill:'#242428',stroke:'#FFFFFF',fontSize:20,fontFamily:'sans',textAlign:'left'};
+ expect(canvasElementAppearance(card,true)).toMatchObject({fill:'#ffffff',stroke:'#1f2937'});
+ expect(canvasElementAppearance({...card,isCodeCard:true,fill:'#111d2d'},true).fill).toBe('#ffffff');
+ expect(canvasElementAppearance({...card,cardFillCustom:true},true)).toEqual({...card,cardFillCustom:true});
+ expect(lightCodeInk('#d4d4d8')).toBe('#27272a');expect(lightCodeInk('#b8a8c4')).toBe('#6b3f87');
+});

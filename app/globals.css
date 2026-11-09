@@ -355,3 +355,20 @@ html.light [class~="text-emerald-400"] { color: #047857; }
 html.light [class~="text-purple-400"] { color: #7e22ce; }
 html.light [class~="text-amber-400"] { color: #92400e; }
 html.light [class~="text-red-400"] { color: #b91c1c; }
+
+/* Light mode covers the reading workspace and inline code as well as app chrome. */
+html.light .markdown-reader {
+  --reader-surface: #ffffff;
+  --reader-ink: #242427;
+  --reader-muted: #52525b;
+  --reader-border: #d4d4d8;
+  --reader-code: #f4f4f5;
+  --reader-link: #1d4ed8;
+}
+html.light .markdown-panes-split > section + section { border-color: #d4d4d8; }
+html.light :is(.notes-rich .hljs, .markdown-reader .hljs), [data-light="true"] .code-source pre code.hljs { color: #27272a; }
+html.light :is(.notes-rich .hljs-keyword, .notes-rich .hljs-literal, .markdown-reader .hljs-keyword, .markdown-reader .hljs-literal), [data-light="true"] :is(.hljs-keyword, .hljs-literal) { color: #6b3f87; }
+html.light :is(.notes-rich .hljs-string, .markdown-reader .hljs-string), [data-light="true"] .hljs-string { color: #356330; }
+html.light :is(.notes-rich .hljs-comment, .markdown-reader .hljs-comment), [data-light="true"] .hljs-comment { color: #606975; }
+[data-light="true"] .code-source textarea { caret-color: #27272a; }
+[data-light="true"] .text-slate-400 { color: #52525b; }
