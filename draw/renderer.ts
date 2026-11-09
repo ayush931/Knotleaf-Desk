@@ -1,3 +1,5 @@
+import { canvasElementAppearance, lightCodeInk } from "./canvasAppearance";
+import { isLightBackground } from "@/lib/background.mjs";
 import { cardBackground } from "./cardAppearance";
 import { attachmentSize } from "@/lib/attachments.mjs";
 import { drawBackgroundFill } from "./backgroundFill";
@@ -33,6 +35,7 @@ export interface Bounds {
 
 export interface DrawOptions {
   theme: Theme;
+  lightCanvas?: boolean;
   scene?: CanvasElement[];
   selected?: boolean;
   flowOffset?: number;
@@ -544,6 +547,7 @@ export function drawGrid(
 
 export function drawElement(ctx: CanvasRenderingContext2D, el: CanvasElement, opts: DrawOptions) {
   const { theme, flowOffset = 0 } = opts;
+  el = canvasElementAppearance(el, opts.lightCanvas ?? theme === "light");
   ctx.save();
   ctx.globalAlpha = el.opacity ?? 1;
   ctx.lineJoin = "round";
@@ -1191,9 +1195,9 @@ function drawText(ctx: CanvasRenderingContext2D, el: CanvasElement) {
     ctx.save();ctx.fillStyle=el.fill;ctx.strokeStyle="#3f3f46";ctx.lineWidth=1;
     ctx.beginPath();ctx.roundRect(x,y,w,h,10);ctx.fill();ctx.stroke();
     ctx.strokeStyle="#3B82F6";ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(x+20,y+20);ctx.lineTo(x+36,y+20);ctx.lineTo(x+44,y+28);ctx.lineTo(x+44,y+52);ctx.lineTo(x+20,y+52);ctx.closePath();ctx.stroke();
-    ctx.textBaseline="top";ctx.textAlign="left";ctx.fillStyle="#e4e4e7";setFont(ctx,14,"sans",600);
+    ctx.textBaseline="top";ctx.textAlign="left";ctx.fillStyle=el.stroke;setFont(ctx,14,"sans",600);
     let name=el.attachment.name;while(name.length>1&&ctx.measureText(name).width>w-88)name=name.slice(0,-2)+"…";
-    ctx.fillText(name,x+60,y+21);ctx.fillStyle="#a1a1aa";setFont(ctx,11,"sans");
+    ctx.fillText(name,x+60,y+21);ctx.fillStyle=isLightBackground({fill:el.fill,fillStyle:"solid",fillOpacity:1})?"#52525b":"#a1a1aa";setFont(ctx,11,"sans");
     ctx.fillText(`${el.attachment.name.split('.').pop()?.toUpperCase().slice(0,12)||'FILE'} · ${attachmentSize(el.attachment.size)}`,x+60,y+43);
     ctx.fillStyle="#71717a";ctx.fillText("Local file · Select to download",x+20,y+h-27);ctx.restore();return;
   }
@@ -1204,9 +1208,9 @@ function drawText(ctx: CanvasRenderingContext2D, el: CanvasElement) {
     const build = () => ctx.roundRect(el.x - 16, el.y - 16, el.width + 32, el.height + 32, 10);
     drawBackgroundFill(ctx, el, build, { x: el.x - 16, y: el.y - 16, width: el.width + 32, height: el.height + 32 });
     ctx.beginPath(); build(); ctx.stroke();
-    ctx.textBaseline = "top"; setFont(ctx, 11, "mono"); ctx.fillStyle = "#94a3b8"; ctx.fillText(result.language, el.x, el.y);
+    ctx.textBaseline = "top"; setFont(ctx, 11, "mono"); ctx.fillStyle = isLightBackground({fill:el.fill,fillStyle:"solid",fillOpacity:1}) ? "#52525b" : "#94a3b8"; ctx.fillText(result.language, el.x, el.y);
     setFont(ctx, el.fontSize, "mono");
-    result.lines.forEach((line, row) => { let x = el.x; for (const token of line) { ctx.fillStyle = token.color; ctx.fillText(token.text, x, el.y + 28 + el.fontSize * 0.25 + row * el.fontSize * 1.5); x += ctx.measureText(token.text).width; } });
+    result.lines.forEach((line, row) => { let x = el.x; for (const token of line) { ctx.fillStyle = isLightBackground({fill:el.fill,fillStyle:"solid",fillOpacity:1}) ? lightCodeInk(token.color) : token.color; ctx.fillText(token.text, x, el.y + 28 + el.fontSize * 0.25 + row * el.fontSize * 1.5); x += ctx.measureText(token.text).width; } });
     ctx.restore(); return;
   }
   const { x, y, text, fontSize, fontFamily, textAlign, stroke, fill } = el;
@@ -1734,6 +1738,26 @@ export function drawResizeHandles(ctx: CanvasRenderingContext2D, b: Bounds, zoom
     ctx.rect(p.x - s / 2, p.y - s / 2, s, s);
     ctx.fill();
     ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/** Larger controls sit outside selection borders, separate from move/resize targets. */
+export function getConnectorHandles(el: CanvasElement, zoom = 1) {
+  const offset = 22 / zoom;
+  return getElementAnchors(el).map(port => ({ ...port, portX: port.x, portY: port.y,
+    x: port.x + (port.anchor === "left" ? -offset : port.anchor === "right" ? offset : 0),
+    y: port.y + (port.anchor === "top" ? -offset : port.anchor === "bottom" ? offset : 0) }));
+}
+export function drawConnectorHandles(ctx: CanvasRenderingContext2D, el: CanvasElement, zoom: number, active?: AnchorPosition) {
+  ctx.save(); ctx.setLineDash([]); ctx.strokeStyle = ACCENT; ctx.lineWidth = 1.5 / zoom;
+  for (const handle of getConnectorHandles(el, zoom)) {
+    ctx.beginPath(); ctx.moveTo(handle.portX, handle.portY); ctx.lineTo(handle.x, handle.y); ctx.stroke();
+    ctx.beginPath(); ctx.arc(handle.x, handle.y, 8 / zoom, 0, Math.PI * 2);
+    ctx.fillStyle = active === handle.anchor ? ACCENT : "#ffffff"; ctx.fill(); ctx.stroke();
+    ctx.strokeStyle = active === handle.anchor ? "#ffffff" : ACCENT;
+    ctx.beginPath(); ctx.moveTo(handle.x-3/zoom,handle.y);ctx.lineTo(handle.x+3/zoom,handle.y);
+    ctx.moveTo(handle.x,handle.y-3/zoom);ctx.lineTo(handle.x,handle.y+3/zoom);ctx.stroke();ctx.strokeStyle=ACCENT;
   }
   ctx.restore();
 }

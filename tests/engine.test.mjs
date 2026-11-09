@@ -6,7 +6,7 @@ import { TEMPLATES } from '../draw/templatesData.ts';
 import { isValidElement } from '../lib/elementValidation.mjs';
 import { unionBounds } from '../draw/renderer.ts';
 import { setFont } from '../draw/renderer.ts';
-import { computeArrowPath, computeLinePath, drawElement, layoutDocument, drawSelection, drawElementAnchors, getSelectionPadding, getElementAnchors, getElementBounds, textContentBounds, measureTextBlock } from '../draw/renderer.ts';
+import { computeArrowPath, computeLinePath, drawElement, layoutDocument, drawSelection, drawElementAnchors, getSelectionPadding, getElementAnchors, getConnectorHandles, getElementBounds, textContentBounds, measureTextBlock } from '../draw/renderer.ts';
 const savedGlobals = new Map();
 beforeAll(() => {
   for (const [key, value] of Object.entries({
@@ -800,7 +800,7 @@ test('a newly drawn shape immediately exposes its normal connector ports', () =>
   const created = engine.getSelectedElements()[0];
   expect(engine.getTool()).toBe('select');
   const ports = []; engine.ctx.arc = (x, y, r) => ports.push([x, y, r]); engine.draw();
-  for (const port of getElementAnchors(created)) expect(ports.some(([x, y]) => x === port.x && y === port.y)).toBe(true);
+  for (const port of getConnectorHandles(created)) expect(ports.some(([x, y]) => x === port.x && y === port.y)).toBe(true);
   drag(220, 140, 500, 340);
   const connector = engine.getElements().find(el => el.type === 'arrow');
   expect(connector.startBinding).toEqual({ elementId: created.id, anchor: 'right' });
@@ -1656,4 +1656,33 @@ describe('easy connections for both line and arrow endpoints', () => {
     engine.undo(); expect(engine.getElements().find(el => el.id === line.id).startBinding).toEqual(line.startBinding);
     engine.destroy();
   });
+});
+
+test('large outside connection handles support immediate dragging and click-place at every zoom', () => {
+ for(const zoom of [.5,1,2]) for(const clickMode of [false,true]) for(const anchor of ['top','right','bottom','left']) {
+  const {engine,listeners,point,drag}=setup([source,target]); engine.zoom=zoom;
+  drag(150*zoom,130*zoom,150*zoom,130*zoom);
+  const handle=getConnectorHandles(source,zoom).find(h=>h.anchor===anchor);
+  // The hit area extends beyond the visible 8px circle, without touching the shape outline.
+  const x=handle.x*zoom+(anchor==='left'?-10:anchor==='right'?10:0),y=handle.y*zoom+(anchor==='top'?-10:anchor==='bottom'?10:0);
+  listeners.pointermove(point(x,y)); expect(engine.canvas.style.cursor).toBe('crosshair');
+  listeners.pointerdown(point(x,y)); expect(engine.draft.startBinding).toEqual({elementId:source.id,anchor});
+  if(clickMode) listeners.pointerup(point(x,y));
+  listeners.pointermove(point(560*zoom,340*zoom));
+  expect(engine.draft.endBinding.elementId).toBe(target.id);
+  if(clickMode)listeners.pointerdown(point(560*zoom,340*zoom));
+  listeners.pointerup(point(560*zoom,340*zoom));
+  const arrow=engine.getElements().find(el=>el.type==='arrow');
+  expect(arrow.startBinding).toEqual({elementId:source.id,anchor});expect(arrow.endBinding.elementId).toBe(target.id);
+  expect(engine.getElements().find(el=>el.id===source.id)).toEqual(source);
+  engine.undo();expect(engine.getElements()).toHaveLength(2);engine.destroy();
+ }
+});
+
+test('leaving a source connection control never snaps the free endpoint back to the source', () => {
+ const {engine,listeners,point,drag}=setup([source]);drag(150,130,150,130);
+ const handle=getConnectorHandles(source).find(h=>h.anchor==='right');
+ listeners.pointerdown(point(handle.x,handle.y));listeners.pointerup(point(handle.x,handle.y));
+ listeners.pointermove(point(handle.x+1,handle.y));expect(engine.draft.endBinding).toBeUndefined();
+ listeners.pointercancel(point(handle.x+1,handle.y));engine.destroy();
 });

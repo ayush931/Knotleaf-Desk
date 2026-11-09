@@ -498,7 +498,7 @@ test('changing selected text from green to white survives reopening and stays se
  expect(getBoard(id).elements[3].stroke).toBe('#EF4444');expect(getBoard(id).elements[0].stroke).toBe('#EF4444');
 });
 
-test('light mode toggle persists across remounts without recoloring board artwork', async () => {
+test('light mode changes the canvas and persists without rewriting stored artwork', async () => {
  const id=await renderBoard();
  const original=getBoard(id);
  expect(document.documentElement.classList.contains('dark')).toBe(true);
@@ -508,6 +508,7 @@ test('light mode toggle persists across remounts without recoloring board artwor
  expect(document.documentElement.classList.contains('light')).toBe(true);
  expect(document.documentElement.classList.contains('dark')).toBe(false);
  expect(document.documentElement.style.colorScheme).toBe('light');
+ expect(named('Drawing canvas').dataset.background).toBe('#ffffff');
  expect(JSON.parse(localStorage.getItem('knotleaf.preferences.v1')).theme).toBe('light');
  expect(getBoard(id).background).toEqual(original.background);
  expect(getBoard(id).elements).toEqual(original.elements);
@@ -518,4 +519,5 @@ test('light mode toggle persists across remounts without recoloring board artwor
  await clickNamed('Switch to dark mode');
  expect(document.documentElement.classList.contains('dark')).toBe(true);
  expect(document.documentElement.classList.contains('light')).toBe(false);
+ expect(named('Drawing canvas').dataset.background).toBe('#121212');
 });

@@ -1,3 +1,4 @@
+import { canvasBackground } from "./canvasAppearance";
 import { sceneFontFamilies } from "./fonts";
 import { encodeRaster } from "./rasterEncoder";
 import { CanvasElement, Theme, Board, BackgroundSettings, GridType } from "./types";
@@ -28,16 +29,17 @@ export async function renderToCanvas(elements: CanvasElement[], theme: Theme, sc
   const ctx = canvas.getContext("2d");
   if (!ctx) return null;
 
+  const displayBackground = canvasBackground(background, theme);
   if (!transparent) {
-    drawCanvasBackground(ctx, normalizeBackground(background), () => ctx.rect(0, 0, w, h), { x: 0, y: 0, width: w, height: h });
-    drawGrid(ctx, w, h, { x:(-bounds.minX+PADDING)*actualScale, y:(-bounds.minY+PADDING)*actualScale }, actualScale, gridType, isLightBackground(background));
+    drawCanvasBackground(ctx, displayBackground, () => ctx.rect(0, 0, w, h), { x: 0, y: 0, width: w, height: h });
+    drawGrid(ctx, w, h, { x:(-bounds.minX+PADDING)*actualScale, y:(-bounds.minY+PADDING)*actualScale }, actualScale, gridType, isLightBackground(displayBackground));
   }
   ctx.save();
   ctx.scale(actualScale, actualScale);
   ctx.translate(-bounds.minX + PADDING, -bounds.minY + PADDING);
   let lastYield = performance.now();
   for (let index = 0; index < elements.length; index++) {
-    drawElement(ctx, elements[index], { theme, scene });
+    drawElement(ctx, elements[index], { theme, scene, lightCanvas: theme === "light" && isLightBackground(displayBackground) });
     if (index % 32 === 31 && performance.now() - lastYield >= 8) {
       await new Promise(resolve => setTimeout(resolve, 0));
       lastYield = performance.now();
