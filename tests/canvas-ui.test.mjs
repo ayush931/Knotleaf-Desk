@@ -508,7 +508,7 @@ test('light mode changes the canvas and persists without rewriting stored artwor
  expect(document.documentElement.classList.contains('light')).toBe(true);
  expect(document.documentElement.classList.contains('dark')).toBe(false);
  expect(document.documentElement.style.colorScheme).toBe('light');
- expect(named('Drawing canvas').dataset.background).toBe('#ffffff');
+ expect(named('Drawing canvas').dataset.background).toBe('#fcfcf8');
  expect(JSON.parse(localStorage.getItem('knotleaf.preferences.v1')).theme).toBe('light');
  expect(getBoard(id).background).toEqual(original.background);
  expect(getBoard(id).elements).toEqual(original.elements);

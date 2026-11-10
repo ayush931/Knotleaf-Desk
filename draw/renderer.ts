@@ -679,6 +679,19 @@ function strokeSketch(
   }
 }
 
+/** Stable sketch ink follows the same connector path used for handles and bindings. */
+function sketchConnector(ctx: CanvasRenderingContext2D, info: ArrowPathInfo, id: string, width: number) {
+  let points = info.points;
+  if (info.cpx !== undefined && info.cpy !== undefined) {
+    const start = points[0], end = points[points.length - 1], cx = info.cpx, cy = info.cpy;
+    points = Array.from({ length: 9 }, (_, index) => {
+      const t = index / 8, u = 1 - t;
+      return { x: u*u*start.x + 2*u*t*cx + t*t*end.x, y: u*u*start.y + 2*u*t*cy + t*t*end.y };
+    });
+  }
+  strokeSketch(ctx, points, false, seedOf(id), width);
+}
+
 /** All four corner arcs share the same radius and sampling, including the seam. */
 function roundedOutline(x: number, y: number, width: number, height: number, radius: number): Point[] {
   const points: Point[] = [{ x: x + radius, y }];
@@ -879,7 +892,9 @@ function drawLine(ctx: CanvasRenderingContext2D, el: CanvasElement) {
   ctx.lineWidth = el.strokeWidth || 2;
   applyDash(ctx, el);
   const info = computeLinePath(el);
-  if (info.cpx !== undefined && info.cpy !== undefined) {
+  if (el.strokeStyle === "rough" && info.cpx !== undefined && info.cpy !== undefined) {
+    sketchConnector(ctx, info, el.id, ctx.lineWidth);
+  } else if (info.cpx !== undefined && info.cpy !== undefined) {
     ctx.beginPath();
     ctx.moveTo(a.x, a.y);
     ctx.quadraticCurveTo(info.cpx, info.cpy, b.x, b.y);
@@ -1088,7 +1103,9 @@ function drawArrow(ctx: CanvasRenderingContext2D, el: CanvasElement, theme: Them
   }
 
   ctx.beginPath();
-  if (info.routing === "curved" && cpx !== undefined && cpy !== undefined) {
+  if (el.strokeStyle === "rough") {
+    sketchConnector(ctx, info, el.id, width);
+  } else if (info.routing === "curved" && cpx !== undefined && cpy !== undefined) {
     ctx.moveTo(arrow.startX, arrow.startY);
     ctx.quadraticCurveTo(cpx, cpy, arrow.endX, arrow.endY);
     ctx.stroke();
@@ -1102,9 +1119,6 @@ function drawArrow(ctx: CanvasRenderingContext2D, el: CanvasElement, theme: Them
     const last = points[points.length - 1];
     ctx.lineTo(last.x, last.y);
     ctx.stroke();
-  } else if (el.strokeStyle === "rough") {
-    ctx.setLineDash([]);
-    strokeSketch(ctx, [{ x: arrow.startX, y: arrow.startY }, { x: arrow.endX, y: arrow.endY }], false, seedOf(el.id), width);
   } else {
     ctx.moveTo(arrow.startX, arrow.startY);
     ctx.lineTo(arrow.endX, arrow.endY);

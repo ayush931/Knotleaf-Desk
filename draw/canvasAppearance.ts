@@ -3,11 +3,14 @@ import type { BackgroundSettings, CanvasElement, Theme } from './types';
 import { normalizeBackground, isLightBackground } from '@/lib/background.mjs';
 import { CODE_CARD_FILL, DOCUMENT_CARD_FILL } from './cardAppearance';
 
+export const DRAWING_PAPER = '#fcfcf8';
+export const DRAWING_BOARD = '#121212';
+
 /** Theme presentation is reversible and never rewrites saved board colors. */
 export function canvasBackground(value: unknown, theme: Theme): BackgroundSettings {
   const background = normalizeBackground(value);
-  return theme === 'light' && background.fill.toLowerCase() === '#121212'
-    ? { ...background, fill: '#ffffff' } : background;
+  return background.fill.toLowerCase() === '#121212'
+    ? { ...background, fill: theme === 'light' ? DRAWING_PAPER : DRAWING_BOARD } : background;
 }
 export function neutralInk(color: string, light: boolean): string {
   return light && /^(#fff(?:fff)?|#f4f4f5|#e4e4e7|#e2e8f0|#cbd5e1)$/i.test(color) ? '#1f2937' : color;

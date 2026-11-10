@@ -502,7 +502,7 @@ export function PropertiesPanel({
         <div className="grid grid-cols-4 gap-1 p-0.5 rounded-lg bg-neutral-100 dark:bg-neutral-800 text-[11px] text-center">
           <button
             onClick={() => handleStrokeStyle("solid")}
-            title="Clean (Eraser)"
+            title="Clean lines"
             className={`py-0.5 rounded font-medium transition ${
               activeStrokeStyle === "solid"
                 ? "bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white shadow-xs"
@@ -513,7 +513,7 @@ export function PropertiesPanel({
           </button>
           <button
             onClick={() => handleStrokeStyle("rough")}
-            title="Sketchy (Excalidraw)"
+            title="Hand-drawn sketch"
             className={`py-0.5 rounded font-medium transition ${
               activeStrokeStyle === "rough"
                 ? "bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white shadow-xs"

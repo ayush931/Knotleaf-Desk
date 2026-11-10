@@ -71,7 +71,7 @@ test('legacy surfaces still adapt and dark mode retains its authored controls',(
 test('expanded Appearance options keep inactive labels and form controls readable',()=>{
  const doc=render(React.createElement(PropertiesPanel,{...props,selectedTool:'rectangle'}));
  const details=doc.querySelector('details');details.open=true;
- const inactive=doc.querySelector('[title="Sketchy (Excalidraw)"]');readable(inactive,inactive.parentElement);
+ const inactive=doc.querySelector('[title="Clean lines"]');readable(inactive,inactive.parentElement);
  for(const select of doc.querySelectorAll('select'))for(const option of select.options)readable(option,option);
 });
 
