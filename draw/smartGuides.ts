@@ -10,23 +10,43 @@ export function smartGuides(moving: Bounds, others: Bounds[], zoom = 1, snap = t
   const alignments: Guide[] = [];
   for (const axis of ['x', 'y'] as const) {
     const source = axis === 'x' ? [moving.minX, centerX(moving), moving.maxX] : [moving.minY, centerY(moving), moving.maxY];
-    let best: { distance: number; delta: number; value: number; other: Bounds } | undefined;
+    let best: { distance: number; delta: number } | undefined;
     for (const other of others) {
       const separation = axis === 'x' ? Math.max(0, other.minY - moving.maxY, moving.minY - other.maxY) : Math.max(0, other.minX - moving.maxX, moving.minX - other.maxX);
       if (separation > 400 / zoom) continue;
       const targets = axis === 'x' ? [other.minX, centerX(other), other.maxX] : [other.minY, centerY(other), other.maxY];
       for (const a of source) for (const b of targets) {
         const delta = b - a, distance = Math.abs(delta);
-        if (distance <= tolerance && (!best || distance < best.distance)) best = { distance, delta, value: b, other };
+        if (distance <= tolerance && (!best || distance < best.distance)) best = { distance, delta };
       }
     }
     if (!best) continue;
     if (snap) { if (axis === 'x') dx = best.delta; else dy = best.delta; }
-    if (snap || best.distance < 0.5 / zoom) alignments.push(axis === 'x'
-      ? { x1: best.value, y1: Math.min(moving.minY, best.other.minY) - 12 / zoom, x2: best.value, y2: Math.max(moving.maxY, best.other.maxY) + 12 / zoom }
-      : { x1: Math.min(moving.minX, best.other.minX) - 12 / zoom, y1: best.value, x2: Math.max(moving.maxX, best.other.maxX) + 12 / zoom, y2: best.value });
   }
   const b = { minX: moving.minX + dx, maxX: moving.maxX + dx, minY: moving.minY + dy, maxY: moving.maxY + dy };
+  // Snapping chooses one delta per axis; presentation includes every actual match
+  // after BOTH deltas, so equal-size shapes show their top, center and bottom.
+  for (const axis of ['x', 'y'] as const) {
+    const source = axis === 'x' ? [b.minX, centerX(b), b.maxX] : [b.minY, centerY(b), b.maxY];
+    for (const value of new Set(source)) {
+      const matches = others.filter(other => {
+        const separation = axis === 'x' ? Math.max(0, other.minY - b.maxY, b.minY - other.maxY) : Math.max(0, other.minX - b.maxX, b.minX - other.maxX);
+        if (separation > 400 / zoom) return false;
+        const targets = axis === 'x' ? [other.minX, centerX(other), other.maxX] : [other.minY, centerY(other), other.maxY];
+        return targets.some(target => Math.abs(target - value) <= (snap ? 1e-7 : 0.5 / zoom));
+      });
+      if (!matches.length) continue;
+      let min = axis === 'x' ? b.minY : b.minX;
+      let max = axis === 'x' ? b.maxY : b.maxX;
+      for (const other of matches) {
+        min = Math.min(min, axis === 'x' ? other.minY : other.minX);
+        max = Math.max(max, axis === 'x' ? other.maxY : other.maxX);
+      }
+      alignments.push(axis === 'x'
+        ? { x1: value, y1: min - 12 / zoom, x2: value, y2: max + 12 / zoom }
+        : { x1: min - 12 / zoom, y1: value, x2: max + 12 / zoom, y2: value });
+    }
+  }
   const candidates: { gap: number; guide: Guide }[][] = [[], [], [], []];
   for (const other of others) {
     const verticalOverlap = Math.min(b.maxY, other.maxY) - Math.max(b.minY, other.minY);

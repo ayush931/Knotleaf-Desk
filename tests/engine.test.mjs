@@ -1819,3 +1819,12 @@ test('connected-shape creation respects arrow routing in every direction',()=>{
   engine.undo();expect(engine.getElements()).toEqual([source]);engine.redo();expect(engine.getElements().find(el=>el.type==='arrow').routing).toBe(routing);engine.destroy();
  }
 });
+
+
+test('dragging displays top, middle and bottom guides together and clears them on finish',()=>{
+ const alignedTarget={...target,x:400,y:100};const {engine,listeners,point}=setup([source,alignedTarget]);
+ listeners.pointerdown(point(150,130));listeners.pointermove(point(205,133));
+ expect(engine.guides.filter(g=>!g.label&&g.y1===g.y2).map(g=>g.y1)).toEqual([100,140,180]);
+ expect(engine.getElements().find(el=>el.id===source.id).y).toBe(100);
+ listeners.pointerup(point(205,133));expect(engine.guides).toEqual([]);engine.undo();expect(engine.getElements()).toEqual([source,alignedTarget]);engine.destroy();
+});
