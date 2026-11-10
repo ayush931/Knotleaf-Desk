@@ -1210,9 +1210,9 @@ function drawText(ctx: CanvasRenderingContext2D, el: CanvasElement) {
     const build = () => ctx.roundRect(el.x - 16, el.y - 16, el.width + 32, el.height + 32, 10);
     drawBackgroundFill(ctx, el, build, { x: el.x - 16, y: el.y - 16, width: el.width + 32, height: el.height + 32 });
     ctx.beginPath(); build(); ctx.stroke();
-    ctx.textBaseline = "top"; setFont(ctx, 11, "mono"); ctx.fillStyle = cardLight ? "#52525b" : "#94a3b8"; ctx.fillText(result.language, el.x, el.y);
+    ctx.textBaseline = "top";
     setFont(ctx, el.fontSize, "mono");
-    result.lines.forEach((line, row) => { let x = el.x; for (const token of line) { ctx.fillStyle = cardLight ? lightCodeInk(token.color) : token.color; ctx.fillText(token.text, x, el.y + 28 + el.fontSize * 0.25 + row * el.fontSize * 1.5); x += ctx.measureText(token.text).width; } });
+    result.lines.forEach((line, row) => { let x = el.x; for (const token of line) { ctx.fillStyle = cardLight ? lightCodeInk(token.color) : token.color; ctx.fillText(token.text, x, el.y + el.fontSize * 0.25 + row * el.fontSize * 1.5); x += ctx.measureText(token.text).width; } });
     ctx.restore(); return;
   }
   const { x, y, text, fontSize, fontFamily, textAlign, stroke, fill } = el;

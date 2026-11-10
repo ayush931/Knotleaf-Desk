@@ -1,3 +1,4 @@
+import { lightSyntaxColor } from '@/lib/codePalette';
 import type { BackgroundSettings, CanvasElement, Theme } from './types';
 import { normalizeBackground, isLightBackground } from '@/lib/background.mjs';
 import { CODE_CARD_FILL, DOCUMENT_CARD_FILL } from './cardAppearance';
@@ -27,5 +28,5 @@ export function canvasElementAppearance<T extends CanvasElement>(element: T, lig
   return next;
 }
 export function lightCodeInk(color: string): string {
-  return ({ '#d4d4d8': '#27272a', '#b8a8c4': '#6b3f87', '#afbaa8': '#356330', '#808995': '#606975' } as Record<string,string>)[color.toLowerCase()] || color;
+  return ({ '#d4d4d8': '#27272a', '#b8a8c4': '#6b3f87', '#afbaa8': '#356330', '#808995': '#606975' } as Record<string,string>)[color.toLowerCase()] || lightSyntaxColor(color);
 }

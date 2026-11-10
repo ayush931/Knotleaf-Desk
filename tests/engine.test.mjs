@@ -1707,3 +1707,15 @@ test('leaving a source connection control never snaps the free endpoint back to 
  listeners.pointermove(point(handle.x+10,handle.y));expect(engine.draft.endBinding).toBeUndefined();
  listeners.pointercancel(point(handle.x+10,handle.y));engine.destroy();
 });
+
+test('saved code cards paint only syntax-colored code without a language label or header gap',()=>{
+ const card={...base,id:'syntax-card',type:'text',isCodeCard:true,isDocCard:true,codeLanguage:'javascript',text:'const count = 42;',fontSize:16,fontFamily:'mono',textAlign:'left',fill:'#111d2d',fillStyle:'solid',x:100,y:100,width:300,height:100};
+ const {engine}=setup([card]),paint=[];engine.ctx.fillText=function(text,x,y){paint.push({text,x,y,color:this.fillStyle});};
+ for(const theme of ['dark','light']){
+  paint.length=0;drawElement(engine.ctx,card,{theme});
+  expect(paint.map(token=>token.text).join('')).toBe(card.text);
+  expect(paint[0].y).toBe(card.y+card.fontSize*.25);
+  expect(new Set(paint.map(token=>token.color)).size).toBeGreaterThanOrEqual(3);
+ }
+ engine.destroy();
+});

@@ -532,3 +532,15 @@ test('moving the open board also follows its destination workspace',async()=>{
  await act(async()=>{const move=named('Workspace for Test canvas');move.value=destination;move.dispatchEvent(new browser.Event('change',{bubbles:true}));});
  expect(document.getElementById('workspace-select').value).toBe(destination);expect(getBoard(id).workspaceId).toBe(destination);
 });
+
+test('canvas code editor has no language UI and shares its syntax colors with the saved canvas',async()=>{
+ const {CodeEditor}=await import('../components/CodeEditor.tsx');const {CODE_COLORS}=await import('../lib/codePalette.ts');
+ const props={value:'const count = 42;',language:'javascript',onChange(){},onClose(){},x:50,y:50,width:300,height:100,zoom:1,fontSize:16};
+ for(const light of [false,true]){
+  await act(async()=>root.render(React.createElement(CodeEditor,{...props,background:{fill:light?'#ffffff':'#111d2d',fillStyle:'solid'}})));
+  expect(!!named('Code language')).toBe(false);expect(!!named('Copy code')).toBe(true);expect(!!named('Finish editing code')).toBe(true);
+  const code=document.querySelector('.code-source code'),colors=CODE_COLORS[light?'light':'dark'];
+  expect(code.textContent).toBe(props.value);expect(code.innerHTML).toContain(colors.keyword);expect(code.innerHTML).toContain(colors.number);
+  expect(document.querySelector('.code-source').style.height).toBe('100px');expect(named('Code source').value).toBe(props.value);
+ }
+});

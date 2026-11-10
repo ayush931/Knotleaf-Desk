@@ -683,7 +683,7 @@ export class CanvasEngine {
     if (el.attachment) return el;
     if (el.isCodeCard) {
       setFont(this.ctx, el.fontSize, "mono");
-      return { ...el, width: Math.max(280, ...expandCodeTabs(el.text).split("\n").map(line => this.ctx.measureText(line).width)) + 24, height: Math.max(100, el.text.split("\n").length * el.fontSize * 1.5 + 36) };
+      return { ...el, width: Math.max(280, ...expandCodeTabs(el.text).split("\n").map(line => this.ctx.measureText(line).width)) + 24, height: Math.max(100, el.text.split("\n").length * el.fontSize * 1.5 + 8) };
     }
     if (el.textBox) { const width=Math.max(32,el.width); const layout=layoutDocument(this.ctx,el.text,el.fontSize,el.fontFamily,{...el,width}); return {...el,width,height:Math.max(el.height,layout.totalHeight)}; }
     const size = measureTextBlock(this.ctx, el.text, el.fontSize, el.fontFamily, el);
