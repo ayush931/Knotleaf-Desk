@@ -1658,7 +1658,7 @@ describe('easy connections for both line and arrow endpoints', () => {
   });
 });
 
-test('large outside connection handles support immediate dragging and click-place at every zoom', () => {
+test('large outside connection handles support immediate dragging and clicking generates an identical shape connected with straight arrow', () => {
  for(const zoom of [.5,1,2]) for(const clickMode of [false,true]) for(const anchor of ['top','right','bottom','left']) {
   const {engine,listeners,point,drag}=setup([source,target]); engine.zoom=zoom;
   drag(150*zoom,130*zoom,150*zoom,130*zoom);
@@ -1666,23 +1666,44 @@ test('large outside connection handles support immediate dragging and click-plac
   // The hit area extends beyond the visible 8px circle, without touching the shape outline.
   const x=handle.x*zoom+(anchor==='left'?-10:anchor==='right'?10:0),y=handle.y*zoom+(anchor==='top'?-10:anchor==='bottom'?10:0);
   listeners.pointermove(point(x,y)); expect(engine.canvas.style.cursor).toBe('crosshair');
-  listeners.pointerdown(point(x,y)); expect(engine.draft.startBinding).toEqual({elementId:source.id,anchor});
-  if(clickMode) listeners.pointerup(point(x,y));
-  listeners.pointermove(point(560*zoom,340*zoom));
-  expect(engine.draft.endBinding.elementId).toBe(target.id);
-  if(clickMode)listeners.pointerdown(point(560*zoom,340*zoom));
-  listeners.pointerup(point(560*zoom,340*zoom));
-  const arrow=engine.getElements().find(el=>el.type==='arrow');
-  expect(arrow.startBinding).toEqual({elementId:source.id,anchor});expect(arrow.endBinding.elementId).toBe(target.id);
-  expect(engine.getElements().find(el=>el.id===source.id)).toEqual(source);
-  engine.undo();expect(engine.getElements()).toHaveLength(2);engine.destroy();
+  listeners.pointerdown(point(x,y));
+  if(clickMode) {
+    listeners.pointerup(point(x,y));
+    const newShape = engine.getSelectedElements()[0];
+    expect(newShape.id).not.toBe(source.id);
+    expect(newShape.type).toBe(source.type);
+    expect(newShape.width).toBe(source.width);
+    expect(newShape.height).toBe(source.height);
+    expect(newShape.fill).toBe(source.fill);
+    expect(newShape.stroke).toBe(source.stroke);
+    const opposite = { top: 'bottom', bottom: 'top', left: 'right', right: 'left' };
+    const arrow = engine.getElements().find(el => el.type === 'arrow' && el.endBinding?.elementId === newShape.id);
+    expect(arrow.routing).toBe('straight');
+    expect(arrow.startBinding).toEqual({ elementId: source.id, anchor });
+    expect(arrow.endBinding).toEqual({ elementId: newShape.id, anchor: opposite[anchor] });
+    if (anchor === 'right') expect(newShape.x).toBe(source.x + source.width + 80);
+    if (anchor === 'left') expect(newShape.x).toBe(source.x - source.width - 80);
+    if (anchor === 'bottom') expect(newShape.y).toBe(source.y + source.height + 80);
+    if (anchor === 'top') expect(newShape.y).toBe(source.y - source.height - 80);
+    engine.undo(); expect(engine.getElements()).toHaveLength(2);
+  } else {
+    expect(engine.draft.startBinding).toEqual({elementId:source.id,anchor});
+    listeners.pointermove(point(560*zoom,340*zoom));
+    expect(engine.draft.endBinding.elementId).toBe(target.id);
+    listeners.pointerup(point(560*zoom,340*zoom));
+    const arrow=engine.getElements().find(el=>el.type==='arrow');
+    expect(arrow.startBinding).toEqual({elementId:source.id,anchor});expect(arrow.endBinding.elementId).toBe(target.id);
+    expect(engine.getElements().find(el=>el.id===source.id)).toEqual(source);
+    engine.undo();expect(engine.getElements()).toHaveLength(2);
+  }
+  engine.destroy();
  }
 });
 
 test('leaving a source connection control never snaps the free endpoint back to the source', () => {
  const {engine,listeners,point,drag}=setup([source]);drag(150,130,150,130);
  const handle=getConnectorHandles(source).find(h=>h.anchor==='right');
- listeners.pointerdown(point(handle.x,handle.y));listeners.pointerup(point(handle.x,handle.y));
- listeners.pointermove(point(handle.x+1,handle.y));expect(engine.draft.endBinding).toBeUndefined();
- listeners.pointercancel(point(handle.x+1,handle.y));engine.destroy();
+ listeners.pointerdown(point(handle.x,handle.y));
+ listeners.pointermove(point(handle.x+10,handle.y));expect(engine.draft.endBinding).toBeUndefined();
+ listeners.pointercancel(point(handle.x+10,handle.y));engine.destroy();
 });

@@ -109,7 +109,8 @@ type Gesture =
   | { kind: "marquee"; start: Point; base: Set<string> }
   /** clickMode: released without dragging, so the draft follows the pointer until the next click. */
   /** startShapeId: arrow started inside a shape; its start anchor follows the free end. */
-  | { kind: "draft"; origin: Point; downClient?: Point; dragged?: boolean; clickMode?: boolean; startShapeId?: string };
+  /** connectorHandle: set when dragging or clicking an outside + connector button. */
+  | { kind: "draft"; origin: Point; downClient?: Point; dragged?: boolean; clickMode?: boolean; startShapeId?: string; connectorHandle?: { elementId: string; anchor: AnchorPosition } };
 
 interface Anchor {
   anchor: AnchorPosition;
@@ -322,6 +323,7 @@ export class CanvasEngine {
   private activePointerId: number | null = null;
   private pinchScale: number | null = null;
   private lastPointerClient: Point | null = null;
+  private lastPointerPt: Point | null = null;
   private draft: CanvasElement | null = null;
   private marqueeRect: Bounds | null = null;
   private hoveredAnchors: Anchor[] = [];
@@ -666,7 +668,7 @@ export class CanvasEngine {
 
   private fitSticky(el: StickyElement): StickyElement {
     const width = Math.max(100, el.width);
-    setFont(this.ctx, el.fontSize || 15, el.fontFamily || "sans", el.bold ? 700 : 400, el.italic);
+    setFont(this.ctx, el.fontSize || 15, el.fontFamily || "sans", el.bold ? 700 : 500, el.italic);
     const height = Math.max(80, el.height, wrapText(this.ctx, el.text, width - 24).length * (el.fontSize || 15) * 1.35 + 28);
     return { ...el, width, height };
   }
@@ -877,7 +879,7 @@ export class CanvasEngine {
       if (el.type !== "text") return el;
       const parent = el.containerId ? parents.get(el.containerId) : undefined;
       if (!parent) return this.remeasureText(el);
-      setFont(this.ctx, el.fontSize, el.fontFamily, el.bold ? 700 : 400, el.italic);
+      setFont(this.ctx, el.fontSize, el.fontFamily, el.bold ? 700 : 500, el.italic);
       const width = Math.max(24, parent.width * (parent.type === "diamond" ? 0.6 : 1) - 32);
       const text = el.text.split("\n").map(line => wrapText(this.ctx, line, width).join("\n")).join("\n");
       const measured = this.remeasureText({ ...el, text, fill: "transparent", fillStyle: "none" });
@@ -1158,7 +1160,7 @@ export class CanvasEngine {
         return;
     }
     if (click && state && (el.type === "text" || el.type === "sticky")) {
-      setFont(this.ctx, state.fontSize, state.fontFamily, state.bold ? 700 : 400, state.italic);
+      setFont(this.ctx, state.fontSize, state.fontFamily, state.bold ? 700 : 500, state.italic);
       const originX = el.x + (el.type === "sticky" ? 12 : 0), originY = el.y + (el.type === "sticky" ? 12 : 0);
       const available = el.width - (el.type === "sticky" ? 24 : 0);
       const lines = el.type === "sticky" || el.type === "text" && el.textBox ? wrapText(this.ctx, state.text, available) : state.text.split("\n");
@@ -1283,8 +1285,11 @@ export class CanvasEngine {
       drawElement(ctx, this.draft, { theme: this.theme, lightCanvas: this.theme === "light" && isLightBackground(background), zoom: this.zoom, scene: this.elements });
     }
 
-    if (single && this.tool === "select" && !this.gesture && !this.editingId) {
-      drawConnectorHandles(ctx, single, this.zoom, this.snapTarget?.anchor);
+    const activeConnectable = this.tool === "select" && !this.gesture && !this.editingId && !this.readOnly
+      ? this.getActiveConnectable(this.lastPointerPt)
+      : null;
+    if (activeConnectable) {
+      drawConnectorHandles(ctx, activeConnectable, this.zoom, this.snapTarget?.anchor, this.theme === "light" && isLightBackground(background));
     }
 
     if (this.hoveredAnchors.length > 0) {
@@ -1389,6 +1394,140 @@ export class CanvasEngine {
     let best: Anchor | null = null;
     for (const a of getElementAnchors(shape)) if (!best || Math.hypot(toward.x - a.x, toward.y - a.y) < Math.hypot(toward.x - best.x, toward.y - best.y)) best = a;
     return best;
+  }
+
+  /** Checks if a point is hovering near the border line or connection controls of a shape. */
+  private isNearBorder(el: CanvasElement, pt: Point): boolean {
+    if (getElementAnchors(el).length === 0) return false;
+    const b = getElementBounds(el, this.elements);
+    const tol = 30 / this.zoom;
+    const handles = getConnectorHandles(el, this.zoom);
+    for (const h of handles) {
+      if (Math.hypot(pt.x - h.x, pt.y - h.y) <= 18 / this.zoom) return true;
+    }
+    if (pt.x < b.minX - tol || pt.x > b.maxX + tol || pt.y < b.minY - tol || pt.y > b.maxY + tol) {
+      return false;
+    }
+    const w = b.maxX - b.minX;
+    const h = b.maxY - b.minY;
+    if (w <= tol * 2.5 || h <= tol * 2.5) return true;
+    const distToLeft = Math.abs(pt.x - b.minX);
+    const distToRight = Math.abs(pt.x - b.maxX);
+    const distToTop = Math.abs(pt.y - b.minY);
+    const distToBottom = Math.abs(pt.y - b.maxY);
+    return Math.min(distToLeft, distToRight, distToTop, distToBottom) <= tol;
+  }
+
+  /** Connectable shape that currently exposes outside + controls. */
+  private getActiveConnectable(pt?: Point | null): CanvasElement | null {
+    const selected = this.getSelectedElements();
+    if (selected.length === 1 && getElementAnchors(selected[0]).length > 0) {
+      if (!pt || this.isNearBorder(selected[0], pt)) return selected[0];
+    }
+    if (selected.length === 0 && pt) {
+      for (let i = this.elements.length - 1; i >= 0; i--) {
+        const el = this.elements[i];
+        if (getElementAnchors(el).length > 0 && this.isNearBorder(el, pt)) {
+          return el;
+        }
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Generates a new exact same shape in the given direction (top, right, bottom, left)
+   * connected with a straight arrow.
+   */
+  public generateConnectedShape(source: CanvasElement, direction: AnchorPosition) {
+    const bounds = getElementBounds(source, this.elements);
+    const width = bounds.maxX - bounds.minX;
+    const height = bounds.maxY - bounds.minY;
+    const gap = 80;
+
+    let dx = 0;
+    let dy = 0;
+    switch (direction) {
+      case "right":
+        dx = width + gap;
+        break;
+      case "left":
+        dx = -(width + gap);
+        break;
+      case "bottom":
+        dy = height + gap;
+        break;
+      case "top":
+        dy = -(height + gap);
+        break;
+    }
+
+    const clonedId = newId();
+    const cloned: CanvasElement = {
+      ...JSON.parse(JSON.stringify(source)),
+      id: clonedId,
+      x: source.x + dx,
+      y: source.y + dy,
+      zIndex: this.elements.length,
+    };
+    delete (cloned as unknown as { boundElements?: unknown }).boundElements;
+    delete (cloned as unknown as { startBinding?: unknown }).startBinding;
+    delete (cloned as unknown as { endBinding?: unknown }).endBinding;
+
+    const opposite: Record<AnchorPosition, AnchorPosition> = {
+      top: "bottom",
+      bottom: "top",
+      left: "right",
+      right: "left",
+    };
+    const targetAnchor = opposite[direction];
+
+    const sourceAnchors = getElementAnchors(source);
+    const sourcePort = sourceAnchors.find(a => a.anchor === direction) || {
+      x: direction === "right" ? source.x + source.width : direction === "left" ? source.x : source.x + source.width / 2,
+      y: direction === "bottom" ? source.y + source.height : direction === "top" ? source.y : source.y + source.height / 2,
+    };
+
+    const targetAnchors = getElementAnchors(cloned);
+    const targetPort = targetAnchors.find(a => a.anchor === targetAnchor) || {
+      x: targetAnchor === "right" ? cloned.x + cloned.width : targetAnchor === "left" ? cloned.x : cloned.x + cloned.width / 2,
+      y: targetAnchor === "bottom" ? cloned.y + cloned.height : targetAnchor === "top" ? cloned.y : cloned.y + cloned.height / 2,
+    };
+
+    const strokeColor = source.stroke && source.stroke !== "transparent"
+      ? source.stroke
+      : (this.currentStyle.stroke || "#3B82F6");
+
+    const arrowId = newId();
+    const arrow: ArrowElement = {
+      id: arrowId,
+      type: "arrow",
+      startX: sourcePort.x,
+      startY: sourcePort.y,
+      endX: targetPort.x,
+      endY: targetPort.y,
+      x: Math.min(sourcePort.x, targetPort.x),
+      y: Math.min(sourcePort.y, targetPort.y),
+      width: Math.abs(targetPort.x - sourcePort.x),
+      height: Math.abs(targetPort.y - sourcePort.y),
+      stroke: strokeColor,
+      strokeWidth: source.strokeWidth || 2,
+      strokeStyle: "solid",
+      fill: "transparent",
+      fillStyle: "none",
+      roundness: "rounded",
+      opacity: 1,
+      zIndex: this.elements.length + 1,
+      routing: "straight",
+      startBinding: { elementId: source.id, anchor: direction },
+      endBinding: { elementId: cloned.id, anchor: targetAnchor },
+    };
+
+    this.elements = [...this.elements, cloned, arrow];
+    this.selectedIds = new Set([cloned.id]);
+    this.commit();
+    this.emitSelection();
+    this.requestRender();
   }
 
   private hitTest(pt: Point): CanvasElement | null {
@@ -1555,6 +1694,7 @@ export class CanvasEngine {
     this.altDown = !!e.altKey;
     const sp = this.screenPoint(e);
     const pt = this.screenToCanvas(sp.x, sp.y);
+    this.lastPointerPt = pt;
 
     if (this.tool === "highlighter" && e.button === 0 && !this.spaceDown) {
       e.preventDefault(); this.gesture = { kind: "highlight" }; this.addHighlight(pt, true); return;
@@ -1590,16 +1730,26 @@ export class CanvasEngine {
 
     const selected = this.getSelectedElements();
     const selectedHandle = selected.length === 1 ? this.handleAt(selected[0], pt) : null;
-    // In Select, only the selected element exposes connection controls.
-    // Hovering an unrelated shape must not turn an ordinary move into an arrow.
-    if (this.tool === "select" && selected.length === 1 && !e.shiftKey && !selectedHandle) {
-      const handle = getConnectorHandles(selected[0], this.zoom).find(h => Math.hypot(pt.x-h.x,pt.y-h.y) <= 12/this.zoom);
-      const snap = handle ? { ...handle, elementId: selected[0].id, x: handle.portX, y: handle.portY } : this.findNearestAnchor(pt, undefined, selected[0].id);
+    // Connectable shapes expose outside + controls when hovering near their border.
+    if (this.tool === "select" && !e.shiftKey && !selectedHandle) {
+      const activeConnectable = this.getActiveConnectable(pt);
+      const handle = activeConnectable
+        ? getConnectorHandles(activeConnectable, this.zoom).find(h => Math.hypot(pt.x - h.x, pt.y - h.y) <= 12 / this.zoom)
+        : null;
+      const snap = handle
+        ? { ...handle, elementId: activeConnectable!.id, x: handle.portX, y: handle.portY }
+        : (selected.length === 1 ? this.findNearestAnchor(pt, undefined, selected[0].id) : null);
       if (snap && (handle || Math.hypot(pt.x - snap.x, pt.y - snap.y) < 7 / this.zoom)) {
         const arrow = this.createDraft({ x: snap.x, y: snap.y }, "arrow") as ArrowElement;
+        arrow.routing = "straight";
         this.draft = { ...arrow, startBinding: { elementId: snap.elementId, anchor: snap.anchor } };
-        // Outside + handles support click, move, click as well as immediate dragging.
-        this.gesture = { kind: "draft", origin: {x:snap.x,y:snap.y}, ...(handle ? { downClient:{x:e.clientX,y:e.clientY} } : {}) };
+        // Outside + handles support click to clone as well as immediate dragging to connect.
+        this.gesture = {
+          kind: "draft",
+          origin: { x: snap.x, y: snap.y },
+          ...(handle ? { downClient: { x: e.clientX, y: e.clientY } } : {}),
+          connectorHandle: handle && activeConnectable ? { elementId: activeConnectable.id, anchor: handle.anchor } : undefined,
+        };
         this.requestRender();
         return;
       }
@@ -1739,6 +1889,7 @@ export class CanvasEngine {
     const sp = this.screenPoint(e);
     this.eraserPointer=sp;
     const pt = this.screenToCanvas(sp.x, sp.y);
+    this.lastPointerPt = pt;
     const g = this.gesture;
     this.onCursorChange?.(pt);
 
@@ -1885,6 +2036,18 @@ export class CanvasEngine {
         this.emitSelection();
         break;
       case "draft":
+        // Clicking an outside + connector control generates an identical connected shape in that direction
+        if (g.connectorHandle && !g.dragged) {
+          const sourceEl = this.elements.find(el => el.id === g.connectorHandle!.elementId);
+          if (sourceEl) {
+            this.draft = null;
+            this.gesture = null;
+            this.generateConnectedShape(sourceEl, g.connectorHandle.anchor);
+            this.updateCursor();
+            this.requestRender();
+            break;
+          }
+        }
         // Excalidraw-style click-to-draw: a trackpad click without dragging keeps drawing
         // until the next click, so the button need not be held down.
         if (e && !g.dragged && !g.clickMode && g.downClient && this.draft && this.draft.type !== "pencil" && Math.hypot(e.clientX - g.downClient.x, e.clientY - g.downClient.y) < 4) {
@@ -2379,9 +2542,12 @@ export class CanvasEngine {
       this.snapTarget = snap ? { anchor: snap.anchor } : null;
       this.updateCursor();
     } else if (this.tool === "select") {
-      const handle = selected.length === 1 ? getConnectorHandles(selected[0], this.zoom).find(h => Math.hypot(pt.x-h.x,pt.y-h.y) <= 12/this.zoom) : null;
+      const activeConnectable = this.getActiveConnectable(pt);
+      const connHandle = activeConnectable
+        ? getConnectorHandles(activeConnectable, this.zoom).find(h => Math.hypot(pt.x - h.x, pt.y - h.y) <= 12 / this.zoom)
+        : null;
       const snap = selected.length === 1 ? this.findNearestAnchor(pt, undefined, selected[0].id) : null;
-      this.snapTarget = handle ? {anchor:handle.anchor} : snap && Math.hypot(pt.x - snap.x, pt.y - snap.y) < 7 / this.zoom ? { anchor: snap.anchor } : null;
+      this.snapTarget = connHandle ? { anchor: connHandle.anchor } : snap && Math.hypot(pt.x - snap.x, pt.y - snap.y) < 7 / this.zoom ? { anchor: snap.anchor } : null;
       this.canvas.style.cursor = this.snapTarget ? "crosshair" : this.hitTest(pt) ? "move" : "default";
     } else this.updateCursor();
     this.requestRender();
