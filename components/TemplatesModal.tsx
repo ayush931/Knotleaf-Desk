@@ -28,7 +28,7 @@ const categories = [
   ["agile", "Planning"],
 ] as const;
 
-function TemplatePreview({ template }: { template: TemplateDefinition }) {
+function TemplatePreview({ template, theme = "dark" }: { template: TemplateDefinition; theme?: Theme }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     let disposed = false;
@@ -45,6 +45,8 @@ function TemplatePreview({ template }: { template: TemplateDefinition }) {
         (surface.height - 40) / Math.max(1, bounds.maxY - bounds.minY),
       );
       ctx.clearRect(0, 0, surface.width, surface.height);
+      ctx.fillStyle = theme === "light" ? "#ffffff" : "#121212";
+      ctx.fillRect(0, 0, surface.width, surface.height);
       ctx.save();
       ctx.translate(surface.width / 2, surface.height / 2);
       ctx.scale(scale, scale);
@@ -53,7 +55,7 @@ function TemplatePreview({ template }: { template: TemplateDefinition }) {
         -(bounds.minY + bounds.maxY) / 2,
       );
       for (const element of template.elements)
-        drawElement(ctx, element, { theme: "dark", scene: template.elements });
+        drawElement(ctx, element, { theme, lightCanvas: theme === "light", scene: template.elements });
       ctx.restore();
     };
     paint();
@@ -63,14 +65,14 @@ function TemplatePreview({ template }: { template: TemplateDefinition }) {
     return () => {
       disposed = true;
     };
-  }, [template]);
+  }, [template, theme]);
   return (
     <canvas
       ref={canvas}
       width={600}
       height={260}
       aria-hidden="true"
-      className="block aspect-[30/13] h-auto w-full rounded-lg border border-neutral-800 bg-[#121212]"
+      className={`block aspect-[30/13] h-auto w-full rounded-lg border ${theme === "light" ? "border-neutral-200 bg-white" : "border-neutral-800 bg-[#121212]"}`}
     />
   );
 }
@@ -78,6 +80,7 @@ function TemplatePreview({ template }: { template: TemplateDefinition }) {
 function TemplateDialog({
   onClose,
   onSelectTemplate,
+  theme = "dark",
 }: Omit<TemplatesModalProps, "isOpen">) {
   const dialog = useRef<HTMLDialogElement>(null),
     search = useRef<HTMLInputElement>(null),
@@ -239,7 +242,7 @@ function TemplateDialog({
                 key={template.id}
                 className="flex min-w-0 flex-col rounded-xl border border-neutral-800 p-3"
               >
-                <TemplatePreview template={template} />
+                <TemplatePreview template={template} theme={theme} />
                 <h3 className="mt-3 text-sm font-semibold">{template.name}</h3>
                 <p className="mb-3 mt-1 flex-1 text-xs leading-relaxed text-neutral-400">
                   {template.description}

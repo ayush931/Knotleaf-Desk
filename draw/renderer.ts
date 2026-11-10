@@ -1190,27 +1190,29 @@ function drawStyledText(ctx: CanvasRenderingContext2D, text: string, x: number, 
 
 function drawText(ctx: CanvasRenderingContext2D, el: CanvasElement) {
   if (el.type !== "text") return;
+  const isLight = isLightBackground({ fill: el.fill, fillStyle: el.fillStyle === "none" ? "solid" : el.fillStyle, fillOpacity: el.fillOpacity ?? 1 });
   if (el.attachment) {
     const x=el.x-16,y=el.y-16,w=el.width+32,h=el.height+32;
-    ctx.save();ctx.fillStyle=el.fill;ctx.strokeStyle="#3f3f46";ctx.lineWidth=1;
+    ctx.save();ctx.fillStyle=el.fill;ctx.strokeStyle=isLight?"#d4d4d8":"#3f3f46";ctx.lineWidth=1;
     ctx.beginPath();ctx.roundRect(x,y,w,h,10);ctx.fill();ctx.stroke();
     ctx.strokeStyle="#3B82F6";ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(x+20,y+20);ctx.lineTo(x+36,y+20);ctx.lineTo(x+44,y+28);ctx.lineTo(x+44,y+52);ctx.lineTo(x+20,y+52);ctx.closePath();ctx.stroke();
     ctx.textBaseline="top";ctx.textAlign="left";ctx.fillStyle=el.stroke;setFont(ctx,14,"sans",600);
     let name=el.attachment.name;while(name.length>1&&ctx.measureText(name).width>w-88)name=name.slice(0,-2)+"…";
-    ctx.fillText(name,x+60,y+21);ctx.fillStyle=isLightBackground({fill:el.fill,fillStyle:"solid",fillOpacity:1})?"#52525b":"#a1a1aa";setFont(ctx,11,"sans");
+    ctx.fillText(name,x+60,y+21);ctx.fillStyle=isLight?"#52525b":"#a1a1aa";setFont(ctx,11,"sans");
     ctx.fillText(`${el.attachment.name.split('.').pop()?.toUpperCase().slice(0,12)||'FILE'} · ${attachmentSize(el.attachment.size)}`,x+60,y+43);
-    ctx.fillStyle="#71717a";ctx.fillText("Local file · Select to download",x+20,y+h-27);ctx.restore();return;
+    ctx.fillStyle=isLight?"#71717a":"#71717a";ctx.fillText("Local file · Select to download",x+20,y+h-27);ctx.restore();return;
   }
   el = cardBackground(el);
   if (el.isCodeCard) {
     const result = highlightCode(expandCodeTabs(el.text), el.codeLanguage);
-    ctx.save(); ctx.fillStyle = "#10151e"; ctx.strokeStyle = "#334155"; ctx.lineWidth = 1;
+    const cardLight = isLightBackground({ fill: el.fill, fillStyle: "solid", fillOpacity: 1 });
+    ctx.save(); ctx.fillStyle = cardLight ? "#ffffff" : "#10151e"; ctx.strokeStyle = cardLight ? "#d4d4d8" : "#334155"; ctx.lineWidth = 1;
     const build = () => ctx.roundRect(el.x - 16, el.y - 16, el.width + 32, el.height + 32, 10);
     drawBackgroundFill(ctx, el, build, { x: el.x - 16, y: el.y - 16, width: el.width + 32, height: el.height + 32 });
     ctx.beginPath(); build(); ctx.stroke();
-    ctx.textBaseline = "top"; setFont(ctx, 11, "mono"); ctx.fillStyle = isLightBackground({fill:el.fill,fillStyle:"solid",fillOpacity:1}) ? "#52525b" : "#94a3b8"; ctx.fillText(result.language, el.x, el.y);
+    ctx.textBaseline = "top"; setFont(ctx, 11, "mono"); ctx.fillStyle = cardLight ? "#52525b" : "#94a3b8"; ctx.fillText(result.language, el.x, el.y);
     setFont(ctx, el.fontSize, "mono");
-    result.lines.forEach((line, row) => { let x = el.x; for (const token of line) { ctx.fillStyle = isLightBackground({fill:el.fill,fillStyle:"solid",fillOpacity:1}) ? lightCodeInk(token.color) : token.color; ctx.fillText(token.text, x, el.y + 28 + el.fontSize * 0.25 + row * el.fontSize * 1.5); x += ctx.measureText(token.text).width; } });
+    result.lines.forEach((line, row) => { let x = el.x; for (const token of line) { ctx.fillStyle = cardLight ? lightCodeInk(token.color) : token.color; ctx.fillText(token.text, x, el.y + 28 + el.fontSize * 0.25 + row * el.fontSize * 1.5); x += ctx.measureText(token.text).width; } });
     ctx.restore(); return;
   }
   const { x, y, text, fontSize, fontFamily, textAlign, stroke, fill } = el;
@@ -1226,12 +1228,12 @@ function drawText(ctx: CanvasRenderingContext2D, el: CanvasElement) {
     const cardW = Math.max(el.width, layout.totalWidth) + pad * 2;
     const cardH = Math.max(el.height, layout.totalHeight) + pad * 2;
     ctx.save();
-    ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
+    ctx.shadowColor = isLight ? "rgba(0, 0, 0, 0.08)" : "rgba(0, 0, 0, 0.5)";
     ctx.shadowBlur = 18;
     ctx.shadowOffsetY = 4;
     const buildCard = () => { if (ctx.roundRect) ctx.roundRect(cardX, cardY, cardW, cardH, 12); else ctx.rect(cardX, cardY, cardW, cardH); };
     drawBackgroundFill(ctx, el, buildCard, { x: cardX, y: cardY, width: cardW, height: cardH });
-    ctx.strokeStyle = "#3f3f46";
+    ctx.strokeStyle = isLight ? "#d4d4d8" : "#3f3f46";
     ctx.lineWidth = el.strokeWidth || 1;
     ctx.beginPath();
     if (ctx.roundRect) ctx.roundRect(cardX, cardY, cardW, cardH, 12);
@@ -1250,13 +1252,13 @@ function drawText(ctx: CanvasRenderingContext2D, el: CanvasElement) {
     ctx.textAlign = "left";
     const ly = y + line.yOffset;
     setFont(ctx, line.fontSize, fontFamily, line.fontWeight, line.isItalic);
-    const color = stroke || "#FFFFFF";
+    const color = stroke || (isLight ? "#1f2937" : "#FFFFFF");
     ctx.fillStyle = color;
 
     if (line.type === "divider") {
       ctx.save();
       ctx.beginPath();
-      ctx.strokeStyle = "rgba(255, 255, 255, 0.16)";
+      ctx.strokeStyle = isLight ? "rgba(0, 0, 0, 0.12)" : "rgba(255, 255, 255, 0.16)";
       ctx.lineWidth = 1;
       ctx.moveTo(x, ly + 8);
       ctx.lineTo(x + Math.max(el.width, layout.totalWidth, 120), ly + 8);
@@ -1269,7 +1271,7 @@ function drawText(ctx: CanvasRenderingContext2D, el: CanvasElement) {
       ctx.save();
       ctx.fillStyle = "#3B82F6";
       ctx.fillRect(x, ly, 3, line.lineHeight - 2);
-      ctx.fillStyle = "rgba(244, 244, 245, 0.85)";
+      ctx.fillStyle = isLight ? "#4b5563" : "rgba(244, 244, 245, 0.85)";
       setFont(ctx, line.fontSize, fontFamily, line.fontWeight, true);
       drawStyledText(ctx, line.content, x + 14, ly + 1, line.fontSize, el);
       ctx.restore();
@@ -1297,8 +1299,8 @@ function drawText(ctx: CanvasRenderingContext2D, el: CanvasElement) {
         ctx.lineTo(indentX + 11, boxY + 3.5);
         ctx.stroke();
       } else {
-        ctx.fillStyle = "rgba(255, 255, 255, 0.04)";
-        ctx.strokeStyle = "rgba(255, 255, 255, 0.4)";
+        ctx.fillStyle = isLight ? "rgba(0, 0, 0, 0.04)" : "rgba(255, 255, 255, 0.04)";
+        ctx.strokeStyle = isLight ? "rgba(0, 0, 0, 0.35)" : "rgba(255, 255, 255, 0.4)";
         ctx.lineWidth = 1.4;
         ctx.beginPath();
         if (ctx.roundRect) ctx.roundRect(indentX, boxY, boxSize, boxSize, 3);
@@ -1312,10 +1314,10 @@ function drawText(ctx: CanvasRenderingContext2D, el: CanvasElement) {
       const textX = indentX + 22;
       if (line.type === "todo-checked") {
         ctx.save();
-        ctx.fillStyle = "rgba(244, 244, 245, 0.55)";
+        ctx.fillStyle = isLight ? "#9ca3af" : "rgba(244, 244, 245, 0.55)";
         drawStyledText(ctx, line.content, textX, ly, line.fontSize, el);
         const tw = ctx.measureText(line.content).width;
-        ctx.strokeStyle = "rgba(244, 244, 245, 0.45)";
+        ctx.strokeStyle = isLight ? "#9ca3af" : "rgba(244, 244, 245, 0.45)";
         ctx.lineWidth = 1.2;
         ctx.beginPath();
         ctx.moveTo(textX, ly + line.lineHeight / 2);

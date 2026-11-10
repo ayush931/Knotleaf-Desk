@@ -45,7 +45,7 @@ export function ConfirmDialog({
         <button
           autoFocus
           onClick={onClose}
-          className="rounded-lg bg-neutral-800 px-4 py-2 text-sm hover:bg-neutral-700"
+          className="rounded-lg bg-neutral-800 px-4 py-2 text-sm text-neutral-200 hover:bg-neutral-700"
         >
           Cancel
         </button>
@@ -54,7 +54,7 @@ export function ConfirmDialog({
             onConfirm();
             onClose();
           }}
-          className="rounded-lg bg-rose-600 px-4 py-2 text-sm hover:bg-rose-500"
+          className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-500"
         >
           {variant === "delete-presentation" ? "Delete presentation" : variant === "replace-presentation"
             ? "Open presentation"

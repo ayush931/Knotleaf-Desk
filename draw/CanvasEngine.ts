@@ -366,7 +366,8 @@ export class CanvasEngine {
     canvas: HTMLCanvasElement,
     initialElements: CanvasElement[] = [],
     initialTheme: Theme = "dark",
-    initialGrid: GridType = "dot"
+    initialGrid: GridType = "dot",
+    initialBackground?: unknown
   ) {
     this.canvas = canvas;
     const ctx = canvas.getContext("2d");
@@ -376,6 +377,7 @@ export class CanvasEngine {
     this.committedElements = [...this.elements];
     this.theme = initialTheme;
     this.gridType = initialGrid;
+    if (initialBackground) this.background = normalizeBackground(initialBackground);
     this.undoStack = [JSON.stringify(this.elements)];
 
     this.attachEventListeners();

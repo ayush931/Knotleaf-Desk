@@ -19,7 +19,7 @@ import { prepareAssets, downloadAttachment } from "@/lib/assetUpload";
 import { RoomSession, type Collaborator } from "@/lib/collaboration";
 import { getRoomServerUrl, checkRoomAvailable, RoomExpiredError, roomInviteUrl } from "@/lib/roomConnection";
 import { createRoomFromBoard, scheduleRoomWarmup } from "@/lib/roomCreation";
-import { isLightBackground, normalizeBackground } from "@/lib/background.mjs";
+import { isLightBackground } from "@/lib/background.mjs";
 import { useCanvasFocus } from "@/lib/useCanvasFocus";
 import { Classroom } from "./Classroom";
 import { CollaborationPanel } from "./CollaborationPanel";
@@ -147,6 +147,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
   const [selectedElements, setSelectedElements] = useState<CanvasElement[]>([]);
   const [zoom, setZoom] = useState(1);
   const [theme, setTheme] = useState<Theme>(preferences.theme);
+  const themeRef = useRef<Theme>(preferences.theme);
   const displayBackground = canvasBackground(board.background, theme);
   const lightCanvas = theme === "light" && isLightBackground(displayBackground);
   const [gridType, setGridType] = useState<GridType>(board.gridType || "dot");
@@ -253,6 +254,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
 
   // Dark mode: toggle the `dark` class on <html> so Tailwind's dark: variant follows the app toggle.
   useEffect(() => {
+    themeRef.current = theme;
     document.documentElement.classList.toggle("dark", theme === "dark");
     document.documentElement.classList.toggle("light", theme === "light");
     document.documentElement.style.colorScheme = theme;
@@ -274,7 +276,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
   useEffect(() => {
     if (!canvasRef.current || !containerRef.current) return;
     const container = containerRef.current;
-    const engine = new CanvasEngine(canvasRef.current, boardRef.current.elements, boardRef.current.theme, boardRef.current.gridType);
+    const engine = new CanvasEngine(canvasRef.current, boardRef.current.elements, themeRef.current, boardRef.current.gridType, boardRef.current.background);
     engine.resize(container.clientWidth, container.clientHeight);
     engineRef.current = engine;
     const observer = new ResizeObserver(() => { if (container.clientWidth && container.clientHeight) engine.resize(container.clientWidth, container.clientHeight); });
@@ -843,10 +845,10 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
           onToggleSnap={handleToggleSnap}
           selectionCount={selectedElements.length}
           onExportSvg={(selection, transparent) => exportToSvg({ ...boardRef.current, theme }, exportElements(selection), transparent)}
-          onExportDrawio={selection => exportToDrawio(boardRef.current, exportElements(selection))}
+          onExportDrawio={selection => exportToDrawio({ ...boardRef.current, theme }, exportElements(selection))}
           onExportImage={handleExportImage}
           onExportProject={scope => exportProjectFile(boardRef.current, scope)}
-          onExportPdf={async scope => { if(boardRef.current.largeMarkdown&&scope!=="canvas")throw new Error("Download this large document as Markdown. Whole-document PDF rendering would use too much memory."); const snapshot = structuredClone({...boardRef.current,elements:exportElements(false)}); const { exportProjectPdf } = await import("@/draw/projectPdf"); await exportProjectPdf(snapshot, scope); }}
+          onExportPdf={async scope => { if(boardRef.current.largeMarkdown&&scope!=="canvas")throw new Error("Download this large document as Markdown. Whole-document PDF rendering would use too much memory."); const snapshot = structuredClone({...boardRef.current,elements:exportElements(false),theme}); const { exportProjectPdf } = await import("@/draw/projectPdf"); await exportProjectPdf(snapshot, scope); }}
           onImportFile={file=>importCoordinator.current?.start(file)||Promise.resolve()}
           onOpenUploadedFiles={()=>{if(!importCoordinator.current?.isBusy())setUploadedFilesOpen(true);}}
           onExportJson={handleExportJson}
@@ -883,7 +885,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
           className={`relative min-h-0 min-w-0 flex-1 h-full overflow-hidden bg-[#121212] ${(viewMode === "notes" || viewMode === "slides") && !isPresentationOpen && !focusMode ? "hidden" : ""}`}
         >
             {dragFiles&&<div aria-hidden="true" className="pointer-events-none absolute inset-2 z-40 flex items-center justify-center rounded-xl border-2 border-dashed border-blue-400 bg-blue-500/10 text-sm text-blue-200">Drop images or files onto this board</div>}
-            <canvas ref={canvasRef} tabIndex={0} aria-label="Drawing canvas" data-theme={theme} data-background={displayBackground.fill} className="block touch-none select-none" style={{ backgroundColor: "#fafafa", backgroundImage: "conic-gradient(#d4d4d8 25%, transparent 0 50%, #d4d4d8 0 75%, transparent 0)", backgroundSize: "16px 16px" }} />
+            <canvas ref={canvasRef} tabIndex={0} aria-label="Drawing canvas" data-theme={theme} data-background={displayBackground.fill} className="block touch-none select-none" style={{ backgroundColor: lightCanvas ? "#ffffff" : "#121212", backgroundImage: lightCanvas ? "conic-gradient(#e4e4e7 25%, transparent 0 50%, #e4e4e7 0 75%, transparent 0)" : "conic-gradient(#27272a 25%, transparent 0 50%, #27272a 0 75%, transparent 0)", backgroundSize: "16px 16px" }} />
 
             {codeElement?.type === "text" && <CodeEditor background={canvasElementAppearance(codeElement, lightCanvas)} key={codeElement.id} value={codeElement.text} language={codeElement.codeLanguage || "auto"} fontSize={codeElement.fontSize} zoom={codeViewport.zoom} x={(codeElement.x - 16) * codeViewport.zoom + codeViewport.pan.x} y={(codeElement.y - 16) * codeViewport.zoom + codeViewport.pan.y} width={codeElement.width} height={codeElement.height} onChange={(text, language) => engineRef.current?.updateCode(codeElement.id, text, language)} onClose={() => { engineRef.current?.finishCode(); setCodeId(null); }} />}
             {inlineText && (
@@ -1080,7 +1082,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
                 if (event.relatedTarget === inlineTextareaRef.current || event.relatedTarget instanceof HTMLElement && event.relatedTarget.closest("[data-text-controls]")) return;
                 if (inlineTextStateRef.current) commitInline();
               }}><PropertiesPanel
-                background={normalizeBackground(board.background)}
+                background={displayBackground}
                 onBackgroundChange={background => persist({ ...boardRef.current, background })}
                 isOpen={appearanceOpen}
                 onOpenChange={setAppearanceOpen}
