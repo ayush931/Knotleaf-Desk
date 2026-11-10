@@ -208,7 +208,7 @@ export const QUICK_FONTS = FONT_OPTIONS.filter((font) => font.quick);
 export function sceneFontFamilies(
   elements: readonly CanvasElement[],
 ): FontFamily[] {
-  const families = new Set<FontFamily>(["sans", "mono"]);
+  const families = new Set<FontFamily>(["sans", "hand", "mono"]);
   for (const element of elements) {
     if (
       "fontFamily" in element &&

@@ -284,7 +284,7 @@ export const DEFAULT_STYLE: ElementStyleProps = {
   roundness: "rounded",
   opacity: 1,
   fontSize: 16,
-  fontFamily: "sans",
+  fontFamily: "hand",
   textAlign: "left",
   arrowRouting: "straight",
   arrowHeadStart: "none",

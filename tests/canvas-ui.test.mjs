@@ -656,3 +656,11 @@ test('Mac select-all exposes arrangement and vertical spacing updates the saved 
  await act(async()=>space.dispatchEvent(new browser.KeyboardEvent('keydown',{key:'z',metaKey:true,bubbles:true})));expect(getBoard(board.id).elements.map(el=>el.y)).toEqual([100,220,500]);
  await act(async()=>space.dispatchEvent(new browser.KeyboardEvent('keydown',{key:'z',metaKey:true,shiftKey:true,bubbles:true})));expect(getBoard(board.id).elements.map(el=>el.y)).toEqual([100,300,500]);
 });
+
+
+test('new board writing uses Caveat and retains the saved size through blur and the next text',async()=>{
+ const id=await renderBoard();const editor=await startText();expect(editor.style.fontFamily.includes('--font-caveat')).toBe(true);await typeText(editor,'A hand-written diagram');
+ await act(async()=>editor.dispatchEvent(new browser.KeyboardEvent('keydown',{key:'Escape',bubbles:true})));
+ expect(getBoard(id).elements[0].fontFamily).toBe('hand');const size=getBoard(id).elements[0].fontSize;
+ const next=await startText();expect(next.style.fontFamily.includes('--font-caveat')).toBe(true);expect(next.style.fontSize).toBe(`${size}px`);
+});

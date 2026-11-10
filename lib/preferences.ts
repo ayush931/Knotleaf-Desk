@@ -8,6 +8,7 @@ import { FONT_OPTIONS } from '@/draw/fonts';
 const KEY = 'knotleaf.preferences.v1';
 export interface Preferences {
   version: 1;
+  canvasTypographyVersion: 1;
   boardLibrary: BoardLibrarySettings;
   theme: "dark" | "light";
   markdownRetentionDays: 0 | 7;
@@ -27,7 +28,7 @@ export interface Preferences {
   exportScale: number;
   exportTransparent: boolean;
 }
-const defaults = (): Preferences => ({ version:1, boardLibrary:normalizeBoardLibrary(undefined), theme:"dark", markdownRetentionDays:7, markdownWorkspace:normalizeMarkdownWorkspace(undefined), callNoiseSuppression:true, style:{...DEFAULT_STYLE}, toolColors:normalizeToolColors(undefined), eraserSize:24, eraserMode:'all', notesWidth:360, notesHeight:300, noteAppearance:{...DEFAULT_NOTE_APPEARANCE}, noteTypingSize:null, exportFormat:'project', exportScope:'project', exportScale:2, exportTransparent:false });
+const defaults = (): Preferences => ({ version:1, canvasTypographyVersion:1, boardLibrary:normalizeBoardLibrary(undefined), theme:"dark", markdownRetentionDays:7, markdownWorkspace:normalizeMarkdownWorkspace(undefined), callNoiseSuppression:true, style:{...DEFAULT_STYLE}, toolColors:normalizeToolColors(undefined), eraserSize:24, eraserMode:'all', notesWidth:360, notesHeight:300, noteAppearance:{...DEFAULT_NOTE_APPEARANCE}, noteTypingSize:null, exportFormat:'project', exportScope:'project', exportScale:2, exportTransparent:false });
 const finite = (n: unknown, min: number, max=Number.MAX_VALUE): n is number => typeof n==='number' && Number.isFinite(n) && n>=min && n<=max;
 const color = (value: unknown): value is string => typeof value==='string' && (value==='transparent' || /^#[\da-f]{6}$/i.test(value));
 export function normalizePreferences(value: unknown): Preferences {
@@ -47,6 +48,8 @@ export function normalizePreferences(value: unknown): Preferences {
   if(finite(style.fontSize,8,512))result.style.fontSize=style.fontSize;
   const choices: Record<string,string[]>={strokeStyle:['solid','dashed','dotted','rough'],fillStyle:['none','solid','semi','hachure','crosshatch','dots'],roundness:['sharp','rounded'],fontFamily:FONT_OPTIONS.map(f=>f.id),textAlign:['left','center','right'],arrowRouting:['straight','elbow','curved'],arrowHeadStart:['none','arrow','diamond','dot','bar'],arrowHeadEnd:['none','arrow','diamond','dot','bar']};
   for(const[key,allowed]of Object.entries(choices)){const value=style[key];if(typeof value==='string'&&allowed.includes(value))Object.assign(result.style,{[key]:value});}
+  // Adopt handwriting for the former default once; explicit future Inter choices stay saved.
+  if (data.canvasTypographyVersion !== 1 && result.style.fontFamily === 'sans') result.style.fontFamily = 'hand';
   for(const key of ['bold','italic','underline','strikethrough','arrowAnimated'] as const)if(typeof style[key]==='boolean')result.style[key]=style[key];
   result.toolColors=normalizeToolColors(data.toolColors,result.style);
   if(finite(data.eraserSize,Number.MIN_VALUE))result.eraserSize=data.eraserSize;
