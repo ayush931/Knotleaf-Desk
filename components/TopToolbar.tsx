@@ -80,7 +80,7 @@ export const TopToolbar = memo(function TopToolbar({
     const observer = new ResizeObserver(update); observer.observe(element);
     return () => observer.disconnect();
   }, [onHeightChange]);
-  const iconBtn = `shrink-0 p-2 rounded flex items-center justify-center transition disabled:opacity-35 disabled:cursor-not-allowed cursor-pointer text-slate-700 dark:text-slate-200 hover:bg-blue-50 dark:hover:bg-blue-500/20 hover:text-neutral-900 dark:hover:text-white focus-visible:outline-2 focus-visible:outline-blue-500`;
+  const iconBtn = `shrink-0 p-2 rounded flex items-center justify-center transition disabled:opacity-35 disabled:cursor-not-allowed cursor-pointer text-neutral-700 dark:text-neutral-200 hover:bg-neutral-50 dark:hover:bg-neutral-500/20 hover:text-neutral-900 dark:hover:text-white focus-visible:outline-2 focus-visible:outline-black dark:focus-visible:outline-white`;
 
   return (
     <div ref={toolbar} className="absolute top-2 left-1/2 -translate-x-1/2 z-30 w-max max-w-[calc(100%-1rem)]">
@@ -95,24 +95,24 @@ export const TopToolbar = memo(function TopToolbar({
         <TooltipButton onClick={onRedo} disabled={!canRedo} title="Redo (Ctrl/Cmd+Shift+Z)" aria-label="Redo" className={iconBtn}>
           <Redo2 className="w-4 h-4" />
         </TooltipButton>
-        <span className="h-5 w-px mx-1 bg-slate-200 dark:bg-slate-600" />
+        <span className="h-5 w-px mx-1 bg-neutral-200 dark:bg-neutral-600" />
 
         {onUploadAssets&&<TooltipButton type="button" aria-label="Upload image or file" title="Upload image or file · stored on this device" disabled={uploadingAssets} onClick={onUploadAssets} className={iconBtn}><ImagePlus className="h-4 w-4"/></TooltipButton>}
         {TOOLS.map((t) => {
           const active = selectedTool === t.id;
           return (
             <React.Fragment key={t.id}>
-            {["rectangle", "pencil", "text", "eraser"].includes(t.id) && <span aria-hidden="true" className="mx-1 h-5 w-px shrink-0 bg-slate-200 dark:bg-slate-600" />}
+            {["rectangle", "pencil", "text", "eraser"].includes(t.id) && <span aria-hidden="true" className="mx-1 h-5 w-px shrink-0 bg-neutral-200 dark:bg-neutral-600" />}
             <TooltipButton
               onClick={() => setSelectedTool(t.id)}
               title={`${t.label} (${t.key})${t.hint ? ` · ${t.hint}` : ""}`}
               aria-label={`${t.label} (${t.key})`}
               aria-keyshortcuts={t.key.toLowerCase()}
               aria-pressed={active}
-              className={`relative h-8 w-8 shrink-0 rounded flex items-center justify-center transition cursor-pointer focus-visible:outline-2 focus-visible:outline-blue-500 ${
+              className={`relative h-8 w-8 shrink-0 rounded flex items-center justify-center transition cursor-pointer focus-visible:outline-2 focus-visible:outline-black dark:focus-visible:outline-white ${
                 active
-                  ? "bg-blue-600 text-white shadow-sm ring-1 ring-inset ring-blue-500"
-                  : "text-slate-700 dark:text-slate-200 hover:bg-blue-50 dark:hover:bg-blue-500/20 hover:text-neutral-900 dark:hover:text-white focus-visible:outline-2 focus-visible:outline-blue-500"
+                  ? "ui-primary text-white shadow-sm ring-1 ring-inset ring-black dark:ring-white"
+                  : "text-neutral-700 dark:text-neutral-200 hover:bg-neutral-50 dark:hover:bg-neutral-500/20 hover:text-neutral-900 dark:hover:text-white focus-visible:outline-2 focus-visible:outline-black dark:focus-visible:outline-white"
               }`}
             >
               {t.icon}
@@ -121,12 +121,12 @@ export const TopToolbar = memo(function TopToolbar({
           );
         })}
 
-        <span className="h-5 w-px mx-1 bg-slate-200 dark:bg-slate-600" />
+        <span className="h-5 w-px mx-1 bg-neutral-200 dark:bg-neutral-600" />
         <TooltipButton
           onClick={onOpenIconPicker}
           title="Insert icon (I)"
           aria-label="Insert icon (I)" aria-keyshortcuts="i"
-          className="shrink-0 px-2 py-1.5 rounded flex items-center gap-1.5 text-xs text-slate-700 dark:text-slate-200 hover:bg-blue-50 dark:hover:bg-blue-500/20 hover:text-neutral-900 dark:hover:text-white focus-visible:outline-2 focus-visible:outline-blue-500 transition"
+          className="shrink-0 px-2 py-1.5 rounded flex items-center gap-1.5 text-xs text-neutral-700 dark:text-neutral-200 hover:bg-neutral-50 dark:hover:bg-neutral-500/20 hover:text-neutral-900 dark:hover:text-white focus-visible:outline-2 focus-visible:outline-black dark:focus-visible:outline-white transition"
         >
           <Shapes className="w-4 h-4" />
 

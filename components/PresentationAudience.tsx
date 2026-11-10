@@ -89,7 +89,7 @@ export function PresentationAudience() {
       }}
     />
   ) : (
-    <main className="flex h-[100dvh] items-center justify-center bg-[#121212] p-6 text-center text-sm text-neutral-400">
+    <main className="flex h-[100dvh] items-center justify-center bg-white dark:bg-black p-6 text-center text-sm text-neutral-400">
       <p role={error ? "alert" : "status"}>
         {error || "Connecting to your presentation…"}
       </p>

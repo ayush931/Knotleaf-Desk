@@ -42,7 +42,7 @@ export function NoteLinksPanel({
     <aside
       role="region"
       aria-label="Note links and backlinks"
-      className="absolute left-2 top-24 z-40 w-80 max-w-[calc(100%-1rem)] overflow-y-auto rounded-xl border border-neutral-700 bg-[#18181b] p-3 text-xs shadow-lg"
+      className="absolute left-2 top-24 z-40 w-80 max-w-[calc(100%-1rem)] overflow-y-auto rounded-xl border border-neutral-700 bg-white dark:bg-black p-3 text-xs shadow-lg"
       style={{ maxHeight: "calc(100% - 110px)" }}
     >
       <div className="mb-2 flex items-center justify-between">
@@ -157,7 +157,7 @@ export function NoteLinksPanel({
               type="submit"
               title="Create and link note"
               aria-label="Create and link note"
-              className="rounded bg-blue-600 px-2 text-white"
+              className="rounded ui-primary px-2 text-white"
             >
               <Plus className="h-4 w-4" />
             </button>
@@ -176,7 +176,7 @@ export function NoteLinksPanel({
               <button
                 type="button"
                 key={id}
-                className="block w-full truncate rounded px-2 py-1.5 text-left text-blue-400 hover:bg-neutral-800"
+                className="block w-full truncate rounded px-2 py-1.5 text-left text-neutral-400 hover:bg-neutral-800"
                 onClick={() => open(id)}
               >
                 {page.title}
@@ -200,7 +200,7 @@ export function NoteLinksPanel({
             <button
               key={page.id}
               type="button"
-              className="block w-full truncate rounded px-2 py-1.5 text-left text-blue-400 hover:bg-neutral-800"
+              className="block w-full truncate rounded px-2 py-1.5 text-left text-neutral-400 hover:bg-neutral-800"
               onClick={() => open(page.id)}
             >
               {page.title}
@@ -213,7 +213,7 @@ export function NoteLinksPanel({
         )}
       </section>
       {error && (
-        <p id="note-linking-error" role="alert" className="mt-3 text-rose-400">
+        <p id="note-linking-error" role="alert" className="mt-3 text-neutral-400">
           {error}
         </p>
       )}

@@ -3,10 +3,10 @@ version: alpha
 name: Knotleaf Desk
 description: A local-first diagramming desk and Markdown notebook.
 colors:
-  background: '#1c2029'
-  surface: '#252d3b'
-  border: '#52617a'
-  primary: '#3b82f6'
+  background: '#000000'
+  surface: '#000000'
+  border: '#525252'
+  primary: '#ffffff'
   text: '#f4f4f5'
   muted: '#a1a1aa'
 typography:
@@ -34,15 +34,15 @@ components:
 ## Overview
 
 ### Creative North Star
-An Eraser-inspired drawing board: flat charcoal/white chrome, a centered grouped tool strip, a spacious dotted canvas and Caveat handwriting for new artwork. Blue attachment ports make diagram structure visible.
+An Eraser-inspired drawing board: pitch-black/white chrome, a centered grouped tool strip, a spacious dotted canvas and Caveat handwriting for new artwork. Contrasting attachment ports make diagram structure visible.
 
 ### Product context and register
 Personal diagrams and project notes, primarily used on desktop with keyboard and pointer. English interface; no market-specific business rules. This is a product tool, not a marketing page. Repository README and current user instructions supply the product context. Keep Dark and Light as equal drawing-board surfaces. The branch-veined leaf mark is the expressive signature; controls remain familiar. Avoid decorative gradients, giant toolbars, and ornamental cards.
 
-Runtime sources are canonical: `app/globals.css` owns global styles and scrollbar tokens; `app/layout.tsx` owns font variables; shared components own utility-class geometry; `draw/renderer.ts` owns canvas visuals and blue ports. This document records these implemented values, rather than generating a separate theme.
+Runtime sources are canonical: `app/globals.css` owns global styles and scrollbar tokens; `app/layout.tsx` owns font variables; shared components own utility-class geometry; `draw/renderer.ts` owns canvas visuals and contrasting ports. This document records these implemented values, rather than generating a separate theme.
 
 ## Colors
-Drawing background #1c2029, panel #252d3b, border #52617a, bright slate icons #e2e8f0 and primary #3B82F6; Light uses white paper/panels and border #c7d5ea. Blue means active/selected/connected. Existing semantic feedback and destructive tones remain; spacing/margin guides are red. Use labels and shapes alongside color. Forced-colors scrollbars use system colors.
+Default Black & White uses #000000 canvas/panels, #ffffff ink/active actions and neutral borders; Light reverses black and white. lib/workspaceThemes.ts owns optional Paper, Slate and Forest palettes for independently scoped Canvas and Notes. Red alignment guides retain their measurement role; artwork and syntax colors remain explicit content choices.
 
 ## Typography
 Inter for controls, Fira Code for Markdown source and coordinates, Caveat as the default for new canvas writing, sticky notes and built-in template lettering. Canvas text also offers Lora (serif), Nunito (rounded sans), Roboto Condensed and Patrick Hand (printed handwriting). The appearance picker keeps eight familiar families in a compact two-column quick group. At the user’s request it has no More fonts dropdown. FontSelect owns grouped options for selected Notes text and document appearance, deliberately retaining platform popup geometry. The shared catalogue has 31 families across Everyday, Serif, Handwriting, Playful & display, and Monospace; catalogue labels keep the interface font for legibility, while the canvas and note content show the chosen face. New choices include Fredoka, Baloo 2, Permanent Marker, Bangers, Lobster, Special Elite and elegant reading faces. `draw/fonts.ts` owns family IDs, labels, CSS-variable names and fallback stacks; `app/layout.tsx` bundles the corresponding Next fonts. Renderer, inline editor and picker use that shared mapping. Fonts are bundled by Next at build time. Notes use 16px Inter prose by default, with shared font choices and saved reading preferences; optional source uses 13px source with 24px line height. Controls remain compact without compromising focus indicators.
@@ -133,7 +133,7 @@ Diamond (kite) shapes honor Sharp/Rounded in Clean and Rough strokes. Rounded di
 Canvas fill patterns paint the selected base color across the whole canvas first, then add a subtle contrast pattern. Solid/Hatch/Crosshatch/Dots retain black when black is selected; white checkerboard never leaks through an opaque background. Shape/card pattern transparency and the original drawing grid/dots remain independent. Canvas, PNG/PDF and SVG use drawCanvasBackground.
 
 
-The leaf is the brand signature: one broad blue (#3B82F6) leaf with a branching dark vein on a charcoal tile, shared by header, workspace, favicon and installed icons. The full SVG wordmark pairs a restrained serif name with a small DESK label; control typography stays Inter. The board keeps standard Tailwind blue utilities: blue-600 primary action buttons with white glyphs/text; drawing-tool selection uses solid blue-600 with white icons, #3b82f6 focus rings, #3B82F6 selection/connector chrome, and #f87171 red spacing/margin guides. No custom blue palette or new primary-button treatment overrides them. Actual canvas background, original dot/grid patterns and saved drawing colors remain unchanged.
+The leaf is the brand signature: a white leaf with a black branching vein on a black tile, shared by header, workspace, favicon and installed icons. Control typography remains Inter. App controls use semantic ui-primary and neutral utilities rather than hue-coded actions; user-selected artwork and syntax colors are not filtered.
 
 The only upload action lives in TopToolbar; BoardHeader has no upload action, including its overflow menu. Native multiple-file selection and canvas drop share one pipeline. Images keep original bytes and aspect ratio; other files use quiet charcoal attachment cards with a blue file glyph. Upload status/error is dismissible without shifting controls. All new assets are browser-local; the UI states their scope and natural browser storage capacity. Appearance remains explicitly controlled.
 
@@ -204,7 +204,7 @@ Presentation themes span cinematic Keynote, warm Editorial, Nordic, Executive, M
 
 Presentation typography lives directly in the editor toolbar: one Font control applies to headings, prose, lists, tables and code; one Size control scales text together while retaining heading proportions. Preview, audience and exports use the same rules. Mathematical notation keeps its dedicated math font.
 
-Presentation now includes an on-demand visual organizer with keyboard-accessible earlier/later, duplicate, delete and one-step Undo actions. Slide source, reveals and private notes stay together. Six story starters (project update, lesson, pitch, demo, workshop and decision) append after the active slide, preserve the current theme/content, and can be undone. Private speaker notes are edited as ordinary text beneath the preview; source stores JSON-encoded private comments, never audience content. The presenter timer can pause, resume, reset and show progress against an optional time goal without advancing slides. These controls retain the existing charcoal surfaces and blue focus/selection styling; no new persistent sidebar is added.
+Presentation now includes an on-demand visual organizer with keyboard-accessible earlier/later, duplicate, delete and one-step Undo actions. Slide source, reveals and private notes stay together. Six story starters (project update, lesson, pitch, demo, workshop and decision) append after the active slide, preserve the current theme/content, and can be undone. Private speaker notes are edited as ordinary text beneath the preview; source stores JSON-encoded private comments, never audience content. The presenter timer can pause, resume, reset and show progress against an optional time goal without advancing slides. These controls retain the existing charcoal surfaces and contrasting focus/selection styling; no new persistent sidebar is added.
 
 The Presentation Guide is an explicit native-dialog help workspace, closed by default. Start here links to real starter, organizer, design, check and presentation actions. Writing examples share the Insert catalogue, with instant local search, platform-owned category selection, clear/reset and no-results states, selectable Markdown, explicit insertion/copy, rendered previews and reveal playback. External sample media is never fetched by the guide. Dedicated sections explain delivery, export/privacy, actual editor/presenter shortcuts and troubleshooting. Closing restores Guide focus; inserting restores the saved source selection. The guide uses existing charcoal/blue styles and independent bounded scrolling on narrow screens.
 
@@ -281,3 +281,8 @@ Drawing-board direction (user reference: app.eraser.io; https://docs.eraser.io/f
 The user clarified that drawing style belongs to the canvas background and rendered artwork, while drawing options stay centered. Light uses white paper and Dark uses a brighter #1c2029 charcoal board; custom colors and grid choices remain explicit. New shapes/lines/arrows and built-in templates default to seeded hand-drawn strokes plus Caveat lettering. Sketch curves and elbow arrows follow the existing binding/handle geometry. A one-time canvasDrawingVersion=1 migration adopts rough from the former solid default, retaining custom dash/dot choices and sizes; later explicit Clean choices persist. Raster/SVG and editable diagram backgrounds share canvasBackground.
 
 Brightness refinement: app/globals.css owns .drawing-panel via --drawing-panel / --drawing-border tokens, shared by header, centered drawing tools, Appearance, arrangement and zoom. Dark panels are #252d3b against #1c2029 canvas with clearer slate dots, stronger border contrast and near-white tool icons. Light uses pure white paper. Solid blue active tools and blue template/inspector accents bring energy without gradients or ornamental effects. Artwork colors and explicit custom backgrounds remain data-owned; canvas/SVG/raster/draw.io share default background mapping. Hand-drawn strokes, Caveat, centering and saved geometry remain intact.
+
+
+Scoped workspace themes: components/WorkspaceThemes.tsx owns the native theme dialog, four palette previews, Apply to select (Canvas / Notes / Both), an explicit Use theme background checkbox and inline storage feedback. Header keeps a visible paintbrush action. lib/workspaceThemes.ts owns validation, palette contrast, scope updates and CSS variables; preferences store each pane choice locally. Black & White is the default. Notes can independently choose Light/Paper or Dark through the existing reader control via NotesThemeContext; applying Both removes that override so both follow the app mode. Notes source, rich editing, preview, code blocks, links, native controls and caret layers inherit scoped tokens without remounting editors. Source text remains transparent over its highlighted layer. canvasBackground maps only the default background sentinel through the selected palette; applying the checked background option deliberately resets a custom background to the theme base. Changing a preset does not rewrite drawing geometry, fonts or notes. Canvas DOM/engine/raster/SVG/draw.io and copy use the resolved palette; notes HTML and combined PDFs receive separate note colors. Project backups retain content, while theme preferences remain local to this device.
+
+Monochrome chrome: all component hue utility classes are replaced with neutral or semantic action styles. ui-primary consumes scoped --ui-accent / --ui-accent-ink, with hover/focus contrast maintained in Light and Dark. Renderer UI overlays derive black/white from the actual canvas surface; handles, connectors, marquee, text boxes and eraser cursors share it. Colored drawings and code syntax remain unchanged. Public SVG/PNG/ICO assets use the monochrome mark with normal cache versioning. Theme changes neither force authentication navigation nor alter pending sign-in state.

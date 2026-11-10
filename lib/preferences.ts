@@ -1,3 +1,4 @@
+import { normalizeWorkspaceThemes, type WorkspaceThemes } from './workspaceThemes';
 import { normalizeBoardLibrary, type BoardLibrarySettings } from './boardLibrarySettings';
 import { DEFAULT_STYLE, type ElementStyleProps } from '@/draw/types';
 import { normalizeNoteAppearance, DEFAULT_NOTE_APPEARANCE, type NoteAppearance } from './notesDocument';
@@ -12,6 +13,7 @@ export interface Preferences {
   canvasDrawingVersion: 1;
   boardLibrary: BoardLibrarySettings;
   theme: "dark" | "light";
+  workspaceThemes: WorkspaceThemes;
   markdownRetentionDays: 0 | 7;
   markdownWorkspace: MarkdownWorkspaceSettings;
   callNoiseSuppression: boolean;
@@ -29,7 +31,7 @@ export interface Preferences {
   exportScale: number;
   exportTransparent: boolean;
 }
-const defaults = (): Preferences => ({ version:1, canvasTypographyVersion:1, canvasDrawingVersion:1, boardLibrary:normalizeBoardLibrary(undefined), theme:"dark", markdownRetentionDays:7, markdownWorkspace:normalizeMarkdownWorkspace(undefined), callNoiseSuppression:true, style:{...DEFAULT_STYLE}, toolColors:normalizeToolColors(undefined), eraserSize:24, eraserMode:'all', notesWidth:360, notesHeight:300, noteAppearance:{...DEFAULT_NOTE_APPEARANCE}, noteTypingSize:null, exportFormat:'project', exportScope:'project', exportScale:2, exportTransparent:false });
+const defaults = (): Preferences => ({ version:1, canvasTypographyVersion:1, canvasDrawingVersion:1, boardLibrary:normalizeBoardLibrary(undefined), theme:"dark", workspaceThemes:normalizeWorkspaceThemes(undefined), markdownRetentionDays:7, markdownWorkspace:normalizeMarkdownWorkspace(undefined), callNoiseSuppression:true, style:{...DEFAULT_STYLE}, toolColors:normalizeToolColors(undefined), eraserSize:24, eraserMode:'all', notesWidth:360, notesHeight:300, noteAppearance:{...DEFAULT_NOTE_APPEARANCE}, noteTypingSize:null, exportFormat:'project', exportScope:'project', exportScale:2, exportTransparent:false });
 const finite = (n: unknown, min: number, max=Number.MAX_VALUE): n is number => typeof n==='number' && Number.isFinite(n) && n>=min && n<=max;
 const color = (value: unknown): value is string => typeof value==='string' && (value==='transparent' || /^#[\da-f]{6}$/i.test(value));
 export function normalizePreferences(value: unknown): Preferences {
@@ -38,8 +40,10 @@ export function normalizePreferences(value: unknown): Preferences {
   const data=value as Record<string,unknown>;
   if (data.version!==undefined && data.version!==1) return result;
   if(data.theme === "dark" || data.theme === "light") result.theme=data.theme;
+  result.workspaceThemes=normalizeWorkspaceThemes(data.workspaceThemes);
   result.boardLibrary=normalizeBoardLibrary(data.boardLibrary);
   result.markdownWorkspace=normalizeMarkdownWorkspace(data.markdownWorkspace);
+  if(!data.workspaceThemes&&result.markdownWorkspace.theme==='paper')result.workspaceThemes.notesMode='light';
   if(data.markdownRetentionDays===0||data.markdownRetentionDays===7)result.markdownRetentionDays=data.markdownRetentionDays;
   if(typeof data.callNoiseSuppression==='boolean')result.callNoiseSuppression=data.callNoiseSuppression;
   const style=data.style && typeof data.style==='object'?data.style as Record<string,unknown>:{};

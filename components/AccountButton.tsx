@@ -6,8 +6,8 @@ import { Eye, EyeOff, LoaderCircle, UserRound, X } from "lucide-react";
 import { authClient } from "@/lib/authClient";
 
 type Config = { enabled: boolean; google: boolean };
-const accountTriggerClass = "flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-lg bg-blue-600 px-2 text-xs font-medium text-white hover:bg-blue-500 active:bg-blue-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500";
-const buttonClass = "flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-neutral-700 px-2 text-xs text-neutral-200 hover:bg-neutral-800 focus-visible:outline-2 focus-visible:outline-blue-500 disabled:opacity-50";
+const accountTriggerClass = "flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-lg ui-primary px-2 text-xs font-medium text-white hover:bg-neutral-500 active:bg-neutral-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black dark:focus-visible:outline-white";
+const buttonClass = "flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-neutral-700 px-2 text-xs text-neutral-200 hover:bg-neutral-800 focus-visible:outline-2 focus-visible:outline-black dark:focus-visible:outline-white disabled:opacity-50";
 
 export function AccountButton() {
   const [config, setConfig] = useState<Config | null>(null);
@@ -79,7 +79,7 @@ function AccountControl({ config }: { config: Config }) {
     try { await action(); } catch { fail("Could not reach sign-in. Check your connection and try again."); }
     finally { pending.current = false; setBusy(false); }
   };
-  const inputClass = "mt-1 w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 focus-visible:outline-2 focus-visible:outline-blue-500 disabled:opacity-50";
+  const inputClass = "mt-1 w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 focus-visible:outline-2 focus-visible:outline-black dark:focus-visible:outline-white disabled:opacity-50";
   const errors = (key: string) => ({ "aria-invalid": field === key, "aria-describedby": field === key ? `${id}-error` : key === "password" && mode === "signup" ? `${id}-requirements` : undefined });
 
   return <>
@@ -87,10 +87,10 @@ function AccountControl({ config }: { config: Config }) {
       <UserRound className="h-3.5 w-3.5" /><span className="hidden max-w-24 truncate min-[420px]:inline">{session ? "Account" : "Sign in"}</span>
     </button>
     <AccountDialog open={open} onClose={close} title={session ? "Your account" : mode === "signup" ? "Create an account" : "Sign in to Knotleaf Desk"}>
-      {isPending && !busy ? <p role="status" className="text-sm text-neutral-400">Checking your session…</p> : sessionError && !busy ? <div className="space-y-3"><p role="alert" className="text-sm text-rose-300">{sessionError.status >= 500 ? "Sign-in is temporarily unavailable on the server. Try again shortly." : "Could not check your session. Check your connection and try again."}</p><button className={buttonClass} onClick={() => refetch()}>Try again</button></div> : session ? <div className="space-y-4">
+      {isPending && !busy ? <p role="status" className="text-sm text-neutral-400">Checking your session…</p> : sessionError && !busy ? <div className="space-y-3"><p role="alert" className="text-sm text-neutral-300">{sessionError.status >= 500 ? "Sign-in is temporarily unavailable on the server. Try again shortly." : "Could not check your session. Check your connection and try again."}</p><button className={buttonClass} onClick={() => refetch()}>Try again</button></div> : session ? <div className="space-y-4">
         <p className="break-words text-sm text-neutral-200">{session.user.name}<br /><span className="text-neutral-400">{session.user.email}</span></p>
         <p className="text-xs text-neutral-400">Boards and notes stay on this device. Signing out keeps your local work.</p>
-        {error && <p role="alert" className="text-sm text-rose-300">{error}</p>}
+        {error && <p role="alert" className="text-sm text-neutral-300">{error}</p>}
         <button disabled={busy} className={buttonClass} onClick={() => run(async () => {
           const result = await authClient.signOut();
           if (result.error) fail("Could not sign out. Try again.");
@@ -98,7 +98,7 @@ function AccountControl({ config }: { config: Config }) {
         })}>{busy ? "Signing out…" : "Sign out"}</button>
       </div> : <>
         <p className="mb-4 text-sm text-neutral-400">{mode === "signup" ? "Use Google or create an account with your email." : "Continue with Google or your email and password."}</p>
-        <div className="flex justify-center"><button type="button" aria-label="Continue with Google" aria-busy={googleBusy} disabled={busy || !config.google} className="inline-flex h-10 w-[252px] max-w-full cursor-pointer items-center justify-center gap-3 rounded-lg border border-neutral-300 bg-white px-4 text-sm font-medium text-[#262626] shadow-sm transition-colors hover:border-blue-300 hover:bg-blue-50 active:bg-blue-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:cursor-not-allowed disabled:opacity-50" onClick={async () => {
+        <div className="flex justify-center"><button type="button" aria-label="Continue with Google" aria-busy={googleBusy} disabled={busy || !config.google} className="inline-flex h-10 w-[252px] max-w-full cursor-pointer items-center justify-center gap-3 rounded-lg border border-neutral-300 bg-white px-4 text-sm font-medium text-[#262626] shadow-sm transition-colors hover:border-neutral-300 hover:bg-neutral-50 active:bg-neutral-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black dark:focus-visible:outline-white disabled:cursor-not-allowed disabled:opacity-50" onClick={async () => {
           if (pending.current) return;
           pending.current = true; setBusy(true); setGoogleBusy(true); setError(""); setField("");
           try {
@@ -134,8 +134,8 @@ function AccountControl({ config }: { config: Config }) {
             {mode === "signup" && <p id={`${id}-requirements`} className="mt-1 text-xs text-neutral-400">Use 12–128 characters. Spaces and passphrases are welcome.</p>}
             <div className="relative"><input ref={passwordRef} id={`${id}-password`} type={visible ? "text" : "password"} autoComplete={mode === "signup" ? "new-password" : "current-password"} value={password} onChange={event => setPassword(event.target.value)} maxLength={128} disabled={busy && !googleBusy} className={`${inputClass} pr-12`} {...errors("password")} /><button type="button" aria-label={visible ? "Hide password" : "Show password"} aria-pressed={visible} disabled={busy && !googleBusy} onClick={() => setVisible(value => !value)} className="absolute right-1 top-1 flex h-9 w-9 items-center justify-center rounded-lg text-neutral-400 hover:bg-neutral-800 hover:text-white">{visible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button></div>
           </div>
-          <div className="min-h-5"><p id={`${id}-error`} role="alert" className="text-xs text-rose-300">{error}</p></div>
-          <button type="submit" disabled={busy && !googleBusy} className="h-10 w-full rounded-lg bg-blue-600 px-3 text-sm font-medium text-white hover:bg-blue-500 disabled:cursor-wait disabled:opacity-50">{busy && !googleBusy ? "Please wait…" : mode === "signup" ? "Create account" : "Sign in"}</button>
+          <div className="min-h-5"><p id={`${id}-error`} role="alert" className="text-xs text-neutral-300">{error}</p></div>
+          <button type="submit" disabled={busy && !googleBusy} className="h-10 w-full rounded-lg ui-primary px-3 text-sm font-medium text-white hover:bg-neutral-500 disabled:cursor-wait disabled:opacity-50">{busy && !googleBusy ? "Please wait…" : mode === "signup" ? "Create account" : "Sign in"}</button>
           <button type="button" disabled={busy && !googleBusy} onClick={() => { setMode(mode === "signin" ? "signup" : "signin"); setError(""); setField(""); setPassword(""); setVisible(false); }} className="w-full rounded-lg py-2 text-xs text-neutral-400 hover:text-white">{mode === "signin" ? "New here? Create an account" : "Already have an account? Sign in"}</button>
         </form>
         <p className="mt-3 text-xs leading-relaxed text-neutral-500">Boards and notes stay on this device. Your account does not sync or protect local boards.</p>
@@ -164,7 +164,7 @@ function AccountDialog({ open, onClose, title, children }: { open: boolean; onCl
     return () => { dialog?.close(); trigger?.focus(); };
   }, [open]);
   if (!open) return null;
-  return createPortal(<dialog ref={ref} aria-labelledby={id} onCancel={event => { event.preventDefault(); onClose(); }} onClose={onClose} className="m-auto max-h-[calc(100dvh-2rem)] w-[min(400px,calc(100vw-2rem))] cursor-default overflow-y-auto rounded-xl border border-neutral-700 bg-[#18181b] p-5 text-neutral-100 shadow-2xl">
+  return createPortal(<dialog ref={ref} aria-labelledby={id} onCancel={event => { event.preventDefault(); onClose(); }} onClose={onClose} className="m-auto max-h-[calc(100dvh-2rem)] w-[min(400px,calc(100vw-2rem))] cursor-default overflow-y-auto rounded-xl border border-neutral-700 bg-white dark:bg-black p-5 text-neutral-100 shadow-2xl">
     <div className="mb-4 flex items-start justify-between gap-3"><h2 id={id} className="text-base font-semibold">{title}</h2><button type="button" onClick={onClose} aria-label="Close account dialog" className="-mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-neutral-400 hover:bg-neutral-800 hover:text-white"><X className="h-4 w-4" /></button></div>
     {children}
   </dialog>, document.body);

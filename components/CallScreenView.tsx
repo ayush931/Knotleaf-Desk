@@ -221,7 +221,7 @@ export function CallScreenView({
             </button>
           </header>
           {error && (
-            <p role="alert" className="px-3 py-2 text-xs text-amber-300">
+            <p role="alert" className="px-3 py-2 text-xs text-neutral-300">
               {error}
             </p>
           )}

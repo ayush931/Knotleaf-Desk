@@ -96,7 +96,7 @@ export function ShortcutsModal({ isOpen, onClose, theme }: ShortcutsModalProps) 
   if (!isOpen) return null;
 
   return (
-    <dialog ref={dialog} onCancel={onClose} aria-label="Keyboard shortcuts" className={`m-auto w-[min(768px,94vw)] max-h-[85dvh] overflow-y-auto rounded-2xl border p-6 shadow-2xl backdrop:bg-black/60 ${theme === "light" ? "border-neutral-200 bg-white text-neutral-900" : "border-neutral-800 bg-[#18181b] text-white"}`}>
+    <dialog ref={dialog} onCancel={onClose} aria-label="Keyboard shortcuts" className={`m-auto w-[min(768px,94vw)] max-h-[85dvh] overflow-y-auto rounded-2xl border p-6 shadow-2xl backdrop:bg-black/60 ${theme === "light" ? "border-neutral-200 bg-white text-neutral-900" : "border-neutral-800 bg-white dark:bg-black text-white"}`}>
       <div>
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-lg font-semibold">Keyboard shortcuts</h2>

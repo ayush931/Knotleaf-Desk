@@ -72,7 +72,7 @@ function TemplatePreview({ template, theme = "dark" }: { template: TemplateDefin
       width={600}
       height={260}
       aria-hidden="true"
-      className={`block aspect-[30/13] h-auto w-full rounded-lg border ${theme === "light" ? "border-neutral-200 bg-white" : "border-neutral-800 bg-[#121212]"}`}
+      className={`block aspect-[30/13] h-auto w-full rounded-lg border ${theme === "light" ? "border-neutral-200 bg-white" : "border-neutral-800 bg-white dark:bg-black"}`}
     />
   );
 }
@@ -142,7 +142,7 @@ function TemplateDialog({
         event.preventDefault();
         if (!pending.current) onClose();
       }}
-      className="m-auto w-[min(880px,calc(100vw-24px))] max-w-none max-h-[min(880px,92dvh)] overflow-hidden rounded-xl border border-neutral-700 bg-[#18181b] p-0 text-neutral-200 shadow-xl"
+      className="m-auto w-[min(880px,calc(100vw-24px))] max-w-none max-h-[min(880px,92dvh)] overflow-hidden rounded-xl border border-neutral-700 bg-white dark:bg-black p-0 text-neutral-200 shadow-xl"
     >
       <div className="flex max-h-[min(880px,92dvh)] flex-col">
         <header className="shrink-0 space-y-3 border-b border-neutral-800 p-4">
@@ -152,7 +152,7 @@ function TemplateDialog({
                 id="template-title"
                 className="flex items-center gap-2 text-base font-semibold"
               >
-                <LayoutTemplate className="h-4 w-4 text-blue-400" />
+                <LayoutTemplate className="h-4 w-4 text-neutral-400" />
                 Templates
               </h2>
               <p
@@ -215,7 +215,7 @@ function TemplateDialog({
                 aria-pressed={category === id}
                 disabled={!!busy}
                 onClick={() => setCategory(id)}
-                className={`rounded-md border px-2 py-1 text-xs ${category === id ? "border-blue-500/50 bg-blue-500/10 text-blue-300" : "border-neutral-700 text-neutral-400 hover:bg-neutral-800"}`}
+                className={`rounded-md border px-2 py-1 text-xs ${category === id ? "border-neutral-500/50 bg-neutral-500/10 text-neutral-300" : "border-neutral-700 text-neutral-400 hover:bg-neutral-800"}`}
               >
                 {label}
               </button>
@@ -231,7 +231,7 @@ function TemplateDialog({
           {error && (
             <p
               role="alert"
-              className="mb-3 rounded-lg border border-rose-500/30 bg-rose-500/5 p-3 text-xs text-rose-300"
+              className="mb-3 rounded-lg border border-neutral-500/30 bg-neutral-500/5 p-3 text-xs text-neutral-300"
             >
               {error}
             </p>
@@ -252,7 +252,7 @@ function TemplateDialog({
                   aria-label={`Add template: ${template.name}`}
                   disabled={!!busy}
                   onClick={() => void choose(template)}
-                  className="flex min-h-8 items-center justify-center gap-2 rounded-lg border border-blue-500/40 bg-blue-500/10 px-3 py-2 text-xs font-medium text-blue-300 hover:bg-blue-500/20 disabled:cursor-default disabled:opacity-40"
+                  className="flex min-h-8 items-center justify-center gap-2 rounded-lg border border-neutral-500/40 bg-neutral-500/10 px-3 py-2 text-xs font-medium text-neutral-300 hover:bg-neutral-500/20 disabled:cursor-default disabled:opacity-40"
                 >
                   {busy === template.id ? (
                     <LoaderCircle className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
@@ -281,7 +281,7 @@ function TemplateDialog({
               checked={replace}
               disabled={!!busy}
               onChange={(event) => setReplace(event.target.checked)}
-              className="accent-blue-500"
+              className="accent-black dark:accent-white"
             />
             Replace current canvas
           </label>

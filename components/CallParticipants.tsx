@@ -58,7 +58,7 @@ export function CallParticipants({
                 key={person.id}
                 data-participant={person.id}
                 aria-label={`${person.name}${person.self ? ", you" : ""}, ${person.role}, microphone ${person.mic ? "on" : "off"}${person.speaking ? ", speaking" : ""}`}
-                className={`min-w-0 rounded-lg border p-2 text-xs ${person.speaking ? "border-blue-400 bg-blue-500/10" : "border-neutral-700 bg-neutral-950"}`}
+                className={`min-w-0 rounded-lg border p-2 text-xs ${person.speaking ? "border-neutral-400 bg-neutral-500/10" : "border-neutral-700 bg-neutral-950"}`}
               >
                 <div className="flex min-w-0 items-center gap-2">
                   <span className="min-w-0 flex-1 truncate text-neutral-100">
@@ -68,7 +68,7 @@ export function CallParticipants({
                   {person.speaking && (
                     <AudioLines
                       aria-label="Speaking"
-                      className="h-4 w-4 shrink-0 text-blue-400"
+                      className="h-4 w-4 shrink-0 text-neutral-400"
                     />
                   )}
                   {person.self && onToggleMicrophone ? (
@@ -87,7 +87,7 @@ export function CallParticipants({
                       onClick={onToggleMicrophone}
                     >
                       {person.mic ? (
-                        <Mic className="h-3.5 w-3.5 text-blue-300" />
+                        <Mic className="h-3.5 w-3.5 text-neutral-300" />
                       ) : (
                         <MicOff className="h-3.5 w-3.5" />
                       )}
@@ -95,7 +95,7 @@ export function CallParticipants({
                   ) : person.mic ? (
                     <Mic
                       aria-label="Microphone on"
-                      className="h-3.5 w-3.5 shrink-0 text-blue-300"
+                      className="h-3.5 w-3.5 shrink-0 text-neutral-300"
                     />
                   ) : (
                     <MicOff
@@ -114,7 +114,7 @@ export function CallParticipants({
                       ? "Co-host"
                       : "Participant"}
                   {person.speaking && (
-                    <span className="ml-auto text-blue-300">Speaking</span>
+                    <span className="ml-auto text-neutral-300">Speaking</span>
                   )}
                 </div>
                 {manageable && (
@@ -153,7 +153,7 @@ export function CallParticipants({
                       )}
                       <button
                         type="button"
-                        className="note-tool text-rose-300"
+                        className="note-tool text-neutral-300"
                         onClick={() => setRemoving(person)}
                       >
                         Remove from call

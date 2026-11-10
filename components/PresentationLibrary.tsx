@@ -42,7 +42,7 @@ export function PresentationLibrary({
         aria-labelledby={title}
         onCancel={onClose}
         onClose={onClose}
-        className="m-auto max-h-[88dvh] w-[min(700px,94vw)] overflow-auto rounded-xl border border-neutral-700 bg-[#18181b] p-5 text-neutral-200 backdrop:bg-black/70"
+        className="m-auto max-h-[88dvh] w-[min(700px,94vw)] overflow-auto rounded-xl border border-neutral-700 bg-white dark:bg-black p-5 text-neutral-200 backdrop:bg-black/70"
       >
         <header className="flex items-start justify-between gap-4">
           <div>
@@ -65,7 +65,7 @@ export function PresentationLibrary({
         <div className="my-4 flex flex-wrap gap-2">
           <button
             onClick={() => onCreate("markdown")}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-xs text-white hover:bg-blue-500"
+            className="inline-flex items-center gap-1.5 rounded-lg ui-primary px-3 py-2 text-xs text-white hover:bg-neutral-500"
           >
             <Plus size={14} />
             New presentation
@@ -96,7 +96,7 @@ export function PresentationLibrary({
             .map((item) => (
               <div
                 key={item.id}
-                className={`flex items-center gap-2 rounded-lg px-2 py-2 ${item.id === currentId ? "bg-blue-500/5" : ""}`}
+                className={`flex items-center gap-2 rounded-lg px-2 py-2 ${item.id === currentId ? "bg-neutral-500/5" : ""}`}
               >
                 <button
                   className="flex min-w-0 flex-1 items-center gap-3 rounded p-1 text-left hover:bg-neutral-800"
@@ -107,7 +107,7 @@ export function PresentationLibrary({
                   ) : (
                     <Presentation
                       size={18}
-                      className="shrink-0 text-blue-300"
+                      className="shrink-0 text-neutral-300"
                     />
                   )}
                   <span className="min-w-0">
@@ -131,7 +131,7 @@ export function PresentationLibrary({
                 <button
                   aria-label={`Delete ${item.title}`}
                   onClick={() => setDeleting(item)}
-                  className="rounded p-2 text-neutral-400 hover:bg-red-500/10 hover:text-red-300"
+                  className="rounded p-2 text-neutral-400 hover:bg-neutral-500/10 hover:text-neutral-300"
                 >
                   <Trash2 size={15} />
                 </button>

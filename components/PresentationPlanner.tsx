@@ -6,7 +6,7 @@ import { STORY_STARTERS } from "@/lib/presentations/authoring";
 import { SlideSurface } from "./PresentationSlide";
 export type SlideAction = "up" | "down" | "duplicate" | "delete";
 const button =
-  "inline-flex items-center justify-center gap-1 rounded border border-neutral-700 px-2 py-1.5 text-xs hover:bg-neutral-800 focus-visible:outline-blue-500 disabled:opacity-30";
+  "inline-flex items-center justify-center gap-1 rounded border border-neutral-700 px-2 py-1.5 text-xs hover:bg-neutral-800 focus-visible:outline-black dark:focus-visible:outline-white disabled:opacity-30";
 export function PresentationPlanner({
   mode,
   deck,
@@ -58,7 +58,7 @@ export function PresentationPlanner({
       }
       onCancel={onClose}
       onClose={onClose}
-      className="m-auto max-h-[88dvh] w-[min(960px,94vw)] overflow-auto rounded-xl border border-neutral-700 bg-[#18181b] p-4 text-neutral-200 backdrop:bg-black/70 sm:p-5"
+      className="m-auto max-h-[88dvh] w-[min(960px,94vw)] overflow-auto rounded-xl border border-neutral-700 bg-white dark:bg-black p-4 text-neutral-200 backdrop:bg-black/70 sm:p-5"
     >
       <header className="mb-4 flex items-start justify-between gap-3">
         <div>
@@ -92,13 +92,13 @@ export function PresentationPlanner({
               <article
                 key={index}
                 data-slide-index={index}
-                className={`min-w-0 overflow-hidden rounded-lg border ${index === active ? "border-blue-500" : "border-neutral-700"}`}
+                className={`min-w-0 overflow-hidden rounded-lg border ${index === active ? "border-neutral-500" : "border-neutral-700"}`}
               >
                 <button
                   data-slide-select
                   aria-label={`Edit slide ${index + 1}: ${slide.title}`}
                   aria-pressed={index === active}
-                  className="block w-full text-left hover:bg-neutral-800 focus-visible:outline-blue-500"
+                  className="block w-full text-left hover:bg-neutral-800 focus-visible:outline-black dark:focus-visible:outline-white"
                   onClick={() => {
                     onSelect(index);
                     onClose();
@@ -150,7 +150,7 @@ export function PresentationPlanner({
           : STORY_STARTERS.map((starter) => (
               <button
                 key={starter.id}
-                className="min-w-0 overflow-hidden rounded-lg border border-neutral-700 text-left hover:border-blue-500 focus-visible:outline-blue-500"
+                className="min-w-0 overflow-hidden rounded-lg border border-neutral-700 text-left hover:border-neutral-500 focus-visible:outline-black dark:focus-visible:outline-white"
                 aria-label={`Insert ${starter.title} starter`}
                 onClick={() => {
                   onStarter(starter.source);

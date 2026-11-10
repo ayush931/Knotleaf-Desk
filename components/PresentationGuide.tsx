@@ -30,7 +30,7 @@ const sections = [
   "Troubleshooting",
 ] as const;
 const button =
-  "inline-flex items-center justify-center gap-1.5 rounded-md border border-neutral-700 px-3 py-2 text-xs hover:bg-neutral-800 focus-visible:outline-blue-500 disabled:opacity-40";
+  "inline-flex items-center justify-center gap-1.5 rounded-md border border-neutral-700 px-3 py-2 text-xs hover:bg-neutral-800 focus-visible:outline-black dark:focus-visible:outline-white disabled:opacity-40";
 export function PresentationGuide({
   deck,
   onClose,
@@ -107,7 +107,7 @@ export function PresentationGuide({
       }}
       onCancel={onClose}
       onClose={onClose}
-      className="m-auto h-[min(820px,90dvh)] max-h-[90dvh] w-[min(1040px,96vw)] overflow-hidden rounded-xl border border-neutral-700 bg-[#18181b] p-0 text-neutral-200 backdrop:bg-black/70"
+      className="m-auto h-[min(820px,90dvh)] max-h-[90dvh] w-[min(1040px,96vw)] overflow-hidden rounded-xl border border-neutral-700 bg-white dark:bg-black p-0 text-neutral-200 backdrop:bg-black/70"
     >
       <div className="flex h-full min-h-0 flex-col">
         <header className="flex shrink-0 items-start justify-between gap-3 border-b border-neutral-800 px-4 py-4 sm:px-5">
@@ -136,7 +136,7 @@ export function PresentationGuide({
               key={value}
               aria-pressed={section === value}
               onClick={() => setSection(value)}
-              className={`${button} ${section === value ? "border-blue-500 bg-blue-500/10 text-blue-200" : "border-transparent text-neutral-400"}`}
+              className={`${button} ${section === value ? "border-neutral-500 bg-neutral-500/10 text-neutral-200" : "border-transparent text-neutral-400"}`}
             >
               {value}
             </button>
@@ -145,7 +145,7 @@ export function PresentationGuide({
         {section === "Writing examples" ? (
           <div className="flex min-h-0 flex-1 flex-col">
             <div className="flex shrink-0 flex-wrap gap-2 border-b border-neutral-800 p-3">
-              <div className="flex min-w-0 flex-[1_1_200px] items-center gap-2 rounded-md border border-neutral-700 bg-neutral-950 px-3 focus-within:border-blue-500">
+              <div className="flex min-w-0 flex-[1_1_200px] items-center gap-2 rounded-md border border-neutral-700 bg-neutral-950 px-3 focus-within:border-neutral-500">
                 <Search size={15} className="shrink-0 text-neutral-500" />
                 <input
                   ref={search}
@@ -209,7 +209,7 @@ export function PresentationGuide({
                       key={item.title}
                       aria-pressed={example.title === item.title}
                       onClick={() => selectExample(item.title)}
-                      className={`block w-full rounded-md px-3 py-2.5 text-left text-xs hover:bg-neutral-800 focus-visible:outline-blue-500 ${example.title === item.title ? "bg-blue-500/10 text-blue-200" : "text-neutral-300"}`}
+                      className={`block w-full rounded-md px-3 py-2.5 text-left text-xs hover:bg-neutral-800 focus-visible:outline-black dark:focus-visible:outline-white ${example.title === item.title ? "bg-neutral-500/10 text-neutral-200" : "text-neutral-300"}`}
                     >
                       <span className="block font-medium">{item.title}</span>
                       <span className="mt-1 block text-[10px] text-neutral-500">
@@ -225,7 +225,7 @@ export function PresentationGuide({
                   </p>
                   <div className="my-3 flex flex-wrap items-center gap-2">
                     <button
-                      className={`${button} border-blue-600 bg-blue-600 text-white hover:bg-blue-500`}
+                      className={`${button} border-neutral-600 ui-primary text-white hover:bg-neutral-500`}
                       onClick={() => onInsert(example.source)}
                     >
                       <Plus size={14} />
@@ -263,14 +263,14 @@ export function PresentationGuide({
                   </p>
                   {example.title === "Speaker notes" ? (
                     <div className="rounded-lg border border-neutral-700 p-4 text-xs leading-6">
-                      <LockKeyhole size={18} className="mb-2 text-blue-300" />
+                      <LockKeyhole size={18} className="mb-2 text-neutral-300" />
                       Your reminder stays private. You can also type normally in
                       Speaker notes below the preview, without writing this
                       command.
                     </div>
                   ) : example.media ? (
                     <div className="rounded-lg border border-neutral-700 p-4 text-xs leading-6">
-                      <ImageIcon size={22} className="mb-2 text-blue-300" />
+                      <ImageIcon size={22} className="mb-2 text-neutral-300" />
                       Use your own uploaded image or media URL in the example.
                       Sample URLs are placeholders; this guide does not load
                       external media.
@@ -347,7 +347,7 @@ export function PresentationGuide({
           <div className="min-h-0 flex-1 overflow-auto p-4 sm:p-5">
             {section === "Start here" && (
               <>
-                <div className="mb-5 rounded-lg border border-blue-500/30 bg-blue-500/5 p-4">
+                <div className="mb-5 rounded-lg border border-neutral-500/30 bg-neutral-500/5 p-4">
                   <h3 className="font-semibold">
                     From an idea to a presentation
                   </h3>
@@ -384,7 +384,7 @@ export function PresentationGuide({
                       key={title}
                       className="flex flex-col rounded-lg border border-neutral-700 p-4"
                     >
-                      <span className="mb-3 text-xs text-blue-300">
+                      <span className="mb-3 text-xs text-neutral-300">
                         Step {index + 1}
                       </span>
                       <h3 className="text-sm font-medium">{title}</h3>
@@ -522,7 +522,7 @@ export function PresentationGuide({
                     <dl className="divide-y divide-neutral-800 rounded-lg border border-neutral-700 px-3">
                       {rows.map(([keys, description]) => (
                         <div key={keys} className="py-3">
-                          <dt className="text-xs text-blue-200">
+                          <dt className="text-xs text-neutral-200">
                             <kbd>{keys}</kbd>
                           </dt>
                           <dd className="mt-1 text-xs leading-5 text-neutral-400">

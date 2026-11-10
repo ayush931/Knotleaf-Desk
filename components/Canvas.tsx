@@ -24,7 +24,7 @@ import { useCanvasFocus } from "@/lib/useCanvasFocus";
 import { Classroom } from "./Classroom";
 import { CollaborationPanel } from "./CollaborationPanel";
 import { CanvasEngine } from "@/draw/CanvasEngine";
-import { loadCanvasFonts, setFont, measureTextBlock } from "@/draw/renderer";
+import { loadCanvasFonts, setFont, measureTextBlock, uiAccent } from "@/draw/renderer";
 import { fontCssStack } from "@/draw/fonts";
 import { isColorTool, colorToolForElement, rememberToolColors, type ColorTool } from "@/draw/toolColors";
 import type { CodeViewState } from "@/draw/codeLayout";
@@ -76,6 +76,9 @@ import { CodeEditor } from "./CodeEditor";
 import { BoardTools } from "./BoardTools";
 import { saveVersion } from "@/lib/boardLibrary";
 import { PresentationMode } from "./PresentationMode";
+import { NotesThemeContext } from "@/lib/notesThemeContext";
+import { WorkspaceThemes } from "./WorkspaceThemes";
+import { applyWorkspaceTheme, workspacePalette, workspaceThemeStyle } from "@/lib/workspaceThemes";
 import { SelectionTools } from "./SelectionTools";
 import { ShortcutsModal } from "./ShortcutsModal";
 
@@ -150,8 +153,13 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
   const [zoom, setZoom] = useState(1);
   const [theme, setTheme] = useState<Theme>(preferences.theme);
   const themeRef = useRef<Theme>(preferences.theme);
-  const displayBackground = canvasBackground(board.background, theme);
-  const lightCanvas = theme === "light" && isLightBackground(displayBackground);
+  const [workspaceThemes,setWorkspaceThemes]=useState(preferences.workspaceThemes);
+  const [themesOpen,setThemesOpen]=useState(false);
+  const displayBackground = canvasBackground(board.background, theme, workspaceThemes.canvas);
+  const notesMode=workspaceThemes.notesMode || theme;
+  const notesPalette=workspacePalette(workspaceThemes.notes,notesMode);
+  const themedBoard = () => ({...boardRef.current,theme,background:canvasBackground(boardRef.current.background,theme,workspaceThemes.canvas)});
+  const lightCanvas = isLightBackground(displayBackground);
   const [gridType, setGridType] = useState<GridType>(board.gridType || "dot");
   const [snapToGrid, setSnapToGrid] = useState<boolean>(board.snapToGrid || false);
   const [canUndo, setCanUndo] = useState(false);
@@ -280,7 +288,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
   useEffect(() => {
     if (!canvasRef.current || !containerRef.current) return;
     const container = containerRef.current;
-    const engine = new CanvasEngine(canvasRef.current, boardRef.current.elements, themeRef.current, boardRef.current.gridType, boardRef.current.background);
+    const engine = new CanvasEngine(canvasRef.current, boardRef.current.elements, themeRef.current, boardRef.current.gridType, canvasBackground(boardRef.current.background,themeRef.current,preferences.workspaceThemes.canvas));
     engine.resize(container.clientWidth, container.clientHeight);
     engineRef.current = engine;
     const observer = new ResizeObserver(() => { if (container.clientWidth && container.clientHeight) engine.resize(container.clientWidth, container.clientHeight); });
@@ -325,7 +333,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
       engine.destroy();
       engineRef.current = null;
     };
-  }, [persist, refreshBoardsList, setInlineText]);
+  }, [persist, refreshBoardsList, setInlineText, preferences.workspaceThemes.canvas]);
 
   useEffect(() => {
     if (!initialRoomId) return;
@@ -431,7 +439,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
     engineRef.current?.setTool(selectedTool);
   }, [selectedTool]);
 
-  useEffect(() => { engineRef.current?.setBackground(board.background); }, [board.background]);
+  useEffect(() => { engineRef.current?.setBackground(canvasBackground(board.background,theme,workspaceThemes.canvas)); }, [board.background,theme,workspaceThemes.canvas]);
 
   useEffect(() => {
     engineRef.current?.setTheme(theme);
@@ -616,10 +624,10 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
 
   // Export
   const exportElements = (selection: boolean) => selection ? engineRef.current?.getSelectionForExport() || [] : engineRef.current?.getElements() || [];
-  const handleExportImage = (format: RasterFormat, selection: boolean, transparent: boolean, scale: number) => exportToRaster(exportElements(selection), theme, format, transparent, scale, boardRef.current.elements, boardRef.current.background, boardRef.current.gridType || "dot");
+  const handleExportImage = (format: RasterFormat, selection: boolean, transparent: boolean, scale: number) => exportToRaster(exportElements(selection), theme, format, transparent, scale, boardRef.current.elements, themedBoard().background, boardRef.current.gridType || "dot");
   const handleCopyClipboard = async (selection: boolean) => {
     const engine = engineRef.current;
-    return engine ? await copyPngToClipboard(exportElements(selection), theme, boardRef.current.background, boardRef.current.gridType || "dot", engine.getElements()) : false;
+    return engine ? await copyPngToClipboard(exportElements(selection), theme, themedBoard().background, boardRef.current.gridType || "dot", engine.getElements()) : false;
   };
   const handleExportJson = () => exportToJson(boardRef.current);
   const handleExportMarkdown = async () => {
@@ -825,12 +833,14 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
 
   return (
     <div
-      className="relative w-screen h-[100dvh] overflow-hidden flex flex-col font-sans select-none bg-[#121212] text-white"
+      style={workspaceThemeStyle(workspaceThemes.canvas,theme)}
+      className="relative w-screen h-[100dvh] overflow-hidden flex flex-col font-sans select-none bg-white dark:bg-black text-white"
     >
       {!isPresentationOpen && (
         <div hidden={focusMode}><BoardHeader
           theme={theme}
           onToggleTheme={() => setTheme(value => value === "dark" ? "light" : "dark")}
+          onOpenThemes={() => setThemesOpen(true)}
           onFocusCanvas={toggleFocus}
           onBeforeRefresh={prepareRefresh}
           recording={recording}
@@ -850,11 +860,11 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
           snapToGrid={snapToGrid}
           onToggleSnap={handleToggleSnap}
           selectionCount={selectedElements.length}
-          onExportSvg={(selection, transparent) => exportToSvg({ ...boardRef.current, theme }, exportElements(selection), transparent)}
-          onExportDrawio={selection => exportToDrawio({ ...boardRef.current, theme }, exportElements(selection))}
+          onExportSvg={(selection, transparent) => exportToSvg(themedBoard(), exportElements(selection), transparent)}
+          onExportDrawio={selection => exportToDrawio(themedBoard(), exportElements(selection))}
           onExportImage={handleExportImage}
           onExportProject={scope => exportProjectFile(boardRef.current, scope)}
-          onExportPdf={async scope => { if(boardRef.current.largeMarkdown&&scope!=="canvas")throw new Error("Download this large document as Markdown. Whole-document PDF rendering would use too much memory."); const snapshot = structuredClone({...boardRef.current,elements:exportElements(false),theme}); const { exportProjectPdf } = await import("@/draw/projectPdf"); await exportProjectPdf(snapshot, scope); }}
+          onExportPdf={async scope => { if(boardRef.current.largeMarkdown&&scope!=="canvas")throw new Error("Download this large document as Markdown. Whole-document PDF rendering would use too much memory."); const snapshot = structuredClone({...themedBoard(),elements:exportElements(false)}); const { exportProjectPdf } = await import("@/draw/projectPdf"); await exportProjectPdf(snapshot, scope, {notesPalette}); }}
           onImportFile={file=>importCoordinator.current?.start(file)||Promise.resolve()}
           onOpenUploadedFiles={()=>{if(!importCoordinator.current?.isBusy())setUploadedFilesOpen(true);}}
           onExportJson={handleExportJson}
@@ -875,8 +885,8 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
           for (const elements of groups) { const canvas = await renderToCanvas(elements,theme,1,false,snapshot.elements,snapshot.background,snapshot.gridType); if(canvas) { images.push(canvas.toDataURL("image/png")); canvas.width=canvas.height=1; } }
           return images;
         }} /></React.Suspense>}
-        {(viewMode === "notes" || viewMode === "split") && !isPresentationOpen && <section aria-label="Board notes" style={viewMode === "split" ? narrowSplit ? { width: "100%", height: Math.min(notesHeight, splitBounds.height - 160) } : { width: Math.min(notesWidth, splitBounds.width - 280) } : undefined} className={`board-notes min-h-0 ${focusMode ? "hidden" : ""} ${viewMode === "notes" ? "w-full min-w-0 flex-1" : "shrink-0"}`}><React.Suspense fallback={<div role="status" className="h-full bg-[#18181b] p-4 text-xs text-neutral-400">Opening notes…</div>}>{board.largeMarkdown&&board.importedMarkdownId?<LargeMarkdownNotes initialView={markdownViewRequest?.id===board.id?markdownViewRequest.mode:undefined} viewToken={markdownViewRequest?.id===board.id?markdownViewRequest.token:undefined} key={board.importedMarkdownId} fileId={board.importedMarkdownId} onDownload={handleExportMarkdown}/>:<DocEditor saveStatus={saveError?"Not saved · retry from the header":"Saved on this device"} initialMarkdownView={markdownViewRequest?.id===board.id?markdownViewRequest.mode:undefined} markdownViewToken={markdownViewRequest?.id===board.id?markdownViewRequest.token:undefined} key={`${board.id}:${noteFocus?.token || 0}`} focusRange={noteFocus} noteId={board.id} title={board.title} getNotes={()=>getAllBoards().filter(summary=>!isRoomBoardId(summary.id)&&(summary.workspaceId||"personal")===workspaceId).map(summary=>getBoard(summary.id)).filter((note):note is Board=>!!note).map(({id,title,markdownNotes})=>({id,title,markdownNotes}))} onOpenNote={id=>{const note=getBoard(id);if(!note)return false;note.viewMode="notes";if(!saveBoard(note))return false;handleSelectBoard(id);return true;}} onCreateNote={title=>{const currentId=boardRef.current.id;try{const note=createBoard(title,undefined,workspaceId);note.viewMode="notes";if(!saveBoard(note))throw new Error("Could not save note");refreshBoardsList();return {id:note.id,title:note.title,markdownNotes:note.markdownNotes};}finally{setActiveBoardId(currentId);}}} value={board.markdownNotes || ""} onChange={markdownNotes => persist({ ...boardRef.current, markdownNotes })} onExportMarkdown={handleExportMarkdown} theme={theme} />}</React.Suspense></section>}
-        {viewMode === "split" && !isPresentationOpen && !focusMode && <div role="separator" aria-label="Resize notes panel" aria-orientation={narrowSplit ? "horizontal" : "vertical"} aria-valuemin={narrowSplit ? 160 : 220} aria-valuemax={narrowSplit ? Math.max(160, splitBounds.height - 160) : Math.max(220, splitBounds.width - 280)} aria-valuenow={Math.round(narrowSplit ? notesHeight : notesWidth)} tabIndex={0} className={`split-handle z-30 shrink-0 touch-none bg-neutral-800 hover:bg-blue-500 focus-visible:bg-blue-500 focus-visible:outline-none ${narrowSplit ? "h-1.5 w-full cursor-row-resize" : "w-1.5 cursor-col-resize"}`} onDoubleClick={() => { setNotesWidth(360); setNotesHeight(300); }} onKeyDown={e => { if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"].includes(e.key)) {
+        {(viewMode === "notes" || viewMode === "split") && !isPresentationOpen && <section aria-label="Board notes" data-notes-theme={workspaceThemes.notes} data-notes-mode={notesMode} style={{...workspaceThemeStyle(workspaceThemes.notes,notesMode,true),...(viewMode === "split" ? narrowSplit ? { width: "100%", height: Math.min(notesHeight, splitBounds.height - 160) } : { width: Math.min(notesWidth, splitBounds.width - 280) } : {})}} className={`notes-theme board-notes min-h-0 ${focusMode ? "hidden" : ""} ${viewMode === "notes" ? "w-full min-w-0 flex-1" : "shrink-0"}`}><NotesThemeContext.Provider value={{mode:notesMode,onModeChange:mode=>{const next={...workspaceThemes,notesMode:mode};setWorkspaceThemes(next);return savePreferences({workspaceThemes:next});}}}><React.Suspense fallback={<div role="status" className="h-full bg-white dark:bg-black p-4 text-xs text-neutral-400">Opening notes…</div>}>{board.largeMarkdown&&board.importedMarkdownId?<LargeMarkdownNotes initialView={markdownViewRequest?.id===board.id?markdownViewRequest.mode:undefined} viewToken={markdownViewRequest?.id===board.id?markdownViewRequest.token:undefined} key={board.importedMarkdownId} fileId={board.importedMarkdownId} onDownload={handleExportMarkdown}/>:<DocEditor saveStatus={saveError?"Not saved · retry from the header":"Saved on this device"} initialMarkdownView={markdownViewRequest?.id===board.id?markdownViewRequest.mode:undefined} markdownViewToken={markdownViewRequest?.id===board.id?markdownViewRequest.token:undefined} key={`${board.id}:${noteFocus?.token || 0}`} focusRange={noteFocus} noteId={board.id} title={board.title} getNotes={()=>getAllBoards().filter(summary=>!isRoomBoardId(summary.id)&&(summary.workspaceId||"personal")===workspaceId).map(summary=>getBoard(summary.id)).filter((note):note is Board=>!!note).map(({id,title,markdownNotes})=>({id,title,markdownNotes}))} onOpenNote={id=>{const note=getBoard(id);if(!note)return false;note.viewMode="notes";if(!saveBoard(note))return false;handleSelectBoard(id);return true;}} onCreateNote={title=>{const currentId=boardRef.current.id;try{const note=createBoard(title,undefined,workspaceId);note.viewMode="notes";if(!saveBoard(note))throw new Error("Could not save note");refreshBoardsList();return {id:note.id,title:note.title,markdownNotes:note.markdownNotes};}finally{setActiveBoardId(currentId);}}} value={board.markdownNotes || ""} onChange={markdownNotes => persist({ ...boardRef.current, markdownNotes })} onExportMarkdown={handleExportMarkdown} theme={notesMode} themeColors={notesPalette} />}</React.Suspense></NotesThemeContext.Provider></section>}
+        {viewMode === "split" && !isPresentationOpen && !focusMode && <div role="separator" aria-label="Resize notes panel" aria-orientation={narrowSplit ? "horizontal" : "vertical"} aria-valuemin={narrowSplit ? 160 : 220} aria-valuemax={narrowSplit ? Math.max(160, splitBounds.height - 160) : Math.max(220, splitBounds.width - 280)} aria-valuenow={Math.round(narrowSplit ? notesHeight : notesWidth)} tabIndex={0} className={`split-handle z-30 shrink-0 touch-none bg-neutral-800 hover:bg-neutral-500 focus-visible:bg-neutral-500 focus-visible:outline-none ${narrowSplit ? "h-1.5 w-full cursor-row-resize" : "w-1.5 cursor-col-resize"}`} onDoubleClick={() => { setNotesWidth(360); setNotesHeight(300); }} onKeyDown={e => { if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"].includes(e.key)) {
           e.preventDefault(); e.stopPropagation();
           const delta = e.key === "ArrowRight" || e.key === "ArrowDown" ? 20 : -20;
           if (narrowSplit) setNotesHeight(h => Math.max(160, Math.min(e.key === "Home" ? 160 : e.key === "End" ? Infinity : h + delta, splitBounds.height - 160)));
@@ -888,12 +898,12 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
           onDragOver={event=>{if(event.dataTransfer.types.includes("Files")){event.preventDefault();event.dataTransfer.dropEffect="copy";setDragFiles(true);}}}
           onDragLeave={event=>{if(!event.currentTarget.contains(event.relatedTarget as Node|null))setDragFiles(false);}}
           onDrop={event=>{if(!event.dataTransfer.files.length)return;event.preventDefault();setDragFiles(false);const r=canvasRef.current?.getBoundingClientRect();void uploadAssets(Array.from(event.dataTransfer.files),r?{x:event.clientX-r.left,y:event.clientY-r.top}:undefined);}}
-          className={`relative min-h-0 min-w-0 flex-1 h-full overflow-hidden bg-[#121212] ${(viewMode === "notes" || viewMode === "slides") && !isPresentationOpen && !focusMode ? "hidden" : ""}`}
+          className={`relative min-h-0 min-w-0 flex-1 h-full overflow-hidden bg-white dark:bg-black ${(viewMode === "notes" || viewMode === "slides") && !isPresentationOpen && !focusMode ? "hidden" : ""}`}
         >
-            {dragFiles&&<div aria-hidden="true" className="pointer-events-none absolute inset-2 z-40 flex items-center justify-center rounded-xl border-2 border-dashed border-blue-400 bg-blue-500/10 text-sm text-blue-200">Drop images or files onto this board</div>}
+            {dragFiles&&<div aria-hidden="true" className="pointer-events-none absolute inset-2 z-40 flex items-center justify-center rounded-xl border-2 border-dashed border-neutral-400 bg-neutral-500/10 text-sm text-neutral-200">Drop images or files onto this board</div>}
             <canvas ref={canvasRef} tabIndex={0} aria-label="Drawing canvas" data-theme={theme} data-background={displayBackground.fill} className="block touch-none select-none" style={{ backgroundColor: displayBackground.fill, backgroundImage: lightCanvas ? "conic-gradient(#e4e4e7 25%, transparent 0 50%, #e4e4e7 0 75%, transparent 0)" : "conic-gradient(#27272a 25%, transparent 0 50%, #27272a 0 75%, transparent 0)", backgroundSize: "16px 16px" }} />
 
-            {codeElement?.type === "text" && <CodeEditor initialView={codeInitialView} onViewChange={view=>{codeViews.current.set(codeElement.id,view);if(codeViews.current.size>256)codeViews.current.delete(codeViews.current.keys().next().value!);engineRef.current?.setCodeScroll(codeElement.id,{x:view.scrollLeft,y:view.scrollTop});}} background={canvasElementAppearance(codeElement, lightCanvas)} key={codeElement.id} value={codeElement.text} language={codeElement.codeLanguage || "auto"} fontSize={codeElement.fontSize} zoom={codeViewport.zoom} x={(codeElement.x - 16) * codeViewport.zoom + codeViewport.pan.x} y={(codeElement.y - 16) * codeViewport.zoom + codeViewport.pan.y} width={codeElement.width} height={codeElement.height} onChange={(text, language) => engineRef.current?.updateCode(codeElement.id, text, language)} onClose={() => { engineRef.current?.finishCode(); setCodeId(null); }} />}
+            {codeElement?.type === "text" && <CodeEditor initialView={codeInitialView} onViewChange={view=>{codeViews.current.set(codeElement.id,view);if(codeViews.current.size>256)codeViews.current.delete(codeViews.current.keys().next().value!);engineRef.current?.setCodeScroll(codeElement.id,{x:view.scrollLeft,y:view.scrollTop});}} background={canvasElementAppearance(codeElement, lightCanvas, board.elements)} key={codeElement.id} value={codeElement.text} language={codeElement.codeLanguage || "auto"} fontSize={codeElement.fontSize} zoom={codeViewport.zoom} x={(codeElement.x - 16) * codeViewport.zoom + codeViewport.pan.x} y={(codeElement.y - 16) * codeViewport.zoom + codeViewport.pan.y} width={codeElement.width} height={codeElement.height} onChange={(text, language) => engineRef.current?.updateCode(codeElement.id, text, language)} onClose={() => { engineRef.current?.finishCode(); setCodeId(null); }} />}
             {inlineText && (
               <>
                 {/* Document-specific list tools; ordinary canvas text stays unobstructed. */}
@@ -903,7 +913,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
                   style={{position:"absolute",left:`clamp(8px, ${inlineText.screenX}px, calc(100% - 184px))`,top:Math.max(8,inlineText.screenY-40),zIndex:40}}
                   className="flex items-center gap-1 rounded-lg border border-neutral-700 bg-neutral-900 px-1 py-1 text-xs shadow-lg">
                   {[{label:"Heading",icon:Heading1,prefix:"#"},{label:"Bullet list",icon:List,prefix:"•"},{label:"Checklist",icon:CheckSquare,prefix:"[ ]"},{label:"Quote",icon:Quote,prefix:">"}].map(tool=><button type="button" key={tool.label} aria-label={tool.label} title={tool.label} className="note-tool" onClick={()=>handleInsertPrefix(tool.prefix)}><tool.icon className="h-4 w-4"/></button>)}
-                  <button type="button" aria-label="Finish document editing" title="Finish · Ctrl/Cmd+Enter" className="note-tool text-blue-400" onClick={commitInline}><Check className="h-4 w-4"/></button>
+                  <button type="button" aria-label="Finish document editing" title="Finish · Ctrl/Cmd+Enter" className="note-tool text-neutral-400" onClick={commitInline}><Check className="h-4 w-4"/></button>
                 </div>}
 
                 <textarea
@@ -1050,13 +1060,13 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
                     fontStyle: inlineText.italic ? "italic" : "normal",
                     textDecoration: [inlineText.underline && "underline", inlineText.strikethrough && "line-through"].filter(Boolean).join(" ") || "none",
                     textAlign: inlineTextAlign,
-                    color: selectedElement ? canvasElementAppearance({...selectedElement,stroke:inlineText.color || "#FFFFFF"},lightCanvas).stroke : neutralInk(inlineText.color || "#FFFFFF",lightCanvas),
+                    color: selectedElement ? canvasElementAppearance({...selectedElement,stroke:inlineText.color || "#FFFFFF"},lightCanvas,board.elements).stroke : neutralInk(inlineText.color || "#FFFFFF",lightCanvas),
                     zIndex: 35,
                     background: "transparent",
                     border: "none",
                     borderRadius: 0,
                     padding: 0,
-                    outline: inlineText.boxWidth ? "1px solid #3b82f6" : "none",
+                    outline: inlineText.boxWidth ? `1px solid ${uiAccent(lightCanvas)}` : "none",
                     outlineOffset: "3px",
                     resize: "none",
                     overflowX: "hidden",
@@ -1158,13 +1168,13 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
         </div>
       </main>
 
-      {initialRoomId && !roomReady && <div role="status" className="fixed left-1/2 top-20 z-40 w-[min(400px,90vw)] -translate-x-1/2 rounded-xl border border-amber-500/30 bg-neutral-900 p-4 text-center text-sm text-neutral-300"><p>{roomError || "Connecting to your room…"}</p><p className="mt-2 text-xs text-neutral-500">Start the collaboration server or check your connection. Drawing unlocks after the room syncs.</p><div className="mt-3 flex justify-center gap-4">{roomError && roomStatus !== "expired" && <button onClick={() => { setRoomError(""); setRoomStatus("connecting"); setRoomAttempt(attempt => attempt + 1); }} className="text-xs text-blue-400 underline">Retry connection</button>}<button onClick={handleLeaveRoom} className="text-xs text-blue-400 underline">Leave room</button></div></div>}
-      {focusMode && <button onClick={exitFocus} aria-label="Show controls" aria-keyshortcuts="Escape Shift+Z" title="Show controls · Escape or Shift+Z" className="absolute right-2 top-2 z-40 flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-700 bg-neutral-900/80 text-neutral-400 transition-colors hover:bg-neutral-800 hover:text-white focus-visible:outline-2 focus-visible:outline-blue-500"><PanelsTopLeft className="h-4 w-4" /></button>}
+      {initialRoomId && !roomReady && <div role="status" className="fixed left-1/2 top-20 z-40 w-[min(400px,90vw)] -translate-x-1/2 rounded-xl border border-neutral-500/30 bg-neutral-900 p-4 text-center text-sm text-neutral-300"><p>{roomError || "Connecting to your room…"}</p><p className="mt-2 text-xs text-neutral-500">Start the collaboration server or check your connection. Drawing unlocks after the room syncs.</p><div className="mt-3 flex justify-center gap-4">{roomError && roomStatus !== "expired" && <button onClick={() => { setRoomError(""); setRoomStatus("connecting"); setRoomAttempt(attempt => attempt + 1); }} className="text-xs text-neutral-400 underline">Retry connection</button>}<button onClick={handleLeaveRoom} className="text-xs text-neutral-400 underline">Leave room</button></div></div>}
+      {focusMode && <button onClick={exitFocus} aria-label="Show controls" aria-keyshortcuts="Escape Shift+Z" title="Show controls · Escape or Shift+Z" className="absolute right-2 top-2 z-40 flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-700 bg-neutral-900/80 text-neutral-400 transition-colors hover:bg-neutral-800 hover:text-white focus-visible:outline-2 focus-visible:outline-black dark:focus-visible:outline-white"><PanelsTopLeft className="h-4 w-4" /></button>}
       <input ref={assetInputRef} type="file" multiple aria-label="Upload files" className="hidden" onChange={event=>{const files=Array.from(event.target.files||[]);event.target.value="";void uploadAssets(files);}}/>
-      {!isPresentationOpen&&!focusMode&&(assetBusy||assetError||assetNotice)&&<div role={assetError?"alert":"status"} className="absolute right-3 top-24 z-50 max-w-[min(360px,calc(100vw-24px))] rounded-xl border border-neutral-700 bg-neutral-900 p-3 text-xs text-neutral-300 shadow-sm"><div className="flex items-start gap-3"><p className={assetError?"text-blue-300":""}>{assetBusy?"Uploading files…":assetError||assetNotice}</p>{!assetBusy&&<button type="button" aria-label="Dismiss upload message" className="note-tool shrink-0" onClick={()=>{setAssetError("");setAssetNotice("");}}><X className="h-3.5 w-3.5"/></button>}</div><p className="mt-2 text-[11px] text-neutral-500">Files stay on this device. Available space depends on your browser.</p></div>}
-      {!isPresentationOpen&&!focusMode&&(viewMode==="canvas"||viewMode==="split")&&selectedElement?.type==="text"&&selectedElement.attachment&&<div className="absolute bottom-16 left-1/2 z-30 flex max-w-[calc(100%-1rem)] -translate-x-1/2 items-center gap-2 rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-xs"><span className="max-w-48 truncate" title={selectedElement.attachment.name}>{selectedElement.attachment.name}</span><button type="button" aria-label="Download attachment" onClick={downloadSelectedAttachment} className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-blue-300 hover:bg-neutral-800"><Download className="h-3.5 w-3.5"/>Download</button></div>}
+      {!isPresentationOpen&&!focusMode&&(assetBusy||assetError||assetNotice)&&<div role={assetError?"alert":"status"} className="absolute right-3 top-24 z-50 max-w-[min(360px,calc(100vw-24px))] rounded-xl border border-neutral-700 bg-neutral-900 p-3 text-xs text-neutral-300 shadow-sm"><div className="flex items-start gap-3"><p className={assetError?"text-neutral-300":""}>{assetBusy?"Uploading files…":assetError||assetNotice}</p>{!assetBusy&&<button type="button" aria-label="Dismiss upload message" className="note-tool shrink-0" onClick={()=>{setAssetError("");setAssetNotice("");}}><X className="h-3.5 w-3.5"/></button>}</div><p className="mt-2 text-[11px] text-neutral-500">Files stay on this device. Available space depends on your browser.</p></div>}
+      {!isPresentationOpen&&!focusMode&&(viewMode==="canvas"||viewMode==="split")&&selectedElement?.type==="text"&&selectedElement.attachment&&<div className="absolute bottom-16 left-1/2 z-30 flex max-w-[calc(100%-1rem)] -translate-x-1/2 items-center gap-2 rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-xs"><span className="max-w-48 truncate" title={selectedElement.attachment.name}>{selectedElement.attachment.name}</span><button type="button" aria-label="Download attachment" onClick={downloadSelectedAttachment} className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-neutral-300 hover:bg-neutral-800"><Download className="h-3.5 w-3.5"/>Download</button></div>}
       <PresentationMode isActive={isPresentationOpen} onExit={endPresentation} title={board.title} theme={theme} frames={frames} index={presentationIndex} onIndex={setPresentationIndex} />
-      {!isPresentationOpen && !focusMode && <button type="button" aria-label="Report bug" title="Report a bug" onClick={() => { setBoardToolsSection("report"); setBoardToolsOpen(true); }} className="absolute bottom-3 left-2 z-30 inline-flex h-8 items-center gap-1 rounded-lg border border-neutral-700 bg-neutral-900/95 px-1.5 text-[11px] text-neutral-400 hover:bg-neutral-800 hover:text-white focus-visible:outline-2 focus-visible:outline-blue-500"><Bug aria-hidden="true" className="h-3 w-3"/>Report bug</button>}
+      {!isPresentationOpen && !focusMode && <button type="button" aria-label="Report bug" title="Report a bug" onClick={() => { setBoardToolsSection("report"); setBoardToolsOpen(true); }} className="absolute bottom-3 left-2 z-30 inline-flex h-8 items-center gap-1 rounded-lg border border-neutral-700 bg-neutral-900/95 px-1.5 text-[11px] text-neutral-400 hover:bg-neutral-800 hover:text-white focus-visible:outline-2 focus-visible:outline-black dark:focus-visible:outline-white"><Bug aria-hidden="true" className="h-3 w-3"/>Report bug</button>}
       <FileImportController ref={importCoordinator} onImport={handleImportFile}/>
       {uploadedFilesOpen&&<MarkdownFileLibrary open={uploadedFilesOpen} onClose={()=>setUploadedFilesOpen(false)} activeId={board.importedMarkdownId} onOpen={openUploadedFile} onDeleted={refreshAfterFileDelete}/>}
       <BoardTools initialSection={boardToolsSection} open={boardToolsOpen} onClose={() => setBoardToolsOpen(false)} board={board} selection={librarySelection} historyError={historyError} onHistorySaved={() => setHistoryError("")} onOpenCopy={(source, title) => { const copy = importBoardFile(JSON.stringify({ ...source, title })); if (!copy) throw new Error("Could not create a board. Check available browser storage."); copy.title = title; if (!saveBoard(copy)) throw new Error("Could not save the new board."); moveBoardToWorkspace(copy.id, workspaceId); handleSelectBoard(copy.id); }} onFind={(id, index, length) => {
@@ -1184,6 +1194,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
 
       <TemplatesModal isOpen={isTemplatesOpen} onClose={() => setIsTemplatesOpen(false)} onSelectTemplate={handleSelectTemplate} theme={theme} />
 
+      <WorkspaceThemes open={themesOpen} onClose={()=>setThemesOpen(false)} mode={theme} notesMode={notesMode} current={workspaceThemes} onApply={(preset,scope,useThemeBackground)=>{const next=applyWorkspaceTheme(workspaceThemes,preset,scope);setWorkspaceThemes(next);if(scope!=="notes"&&useThemeBackground)persist({...boardRef.current,background:{fill:"#121212",fillStyle:"solid",fillOpacity:1}});return savePreferences({workspaceThemes:next});}} />
       <ShortcutsModal isOpen={isShortcutsOpen} onClose={() => setIsShortcutsOpen(false)} theme={theme} />
 
       <BoardsSidebar

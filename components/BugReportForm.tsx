@@ -126,7 +126,7 @@ export function BugReportForm() {
               setIncludeEnvironment(event.target.checked);
               setNotice("");
             }}
-            className="accent-blue-500"
+            className="accent-black dark:accent-white"
           />
           Include browser, screen size and app mode
         </label>
@@ -163,7 +163,7 @@ export function BugReportForm() {
             href={issueUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className={`${action} border-blue-500/40 text-blue-300`}
+            className={`${action} border-neutral-500/40 text-neutral-300`}
           >
             <ExternalLink className="h-3.5 w-3.5" />
             Review on GitHub
@@ -176,7 +176,7 @@ export function BugReportForm() {
         )}
       </div>
       {ready && needsPaste && (
-        <p className="text-xs text-amber-300">
+        <p className="text-xs text-neutral-300">
           This report is too long to prefill. Copy it, then paste it into the
           GitHub issue.
         </p>

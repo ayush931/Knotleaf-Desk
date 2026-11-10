@@ -408,12 +408,12 @@ export function Classroom({
         onPointerEnter={() => { if (!roomId) void warmRoomServer(); }}
         onFocus={() => { if (!roomId) void warmRoomServer(); }}
         onClick={() => setOpen((previous) => !previous)}
-        className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs text-blue-400 hover:bg-blue-500/10"
+        className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs text-neutral-400 hover:bg-neutral-500/10"
       >
         <Video className="h-4 w-4" />
         <span className="hidden lg:inline">Live call</span>
         {connected && (
-          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+          <span className="h-1.5 w-1.5 rounded-full bg-neutral-400" />
         )}
       </button>
       {typeof document !== "undefined" &&
@@ -441,7 +441,7 @@ export function Classroom({
                     aria-expanded={chatOpen}
                     aria-controls={`${panelId}-chat`}
                     onClick={() => setChatOpen((value) => !value)}
-                    className="flex items-center gap-1.5 rounded-lg border border-neutral-700 px-2 py-1.5 text-xs text-blue-300 hover:bg-neutral-800"
+                    className="flex items-center gap-1.5 rounded-lg border border-neutral-700 px-2 py-1.5 text-xs text-neutral-300 hover:bg-neutral-800"
                   >
                     <MessageCircle className="h-3.5 w-3.5" />
                     Chat
@@ -546,7 +546,7 @@ export function Classroom({
                     <button
                       disabled={!!busy}
                       onClick={() => void createRoom()}
-                      className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+                      className="rounded-lg ui-primary px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
                     >
                       {busy === "create"
                         ? "Creating room…"
@@ -584,7 +584,7 @@ export function Classroom({
                   </label>
                   <button
                     disabled={busy === "join"}
-                    className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+                    className="rounded-lg ui-primary px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
                   >
                     {busy === "join"
                       ? "Joining…"
@@ -593,7 +593,7 @@ export function Classroom({
                         : "Join call"}
                   </button>
                   {state?.status === "disconnected" && (
-                    <p role="status" className="text-xs text-amber-300">
+                    <p role="status" className="text-xs text-neutral-300">
                       The call disconnected. Your board edits stay in the room.
                       Rejoin to reconnect.
                     </p>
@@ -608,9 +608,9 @@ export function Classroom({
                   >
                     <span role="status" aria-label="Total participants" className="self-center px-1 text-xs text-neutral-400">{state.peers.length+1} participants</span>
                     <button type="button" className={control} aria-label="Call notification sounds" aria-pressed={soundsEnabled} onClick={()=>{const enabled=!soundsEnabled;setSoundsEnabled(enabled);if(sounds.current){sounds.current.enabled=enabled;if(enabled)sounds.current.unlock();}}}>Sounds {soundsEnabled?'on':'off'}</button>
-                    {state.status==='reconnecting'&&<span role="status" className="self-center text-xs text-amber-300">Reconnecting… keeping your call open.</span>}
+                    {state.status==='reconnecting'&&<span role="status" className="self-center text-xs text-neutral-300">Reconnecting… keeping your call open.</span>}
                     <button
-                      className={`${control} ${state.media.mic ? "text-blue-300" : ""}`}
+                      className={`${control} ${state.media.mic ? "text-neutral-300" : ""}`}
                       disabled={!!busy}
                       aria-pressed={state.media.mic}
                       onClick={() => void act("mic")}
@@ -619,7 +619,7 @@ export function Classroom({
                       {state.media.mic ? "Mute" : "Microphone"}
                     </button>
                     <button
-                      className={`${control} ${state.media.camera ? "text-blue-300" : ""}`}
+                      className={`${control} ${state.media.camera ? "text-neutral-300" : ""}`}
                       disabled={!!busy}
                       aria-pressed={state.media.camera}
                       onClick={() => void act("camera")}
@@ -628,7 +628,7 @@ export function Classroom({
                       {state.media.camera ? "Camera off" : "Camera"}
                     </button>
                     <button
-                      className={`${control} ${state.media.screen ? "text-blue-300" : ""}`}
+                      className={`${control} ${state.media.screen ? "text-neutral-300" : ""}`}
                       disabled={!!busy}
                       aria-pressed={state.media.screen}
                       onClick={() => void act("screen")}
@@ -647,7 +647,7 @@ export function Classroom({
                       </button>
                     )}
                     <button
-                      className={`${control} text-rose-300`}
+                      className={`${control} text-neutral-300`}
                       onClick={leave}
                     >
                       <PhoneOff className="h-4 w-4" />
@@ -801,7 +801,7 @@ export function Classroom({
                 <p
                   id="classroom-error"
                   role="alert"
-                  className="text-xs text-rose-300"
+                  className="text-xs text-neutral-300"
                 >
                   {error}
                 </p>

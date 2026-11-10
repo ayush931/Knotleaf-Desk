@@ -33,6 +33,7 @@ import {
 import {
   Bounds,
   ACCENT,
+  uiAccent,
   computeArrowPath,
   computeLinePath,
   drawBoundsOutline,
@@ -1241,6 +1242,7 @@ export class CanvasEngine {
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     ctx.clearRect(0, 0, w, h);
     const background = canvasBackground(this.background, this.theme);
+    const lightUi = isLightBackground(background);
     drawCanvasBackground(ctx, background, () => ctx.rect(0, 0, w, h), { x: 0, y: 0, width: w, height: h });
     const slide = this.elements.find(el => el.id === this.presentationFrameId && el.type === "frame");
     if (!slide) drawGrid(ctx, w, h, this.pan, this.zoom, this.gridType, isLightBackground(background));
@@ -1261,17 +1263,17 @@ export class CanvasEngine {
       if (el.id === this.editingId) {
         // Text and sticky content is being typed into the overlay, so skip it.
         // Shapes keep their outline and only lose the label being edited.
-        if (el.type === "text") { if(el.isDocCard&&!el.isCodeCard)drawElement(ctx,{...el,text:"",title:undefined},{theme:this.theme,lightCanvas:this.theme === "light" && isLightBackground(background),scene:this.elements});continue; }
-        if (el.type === "sticky") { drawElement(ctx, { ...el, text: "" }, { theme: this.theme, lightCanvas: this.theme === "light" && isLightBackground(background), scene: this.elements }); continue; }
+        if (el.type === "text") { if(el.isDocCard&&!el.isCodeCard)drawElement(ctx,{...el,text:"",title:undefined},{theme:this.theme,lightCanvas:lightUi,scene:this.elements});continue; }
+        if (el.type === "sticky") { drawElement(ctx, { ...el, text: "" }, { theme: this.theme, lightCanvas: lightUi, scene: this.elements }); continue; }
         drawElement(ctx, { ...el, label: undefined, ...(el.type === "frame" ? { title: "" } : {}) } as CanvasElement, {
-          theme: this.theme, lightCanvas: this.theme === "light" && isLightBackground(background),
+          theme: this.theme, lightCanvas: lightUi,
           scene: this.elements,
           zoom: this.zoom,
         });
         continue;
       }
       drawElement(ctx, el, {
-        theme: this.theme, lightCanvas: this.theme === "light" && isLightBackground(background),
+        theme: this.theme, lightCanvas: lightUi,
           scene: this.elements,
         flowOffset: this.flowOffset,
         codeScroll: this.codeScroll.get(el.id),
@@ -1282,33 +1284,33 @@ export class CanvasEngine {
     }
 
     if (selected.length > 1) {
-      for (const el of selected) drawBoundsOutline(ctx, getElementBounds(el, this.elements), this.zoom, getSelectionPadding(el, this.zoom));
+      for (const el of selected) drawBoundsOutline(ctx, getElementBounds(el, this.elements), this.zoom, getSelectionPadding(el, this.zoom), true, lightUi);
       const group = unionBounds(selected.map(el => getElementBounds(el, this.elements)));
-      if (group) drawBoundsOutline(ctx, group, this.zoom, SELECTION_PADDING / this.zoom);
+      if (group) drawBoundsOutline(ctx, group, this.zoom, SELECTION_PADDING / this.zoom, true, lightUi);
     }
 
     if (this.gesture?.kind === "text-box") {
-      const {origin,current}=this.gesture;ctx.save();ctx.strokeStyle=ACCENT;ctx.lineWidth=1/this.zoom;ctx.setLineDash([4/this.zoom,3/this.zoom]);ctx.strokeRect(Math.min(origin.x,current.x),Math.min(origin.y,current.y),Math.abs(current.x-origin.x),Math.abs(current.y-origin.y));ctx.restore();
+      const {origin,current}=this.gesture;ctx.save();ctx.strokeStyle=uiAccent(lightUi);ctx.lineWidth=1/this.zoom;ctx.setLineDash([4/this.zoom,3/this.zoom]);ctx.strokeRect(Math.min(origin.x,current.x),Math.min(origin.y,current.y),Math.abs(current.x-origin.x),Math.abs(current.y-origin.y));ctx.restore();
     }
     if (this.draft) {
-      drawElement(ctx, this.draft, { theme: this.theme, lightCanvas: this.theme === "light" && isLightBackground(background), zoom: this.zoom, scene: this.elements });
+      drawElement(ctx, this.draft, { theme: this.theme, lightCanvas: lightUi, zoom: this.zoom, scene: this.elements });
     }
 
     const activeConnectable = this.tool === "select" && !this.gesture && !this.editingId && !this.readOnly
       ? this.getActiveConnectable(this.lastPointerPt)
       : null;
     if (activeConnectable) {
-      drawConnectorHandles(ctx, activeConnectable, this.zoom, this.snapTarget?.anchor, this.theme === "light" && isLightBackground(background));
+      drawConnectorHandles(ctx, activeConnectable, this.zoom, this.snapTarget?.anchor, lightUi);
     }
 
     if (this.hoveredAnchors.length > 0) {
-      drawElementAnchors(ctx, this.hoveredAnchors, this.snapTarget?.anchor, this.zoom);
+      drawElementAnchors(ctx, this.hoveredAnchors, this.snapTarget?.anchor, this.zoom, lightUi);
     }
 
     if (this.guides.length && this.gesture) drawSmartGuides(ctx, this.guides, this.zoom);
 
     if (this.marqueeRect) {
-      drawMarquee(ctx, this.marqueeRect, this.zoom);
+      drawMarquee(ctx, this.marqueeRect, this.zoom, lightUi);
     }
 
     for (const person of slide ? [] : this.collaborators) {
@@ -1322,7 +1324,7 @@ export class CanvasEngine {
     this.drawHighlights(ctx);
     ctx.restore();
     if(this.tool==="eraser"&&this.eraserPointer&&!this.readOnly&&!this.spaceDown){
-      const p=this.eraserPointer,r=this.eraserSize/2;ctx.save();ctx.fillStyle="rgba(59,130,246,0.07)";ctx.strokeStyle="rgba(59,130,246,0.8)";ctx.lineWidth=1;
+      const p=this.eraserPointer,r=this.eraserSize/2;ctx.save();ctx.fillStyle=lightUi?"rgba(0,0,0,0.07)":"rgba(255,255,255,0.07)";ctx.strokeStyle=uiAccent(lightUi);ctx.lineWidth=1;
       if(r>Math.hypot(w,h)*2)ctx.fillRect(0,0,w,h);else{ctx.beginPath();ctx.arc(p.x,p.y,r,0,Math.PI*2);ctx.fill();ctx.stroke();}ctx.restore();
     }
     this.syncAnimation();

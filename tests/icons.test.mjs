@@ -174,12 +174,21 @@ test('font readiness loads only used families, shares pending work and retries a
 test('light SVG export matches the white canvas and readable ink without changing the source',()=>{
  const shape={...base,type:'rectangle',stroke:'#FFFFFF'};
  const svg=boardToSvg([shape],false,[shape],undefined,'dot','light');
- expect(svg).toContain('fill="#ffffff"');expect(svg).toContain('stroke="#1f2937"');expect(shape.stroke).toBe('#FFFFFF');
+ expect(svg).toContain('fill="#ffffff"');expect(svg).toContain('stroke="#000000"');expect(shape.stroke).toBe('#FFFFFF');
  const dark=boardToSvg([shape],false,[shape],undefined,'dot','dark');
- expect(dark).toContain('fill="#1c2029"');expect(dark).toContain('stroke="#FFFFFF"');
+ expect(dark).toContain('fill="#000000"');expect(dark).toContain('stroke="#FFFFFF"');
 });
 
 test('fixed-size code SVG retains its source but clips it to the chosen viewport',()=>{
  const card={...base,id:'fixed-code',type:'text',isCodeCard:true,isDocCard:true,text:'const longName = "all source stays saved";\n'.repeat(5),fontSize:14,fontFamily:'mono',textAlign:'left',codeLanguage:'javascript',codeAutoSize:false,fill:'#000000',fillStyle:'solid',cardFillCustom:true,x:100,y:100,width:80,height:32};
  const svg=boardToSvg([card],true);expect(svg).toContain('<clipPath');expect(svg).toContain('width="192" height="144"');expect(svg).toContain('clip-path="url(');expect(svg).toContain('all source stays saved');expect(card.text.split('\n')).toHaveLength(6);expect(card.width).toBe(80);
+});
+
+
+test('SVG backgrounds match every resolved canvas theme without modifying artwork',async()=>{
+ const {WORKSPACE_THEMES,workspacePalette}=await import('../lib/workspaceThemes.ts');const shape={...base,type:'rectangle',stroke:'#FFFFFF'};const original=JSON.stringify(shape);
+ for(const {id}of WORKSPACE_THEMES)for(const theme of ['light','dark']){
+  const background={fill:workspacePalette(id,theme).background,fillStyle:'solid',fillOpacity:1};const svg=boardToSvg([shape],false,[shape],background,'dot',theme);
+  expect(svg).toContain(`fill="${background.fill}"`);expect(JSON.stringify(shape)).toBe(original);
+ }
 });

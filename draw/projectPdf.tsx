@@ -1,3 +1,4 @@
+import type {WorkspacePalette} from '@/lib/workspaceThemes';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
@@ -10,7 +11,7 @@ import { loadPreferences } from '@/lib/preferences';
 import { fontCssStack } from './fonts';
 import { loadCanvasFonts } from './renderer';
 
-export interface PdfImages { title: string; canvas?: string | Uint8Array | ArrayBuffer | null; notes?: (string | Uint8Array | ArrayBuffer)[]; includeCanvas: boolean; includeNotes: boolean; backgroundColor?: string }
+export interface PdfImages { title: string; canvas?: string | Uint8Array | ArrayBuffer | null; notes?: (string | Uint8Array | ArrayBuffer)[]; includeCanvas: boolean; includeNotes: boolean; backgroundColor?: string; notesBackgroundColor?: string; notesInkColor?:string }
 /** PDF assembly is independent of browser capture, so pagination and output can be verified. */
 export async function createProjectPdf(input: PdfImages): Promise<Uint8Array> {
   const pdf = await PDFDocument.create();
@@ -19,7 +20,12 @@ export async function createProjectPdf(input: PdfImages): Promise<Uint8Array> {
   const background = normalizeBackground({ fill:input.backgroundColor || '#121212', fillStyle:'solid', fillOpacity:1 });
   const color = parseInt(background.fill.slice(1),16), paper = rgb((color>>16)/255,((color>>8)&255)/255,(color&255)/255);
   const ink = isLightBackground(background) ? rgb(.09,.12,.17) : rgb(.9,.9,.9);
+  const notesBackground=normalizeBackground({fill:input.notesBackgroundColor || background.fill,fillStyle:'solid',fillOpacity:1});
+  const notesValue=parseInt(notesBackground.fill.slice(1),16),notesPaper=rgb((notesValue>>16)/255,((notesValue>>8)&255)/255,(notesValue&255)/255);
+  const inkValue=parseInt((input.notesInkColor || (isLightBackground(notesBackground)?'#000000':'#ffffff')).slice(1),16);
+  const notesInk=rgb((inkValue>>16)/255,((inkValue>>8)&255)/255,(inkValue&255)/255);
   const paintPage = (page: ReturnType<typeof pdf.addPage>) => page.drawRectangle({ x:0, y:0, width:page.getWidth(), height:page.getHeight(), color:paper });
+  const paintNotes=(page:ReturnType<typeof pdf.addPage>)=>page.drawRectangle({x:0,y:0,width:page.getWidth(),height:page.getHeight(),color:notesPaper});
   if (input.includeCanvas) {
     const image = input.canvas ? await pdf.embedPng(input.canvas) : null;
     if (image) {
@@ -33,13 +39,13 @@ export async function createProjectPdf(input: PdfImages): Promise<Uint8Array> {
   }
   if (input.includeNotes) {
     if (input.notes?.length) for (const data of input.notes) {
-      const image = await pdf.embedPng(data), page = pdf.addPage([595,842]); paintPage(page);
+      const image = await pdf.embedPng(data), page = pdf.addPage([595,842]); paintNotes(page);
       const scale = Math.min(531/image.width,746/image.height);
       page.drawImage(image,{x:32,y:794-image.height*scale,width:image.width*scale,height:image.height*scale});
     } else {
-      const page = pdf.addPage([595,842]); paintPage(page);
-      page.drawText('Notes',{x:32,y:794,size:14,font,color:ink});
-      page.drawText('No notes yet.',{x:32,y:766,size:11,font,color:ink});
+      const page = pdf.addPage([595,842]); paintNotes(page);
+      page.drawText('Notes',{x:32,y:794,size:14,font,color:notesInk});
+      page.drawText('No notes yet.',{x:32,y:766,size:11,font,color:notesInk});
     }
   }
   if (!pdf.getPageCount()) throw new Error('Choose canvas, notes, or both.');
@@ -52,12 +58,13 @@ export function choosePageEnd(start: number, pageHeight: number, totalHeight: nu
   return crossing.length ? Math.min(...crossing.map(line => line.top)) : target;
 }
 
-async function captureNotes(board: Board): Promise<Uint8Array[]> {
+async function captureNotes(board: Board, palette?:WorkspacePalette): Promise<Uint8Array[]> {
   if (!board.markdownNotes.trim()) return [];
   const [{ default: html2canvas },{notesToSafeHtml}] = await Promise.all([import('html2canvas'),import('@/lib/richNotes')]);
   const appearance=loadPreferences().noteAppearance;
-  const background = normalizeBackground(board.background), light = isLightBackground(background);
-  const ink = light ? '#17202b' : '#e5e5e5';
+  const background = normalizeBackground(palette?{fill:palette.background,fillStyle:'solid',fillOpacity:1}:board.background), light = isLightBackground(background);
+  const ink = palette?.ink || (light ? '#000000' : '#ffffff');
+  const accent=palette?.accent || ink,border=palette?.border || (light?'#d4d4d4':'#525252');
   const host = document.createElement('section');
   host.className = 'knotleaf-pdf-notes';
   host.setAttribute('aria-hidden', 'true');
@@ -73,8 +80,8 @@ async function captureNotes(board: Board): Promise<Uint8Array[]> {
     .knotleaf-pdf-notes code { font-family:monospace; } .knotleaf-pdf-notes strong { font-weight:700; } .knotleaf-pdf-notes em { font-style:italic; }
     .knotleaf-pdf-notes table { border-collapse:collapse;width:100%;table-layout:fixed;font-size:14px; }
     .knotleaf-pdf-notes td,.knotleaf-pdf-notes th { border:1px solid ${light ? "#cbd5e1" : "#3f3f46"};padding:8px;overflow-wrap:anywhere; }
-    .knotleaf-pdf-notes blockquote { border-left:3px solid #3b82f6;padding-left:16px;margin:16px 0; }
-    .knotleaf-pdf-notes a { color:${light ? "#2563eb" : "#60a5fa"};text-decoration:underline; }
+    .knotleaf-pdf-notes blockquote { border-left:3px solid ${border};padding-left:16px;margin:16px 0; }
+    .knotleaf-pdf-notes a { color:${accent};text-decoration:underline; }
     .knotleaf-pdf-notes mark { background-color:#665329;color:inherit;border-radius:2px; }
     .knotleaf-pdf-notes details { border:1px solid #3f3f46;padding:12px;margin:12px 0; }
     .knotleaf-pdf-notes summary { font-weight:700; }
@@ -109,10 +116,10 @@ async function captureNotes(board: Board): Promise<Uint8Array[]> {
   } finally { host.remove(); }
 }
 
-export async function exportProjectPdf(board: Board, scope: ExportScope) {
+export async function exportProjectPdf(board: Board, scope: ExportScope, options: {notesPalette?:WorkspacePalette} = {}) {
   const includeCanvas = scope !== 'notes', includeNotes = scope !== 'canvas';
   const canvas = includeCanvas ? await renderToCanvas(board.elements, board.theme, 2, false, board.elements, board.background, board.gridType || "dot") : null;
-  const bytes = await createProjectPdf({ title: board.title, backgroundColor:normalizeBackground(board.background).fill, includeCanvas, includeNotes, canvas: canvas ? new Uint8Array(await (await encodeRaster(canvas)).arrayBuffer()) : null, notes: includeNotes ? await captureNotes(board) : [] });
+  const bytes = await createProjectPdf({ title: board.title, backgroundColor:normalizeBackground(board.background).fill, notesBackgroundColor:options.notesPalette?.background,notesInkColor:options.notesPalette?.ink, includeCanvas, includeNotes, canvas: canvas ? new Uint8Array(await (await encodeRaster(canvas)).arrayBuffer()) : null, notes: includeNotes ? await captureNotes(board,options.notesPalette) : [] });
   const url = URL.createObjectURL(new Blob([bytes as Uint8Array<ArrayBuffer>], { type: 'application/pdf' }));
   const link = document.createElement('a'); link.href = url; link.download = `${safeFilename(board.title)}-${scope}.pdf`; link.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);

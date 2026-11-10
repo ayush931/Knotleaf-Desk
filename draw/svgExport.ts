@@ -98,7 +98,7 @@ export function boardToSvg(elements: CanvasElement[], transparent = false, scene
     set(target, key, value) { if (key in target.state) Reflect.set(target.state, key, value); return true; },
   }) as unknown as CanvasRenderingContext2D;
   const displayBackground = canvasBackground(background, theme);
-  const lightCanvas = theme === "light" && isLightBackground(displayBackground);
+  const lightCanvas = transparent || displayBackground.fillOpacity===0 ? theme === "light" : isLightBackground(displayBackground);
   if (!transparent) drawCanvasBackground(ctx, displayBackground, () => ctx.rect(bounds.minX - 40, bounds.minY - 40, width, height), { x: bounds.minX - 40, y: bounds.minY - 40, width, height });
   if (!transparent && gridType !== "none") {
     const { spacing, radius, dotColor, lineColor } = gridAppearance(1, isLightBackground(displayBackground));
@@ -107,7 +107,7 @@ export function boardToSvg(elements: CanvasElement[], transparent = false, scene
     recorder.output.push(`<defs><pattern id="knotleaf-editor-grid" x="${offset}" y="${offset}" width="${spacing}" height="${spacing}" patternUnits="userSpaceOnUse">${marks}</pattern></defs><rect x="${bounds.minX-40}" y="${bounds.minY-40}" width="${width}" height="${height}" fill="url(#knotleaf-editor-grid)"/>`);
   }
   for (const element of elements) {
-    const el = canvasElementAppearance(element, lightCanvas);
+    const el = canvasElementAppearance(element, lightCanvas, scene);
     if (el.type === "image") {
       if (isEmbeddedImage(el.source, el.localOnly ? Infinity : 4_000_000)) recorder.output.push(`<image x="${el.x}" y="${el.y}" width="${el.width}" height="${el.height}" href="${esc(el.source)}" opacity="${el.opacity}" preserveAspectRatio="none"/>`);
       continue;

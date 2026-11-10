@@ -34,7 +34,7 @@ export function PresentationThemes({
       aria-labelledby={titleId}
       onCancel={onClose}
       onClose={onClose}
-      className="m-auto max-h-[88dvh] w-[min(840px,94vw)] overflow-auto rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-[#18181b] p-5 text-neutral-900 dark:text-neutral-100 backdrop:bg-black/70"
+      className="m-auto max-h-[88dvh] w-[min(840px,94vw)] overflow-auto rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-white dark:bg-black p-5 text-neutral-900 dark:text-neutral-100 backdrop:bg-black/70"
     >
       <div className="mb-4 flex items-start justify-between gap-4">
         <div>
@@ -59,13 +59,13 @@ export function PresentationThemes({
       <div className="mb-4 flex flex-wrap items-center gap-3 border-y border-neutral-200 dark:border-neutral-700 py-3 text-xs">
         <fieldset className="flex items-center gap-1" aria-label="Filter themes by appearance">
           <legend className="sr-only">Filter themes by appearance</legend>
-          {(["all", "light", "dark"] as const).map(option => <button key={option} type="button" aria-pressed={tone === option} onClick={() => setTone(option)} className={`rounded-md px-3 py-1.5 capitalize focus-visible:outline-2 focus-visible:outline-blue-400 ${tone === option ? "bg-blue-600 text-white font-semibold" : "text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800"}`}>{option}</button>)}
+          {(["all", "light", "dark"] as const).map(option => <button key={option} type="button" aria-pressed={tone === option} onClick={() => setTone(option)} className={`rounded-md px-3 py-1.5 capitalize focus-visible:outline-2 focus-visible:outline-black dark:focus-visible:outline-white ${tone === option ? "ui-primary text-white font-semibold" : "text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800"}`}>{option}</button>)}
         </fieldset>
         <label className="ml-auto flex items-center gap-2 text-neutral-700 dark:text-neutral-300">Preview
           <select aria-label="Theme preview content" value={preview} onChange={event => setPreview(event.target.value as "current" | "sample")} className="rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5 text-neutral-900 dark:text-neutral-100"><option value="current">Current slide</option><option value="sample">Sample slide</option></select>
         </label>
       </div>
-      {slide.theme && preview === "current" && <p className="mb-3 text-xs text-amber-300">This slide has its own theme override. The gallery previews the deck theme; the override remains in effect after selection.</p>}
+      {slide.theme && preview === "current" && <p className="mb-3 text-xs text-neutral-300">This slide has its own theme override. The gallery previews the deck theme; the override remains in effect after selection.</p>}
       {(deck.backgroundColor || deck.backgroundImage || deck.headingFont || deck.bodyFont || deck.bodySize || (deck.backdrop && deck.backdrop !== "theme")) && <p className="mb-3 text-xs text-neutral-400">Your custom background, typography and backdrop settings remain applied in these previews.</p>}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {open &&
@@ -80,7 +80,7 @@ export function PresentationThemes({
               type="button"
               aria-label={`Use ${theme.label.split(" · ")[0]} theme`}
               aria-pressed={value === id}
-              className={`overflow-hidden rounded-lg border text-left transition hover:border-blue-400 focus-visible:outline-blue-500 ${value === id ? "border-blue-500 ring-1 ring-blue-500" : "border-neutral-700"}`}
+              className={`overflow-hidden rounded-lg border text-left transition hover:border-neutral-400 focus-visible:outline-black dark:focus-visible:outline-white ${value === id ? "border-neutral-500 ring-1 ring-black dark:ring-white" : "border-neutral-700"}`}
               onClick={() => {
                 onChange(id as DeckTheme);
                 onClose();
@@ -102,7 +102,7 @@ export function PresentationThemes({
                     {theme.label.split(" · ")[1]}
                   </span>
                 </div>
-                {value === id && <Check size={15} className="text-blue-400" />}
+                {value === id && <Check size={15} className="text-neutral-400" />}
               </div>
             </button>
           ))}

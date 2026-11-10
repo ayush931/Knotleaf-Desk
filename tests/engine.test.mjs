@@ -780,17 +780,17 @@ for (const [type, extra, x, y] of [
 }
 
 
-test('a completed shape still paints its blue outline after the pointer moves away', () => {
+test('a completed shape still paints its monochrome outline after the pointer moves away', () => {
   const { engine, drag, listeners, point } = setup([]);
   const outlines = [];
   engine.ctx.strokeRect = (...rect) => outlines.push({ rect, color: engine.ctx.strokeStyle });
   engine.setTool('rectangle'); drag(100, 100, 180, 160);
   listeners.pointermove(point(900, 650)); engine.draw();
-  expect(outlines).toContainEqual({ rect: [97, 97, 86, 66], color: '#3B82F6' });
+  expect(outlines).toContainEqual({ rect: [97, 97, 86, 66], color: '#FFFFFF' });
   expect(engine.getTool()).toBe('select');
   drag(500, 500, 500, 500); expect(engine.getSelectedElements()).toEqual([]);
   outlines.length = 0; engine.draw();
-  expect(outlines).not.toContainEqual({ rect: [97, 97, 86, 66], color: '#3B82F6' });
+  expect(outlines).not.toContainEqual({ rect: [97, 97, 86, 66], color: '#FFFFFF' });
   engine.destroy();
 });
 
@@ -851,7 +851,7 @@ test('Pencil stays active between strokes, pointer departure, cancellation and u
   engine.ctx.strokeRect = (...rect) => outlines.push({ rect, color: engine.ctx.strokeStyle });
   engine.setTool('pencil'); drag(100, 100, 180, 160); listeners.pointermove(point(900, 650)); engine.draw();
   expect(engine.getTool()).toBe('pencil'); expect(engine.getSelectedElements()).toEqual([]);
-  expect(outlines.some(outline => outline.color === '#3B82F6')).toBe(false);
+  expect(outlines.some(outline => outline.color === '#FFFFFF')).toBe(false);
   drag(300, 100, 380, 160); expect(engine.getElements()).toHaveLength(2); expect(engine.getTool()).toBe('pencil');
   listeners.pointerdown(point(500, 100)); listeners.pointermove(point(580, 160)); listeners.pointercancel(point(580, 160));
   expect(engine.getElements()).toHaveLength(2); expect(engine.getTool()).toBe('pencil');
@@ -1089,7 +1089,7 @@ test('switching the default canvas among Solid, Hatch, Crosshatch and Dots retai
  for(const fillStyle of ['solid','hachure','crosshatch','dots']) {
   const paints=[];engine.ctx.fill=function(){paints.push({fill:this.fillStyle,alpha:this.globalAlpha});};engine.ctx.globalAlpha=1;
   engine.setBackground({fill:'#121212',fillStyle,fillOpacity:1});engine.draw();
-  expect(paints[0]).toEqual({fill:'#1c2029',alpha:1});
+  expect(paints[0]).toEqual({fill:'#000000',alpha:1});
  }
  engine.destroy();
 });

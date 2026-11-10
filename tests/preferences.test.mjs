@@ -88,3 +88,11 @@ test('hand-drawn canvas defaults migrate once while explicit Clean, dash and dot
  expect(normalizePreferences({...migrated,style:{...migrated.style,strokeStyle:'solid'}}).style.strokeStyle).toBe('solid');
  savePreferences({style:{...loadPreferences().style,strokeStyle:'solid'}});savePreferences({notesWidth:430});expect(loadPreferences().style.strokeStyle).toBe('solid');
 });
+
+
+test('canvas and notes themes persist independently with optional reader mode',()=>{
+ savePreferences({workspaceThemes:{canvas:'paper',notes:'forest',notesMode:'light'}});savePreferences({notesWidth:450});
+ expect(loadPreferences().workspaceThemes).toEqual({canvas:'paper',notes:'forest',notesMode:'light'});
+ expect(normalizePreferences({workspaceThemes:{canvas:'invalid',notes:'slate',notesMode:'invalid'}}).workspaceThemes).toEqual({canvas:'mono',notes:'slate'});
+ expect(normalizePreferences({markdownWorkspace:{theme:'paper'}}).workspaceThemes.notesMode).toBe('light');
+});
