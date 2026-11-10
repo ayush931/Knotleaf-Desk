@@ -79,3 +79,12 @@ test('drawing-board typography adopts Caveat once without resetting text size or
  savePreferences({style:{...loadPreferences().style,fontFamily:'sans',fontSize:32}});savePreferences({notesWidth:460});
  expect(loadPreferences().style.fontFamily).toBe('sans');expect(loadPreferences().style.fontSize).toBe(32);
 });
+
+
+test('hand-drawn canvas defaults migrate once while explicit Clean, dash and dot choices persist',()=>{
+ const migrated=normalizePreferences({version:1,style:{strokeStyle:'solid',fontSize:28,fontFamily:'hand'}});
+ expect(migrated.style.strokeStyle).toBe('rough');expect(migrated.style.fontSize).toBe(28);expect(migrated.style.fontFamily).toBe('hand');expect(migrated.canvasDrawingVersion).toBe(1);
+ for(const strokeStyle of ['dashed','dotted'])expect(normalizePreferences({style:{strokeStyle}}).style.strokeStyle).toBe(strokeStyle);
+ expect(normalizePreferences({...migrated,style:{...migrated.style,strokeStyle:'solid'}}).style.strokeStyle).toBe('solid');
+ savePreferences({style:{...loadPreferences().style,strokeStyle:'solid'}});savePreferences({notesWidth:430});expect(loadPreferences().style.strokeStyle).toBe('solid');
+});

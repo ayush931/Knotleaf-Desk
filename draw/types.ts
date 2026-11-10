@@ -277,7 +277,7 @@ export interface ElementStyleProps extends TextFormatting {
 export const DEFAULT_STYLE: ElementStyleProps = {
   stroke: "#FFFFFF",
   strokeWidth: 2,
-  strokeStyle: "solid",
+  strokeStyle: "rough",
   fill: "transparent",
   fillStyle: "none",
   fillOpacity: 1,

@@ -174,7 +174,7 @@ test('font readiness loads only used families, shares pending work and retries a
 test('light SVG export matches the white canvas and readable ink without changing the source',()=>{
  const shape={...base,type:'rectangle',stroke:'#FFFFFF'};
  const svg=boardToSvg([shape],false,[shape],undefined,'dot','light');
- expect(svg).toContain('fill="#ffffff"');expect(svg).toContain('stroke="#1f2937"');expect(shape.stroke).toBe('#FFFFFF');
+ expect(svg).toContain('fill="#fcfcf8"');expect(svg).toContain('stroke="#1f2937"');expect(shape.stroke).toBe('#FFFFFF');
  const dark=boardToSvg([shape],false,[shape],undefined,'dot','dark');
  expect(dark).toContain('fill="#121212"');expect(dark).toContain('stroke="#FFFFFF"');
 });

@@ -1,3 +1,4 @@
+import { canvasBackground } from "./canvasAppearance";
 import type { Board, CanvasElement } from "./types";
 import { computeArrowPath, computeLinePath, normalizeRect } from "./renderer";
 const xml = (v: unknown) => String(v).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" }[c]!));
@@ -28,7 +29,7 @@ export function boardToDrawio(board: Board, elements: CanvasElement[] = board.el
     const value = el.type === "text" || el.type === "sticky" ? el.text : el.type === "frame" ? el.title : el.type === "icon" ? el.label || el.iconName : el.label || "";
     return `<mxCell id="${xml(el.id)}" value="${xml(value)}" style="${xml(style + shape + ((el.type === "text" || el.type === "sticky") ? `fontStyle=${(el.bold ? 1 : 0) | (el.italic ? 2 : 0) | (el.underline ? 4 : 0) | (el.strikethrough ? 8 : 0)};fontSize=${el.fontSize};fontColor=${el.stroke};align=${el.textAlign || "left"};` : ""))}" vertex="1" parent="1"><mxGeometry x="${r.x}" y="${r.y}" width="${Math.max(r.w, 1)}" height="${Math.max(r.h, 1)}" as="geometry"/></mxCell>`;
   });
-  const bg = board.theme === "light" && (!board.background || board.background.fill.toLowerCase() === "#121212") ? "#ffffff" : (board.background?.fill || "#121212");
+  const bg = canvasBackground(board.background, board.theme || "dark").fill;
   return `<?xml version="1.0" encoding="UTF-8"?><mxfile host="Whiteboard"><diagram name="${xml(board.title)}"><mxGraphModel background="${xml(bg)}"><root><mxCell id="0"/><mxCell id="1" parent="0"/>${cells.join("")}</root></mxGraphModel></diagram></mxfile>`;
 }
 export function exportToDrawio(board: Board, elements = board.elements) {
