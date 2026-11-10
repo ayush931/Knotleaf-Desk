@@ -243,11 +243,11 @@ export function NoteStylePanel({
     <aside
       role="region"
       aria-label={title}
-      className="absolute left-2 top-24 z-40 w-72 max-w-[calc(100%-1rem)] space-y-3 overflow-auto rounded-xl border border-neutral-700 bg-[#18181b] p-3 text-xs shadow-lg"
+      className="absolute left-2 top-24 z-40 w-72 max-w-[calc(100%-1rem)] space-y-3 overflow-auto rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-[#18181b] p-3 text-xs text-neutral-800 dark:text-neutral-200 shadow-lg"
       style={{ maxHeight: "calc(100% - 110px)" }}
     >
       <div className="flex items-center justify-between">
-        <h3 className="font-semibold text-neutral-100">{title}</h3>
+        <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">{title}</h3>
         <button
           type="button"
           aria-label={`Close ${title.toLowerCase()}`}
@@ -259,7 +259,7 @@ export function NoteStylePanel({
       </div>
       {panel === "appearance" ? (
         <>
-          <p className="leading-5 text-neutral-400">
+          <p className="leading-5 text-neutral-600 dark:text-neutral-400">
             Reading preferences on this device. Selected text keeps its own
             formatting.
           </p>
@@ -267,7 +267,7 @@ export function NoteStylePanel({
             Default font
             <FontSelect
               aria-label="Default note font"
-              className="w-full rounded border border-neutral-700 bg-neutral-900 p-2"
+              className="w-full rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-2 text-neutral-800 dark:text-neutral-200"
               value={appearance.font}
               onChange={(e) =>
                 onAppearance({
@@ -281,7 +281,7 @@ export function NoteStylePanel({
             Default size
             <select
               aria-label="Default note size"
-              className="w-full rounded border border-neutral-700 bg-neutral-900 p-2"
+              className="w-full rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-2 text-neutral-800 dark:text-neutral-200"
               value={appearance.size}
               onChange={(e) =>
                 onAppearance({ ...appearance, size: +e.target.value })
@@ -298,7 +298,7 @@ export function NoteStylePanel({
             Page width
             <select
               aria-label="Note page width"
-              className="w-full rounded border border-neutral-700 bg-neutral-900 p-2"
+              className="w-full rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-2 text-neutral-800 dark:text-neutral-200"
               value={appearance.width}
               onChange={(e) =>
                 onAppearance({
@@ -316,7 +316,7 @@ export function NoteStylePanel({
             Line spacing
             <select
               aria-label="Note line spacing"
-              className="w-full rounded border border-neutral-700 bg-neutral-900 p-2"
+              className="w-full rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-2 text-neutral-800 dark:text-neutral-200"
               value={appearance.lineHeight}
               onChange={(e) =>
                 onAppearance({ ...appearance, lineHeight: +e.target.value })
@@ -336,7 +336,7 @@ export function NoteStylePanel({
               key={align}
               aria-label={`Align ${align}`}
               aria-pressed={editor?.isActive({ textAlign: align })}
-              className="rounded border border-neutral-700 px-3 py-2 capitalize hover:bg-neutral-800"
+              className="rounded border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-200 px-3 py-2 capitalize hover:bg-neutral-100 dark:hover:bg-neutral-800"
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => {
                 editor?.chain().focus().setTextAlign(align).run();
@@ -361,7 +361,7 @@ export function NoteStylePanel({
                   key={color}
                   aria-label={`${title} ${color}`}
                   title={color}
-                  className="h-8 rounded border border-neutral-600 focus-visible:outline-2 focus-visible:outline-blue-500"
+                  className="h-8 rounded border border-neutral-300 dark:border-neutral-600 focus-visible:outline-2 focus-visible:outline-blue-500"
                   style={{ backgroundColor: color }}
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => {
@@ -380,7 +380,7 @@ export function NoteStylePanel({
               type="color"
               aria-label={`Custom ${title.toLowerCase()}`}
               defaultValue={panel === "color" ? "#7dd3fc" : "#665329"}
-              className="h-8 w-12 rounded border border-neutral-700 bg-transparent"
+              className="h-8 w-12 rounded border border-neutral-300 dark:border-neutral-700 bg-transparent"
               onChange={(e) => {
                 const chain = editor?.chain().focus();
                 if (panel === "color") chain?.setColor(e.target.value).run();
@@ -390,7 +390,7 @@ export function NoteStylePanel({
           </label>
           <button
             type="button"
-            className="rounded border border-neutral-700 px-3 py-2 hover:bg-neutral-800"
+            className="rounded border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 px-3 py-2 hover:bg-neutral-100 dark:hover:bg-neutral-800"
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => {
               const chain = editor?.chain().focus();
