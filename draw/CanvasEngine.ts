@@ -44,6 +44,7 @@ import {
   getElementAnchors,
   getElementBounds,
   getResizeHandles,
+  hasSideResizeHandles,
   getSelectionPadding,
   SELECTION_PADDING,
   measureTextBlock,
@@ -1637,16 +1638,17 @@ export class CanvasEngine {
     }
 
     const bounds = getElementBounds(el);
-    const handles = getResizeHandles(bounds, this.zoom, el.type === "frame", getSelectionPadding(el, this.zoom));
+    const handles = getResizeHandles(bounds, this.zoom, hasSideResizeHandles(el), getSelectionPadding(el, this.zoom));
     for (const { handle, x, y } of handles) {
       if (near(x, y)) return handle;
     }
 
     // The outline is draggable for one-axis resizing. Leave the circular
     // connector hit areas free so the same gesture cannot start both actions.
-    if (el.type !== "frame" && getElementAnchors(el).some(port => Math.hypot(pt.x - port.x, pt.y - port.y) < 10 / this.zoom)) return null;
+    if (!hasSideResizeHandles(el) && getElementAnchors(el).some(port => Math.hypot(pt.x - port.x, pt.y - port.y) < 10 / this.zoom)) return null;
     const pad = getSelectionPadding(el, this.zoom);
-    const edgeTolerance = (el.type === "text" || el.type === "icon" ? 2 : 6) / this.zoom;
+    const codeCard = el.type === "text" && el.isCodeCard;
+    const edgeTolerance = (codeCard ? 8 : el.type === "text" || el.type === "icon" ? 2 : 6) / this.zoom;
     const x0 = bounds.minX - pad, x1 = bounds.maxX + pad;
     const y0 = bounds.minY - pad, y1 = bounds.maxY + pad;
     if (pt.x >= x0 && pt.x <= x1) {

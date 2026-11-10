@@ -291,7 +291,7 @@ export function PropertiesPanel({
           {([['width','Width',MIN_CODE_WIDTH],['height','Height',MIN_CODE_HEIGHT]] as const).map(([key,label,min])=><label key={key} className="space-y-1 text-[11px] text-neutral-600 dark:text-neutral-400">{label} (px)<input aria-label={`Code card ${key}`} type="number" min={min+32} max={10000} step="8" value={Math.round(selectedElement[key]+32)} onChange={event=>{const value=event.currentTarget.valueAsNumber;if(Number.isFinite(value))onUpdateElement({[key]:Math.max(min,Math.min(9968,value-32)),codeAutoSize:false});}} className="w-full rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 px-2 py-1 text-xs text-neutral-800 dark:text-neutral-200" /></label>)}
         </div>
         <button type="button" onClick={()=>onUpdateElement({codeAutoSize:true})} className="rounded-md border border-neutral-300 dark:border-neutral-700 px-2 py-1 text-xs text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800">Fit to code</button>
-        <p className="text-[10px] text-neutral-500 dark:text-neutral-400">Drag the corners to resize without changing text size. Smaller cards scroll while editing.</p>
+        <p className="text-[10px] text-neutral-500 dark:text-neutral-400">Drag any side or corner to resize freely without changing text size. Smaller cards scroll while editing.</p>
       </section>}
       {/* Text: size, family, alignment. Shortcuts: Ctrl+Shift+> / < */}
       {isTextual && (

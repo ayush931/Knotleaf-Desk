@@ -1696,7 +1696,7 @@ export function drawSelection(ctx: CanvasRenderingContext2D, el: CanvasElement, 
     const b = getElementBounds(el);
     const pad = getSelectionPadding(el, z);
     drawBoundsOutline(ctx, b, z, pad, false);
-    drawResizeHandles(ctx, b, z, el.type === "frame", pad);
+    drawResizeHandles(ctx, b, z, hasSideResizeHandles(el), pad);
   }
   ctx.restore();
 }
@@ -1712,7 +1712,12 @@ export function drawBoundsOutline(ctx: CanvasRenderingContext2D, b: Bounds, zoom
 
 export type ResizeHandle = "nw" | "ne" | "se" | "sw" | "n" | "e" | "s" | "w";
 
-/** Shared positions for painting and hit testing. Side centers belong to connectors. */
+/** Code cards resize freely on each axis; their connectors sit outside the border. */
+export function hasSideResizeHandles(el: CanvasElement): boolean {
+  return el.type === "frame" || el.type === "text" && !!el.isCodeCard;
+}
+
+/** Shared positions for painting and hit testing. */
 export function getResizeHandles(b: Bounds, zoom: number, includeSides = false, pad = 0): { handle: ResizeHandle; x: number; y: number }[] {
   const x0 = b.minX - pad, x1 = b.maxX + pad;
   const y0 = b.minY - pad, y1 = b.maxY + pad;
@@ -1720,7 +1725,7 @@ export function getResizeHandles(b: Bounds, zoom: number, includeSides = false, 
     { handle: "nw", x: x0, y: y0 }, { handle: "ne", x: x1, y: y0 },
     { handle: "se", x: x1, y: y1 }, { handle: "sw", x: x0, y: y1 },
   ];
-  // Frames have no connector ports, so their edge resize handles remain useful.
+  // Frames and code cards expose explicit side handles in addition to corners.
   if (includeSides) corners.push(
     { handle: "n", x: (x0 + x1) / 2, y: y0 }, { handle: "e", x: x1, y: (y0 + y1) / 2 },
     { handle: "s", x: (x0 + x1) / 2, y: y1 }, { handle: "w", x: x0, y: (y0 + y1) / 2 },

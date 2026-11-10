@@ -6,7 +6,7 @@ import { TEMPLATES } from '../draw/templatesData.ts';
 import { isValidElement } from '../lib/elementValidation.mjs';
 import { unionBounds } from '../draw/renderer.ts';
 import { setFont } from '../draw/renderer.ts';
-import { computeArrowPath, computeLinePath, drawElement, layoutDocument, drawSelection, drawElementAnchors, getSelectionPadding, getElementAnchors, getConnectorHandles, getElementBounds, textContentBounds, measureTextBlock } from '../draw/renderer.ts';
+import { computeArrowPath, computeLinePath, drawElement, layoutDocument, drawSelection, drawElementAnchors, getSelectionPadding, getElementAnchors, getConnectorHandles, getElementBounds, getResizeHandles, hasSideResizeHandles, textContentBounds, measureTextBlock } from '../draw/renderer.ts';
 const savedGlobals = new Map();
 beforeAll(() => {
   for (const [key, value] of Object.entries({
@@ -1739,4 +1739,46 @@ test('code dimensions clamp to a small viewport and Fit to code shrinks existing
  expect(engine.getElements()[0].width).toBeLessThan(200);expect(engine.getElements()[0].height).toBeLessThan(100);
  engine.updateSelectedElement({width:1,height:1,codeAutoSize:false});expect(engine.getElements()[0]).toMatchObject({width:80,height:32,fontSize:14});
  const clips=[];engine.ctx.rect=(...args)=>clips.push(args);engine.draw();expect(clips).toContainEqual([100,100,80,32]);engine.destroy();
+});
+
+describe('free code-card background resizing',()=>{
+ const card={...base,id:'free-code',type:'text',isCodeCard:true,isDocCard:true,codeLanguage:'javascript',text:'const value = 42;',fontSize:14,fontFamily:'mono',textAlign:'left',fill:'#000000',fillStyle:'solid',cardFillCustom:true,x:100,y:100,width:300,height:160};
+ const cases=[
+  ['n',0,20,{x:100,y:120,width:300,height:140},'ns-resize'],
+  ['e',-40,0,{x:100,y:100,width:260,height:160},'ew-resize'],
+  ['s',0,-30,{x:100,y:100,width:300,height:130},'ns-resize'],
+  ['w',30,0,{x:130,y:100,width:270,height:160},'ew-resize'],
+  ['nw',25,15,{x:125,y:115,width:275,height:145},'nwse-resize'],
+  ['ne',-45,20,{x:100,y:120,width:255,height:140},'nesw-resize'],
+  ['se',-40,-25,{x:100,y:100,width:260,height:135},'nwse-resize'],
+  ['sw',30,-20,{x:130,y:100,width:270,height:140},'nesw-resize'],
+ ];
+ test('all eight handles independently resize dimensions with anchored opposite edges, stable fonts and undo',()=>{
+  for(const zoom of [.5,1,2])for(const shift of [false,true])for(const [side,dx,dy,expected,cursor]of cases){
+   const bound={...arrow,id:'linked',startX:424,startY:180,startBinding:{elementId:card.id,anchor:'right'},endBinding:undefined};
+   const {engine,listeners,point}=setup([card,bound]);engine.restoreViewport({zoom,pan:{x:0,y:0}});engine.selectedIds=new Set([card.id]);
+   const handle=getResizeHandles(getElementBounds(card),zoom,true,getSelectionPadding(card,zoom)).find(handle=>handle.handle===side);
+   const start=point(handle.x*zoom,handle.y*zoom,shift),end=point((handle.x+dx)*zoom,(handle.y+dy)*zoom,shift);
+   listeners.pointermove(start);expect(engine.canvas.style.cursor).toBe(cursor);listeners.pointerdown(start);expect(engine.gesture.kind).toBe('resize');
+   listeners.pointermove(end);listeners.pointerup(end);
+   const updated=engine.getElements().find(el=>el.id===card.id);expect(updated).toMatchObject({...expected,fontSize:14,text:card.text,fill:'#000000',codeAutoSize:false});expect(engine.getElements()).toHaveLength(2);
+   const linked=engine.getElements().find(el=>el.id==='linked');expect([linked.startX,linked.startY]).toEqual([updated.x+updated.width+24,updated.y+updated.height/2]);
+   engine.undo();expect(engine.getElements().find(el=>el.id===card.id)).toEqual(card);engine.redo();expect(engine.getElements().find(el=>el.id===card.id)).toMatchObject(expected);engine.destroy();
+  }
+ });
+ test('the actual background edge is easy to grab away from side-center handles at every zoom',()=>{
+  for(const zoom of [.5,1,2])for(const side of ['n','e','s','w']){
+   const {engine,listeners,point}=setup([card]);engine.restoreViewport({zoom,pan:{x:0,y:0}});engine.selectAll();const b=getElementBounds(card);
+   const vertical=side==='n'||side==='s';
+   const x=vertical?(b.minX+b.maxX)/2*zoom+35:(side==='w'?b.minX*zoom+2:b.maxX*zoom-2);
+   const y=vertical?(side==='n'?b.minY*zoom+2:b.maxY*zoom-2):(b.minY+b.maxY)/2*zoom+35;
+   listeners.pointermove(point(x,y));expect(engine.canvas.style.cursor).toBe(vertical?'ns-resize':'ew-resize');listeners.pointerdown(point(x,y));expect(engine.gesture.kind).toBe('resize');
+   listeners.pointermove(point(x+(vertical?0:20),y+(vertical?20:0)));listeners.pointercancel(point(x,y));expect(engine.getElements()[0]).toEqual(card);engine.destroy();
+  }
+ });
+ test('selection paints all eight resize handles while ordinary connector shapes keep their current controls',()=>{
+  expect(hasSideResizeHandles(card)).toBe(true);expect(hasSideResizeHandles(source)).toBe(false);
+  const {engine}=setup([card]),rects=[];engine.ctx.rect=(...rect)=>rects.push(rect);drawSelection(engine.ctx,card,1);
+  expect(rects.filter(rect=>rect[2]===8&&rect[3]===8)).toHaveLength(8);engine.destroy();
+ });
 });
