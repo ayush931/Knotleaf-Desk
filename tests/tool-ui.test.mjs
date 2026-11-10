@@ -72,3 +72,22 @@ test('Appearance defaults closed for every selected tool and element, including 
     expect(html).toContain('aria-label="Open appearance settings"'); expect(html).toContain('aria-expanded="false"'); expect(html).not.toContain('role="region"');
   }
 });
+
+test('Appearance panel and controls render with light-mode responsive classes', () => {
+  const html = renderToStaticMarkup(React.createElement(PropertiesPanel, {
+    ...props,
+    theme: 'light',
+    selectedElement: { ...DEFAULT_STYLE, type: 'rectangle', id: 'rect1', fill: '#3b82f6', fillStyle: 'solid' },
+    onBackgroundChange: noop,
+  }));
+  // Main appearance container supports light surface and crisp contrast
+  expect(html).toContain('bg-white dark:bg-[#18181b]');
+  expect(html).toContain('text-neutral-800 dark:text-neutral-200');
+  // Selection actions footer supports light mode
+  expect(html).toContain('bg-neutral-50/95 dark:bg-neutral-900/80');
+  expect(html).toContain('Duplicate');
+  expect(html).toContain('Delete');
+  // Color controls support light mode backgrounds and borders
+  expect(html).toContain('bg-white dark:bg-neutral-950');
+  expect(html).toContain('border-neutral-300 dark:border-neutral-700');
+});

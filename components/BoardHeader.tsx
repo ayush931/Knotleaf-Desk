@@ -13,7 +13,7 @@ import {
   FolderOpen,
   HardDrive,
   Search,
-  Sparkles,
+  LayoutTemplate,
   Grid,
   Download,
   Copy,
@@ -171,7 +171,7 @@ export function BoardHeader({
   };
 
   return (
-    <header className="fixed top-0 left-0 right-0 h-11 z-40 px-2 gap-1 sm:gap-2 flex items-center justify-between border-b backdrop-blur-md select-none bg-[#121212]/95 border-[#27272a] text-[#f4f4f5]">
+    <header className="fixed top-0 left-0 right-0 h-11 z-40 px-2 gap-1 sm:gap-2 flex items-center justify-between border-b select-none bg-white dark:bg-[#18181b] border-neutral-200 dark:border-neutral-800 text-neutral-800 dark:text-neutral-200">
       {onFocusCanvas && <button onClick={onFocusCanvas} aria-label="Focus canvas" aria-keyshortcuts="Shift+Z" title="Focus canvas · Shift+Z" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-neutral-400 hover:bg-neutral-800 hover:text-white focus-visible:outline-2 focus-visible:outline-blue-500"><Maximize2 className="h-4 w-4" /></button>}
 
       {/* Left Section: Menu & Title */}
@@ -223,12 +223,12 @@ export function BoardHeader({
           )}
         </div>
 
-        {saveError ? <button role="status" onClick={onRetrySave} title="Storage is full or unavailable. Retry saving or export a JSON backup." className="rounded px-2 py-1 text-[10px] text-amber-400 hover:bg-amber-500/10">Not saved · retry</button> : <span className="hidden lg:flex shrink-0 items-center gap-1.5 whitespace-nowrap text-[10px] text-emerald-400"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />Saved locally</span>}
+        {saveError ? <button role="status" onClick={onRetrySave} title="Storage is full or unavailable. Retry saving or export a JSON backup." className="rounded px-2 py-1 text-[10px] text-amber-400 hover:bg-amber-500/10">Not saved · retry</button> : <span className="hidden lg:flex shrink-0 items-center gap-1.5 whitespace-nowrap text-[10px] text-neutral-500 dark:text-neutral-400"><span className="h-1 w-1 rounded-full bg-neutral-400" />Saved locally</span>}
 
       </div>
 
-      <nav aria-label="Board view" className="flex shrink-0 items-center gap-0.5 rounded-lg border border-neutral-800 bg-neutral-900 p-0.5">
-        {(["canvas", "split", "notes", "slides"] as ViewMode[]).map(mode => <button key={mode} aria-pressed={viewMode === mode} onClick={() => onChangeViewMode(mode)} className={`rounded-md px-1 min-[380px]:px-1.5 sm:px-2 py-1 text-[10px] min-[380px]:text-[11px] font-medium capitalize transition ${viewMode === mode ? "bg-neutral-700 text-white" : "text-neutral-400 hover:bg-neutral-800 hover:text-white"}`}>{mode === "slides" ? "Presentation" : mode}</button>)}
+      <nav aria-label="Board view" className="flex h-full shrink-0 items-center gap-0.5">
+        {(["canvas", "split", "notes", "slides"] as ViewMode[]).map(mode => <button key={mode} aria-pressed={viewMode === mode} onClick={() => onChangeViewMode(mode)} className={`h-full border-b-2 px-1 min-[380px]:px-1.5 sm:px-2 py-1 text-[10px] min-[380px]:text-[11px] font-medium capitalize transition ${viewMode === mode ? "border-blue-500 text-neutral-900 dark:text-white" : "border-transparent text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white"}`}>{mode === "slides" ? "Presentation" : mode}</button>)}
       </nav>
       <button type="button" onClick={onToggleTheme} aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} className="flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-neutral-700 px-2 text-xs font-medium text-neutral-200 hover:bg-neutral-800 hover:text-white">
         {theme === "dark" ? <Sun aria-hidden="true" className="h-4 w-4" /> : <Moon aria-hidden="true" className="h-4 w-4" />}
@@ -247,9 +247,9 @@ export function BoardHeader({
         <button
           onClick={onOpenTemplates}
           aria-label="Browse diagram templates" title="Browse Diagram Templates"
-          className="px-2.5 py-1 rounded-lg border border-purple-500/30 bg-purple-500/10 text-purple-400 text-xs font-medium flex items-center gap-1 hover:bg-purple-500/20 transition cursor-pointer"
+          className="px-2.5 py-1 rounded border border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 text-xs font-medium flex items-center gap-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 focus-visible:outline-2 focus-visible:outline-blue-500 transition cursor-pointer"
         >
-          <Sparkles className="w-3.5 h-3.5" />
+          <LayoutTemplate className="w-3.5 h-3.5" />
           <span className="hidden md:inline">Templates</span>
         </button>
 

@@ -80,14 +80,14 @@ export const TopToolbar = memo(function TopToolbar({
     const observer = new ResizeObserver(update); observer.observe(element);
     return () => observer.disconnect();
   }, [onHeightChange]);
-  const iconBtn = `shrink-0 p-2 rounded-lg flex items-center justify-center transition disabled:opacity-35 disabled:cursor-not-allowed cursor-pointer text-neutral-400 hover:bg-neutral-800 hover:text-white`;
+  const iconBtn = `shrink-0 p-2 rounded flex items-center justify-center transition disabled:opacity-35 disabled:cursor-not-allowed cursor-pointer text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-900 dark:hover:text-white focus-visible:outline-2 focus-visible:outline-blue-500`;
 
   return (
-    <div ref={toolbar} className="absolute top-1.5 left-1/2 -translate-x-1/2 z-30 w-max max-w-[calc(100%-0.75rem)]">
+    <div ref={toolbar} className="absolute top-2 left-2 z-30 w-max max-w-[calc(100%-1rem)]">
       <div
         role="toolbar"
         aria-label="Drawing tools"
-        className="flex items-center gap-0.5 p-1 rounded-xl border shadow-sm backdrop-blur-md flex-nowrap justify-start overflow-x-auto overscroll-x-contain bg-[#18181b]/95 border-[#27272a] shadow-black/10"
+        className="flex items-center gap-0.5 p-1 rounded-md border flex-nowrap justify-start overflow-x-auto overscroll-x-contain bg-white dark:bg-[#18181b] border-neutral-200 dark:border-neutral-700"
       >
         <TooltipButton onClick={onUndo} disabled={!canUndo} title="Undo (Ctrl/Cmd+Z)" aria-label="Undo" className={iconBtn}>
           <Undo2 className="w-4 h-4" />
@@ -95,36 +95,38 @@ export const TopToolbar = memo(function TopToolbar({
         <TooltipButton onClick={onRedo} disabled={!canRedo} title="Redo (Ctrl/Cmd+Shift+Z)" aria-label="Redo" className={iconBtn}>
           <Redo2 className="w-4 h-4" />
         </TooltipButton>
-        <span className="h-5 w-px mx-1 bg-[#27272a]" />
+        <span className="h-5 w-px mx-1 bg-neutral-200 dark:bg-neutral-700" />
 
         {onUploadAssets&&<TooltipButton type="button" aria-label="Upload image or file" title="Upload image or file · stored on this device" disabled={uploadingAssets} onClick={onUploadAssets} className={iconBtn}><ImagePlus className="h-4 w-4"/></TooltipButton>}
         {TOOLS.map((t) => {
           const active = selectedTool === t.id;
           return (
+            <React.Fragment key={t.id}>
+            {["rectangle", "pencil", "text", "eraser"].includes(t.id) && <span aria-hidden="true" className="mx-1 h-5 w-px shrink-0 bg-neutral-200 dark:bg-neutral-700" />}
             <TooltipButton
-              key={t.id}
               onClick={() => setSelectedTool(t.id)}
               title={`${t.label} (${t.key})${t.hint ? ` · ${t.hint}` : ""}`}
               aria-label={`${t.label} (${t.key})`}
               aria-keyshortcuts={t.key.toLowerCase()}
               aria-pressed={active}
-              className={`relative h-8 w-8 shrink-0 rounded-lg flex items-center justify-center transition cursor-pointer ${
+              className={`relative h-8 w-8 shrink-0 rounded flex items-center justify-center transition cursor-pointer focus-visible:outline-2 focus-visible:outline-blue-500 ${
                 active
-                  ? "bg-blue-600 text-white shadow-sm"
-                  : "text-neutral-400 hover:bg-neutral-800 hover:text-white"
+                  ? "bg-blue-50 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300 ring-1 ring-inset ring-blue-200 dark:ring-blue-500/30"
+                  : "text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-900 dark:hover:text-white focus-visible:outline-2 focus-visible:outline-blue-500"
               }`}
             >
               {t.icon}
             </TooltipButton>
+            </React.Fragment>
           );
         })}
 
-        <span className="h-5 w-px mx-1 bg-[#27272a]" />
+        <span className="h-5 w-px mx-1 bg-neutral-200 dark:bg-neutral-700" />
         <TooltipButton
           onClick={onOpenIconPicker}
           title="Insert icon (I)"
           aria-label="Insert icon (I)" aria-keyshortcuts="i"
-          className="shrink-0 px-2 py-1.5 rounded-lg flex items-center gap-1.5 text-xs font-semibold bg-purple-500/10 text-purple-600 dark:text-purple-400 hover:bg-purple-500/20 transition"
+          className="shrink-0 px-2 py-1.5 rounded flex items-center gap-1.5 text-xs text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-900 dark:hover:text-white focus-visible:outline-2 focus-visible:outline-blue-500 transition"
         >
           <Shapes className="w-4 h-4" />
 

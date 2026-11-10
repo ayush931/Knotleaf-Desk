@@ -69,3 +69,13 @@ test('workspace theme persists independently and invalid themes recover to dark'
  expect(normalizePreferences({theme:'system'}).theme).toBe('dark');
  savePreferences({theme:'dark'}); expect(loadPreferences().theme).toBe('dark');
 });
+
+
+test('drawing-board typography adopts Caveat once without resetting text size or custom font choices',()=>{
+ const migrated=normalizePreferences({version:1,theme:'light',style:{fontFamily:'sans',fontSize:28}});
+ expect(migrated.style.fontFamily).toBe('hand');expect(migrated.style.fontSize).toBe(28);expect(migrated.theme).toBe('light');expect(migrated.canvasTypographyVersion).toBe(1);
+ expect(normalizePreferences({version:1,style:{fontFamily:'serif',fontSize:30}}).style.fontFamily).toBe('serif');
+ expect(normalizePreferences({...migrated,style:{...migrated.style,fontFamily:'sans'}}).style.fontFamily).toBe('sans');
+ savePreferences({style:{...loadPreferences().style,fontFamily:'sans',fontSize:32}});savePreferences({notesWidth:460});
+ expect(loadPreferences().style.fontFamily).toBe('sans');expect(loadPreferences().style.fontSize).toBe(32);
+});
