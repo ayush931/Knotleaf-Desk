@@ -598,3 +598,25 @@ test('code highlight viewport excludes scrollbar gutters so scrolling cannot shi
   await act(async()=>{input.scrollLeft=45;input.scrollTop=24;input.dispatchEvent(new browser.Event('scroll',{bubbles:true}));});expect([preview.scrollLeft,preview.scrollTop]).toEqual([45,24]);
  }finally{for(const [key,descriptor]of descriptors)if(descriptor)Object.defineProperty(prototype,key,descriptor);else delete prototype[key];}
 });
+
+
+test('first text creation stays anchored through typing, native caret scrolling, click-away and refocus',async()=>{
+ for(const [x,y] of [[100,100],[895,595]]){
+  const id=await renderBoard();await clickNamed('Text & Bullets (T)');
+  await boardPointer('pointerdown',x,y);await boardPointer('pointerup',x,y);
+  let editor=named('Edit text');expect([editor.style.left,editor.style.top]).toEqual([`${x}px`,`${y}px`]);
+  for(const text of ['i','A long first line that extends beyond the viewport','First line\nSecond line\n'.repeat(30)]){
+   await typeText(editor,text);expect([editor.style.left,editor.style.top]).toEqual([`${x}px`,`${y}px`]);
+   await act(async()=>{editor.scrollLeft=2;editor.scrollTop=20;editor.dispatchEvent(new browser.Event('scroll',{bubbles:true}));});
+   expect([editor.scrollLeft,editor.scrollTop]).toEqual([0,0]);expect(editor.style.overflowY).toBe('hidden');
+  }
+  const text=editor.value;
+  await boardPointer('pointerdown',20,20);await boardPointer('pointerup',20,20);
+  expect(!named('Edit text')).toBe(true);expect(getBoard(id).elements[0]).toMatchObject({x,y,text});
+  await boardPointer('dblclick',x+2,y+2);editor=named('Edit text');
+  expect([editor.style.left,editor.style.top]).toEqual([`${x}px`,`${y}px`]);
+  await act(async()=>editor.dispatchEvent(new browser.FocusEvent('focusout',{bubbles:true,relatedTarget:document.querySelector('main canvas')})));
+  expect(getBoard(id).elements[0]).toMatchObject({x,y,text});
+  await act(async()=>root.render(null));
+ }
+});

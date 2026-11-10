@@ -1053,7 +1053,7 @@ test('free text measurement does not impose a two-character minimum or hidden ri
   }
 });
 test('visible text bounds ignore oversized alignment boxes, empty lines and line-height slack, while honoring italic and underline ink', () => {
-  const ctx={save(){},restore(){},measureText(text){const w=text.length*10, anchor=this.textAlign==='center'?w/2:this.textAlign==='right'?w:0;return {width:w,actualBoundingBoxLeft:anchor+2,actualBoundingBoxRight:w-anchor+1,actualBoundingBoxAscent:-4,actualBoundingBoxDescent:21};}};
+  const ctx={save(){},restore(){},measureText(text){const w=text.length*10, anchor=this.textAlign==='center'?w/2:this.textAlign==='right'?w:0;return {width:w,actualBoundingBoxLeft:anchor+2,actualBoundingBoxRight:w-anchor+1,actualBoundingBoxAscent:this.textBaseline==='alphabetic'?19.4:-4,actualBoundingBoxDescent:this.textBaseline==='alphabetic'?-2.4:21};}};
   const el={...base,id:'tight',type:'text',x:100,y:200,width:800,height:500,text:'Hello\nHi\n',fontSize:24,fontFamily:'sans',textAlign:'left'};
   expect(textContentBounds(ctx,el)).toEqual({minX:98,maxX:151,minY:204,maxY:253.4});
   expect(textContentBounds(ctx,{...el,text:'Hi',textAlign:'center'})).toEqual({minX:488,maxX:511,minY:204,maxY:221});
