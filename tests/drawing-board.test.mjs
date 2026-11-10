@@ -24,3 +24,11 @@ test('sketched straight, bent and curved connectors keep stable ink and source g
   expect(commands).toEqual(first);expect(first.filter(c=>c[0]==='curve').length).toBeGreaterThan(1);expect(JSON.stringify(el)).toBe(original);
  }
 });
+
+
+test('bright board defaults preserve explicit custom colors, including black',async()=>{
+ const {canvasBackground}=await import('../draw/canvasAppearance.ts');
+ for(const theme of ['light','dark'])for(const fill of ['#000000','#e6f4ff','#d946ef']){
+  const custom={fill,fillStyle:'solid',fillOpacity:1};expect(canvasBackground(custom,theme)).toEqual(custom);
+ }
+});

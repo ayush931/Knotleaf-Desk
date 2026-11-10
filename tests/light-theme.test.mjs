@@ -8,6 +8,7 @@ import postcss from 'postcss';
 import {transform} from 'lightningcss';
 import {convert} from '@asamuzakjp/css-color';
 import {BoardsSidebar} from '../components/BoardsSidebar.tsx';
+import {TopToolbar} from '../components/TopToolbar.tsx';
 import {PropertiesPanel} from '../components/PropertiesPanel.tsx';
 import {DEFAULT_STYLE} from '../draw/types.ts';
 let css, browser;
@@ -78,4 +79,12 @@ test('expanded Appearance options keep inactive labels and form controls readabl
 test('workspace search and organization selects have readable light surfaces and options',()=>{
  const doc=render(React.createElement(BoardsSidebar,{isOpen:false,onClose:()=>{},boards:[],activeBoardId:'',workspaces:[{id:'personal',name:'Personal'}],workspaceId:'personal',onChangeWorkspace:()=>{},onCreateWorkspace:()=>{},onMoveBoard:()=>{},onSelectBoard:()=>{},onCreateBoard:()=>{},onDuplicateBoard:()=>{},onDeleteBoard:()=>{},onImportFile:async()=>{},theme:'light'}));
  for(const select of doc.querySelectorAll('select')){expect(neutralLightness(style(select).backgroundColor)).toBeGreaterThan(.8);readable(select,select);for(const option of select.options)readable(option,option);}
+});
+
+
+for(const mode of ['light','dark'])test(`bright drawing tools retain readable active and inactive icons in ${mode} mode`,()=>{
+ const doc=render(React.createElement(TopToolbar,{selectedTool:'select',setSelectedTool:noop,onUndo:noop,onRedo:noop,canUndo:true,canRedo:true,onOpenIconPicker:noop,theme:mode}),mode);
+ const toolbar=doc.querySelector('[aria-label="Drawing tools"]'),active=toolbar.querySelector('[aria-pressed="true"]'),inactive=toolbar.querySelector('[aria-label="Pan (H)"]');
+ readable(active,active);readable(inactive,toolbar);
+ const lightness=neutralLightness(style(toolbar).backgroundColor);expect(lightness).toBeGreaterThan(mode==='light'?.9:.02);
 });

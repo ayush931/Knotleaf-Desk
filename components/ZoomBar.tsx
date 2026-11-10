@@ -26,12 +26,12 @@ export function ZoomBar({
 }: ZoomBarProps) {
   return (
     <div
-      className="absolute bottom-3 right-3 z-40 flex items-center gap-1 max-[360px]:right-2 max-[360px]:gap-0 px-2 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-[#18181b] text-neutral-700 dark:text-neutral-300 select-none"
+      className="absolute bottom-3 right-3 z-40 flex items-center gap-1 max-[360px]:right-2 max-[360px]:gap-0 px-2 py-1.5 rounded-md border drawing-panel text-neutral-700 dark:text-neutral-300 select-none"
     >
       <button
         onClick={onZoomOut}
         aria-label="Zoom out" title="Zoom Out (-)"
-        className="p-1.5 rounded hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white transition"
+        className="p-1.5 rounded hover:bg-neutral-100 dark:hover:bg-neutral-800 text-slate-700 dark:text-slate-200 hover:text-neutral-900 dark:hover:text-white transition"
       >
         <ZoomOut className="w-4 h-4" />
       </button>
@@ -47,7 +47,7 @@ export function ZoomBar({
       <button
         onClick={onZoomIn}
         aria-label="Zoom in" title="Zoom In (+)"
-        className="p-1.5 rounded hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white transition"
+        className="p-1.5 rounded hover:bg-neutral-100 dark:hover:bg-neutral-800 text-slate-700 dark:text-slate-200 hover:text-neutral-900 dark:hover:text-white transition"
       >
         <ZoomIn className="w-4 h-4" />
       </button>
@@ -58,7 +58,7 @@ export function ZoomBar({
       <button
         onClick={onFitToContent}
         aria-label="Fit board" aria-keyshortcuts="Shift+1" title="Fit board · Shift+1"
-        className="p-1.5 rounded hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white transition"
+        className="p-1.5 rounded hover:bg-neutral-100 dark:hover:bg-neutral-800 text-slate-700 dark:text-slate-200 hover:text-neutral-900 dark:hover:text-white transition"
       >
         <Maximize className="w-4 h-4" />
       </button>

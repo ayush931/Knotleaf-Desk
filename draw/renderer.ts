@@ -498,8 +498,8 @@ export function gridAppearance(zoom: number, light = false) {
   while (spacing < 14) spacing *= 2;
   return {
     spacing, radius: Math.max(0.9, Math.min(zoom, 1.4)),
-    dotColor: light ? "rgba(0, 0, 0, 0.15)" : "rgba(255, 255, 255, 0.12)",
-    lineColor: light ? "rgba(0, 0, 0, 0.1)" : "rgba(255, 255, 255, 0.06)",
+    dotColor: light ? "rgba(51, 65, 85, 0.18)" : "rgba(203, 219, 242, 0.18)",
+    lineColor: light ? "rgba(51, 65, 85, 0.1)" : "rgba(203, 219, 242, 0.1)",
   };
 }
 
