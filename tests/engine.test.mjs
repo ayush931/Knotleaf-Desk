@@ -1794,3 +1794,28 @@ test('code focus cycles keep typography, scroll offsets and stored geometry stab
  for(let count=0;count<5;count++){engine.openEditorFor(card);engine.finishCode();paint.length=0;engine.draw();expect(JSON.stringify(paint)).toBe(before);}
  expect(JSON.stringify(engine.getElements())).toBe(original);expect(changes).toBe(0);engine.destroy();
 });
+
+
+test('shape connector dragging preserves every chosen arrow routing and both bindings',()=>{
+ for(const routing of ['straight','elbow','curved'])for(const zoom of [.5,1,2]){
+  const {engine,drag}=setup([source,target]);engine.currentStyle.arrowRouting=routing;engine.zoom=zoom;engine.selectedIds=new Set([source.id]);
+  const handle=getConnectorHandles(source,zoom).find(h=>h.anchor==='right');
+  drag(handle.x*zoom,handle.y*zoom,500*zoom,340*zoom);
+  const created=engine.getElements().find(el=>el.type==='arrow');
+  expect(created.routing).toBe(routing);expect(created.startBinding).toEqual({elementId:source.id,anchor:'right'});expect(created.endBinding).toEqual({elementId:target.id,anchor:'left'});
+  const path=computeArrowPath(created,engine.getElements());expect(path.routing).toBe(routing);
+  if(routing==='curved')expect(path.cpy).not.toBe((created.startY+created.endY)/2);
+  if(routing==='elbow')expect(path.points.length).toBeGreaterThan(2);
+  engine.undo();expect(engine.getElements().filter(el=>el.type==='arrow')).toHaveLength(0);engine.redo();expect(engine.getElements().find(el=>el.type==='arrow').routing).toBe(routing);
+  engine.destroy();
+ }
+});
+
+test('connected-shape creation respects arrow routing in every direction',()=>{
+ for(const routing of ['straight','elbow','curved'])for(const direction of ['top','right','bottom','left']){
+  const {engine}=setup([source]);engine.currentStyle.arrowRouting=routing;engine.generateConnectedShape(source,direction);
+  const created=engine.getElements().find(el=>el.type==='arrow');expect(created.routing).toBe(routing);expect(created.startBinding.anchor).toBe(direction);expect(created.endBinding.elementId).not.toBe(source.id);
+  expect(computeArrowPath(created,engine.getElements()).routing).toBe(routing);
+  engine.undo();expect(engine.getElements()).toEqual([source]);engine.redo();expect(engine.getElements().find(el=>el.type==='arrow').routing).toBe(routing);engine.destroy();
+ }
+});
