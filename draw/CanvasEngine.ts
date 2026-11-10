@@ -1454,7 +1454,7 @@ export class CanvasEngine {
 
   /**
    * Generates a new exact same shape in the given direction (top, right, bottom, left)
-   * connected with a straight arrow.
+   * connected using the chosen arrow routing.
    */
   public generateConnectedShape(source: CanvasElement, direction: AnchorPosition) {
     const bounds = getElementBounds(source, this.elements);
@@ -1535,7 +1535,7 @@ export class CanvasEngine {
       roundness: "rounded",
       opacity: 1,
       zIndex: this.elements.length + 1,
-      routing: "straight",
+      routing: this.currentStyle.arrowRouting || "straight",
       startBinding: { elementId: source.id, anchor: direction },
       endBinding: { elementId: cloned.id, anchor: targetAnchor },
     };
@@ -1759,7 +1759,6 @@ export class CanvasEngine {
         : (selected.length === 1 ? this.findNearestAnchor(pt, undefined, selected[0].id) : null);
       if (snap && (handle || Math.hypot(pt.x - snap.x, pt.y - snap.y) < 7 / this.zoom)) {
         const arrow = this.createDraft({ x: snap.x, y: snap.y }, "arrow") as ArrowElement;
-        arrow.routing = "straight";
         this.draft = { ...arrow, startBinding: { elementId: snap.elementId, anchor: snap.anchor } };
         // Outside + handles support click to clone as well as immediate dragging to connect.
         this.gesture = {
