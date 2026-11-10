@@ -1,3 +1,4 @@
+import { CODE_FONT_WEIGHT, codeLineMetrics } from "./codeLayout";
 import { canvasElementAppearance, lightCodeInk } from "./canvasAppearance";
 import { isLightBackground } from "@/lib/background.mjs";
 import { cardBackground } from "./cardAppearance";
@@ -36,6 +37,7 @@ export interface Bounds {
 export interface DrawOptions {
   theme: Theme;
   lightCanvas?: boolean;
+  codeScroll?: Point;
   scene?: CanvasElement[];
   selected?: boolean;
   flowOffset?: number;
@@ -76,7 +78,7 @@ export async function loadCanvasFonts(families: readonly FontFamily[] = FONT_OPT
     let loading=cached.get(id);
     if (!loading) {
       const primary=fontStack(id).split(",")[0].trim();
-      loading=Promise.all(["400", "700", "italic 400", "italic 700"].map(style=>fonts.load(`${style} 16px ${primary}`)))
+      loading=Promise.all(["400", "500", "700", "italic 400", "italic 500", "italic 700"].map(style=>fonts.load(`${style} 16px ${primary}`)))
         .then(()=>{textBoundsContexts.get(document)?.cache.clear();})
         .catch(()=>{cached.delete(id);throw new Error(`Could not load the ${font.label} font. Check your connection and retry the export.`);});
       cached.set(id,loading);
@@ -573,7 +575,7 @@ export function drawElement(ctx: CanvasRenderingContext2D, el: CanvasElement, op
       drawPencil(ctx, el);
       break;
     case "text":
-      drawText(ctx, el);
+      drawText(ctx, el, opts.codeScroll);
       break;
     case "sticky":
       drawSticky(ctx, el);
@@ -1188,7 +1190,7 @@ function drawStyledText(ctx: CanvasRenderingContext2D, text: string, x: number, 
   ctx.restore();
 }
 
-function drawText(ctx: CanvasRenderingContext2D, el: CanvasElement) {
+function drawText(ctx: CanvasRenderingContext2D, el: CanvasElement, codeScroll?: Point) {
   if (el.type !== "text") return;
   const isLight = isLightBackground({ fill: el.fill, fillStyle: el.fillStyle === "none" ? "solid" : el.fillStyle, fillOpacity: el.fillOpacity ?? 1 });
   if (el.attachment) {
@@ -1211,9 +1213,10 @@ function drawText(ctx: CanvasRenderingContext2D, el: CanvasElement) {
     drawBackgroundFill(ctx, el, build, { x: el.x - 16, y: el.y - 16, width: el.width + 32, height: el.height + 32 });
     ctx.beginPath(); build(); ctx.stroke();
     ctx.beginPath(); ctx.rect(el.x, el.y, el.width, el.height); ctx.clip();
-    ctx.textBaseline = "top";
-    setFont(ctx, el.fontSize, "mono");
-    result.lines.forEach((line, row) => { let x = el.x; for (const token of line) { ctx.fillStyle = cardLight ? lightCodeInk(token.color) : token.color; ctx.fillText(token.text, x, el.y + el.fontSize * 0.25 + row * el.fontSize * 1.5); x += ctx.measureText(token.text).width; } });
+    ctx.textBaseline = "alphabetic"; ctx.textAlign = "left"; ctx.fontKerning = "none";
+    setFont(ctx, el.fontSize, "mono", CODE_FONT_WEIGHT);
+    const metrics = codeLineMetrics(ctx, el.fontSize);
+    result.lines.forEach((line, row) => { let x = el.x - (codeScroll?.x || 0); for (const token of line) { ctx.fillStyle = cardLight ? lightCodeInk(token.color) : token.color; ctx.fillText(token.text, x, el.y + metrics.baseline + row * metrics.lineHeight - (codeScroll?.y || 0)); x += ctx.measureText(token.text).width; } });
     ctx.restore(); return;
   }
   const { x, y, text, fontSize, fontFamily, textAlign, stroke, fill } = el;

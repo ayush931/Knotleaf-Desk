@@ -166,8 +166,8 @@ test('font readiness loads only used families, shares pending work and retries a
  const previous=document.fonts,requested=[];let rejectMarker=true;
  document.fonts={load:query=>{requested.push(query);return query.includes('Permanent Marker')&&rejectMarker?Promise.reject(Error('Offline')):Promise.resolve([]);}};
  try{
-  const {loadCanvasFonts}=await import('../draw/renderer.ts');await Promise.all([loadCanvasFonts(['fredoka']),loadCanvasFonts(['fredoka'])]);expect(requested).toHaveLength(4);expect(requested.every(q=>q.includes('Fredoka'))).toBe(true);
-  await expect(loadCanvasFonts(['marker'])).rejects.toThrow('Permanent Marker');rejectMarker=false;await loadCanvasFonts(['marker']);expect(requested.filter(q=>q.includes('Permanent Marker'))).toHaveLength(8);expect(requested.some(q=>q.includes('Bangers'))).toBe(false);
+  const {loadCanvasFonts}=await import('../draw/renderer.ts');await Promise.all([loadCanvasFonts(['fredoka']),loadCanvasFonts(['fredoka'])]);expect(requested).toHaveLength(6);expect(requested.some(query=>query.startsWith("500 "))).toBe(true);expect(requested.every(q=>q.includes('Fredoka'))).toBe(true);
+  await expect(loadCanvasFonts(['marker'])).rejects.toThrow('Permanent Marker');rejectMarker=false;await loadCanvasFonts(['marker']);expect(requested.filter(q=>q.includes('Permanent Marker'))).toHaveLength(12);expect(requested.some(q=>q.includes('Bangers'))).toBe(false);
  }finally{if(previous)document.fonts=previous;else delete document.fonts;}
 });
 
