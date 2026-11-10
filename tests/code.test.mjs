@@ -1,5 +1,6 @@
 import { test, expect } from 'bun:test';
 import { expandCodeTabs, highlightCode, highlightNotesSource } from '../lib/code.ts';
+import { CODE_COLORS, codeTokenColor, lightSyntaxColor } from '../lib/codePalette.ts';
 import { RoomSession } from '../lib/collaboration.ts';
 import * as Y from 'yjs';
 test('code highlighting escapes source and retains exact multiline content', () => {
@@ -7,7 +8,7 @@ test('code highlighting escapes source and retains exact multiline content', () 
   const result = highlightCode(source, 'javascript');
   expect(result.language).toBe('javascript'); expect(result.html).not.toContain('<script>');
   expect(result.lines.map(l => l.map(t => t.text).join('')).join('\n')).toBe(source);
-  expect(result.lines.flat().some(t => t.color === '#b8a8c4')).toBe(true);
+  expect(result.lines.flat().some(t => t.color === CODE_COLORS.dark.keyword)).toBe(true);
   expect(highlightCode('def hello():\n    print("hello")\n', 'auto').language).toBe('python');
 });
 test('concurrent shared code edits merge characters and deletion cannot resurrect a card', () => {
@@ -71,4 +72,20 @@ test('large code avoids automatic language detection and highlight cache uses a 
  const first=highlightCode('const memoryBudgetTest = true;','javascript');
  for(let index=0;index<24;index++)highlightCode(String(index)+'a'.repeat(10000),'plaintext');
  expect(highlightCode('const memoryBudgetTest = true;','javascript')).not.toBe(first);
+});
+
+test('syntax tokens distinguish functions, numbers, strings, keywords and comments without altering source',()=>{
+ const source='function greet(name) {\n  const count = 42; // ready\n  return "Hello " + name;\n}';
+ const result=highlightCode(source,'javascript'),colors=new Set(result.lines.flat().map(token=>token.color));
+ for(const kind of ['keyword','title','number','comment','string'])expect(colors.has(CODE_COLORS.dark[kind])).toBe(true);
+ expect(result.lines.map(line=>line.map(token=>token.text).join('')).join('\n')).toBe(source);
+ expect(codeTokenColor('hljs-title function_')).toBe(CODE_COLORS.dark.title);
+ for(const kind of Object.keys(CODE_COLORS.dark))expect(lightSyntaxColor(CODE_COLORS.dark[kind])).toBe(CODE_COLORS.light[kind]);
+});
+
+test('all syntax colors have readable contrast on default light and dark code cards',()=>{
+ const luminance=hex=>{const rgb=hex.slice(1).match(/../g).map(v=>parseInt(v,16)/255).map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4);return rgb.reduce((sum,v,i)=>sum+v*[.2126,.7152,.0722][i],0);};
+ for(const [theme,background]of [['dark','#111d2d'],['light','#ffffff']])for(const color of Object.values(CODE_COLORS[theme])){
+  const a=luminance(color),b=luminance(background);expect((Math.max(a,b)+.05)/(Math.min(a,b)+.05)).toBeGreaterThanOrEqual(4.5);
+ }
 });

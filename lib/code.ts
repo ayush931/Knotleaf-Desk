@@ -1,19 +1,19 @@
+import { CODE_COLORS, codeTokenColor } from './codePalette';
 import hljs from 'highlight.js/lib/common';
 export const CODE_LANGUAGES = ['auto', 'plaintext', 'javascript', 'typescript', 'python', 'java', 'cpp', 'c', 'csharp', 'go', 'rust', 'sql', 'json', 'xml', 'css', 'bash', 'yaml', 'markdown'];
 type HighlightedCode = { language: string; html: string; lines: { text: string; color: string }[][] };
 const cache = new Map<string, { value: HighlightedCode; bytes: number }>();
 const CACHE_BYTES = 1_000_000;
 let cachedBytes = 0;
-const palette: Record<string, string> = { keyword: '#b8a8c4', literal: '#b8a8c4', string: '#afbaa8', comment: '#808995' };
 export function highlightCode(code: string, requested = 'auto') {
   const source = code.slice(0, 100_000), key = requested + '\0' + source;
   const cached = cache.get(key); if (cached) return cached.value;
   const result = source.length > 16_384 ? hljs.highlight(source, { language: 'plaintext' }) : requested !== 'auto' && hljs.getLanguage(requested) ? hljs.highlight(source, { language: requested, ignoreIllegals: true }) : hljs.highlightAuto(source, CODE_LANGUAGES.filter(l => l !== 'auto' && hljs.getLanguage(l)));
-  const lines: { text: string; color: string }[][] = [[]], colors = ['#d4d4d8'];
+  const lines: { text: string; color: string }[][] = [[]], colors: string[] = [CODE_COLORS.dark.text];
   for (const match of result.value.matchAll(/<span class="([^"]*)">|(<\/span>)|([^<]+)/g)) {
-    if (match[1]) { const kind = match[1].split(/\s+/).find(c => c.startsWith('hljs-'))?.slice(5) || ''; colors.push(palette[kind] || colors.at(-1)!); }
+    if (match[1]) { colors.push(codeTokenColor(match[1]) || colors.at(-1)!); }
     else if (match[2]) colors.pop();
-    else { const value = match[3].replace(/&(amp|lt|gt|quot|#x27|#39);/g, entity => ({ '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#x27;': "'", '&#39;': "'" }[entity]!)); value.split('\n').forEach((text, i) => { if (i) lines.push([]); lines.at(-1)!.push({ text, color: colors.at(-1) || '#d4d4d8' }); }); }
+    else { const value = match[3].replace(/&(amp|lt|gt|quot|#x27|#39);/g, entity => ({ '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#x27;': "'", '&#39;': "'" }[entity]!)); value.split('\n').forEach((text, i) => { if (i) lines.push([]); lines.at(-1)!.push({ text, color: colors.at(-1) || CODE_COLORS.dark.text }); }); }
   }
   const value = { html: result.value, language: result.language || 'plaintext', lines };
   const bytes = (key.length + value.html.length + source.length) * 2 + lines.reduce((total,line)=>total+line.length*64,0);
