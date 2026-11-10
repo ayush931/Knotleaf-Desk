@@ -49,9 +49,9 @@ export function BoardsSidebar(p: Props) {
           {creating && <form noValidate onSubmit={e => { e.preventDefault(); if (!name.trim()) return; p.onCreateWorkspace(name.trim()); setName(""); setCreating(false); }} className="space-y-2">
             <label htmlFor="workspace-name" className="text-xs text-neutral-400">Workspace name</label>
             <input id="workspace-name" autoFocus maxLength={80} value={name} onChange={e => setName(e.target.value)} className={inputClass} placeholder="e.g. Product planning" />
-            <div className="flex gap-2"><button type="submit" disabled={!name.trim()} className="flex-1 rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold hover:bg-blue-500 disabled:opacity-40">Create workspace</button><button type="button" onClick={() => setCreating(false)} className="px-3 text-xs text-neutral-400">Cancel</button></div>
+            <div className="flex gap-2"><button type="submit" disabled={!name.trim()} className="flex-1 rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-500 disabled:opacity-40">Create workspace</button><button type="button" onClick={() => setCreating(false)} className="px-3 text-xs text-neutral-400">Cancel</button></div>
           </form>}
-          <button onClick={() => { p.onCreateBoard(); setSearch(""); }} className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 py-2 text-sm font-medium hover:bg-blue-500"><Plus className="h-4 w-4" />New board</button>
+          <button onClick={() => { p.onCreateBoard(); setSearch(""); }} className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 py-2 text-sm font-medium text-white hover:bg-blue-500"><Plus className="h-4 w-4" />New board</button>
           <div className="relative">
             <Search className="absolute left-3 top-2.5 h-4 w-4 text-neutral-500" />
             <input ref={searchInput} aria-label="Search boards" placeholder="Search boards…" value={search} onChange={e => setSearch(e.target.value)} className={`${inputClass} pl-9 pr-9`} />

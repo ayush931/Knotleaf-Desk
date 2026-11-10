@@ -7,8 +7,12 @@ import { serializeProject, readProjectPayload } from '../lib/projectFile.ts';
 function context() {
   const stack = [], fills = [], strokes = [], clips = [], lines = [], dots = [];
   const target = { globalAlpha: 1, fillStyle: '', strokeStyle: '', lineWidth: 1,
+    measureText: (text) => ({ width: (text || '').length * 8 }),
     save() { stack.push({ globalAlpha: this.globalAlpha, fillStyle: this.fillStyle, strokeStyle: this.strokeStyle, lineWidth: this.lineWidth }); }, restore() { Object.assign(this, stack.pop()); },
-    fill() { fills.push({ color: this.fillStyle, alpha: this.globalAlpha }); }, stroke() { strokes.push({ color: this.strokeStyle, alpha: this.globalAlpha }); }, clip() { clips.push(true); }, lineTo(...p) { lines.push(p); }, arc(...p) { dots.push(p); }
+    fill() { fills.push({ color: this.fillStyle, alpha: this.globalAlpha }); },
+    fillRect() { fills.push({ color: this.fillStyle, alpha: this.globalAlpha }); },
+    fillText() { fills.push({ color: this.fillStyle, alpha: this.globalAlpha }); },
+    stroke() { strokes.push({ color: this.strokeStyle, alpha: this.globalAlpha }); }, clip() { clips.push(true); }, lineTo(...p) { lines.push(p); }, arc(...p) { dots.push(p); }
   };
   return { ctx: new Proxy(target, { get: (o, k) => k in o ? o[k] : () => {} }), fills, strokes, clips, lines, dots };
 }
@@ -76,6 +80,29 @@ test('default document and code cards use readable light surfaces and custom car
  const card={...rect,fillOpacity:1,type:'text',isDocCard:true,text:'Notes',fill:'#242428',stroke:'#FFFFFF',fontSize:20,fontFamily:'sans',textAlign:'left'};
  expect(canvasElementAppearance(card,true)).toMatchObject({fill:'#ffffff',stroke:'#1f2937'});
  expect(canvasElementAppearance({...card,isCodeCard:true,fill:'#111d2d'},true).fill).toBe('#ffffff');
+ const pureCodeCard={...rect,fillOpacity:1,type:'text',isCodeCard:true,text:'const x=1;',fill:'#111d2d',stroke:'#FFFFFF',fontSize:14,fontFamily:'mono',textAlign:'left'};
+ expect(canvasElementAppearance(pureCodeCard,true)).toMatchObject({fill:'#ffffff',stroke:'#1f2937'});
+ const attachmentCard={...rect,fillOpacity:1,type:'text',attachment:{name:'doc.pdf',size:1024},text:'doc.pdf',fill:'#18181b',stroke:'#FFFFFF',fontSize:14,fontFamily:'sans',textAlign:'left'};
+ expect(canvasElementAppearance(attachmentCard,true)).toMatchObject({fill:'#ffffff',stroke:'#1f2937'});
  expect(canvasElementAppearance({...card,cardFillCustom:true},true)).toEqual({...card,cardFillCustom:true});
  expect(lightCodeInk('#d4d4d8')).toBe('#27272a');expect(lightCodeInk('#b8a8c4')).toBe('#6b3f87');
+});
+
+test('drawio export reflects light theme canvas background', async () => {
+ const { boardToDrawio } = await import('../draw/drawioExport.ts');
+ const xml = boardToDrawio({ title: 'Test', elements: [], createdAt: 1, updatedAt: 1, id: '1', theme: 'light', viewMode: 'canvas', gridType: 'dot', snapToGrid: false, zoom: 1, panOffset: { x: 0, y: 0 } });
+ expect(xml).toContain('background="#ffffff"');
+ const darkXml = boardToDrawio({ title: 'Test', elements: [], createdAt: 1, updatedAt: 1, id: '1', theme: 'dark', viewMode: 'canvas', gridType: 'dot', snapToGrid: false, zoom: 1, panOffset: { x: 0, y: 0 } });
+ expect(darkXml).toContain('background="#121212"');
+});
+
+test('canvas elements on light surfaces render legible borders, checkboxes, and quotes', async () => {
+ const { drawElement } = await import('../draw/renderer.ts');
+ const docCard = { ...rect, type: 'text', isDocCard: true, text: 'Heading\n---\n> quote\n- [ ] todo\n- [x] done', fill: '#ffffff', stroke: '#1f2937' };
+ const { ctx, strokes, fills } = context();
+ drawElement(ctx, docCard, { theme: 'light', lightCanvas: true });
+ expect(strokes.some(s => s.color === '#d4d4d8')).toBe(true);
+ expect(strokes.some(s => s.color === 'rgba(0, 0, 0, 0.12)')).toBe(true);
+ expect(strokes.some(s => s.color === 'rgba(0, 0, 0, 0.35)')).toBe(true);
+ expect(fills.some(f => f.color === '#4b5563')).toBe(true);
 });

@@ -339,7 +339,8 @@ html.light [class~="bg-[#27272a]"] { background-color: var(--desk-border); }
 html.light :is([class~="text-[#f4f4f5]"], [class~="text-white"]) { color: var(--desk-ink); }
 html.light [class~="hover:text-white"]:hover { color: var(--desk-ink); }
 /* Solid intent buttons keep their white foreground, including hover states. */
-html.light :is([class~="bg-blue-600"], [class~="bg-blue-500"], [class~="bg-red-600"], [class~="bg-emerald-600"]).text-white { color: #ffffff; }
+html.light :is([class~="bg-blue-600"], [class~="bg-blue-500"], [class~="bg-red-600"], [class~="bg-rose-600"], [class~="bg-emerald-600"]) { color: #ffffff; }
+html.light select option { background-color: #ffffff; color: #18181b; }
 html.light .canvas-text-editor { --editor-placeholder: #52525b; }
 html.light .canvas-text-editor[data-surface="sticky"] { --editor-placeholder: #475569; }
 html.light :is(.notes-rich .tiptap, .note-preview) { color: var(--desk-ink); }
@@ -366,9 +367,9 @@ html.light .markdown-reader {
   --reader-link: #1d4ed8;
 }
 html.light .markdown-panes-split > section + section { border-color: #d4d4d8; }
-html.light :is(.notes-rich .hljs, .markdown-reader .hljs), [data-light="true"] .code-source pre code.hljs { color: #27272a; }
-html.light :is(.notes-rich .hljs-keyword, .notes-rich .hljs-literal, .markdown-reader .hljs-keyword, .markdown-reader .hljs-literal), [data-light="true"] :is(.hljs-keyword, .hljs-literal) { color: #6b3f87; }
-html.light :is(.notes-rich .hljs-string, .markdown-reader .hljs-string), [data-light="true"] .hljs-string { color: #356330; }
-html.light :is(.notes-rich .hljs-comment, .markdown-reader .hljs-comment), [data-light="true"] .hljs-comment { color: #606975; }
-[data-light="true"] .code-source textarea { caret-color: #27272a; }
+html.light :is(.notes-rich .hljs, .markdown-reader .hljs, .notes-source .hljs), [data-light="true"] .code-source pre code.hljs { color: #27272a; }
+html.light :is(.notes-rich .hljs-keyword, .notes-rich .hljs-literal, .markdown-reader .hljs-keyword, .markdown-reader .hljs-literal, .notes-source .hljs-keyword, .notes-source .hljs-literal), [data-light="true"] :is(.hljs-keyword, .hljs-literal) { color: #6b3f87; }
+html.light :is(.notes-rich .hljs-string, .markdown-reader .hljs-string, .notes-source .hljs-string), [data-light="true"] .hljs-string { color: #356330; }
+html.light :is(.notes-rich .hljs-comment, .markdown-reader .hljs-comment, .notes-source .hljs-comment), [data-light="true"] .hljs-comment { color: #606975; }
+html.light .notes-source textarea, [data-light="true"] .code-source textarea { caret-color: #27272a; }
 [data-light="true"] .text-slate-400 { color: #52525b; }

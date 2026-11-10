@@ -4,6 +4,7 @@ import { readProjectPayload } from "./projectFile";
 import { normalizeBackground } from "./background.mjs";
 import { Board, BoardSummary, CanvasElement, Workspace } from "@/draw/types";
 import { TEMPLATES } from "@/draw/templatesData";
+import { loadPreferences } from "./preferences";
 import { roomExpiresAt } from "./roomExpiry.mjs";
 import { clearRoomHostAccess } from "./roomAccess";
 
@@ -64,7 +65,7 @@ export function getBoard(id: string): Board | null {
     const board = JSON.parse(raw) as Board;
     if (board && expiredRoom(board)) { removeRoomCache(id); return null; }
     if (board) {
-      board.theme = "dark";
+      board.theme = typeof window !== "undefined" ? loadPreferences().theme : "dark";
       board.viewMode ||= "canvas";
       board.markdownNotes ??= "";
     }
@@ -135,7 +136,7 @@ export function createBoard(title?: string, templateId?: string, workspaceId = "
     markdownNotes,
     createdAt: now,
     updatedAt: now,
-    theme: "dark",
+    theme: typeof window !== "undefined" ? loadPreferences().theme : "dark",
     viewMode: "canvas",
     gridType: "dot",
     snapToGrid: false,
@@ -226,7 +227,7 @@ export function importBoardFromJson(jsonStr: string): Board | null {
     parsed.createdAt = Number.isFinite(parsed.createdAt) ? parsed.createdAt : Date.now();
     parsed.markdownNotes = typeof parsed.markdownNotes === "string" ? parsed.markdownNotes : "";
     parsed.background = normalizeBackground(parsed.background);
-    parsed.theme = "dark";
+    parsed.theme = typeof window !== "undefined" ? loadPreferences().theme : "dark";
     parsed.viewMode = ["canvas", "split", "notes", "slides"].includes(parsed.viewMode) ? parsed.viewMode : "canvas";
     parsed.gridType = ["dot", "grid", "none"].includes(parsed.gridType) ? parsed.gridType : "dot";
     // Give unique ID on import to avoid collisions
