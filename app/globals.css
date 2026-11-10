@@ -134,6 +134,7 @@ dialog::backdrop { background: rgb(0 0 0 / 55%); backdrop-filter: blur(3px); }
   font-weight: 400;
   font-style: normal;
   font-variant-ligatures: none;
+  font-kerning: none;
   letter-spacing: 0;
   tab-size: 2;
   margin: 0;
@@ -145,6 +146,8 @@ dialog::backdrop { background: rgb(0 0 0 / 55%); backdrop-filter: blur(3px); }
 .hljs-keyword, .hljs-literal { color: #b8a8c4; }
 .hljs-string { color: #afbaa8; }
 .hljs-comment { color: #808995; }
+/* Keep the trailing empty line in the mirror so scroll ranges match the input. */
+.code-source code::after { content: "\200b"; }
 .code-source textarea { -webkit-text-fill-color: transparent; }
 @media (forced-colors: active) {
   .code-source pre { visibility: hidden; }

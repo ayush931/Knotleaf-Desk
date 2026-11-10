@@ -556,3 +556,45 @@ test('Appearance lets code cards shrink, fit and choose explicit black backgroun
  const {CodeEditor}=await import('../components/CodeEditor.tsx');await act(async()=>root.render(React.createElement(CodeEditor,{value:card.text,language:'auto',onChange(){},onClose(){},x:10,y:10,width:80,height:32,zoom:1,fontSize:14,background:{fill:'#09090b',fillStyle:'solid',cardFillCustom:true}})));
  expect(document.querySelector('.code-source').style.height).toBe('32px');expect(named('Inline code editor').dataset.light).toBe('false');expect(named('Code source').value).toBe(card.text);
 });
+
+test('code focus restores caret and scroll without shifting its content box or closing on internal focus',async()=>{
+ const {CodeEditor}=await import('../components/CodeEditor.tsx');let view,closed=0;
+ for(const zoom of [.5,1,2]){
+  const props={value:'const first = 1;\nconst second = 2;\n'.repeat(10),language:'javascript',onChange(){},onClose(){closed++;},onViewChange:value=>{view=value;},x:137.5,y:86.25,width:128,height:40,zoom,fontSize:16};
+  await act(async()=>root.render(React.createElement(CodeEditor,{...props,key:`initial-${zoom}`})));
+  let editor=named('Code source');expect(editor.selectionStart).toBe(0);expect(editor.scrollLeft).toBe(0);expect(editor.scrollTop).toBe(0);
+  const box=named('Inline code editor'),geometry=[box.style.left,box.style.top,box.style.width,box.style.transform];expect(document.querySelector('.code-source').style.fontWeight).toBe('400');
+  await act(async()=>{editor.setSelectionRange(24,29);editor.scrollLeft=28;editor.scrollTop=21;editor.dispatchEvent(new browser.Event('scroll',{bubbles:true}));});
+  const previousClosed=closed;
+  await act(async()=>editor.dispatchEvent(new browser.FocusEvent('focusout',{bubbles:true,relatedTarget:named('Copy code')})));expect(closed).toBe(previousClosed);
+  await act(async()=>editor.dispatchEvent(new browser.FocusEvent('focusout',{bubbles:true,relatedTarget:document.body})));
+  expect(closed).toBe(previousClosed+1);expect(view).toEqual({scrollLeft:28,scrollTop:21,selectionStart:24,selectionEnd:29});
+  await act(async()=>root.render(React.createElement(CodeEditor,{...props,initialView:view,key:`restored-${zoom}`})));
+  editor=named('Code source');expect(editor.scrollLeft).toBe(28);expect(editor.scrollTop).toBe(21);expect(editor.selectionStart).toBe(24);expect(editor.selectionEnd).toBe(29);
+  const preview=document.querySelector('.code-source pre');expect([preview.scrollLeft,preview.scrollTop]).toEqual([28,21]);const reopened=named('Inline code editor');expect([reopened.style.left,reopened.style.top,reopened.style.width,reopened.style.transform]).toEqual(geometry);
+ }
+});
+
+test('reopening existing text near the canvas boundary retains its exact stored position and width',async()=>{
+ localStorage.clear();const board=createBoard('Stable edge text');board.elements=[{...DEFAULT_STYLE,id:'edge-text',type:'text',text:'Existing text',fontSize:24,fontFamily:'sans',textAlign:'left',bold:false,x:850,y:200,width:420,height:36,fill:'transparent',fillStyle:'none'}];
+ const {saveBoard}=await import('../lib/storage.ts');saveBoard(board);setActiveBoardId(board.id);
+ await act(async()=>root.render(React.createElement(AppRouterContext.Provider,{value:router},React.createElement(SearchParamsContext.Provider,{value:new URLSearchParams()},React.createElement(Canvas)))));
+ const canvas=document.querySelector('main canvas');
+ for(let cycle=0;cycle<3;cycle++){
+  await act(async()=>canvas.dispatchEvent(new browser.MouseEvent('dblclick',{bubbles:true,clientX:860,clientY:210})));
+  const editor=named('Edit text');expect([editor.style.left,editor.style.top,editor.style.width,editor.style.fontWeight]).toEqual(['850px','200px','420px','500']);
+  await act(async()=>editor.dispatchEvent(new browser.FocusEvent('focusout',{bubbles:true,relatedTarget:canvas})));
+  expect(getBoard(board.id).elements[0]).toMatchObject({x:850,y:200,width:420,height:36,text:'Existing text'});
+ }
+});
+
+test('code highlight viewport excludes scrollbar gutters so scrolling cannot shift glyphs on blur',async()=>{
+ const {CodeEditor}=await import('../components/CodeEditor.tsx');const prototype=browser.HTMLTextAreaElement.prototype;
+ const descriptors=new Map(['clientWidth','clientHeight'].map(key=>[key,Object.getOwnPropertyDescriptor(prototype,key)]));
+ Object.defineProperty(prototype,'clientWidth',{configurable:true,get:()=>116});Object.defineProperty(prototype,'clientHeight',{configurable:true,get:()=>28});
+ try{
+  await act(async()=>root.render(React.createElement(CodeEditor,{value:'const name = "a long code line";\n'.repeat(10),language:'javascript',onChange(){},onClose(){},x:100,y:100,width:128,height:40,zoom:1,fontSize:16})));
+  const input=named('Code source'),preview=document.querySelector('.code-source pre');expect([preview.style.width,preview.style.height]).toEqual(['116px','28px']);
+  await act(async()=>{input.scrollLeft=45;input.scrollTop=24;input.dispatchEvent(new browser.Event('scroll',{bubbles:true}));});expect([preview.scrollLeft,preview.scrollTop]).toEqual([45,24]);
+ }finally{for(const [key,descriptor]of descriptors)if(descriptor)Object.defineProperty(prototype,key,descriptor);else delete prototype[key];}
+});

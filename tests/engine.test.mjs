@@ -1,6 +1,7 @@
 import { beforeAll, afterAll, describe, test, expect } from 'bun:test';
 import { CanvasEngine } from '../draw/CanvasEngine.ts';
 import { boardToDrawio } from '../draw/drawioExport.ts';
+import { codeLineMetrics } from '../draw/codeLayout.ts';
 import { FONT_OPTIONS, fontCssStack } from '../draw/fonts.ts';
 import { TEMPLATES } from '../draw/templatesData.ts';
 import { isValidElement } from '../lib/elementValidation.mjs';
@@ -1714,7 +1715,7 @@ test('saved code cards paint only syntax-colored code without a language label o
  for(const theme of ['dark','light']){
   paint.length=0;drawElement(engine.ctx,card,{theme});
   expect(paint.map(token=>token.text).join('')).toBe(card.text);
-  expect(paint[0].y).toBe(card.y+card.fontSize*.25);
+  expect(paint[0].y).toBe(card.y+codeLineMetrics(engine.ctx,card.fontSize).baseline);
   expect(new Set(paint.map(token=>token.color)).size).toBeGreaterThanOrEqual(3);
  }
  engine.destroy();
@@ -1781,4 +1782,15 @@ describe('free code-card background resizing',()=>{
   const {engine}=setup([card]),rects=[];engine.ctx.rect=(...rect)=>rects.push(rect);drawSelection(engine.ctx,card,1);
   expect(rects.filter(rect=>rect[2]===8&&rect[3]===8)).toHaveLength(8);engine.destroy();
  });
+});
+
+test('code focus cycles keep typography, scroll offsets and stored geometry stable without undo entries',()=>{
+ const card={...base,id:'focus-code',type:'text',isCodeCard:true,isDocCard:true,codeLanguage:'javascript',text:'const first = 1;\nconst second = 2;',fontSize:16,fontFamily:'mono',textAlign:'left',fill:'#18181b',fillStyle:'solid',x:125.25,y:93.5,width:128,height:40,codeAutoSize:false};
+ const {engine}=setup([card]);const original=JSON.stringify(engine.getElements()),paint=[];let changes=0;engine.onChange=()=>changes++;
+ engine.ctx.measureText=text=>({width:text.length*8,fontBoundingBoxAscent:12,fontBoundingBoxDescent:4});
+ engine.ctx.fillText=function(text,x,y){paint.push({text,x,y,font:this.font,baseline:this.textBaseline});};
+ engine.setCodeScroll(card.id,{x:28,y:21});engine.draw();const before=JSON.stringify(paint);
+ expect(paint[0]).toMatchObject({x:card.x-28,y:card.y+16-21,baseline:'alphabetic'});expect(paint.every(token=>token.font.startsWith('400 '))).toBe(true);
+ for(let count=0;count<5;count++){engine.openEditorFor(card);engine.finishCode();paint.length=0;engine.draw();expect(JSON.stringify(paint)).toBe(before);}
+ expect(JSON.stringify(engine.getElements())).toBe(original);expect(changes).toBe(0);engine.destroy();
 });

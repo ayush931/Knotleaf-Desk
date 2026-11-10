@@ -27,6 +27,7 @@ import { CanvasEngine } from "@/draw/CanvasEngine";
 import { loadCanvasFonts, setFont, measureTextBlock } from "@/draw/renderer";
 import { fontCssStack } from "@/draw/fonts";
 import { isColorTool, colorToolForElement, rememberToolColors, type ColorTool } from "@/draw/toolColors";
+import type { CodeViewState } from "@/draw/codeLayout";
 import { inlineEditorLayout } from "@/draw/inlineEditorLayout";
 import {
   Tool,
@@ -174,6 +175,8 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
 
   const [saveError, setSaveError] = useState(false);
+  const [codeInitialView, setCodeInitialView] = useState<CodeViewState>();
+  const codeViews = useRef(new Map<string,CodeViewState>());
   const [codeViewport, setCodeViewport] = useState({ zoom: 1, pan: { x: 0, y: 0 } });
   const [codeId, setCodeId] = useState<string | null>(null);
   const [recording, setRecording] = useState(false);
@@ -294,7 +297,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
     };
     engine.onSelectionChange = (selected) => setSelectedElements(selected);
     engine.onOpenIconPicker = () => setIsIconPickerOpen(true);
-    engine.onEditCode = setCodeId;
+    engine.onEditCode = id => { setCodeInitialView(codeViews.current.get(id)); setCodeId(id); };
     engine.onViewportChange = view => setCodeViewport(previous => previous.zoom === view.zoom && previous.pan.x === view.pan.x && previous.pan.y === view.pan.y ? previous : view);
     engine.onBeforeCreate = () => {
       const current = inlineTextStateRef.current;
@@ -742,11 +745,11 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
       const context = canvasRef.current?.getContext("2d");
       if (!context) return;
       context.save();
-      setFont(context, inlineText.fontSize, inlineText.fontFamily, inlineText.bold ? 700 : 400, inlineText.italic);
+      setFont(context, inlineText.fontSize, inlineText.fontFamily, inlineText.bold ? 700 : 500, inlineText.italic);
       const freeText = !inlineText.boxWidth && (inlineText.kind === "new-text" || inlineText.kind === "text" && selectedElement?.type === "text" && !selectedElement.isDocCard && !selectedElement.isCodeCard);
       const unchangedText = selectedElement?.type === "text" && inlineText.text === selectedElement.text && inlineText.fontSize === selectedElement.fontSize && inlineText.fontFamily === selectedElement.fontFamily && inlineText.align === (selectedElement.textAlign || "left") && !!inlineText.bold === !!selectedElement.bold && !!inlineText.italic === !!selectedElement.italic;
       const contentWidth = freeText ? (unchangedText ? selectedElement.width : measureTextBlock(context, inlineText.text, inlineText.fontSize, inlineText.fontFamily, inlineText).width) * zoom : undefined;
-      const layout = inlineEditorLayout({ ...inlineText, contentWidth, placeholder: inlinePlaceholder, measure: text => context.measureText(text).width, zoom,
+      const layout = inlineEditorLayout({ ...inlineText, preservePosition: inlineText.kind !== "new-text" && !!inlineText.text, contentWidth, placeholder: inlinePlaceholder, measure: text => context.measureText(text).width, zoom,
         preferredWidth: inlineText.boxWidth ? inlineText.boxWidth*zoom : inlineText.kind === "sticky" || selectedElement?.type === "text" && selectedElement.isDocCard ? inlineText.screenWidth : undefined,
         viewportWidth: containerRef.current?.clientWidth || 900, viewportHeight: containerRef.current?.clientHeight || 600 });
       context.restore();
@@ -887,7 +890,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
             {dragFiles&&<div aria-hidden="true" className="pointer-events-none absolute inset-2 z-40 flex items-center justify-center rounded-xl border-2 border-dashed border-blue-400 bg-blue-500/10 text-sm text-blue-200">Drop images or files onto this board</div>}
             <canvas ref={canvasRef} tabIndex={0} aria-label="Drawing canvas" data-theme={theme} data-background={displayBackground.fill} className="block touch-none select-none" style={{ backgroundColor: lightCanvas ? "#ffffff" : "#121212", backgroundImage: lightCanvas ? "conic-gradient(#e4e4e7 25%, transparent 0 50%, #e4e4e7 0 75%, transparent 0)" : "conic-gradient(#27272a 25%, transparent 0 50%, #27272a 0 75%, transparent 0)", backgroundSize: "16px 16px" }} />
 
-            {codeElement?.type === "text" && <CodeEditor background={canvasElementAppearance(codeElement, lightCanvas)} key={codeElement.id} value={codeElement.text} language={codeElement.codeLanguage || "auto"} fontSize={codeElement.fontSize} zoom={codeViewport.zoom} x={(codeElement.x - 16) * codeViewport.zoom + codeViewport.pan.x} y={(codeElement.y - 16) * codeViewport.zoom + codeViewport.pan.y} width={codeElement.width} height={codeElement.height} onChange={(text, language) => engineRef.current?.updateCode(codeElement.id, text, language)} onClose={() => { engineRef.current?.finishCode(); setCodeId(null); }} />}
+            {codeElement?.type === "text" && <CodeEditor initialView={codeInitialView} onViewChange={view=>{codeViews.current.set(codeElement.id,view);if(codeViews.current.size>256)codeViews.current.delete(codeViews.current.keys().next().value!);engineRef.current?.setCodeScroll(codeElement.id,{x:view.scrollLeft,y:view.scrollTop});}} background={canvasElementAppearance(codeElement, lightCanvas)} key={codeElement.id} value={codeElement.text} language={codeElement.codeLanguage || "auto"} fontSize={codeElement.fontSize} zoom={codeViewport.zoom} x={(codeElement.x - 16) * codeViewport.zoom + codeViewport.pan.x} y={(codeElement.y - 16) * codeViewport.zoom + codeViewport.pan.y} width={codeElement.width} height={codeElement.height} onChange={(text, language) => engineRef.current?.updateCode(codeElement.id, text, language)} onClose={() => { engineRef.current?.finishCode(); setCodeId(null); }} />}
             {inlineText && (
               <>
                 {/* Document-specific list tools; ordinary canvas text stays unobstructed. */}

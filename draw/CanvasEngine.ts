@@ -1,3 +1,4 @@
+import { CODE_FONT_WEIGHT, CODE_LINE_HEIGHT } from "./codeLayout";
 import { canvasBackground } from "./canvasAppearance";
 import { stepCanvasFontSize, textSizeShortcut } from "@/lib/textShortcuts";
 import { capturePointer, isContextPointer, releasePointer } from "@/lib/pointerInput";
@@ -684,14 +685,27 @@ export class CanvasEngine {
     if (el.attachment) return el;
     if (el.isCodeCard) {
       if (el.codeAutoSize === false) return { ...el, width: Math.max(MIN_CODE_WIDTH, el.width), height: Math.max(MIN_CODE_HEIGHT, el.height) };
-      setFont(this.ctx, el.fontSize, "mono");
-      return { ...el, width: Math.max(120, ...expandCodeTabs(el.text).split("\n").map(line => this.ctx.measureText(line).width)) + 8, height: Math.max(40, el.text.split("\n").length * el.fontSize * 1.5 + 8) };
+      this.ctx.save(); setFont(this.ctx, el.fontSize, "mono", CODE_FONT_WEIGHT);
+      this.ctx.fontKerning = "none";
+      const width = Math.max(120, ...expandCodeTabs(el.text).split("\n").map(line => this.ctx.measureText(line).width)) + 8;
+      this.ctx.restore();
+      return { ...el, width, height: Math.max(40, el.text.split("\n").length * el.fontSize * CODE_LINE_HEIGHT + 8) };
     }
     if (el.textBox) { const width=Math.max(32,el.width); const layout=layoutDocument(this.ctx,el.text,el.fontSize,el.fontFamily,{...el,width}); return {...el,width,height:Math.max(el.height,layout.totalHeight)}; }
     const size = measureTextBlock(this.ctx, el.text, el.fontSize, el.fontFamily, el);
     return { ...el, width: el.isDocCard ? Math.max(240,size.width) : size.width, height: el.isDocCard ? Math.max(100,size.height) : size.height };
   }
 
+  private codeScroll = new Map<string, Point>();
+  public setCodeScroll(id: string, point: Point) {
+    if (!Number.isFinite(point.x) || !Number.isFinite(point.y)) return;
+    const next = {x:Math.max(0,point.x),y:Math.max(0,point.y)};
+    const previous = this.codeScroll.get(id);
+    if(previous?.x === next.x && previous?.y === next.y)return;
+    this.codeScroll.set(id, next);
+    if(this.codeScroll.size>256)this.codeScroll.delete(this.codeScroll.keys().next().value!);
+    this.requestRender();
+  }
   public finishCode() { this.editingId = null; this.requestRender(); }
 
   public updateCode(id: string, text: string, language = "auto") {
@@ -1268,6 +1282,7 @@ export class CanvasEngine {
         theme: this.theme, lightCanvas: this.theme === "light" && isLightBackground(background),
           scene: this.elements,
         flowOffset: this.flowOffset,
+        codeScroll: this.codeScroll.get(el.id),
         selected: single?.id === el.id,
         onResourceLoad: this.onResourceLoad,
         zoom: this.zoom,

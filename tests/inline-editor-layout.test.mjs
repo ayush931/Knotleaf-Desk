@@ -33,3 +33,11 @@ test('typed free text uses the canvas alignment width without adding editor-only
   expect(inlineEditorLayout({ ...base, text: 'Hi', contentWidth: 420 * zoom }).width).toBe(420 * zoom);
  }
 });
+
+test('focusing existing text never moves its anchor or changes its alignment width near viewport edges',()=>{
+ for(const zoom of [.5,1,2])for(const [x,y]of [[850,580],[-30,-10],[100,100]]){
+  const input={...base,text:'Existing aligned text',zoom,screenX:x,screenY:y,contentWidth:420*zoom,preservePosition:true};
+  const first=inlineEditorLayout(input);expect(first.left).toBe(x);expect(first.top).toBe(y);expect(first.width).toBe(420*zoom);
+  expect(inlineEditorLayout(input)).toEqual(first);expect(first.maxHeight).toBeGreaterThanOrEqual(first.minHeight);
+ }
+});
