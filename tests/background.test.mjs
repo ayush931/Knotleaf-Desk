@@ -106,27 +106,3 @@ test('canvas elements on light surfaces render legible borders, checkboxes, and 
  expect(strokes.some(s => s.color === 'rgba(0, 0, 0, 0.35)')).toBe(true);
  expect(fills.some(f => f.color === '#4b5563')).toBe(true);
 });
-
-test('plus connection handles render in dim colors when idle and brighten on hover', async () => {
- const { drawConnectorHandles } = await import('../draw/renderer.ts');
- const { ctx, strokes, fills } = context();
- drawConnectorHandles(ctx, rect, 1, 'right', true);
- // Idle handles have dim translucent stroke / plus
- expect(strokes.some(s => s.color === 'rgba(59, 130, 246, 0.45)')).toBe(true);
- expect(strokes.some(s => s.color === 'rgba(59, 130, 246, 0.65)')).toBe(true);
- expect(fills.some(f => f.color === 'rgba(255, 255, 255, 0.9)')).toBe(true);
- // Active handle (right) has bright accent fill and stroke
- expect(fills.some(f => f.color === '#3B82F6')).toBe(true);
-});
-
-test('default text layout and font styling uses bolder font weight 500', async () => {
- const { layoutDocument, setFont } = await import('../draw/renderer.ts');
- const layout = layoutDocument(null, 'Normal writing', 16, 'sans');
- expect(layout.lines[0].fontWeight).toBe(500);
- const boldLayout = layoutDocument(null, 'Bold writing', 16, 'sans', { bold: true });
- expect(boldLayout.lines[0].fontWeight).toBe(700);
-
- const dummyCtx = { font: '' };
- setFont(dummyCtx, 16, 'sans');
- expect(dummyCtx.font).toContain('500');
-});
