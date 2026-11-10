@@ -3,8 +3,8 @@ import type { BackgroundSettings, CanvasElement, Theme } from './types';
 import { normalizeBackground, isLightBackground } from '@/lib/background.mjs';
 import { CODE_CARD_FILL, DOCUMENT_CARD_FILL } from './cardAppearance';
 
-export const DRAWING_PAPER = '#fcfcf8';
-export const DRAWING_BOARD = '#121212';
+export const DRAWING_PAPER = '#ffffff';
+export const DRAWING_BOARD = '#1c2029';
 
 /** Theme presentation is reversible and never rewrites saved board colors. */
 export function canvasBackground(value: unknown, theme: Theme): BackgroundSettings {

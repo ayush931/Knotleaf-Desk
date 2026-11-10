@@ -8,6 +8,11 @@
   --font-mono: var(--font-fira), ui-monospace, monospace;
 }
 
+/* One shared surface for the drawing controls, independent of artwork colors. */
+:root { --drawing-panel: #252d3b; --drawing-border: #52617a; }
+html.light { --drawing-panel: #ffffff; --drawing-border: #c7d5ea; }
+.drawing-panel { background-color: var(--drawing-panel); border-color: var(--drawing-border); }
+
 @layer base {
   html,
   body {

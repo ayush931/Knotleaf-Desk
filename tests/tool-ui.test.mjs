@@ -81,7 +81,7 @@ test('Appearance panel and controls render with light-mode responsive classes', 
     onBackgroundChange: noop,
   }));
   // Main appearance container supports light surface and crisp contrast
-  expect(html).toContain('bg-white dark:bg-[#18181b]');
+  expect(html).toContain('drawing-panel');
   expect(html).toContain('text-neutral-800 dark:text-neutral-200');
   // Selection actions footer supports light mode
   expect(html).toContain('bg-neutral-50/95 dark:bg-neutral-900/80');

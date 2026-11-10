@@ -64,8 +64,8 @@ test('every canvas pattern paints the chosen base color first without changing s
 test('light canvas changes background and neutral ink reversibly without mutating artwork', async () => {
  const {canvasBackground,canvasElementAppearance}=await import('../draw/canvasAppearance.ts');
  const original={...rect,fill:'transparent',fillStyle:'none'};
- expect(canvasBackground(DEFAULT_BACKGROUND,'light')).toEqual({...DEFAULT_BACKGROUND,fill:'#fcfcf8'});
- expect(canvasBackground(DEFAULT_BACKGROUND,'dark')).toEqual({...DEFAULT_BACKGROUND,fill:'#121212'});
+ expect(canvasBackground(DEFAULT_BACKGROUND,'light')).toEqual({...DEFAULT_BACKGROUND,fill:'#ffffff'});
+ expect(canvasBackground(DEFAULT_BACKGROUND,'dark')).toEqual({...DEFAULT_BACKGROUND,fill:'#1c2029'});
  const custom={...DEFAULT_BACKGROUND,fill:'#ec4899',fillStyle:'crosshatch'};
  expect(canvasBackground(custom,'light')).toEqual(custom);
  const {ctx,strokes}=context();drawElement(ctx,original,{theme:'light'});
@@ -91,9 +91,9 @@ test('default document and code cards use readable light surfaces and custom car
 test('drawio export reflects light theme canvas background', async () => {
  const { boardToDrawio } = await import('../draw/drawioExport.ts');
  const xml = boardToDrawio({ title: 'Test', elements: [], createdAt: 1, updatedAt: 1, id: '1', theme: 'light', viewMode: 'canvas', gridType: 'dot', snapToGrid: false, zoom: 1, panOffset: { x: 0, y: 0 } });
- expect(xml).toContain('background="#fcfcf8"');
+ expect(xml).toContain('background="#ffffff"');
  const darkXml = boardToDrawio({ title: 'Test', elements: [], createdAt: 1, updatedAt: 1, id: '1', theme: 'dark', viewMode: 'canvas', gridType: 'dot', snapToGrid: false, zoom: 1, panOffset: { x: 0, y: 0 } });
- expect(darkXml).toContain('background="#121212"');
+ expect(darkXml).toContain('background="#1c2029"');
 });
 
 test('canvas elements on light surfaces render legible borders, checkboxes, and quotes', async () => {

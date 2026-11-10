@@ -260,7 +260,7 @@ export function PropertiesPanel({
       <button ref={openButton} type="button" onMouseDown={event => { if (preserveTextFocus) event.preventDefault(); }} onClick={() => onOpenChange(true)}
         style={{ top: topOffset }} aria-expanded={false}
         title="Style · stroke, background and text" aria-label="Open appearance settings" aria-controls="appearance-settings"
-        className="absolute left-2 z-30 flex h-9 w-9 sm:h-8 sm:w-8 items-center justify-center rounded-md border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-[#18181b] text-xs font-medium text-neutral-700 dark:text-neutral-200 shadow-sm transition-colors hover:border-neutral-400 dark:hover:border-neutral-500 hover:text-neutral-900 dark:hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
+        className="absolute left-2 z-30 flex h-9 w-9 sm:h-8 sm:w-8 items-center justify-center rounded-md border drawing-panel text-xs font-medium text-neutral-700 dark:text-neutral-200 shadow-sm transition-colors hover:border-neutral-400 dark:hover:border-neutral-500 hover:text-neutral-900 dark:hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
       ><Palette aria-hidden="true" strokeWidth={1.75} className="h-[18px] w-[18px] shrink-0" /><span className="sr-only">Style</span></button>
     );
   }
@@ -275,10 +275,10 @@ export function PropertiesPanel({
         }
         if (event.key === "Escape" && !event.nativeEvent.isComposing) { event.preventDefault(); event.stopPropagation(); close(); } }}
       onMouseDown={event => { if (preserveTextFocus && event.target instanceof HTMLElement && event.target.closest("button, summary")) event.preventDefault(); }}
-      className="absolute left-2 z-30 flex w-72 max-w-[calc(100%-1rem)] flex-col overflow-hidden rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-[#18181b] text-neutral-800 dark:text-neutral-200 shadow-sm select-none"
+      className="absolute left-2 z-30 flex w-72 max-w-[calc(100%-1rem)] flex-col overflow-hidden rounded-md border drawing-panel text-neutral-800 dark:text-neutral-200 shadow-sm select-none"
     >
       <header className="flex shrink-0 items-center gap-3 border-b border-neutral-200 dark:border-neutral-800 px-4 py-3">
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300"><Palette className="h-4 w-4" /></span>
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-blue-50 dark:bg-blue-500/20 text-blue-700 dark:text-blue-200"><Palette className="h-4 w-4" /></span>
         <div className="min-w-0 flex-1"><h2 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Appearance</h2><p className="truncate text-[11px] text-neutral-500 dark:text-neutral-400">{context}</p></div>
         <button ref={closeButton} type="button" onClick={close} title="Hide appearance settings · Escape" aria-label="Collapse appearance settings"
           className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-neutral-500 dark:text-neutral-400 transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-900 dark:hover:text-white focus-visible:outline-2 focus-visible:outline-blue-500"><X className="h-4 w-4" /></button>
