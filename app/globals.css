@@ -309,17 +309,6 @@ dialog::backdrop { background: rgb(0 0 0 / 55%); backdrop-filter: blur(3px); }
    Canvas artwork, slide palettes, color swatches and paper-reader colors stay explicit. */
 html.light {
   color-scheme: light;
-  --color-neutral-950: #f4f4f5;
-  --color-neutral-900: #ffffff;
-  --color-neutral-800: #e4e4e7;
-  --color-neutral-700: #d4d4d8;
-  --color-neutral-600: #71717a;
-  --color-neutral-500: #62626b;
-  --color-neutral-400: #52525b;
-  --color-neutral-300: #3f3f46;
-  --color-neutral-200: #27272a;
-  --color-neutral-100: #18181b;
-  --color-neutral-50: #09090b;
   --scrollbar-thumb: #a1a1aa;
   --scrollbar-track: #f4f4f5;
   --scrollbar-hover: #71717a;
@@ -327,8 +316,42 @@ html.light {
   --desk-background: #f4f4f5;
   --desk-surface: #ffffff;
   --desk-ink: #18181b;
+  --desk-muted: #62626b;
   --desk-border: #d4d4d8;
 }
+/* Adapt legacy dark-only utilities without redefining Tailwind primitives.
+   Components with explicit dark: variants keep their authored light-mode colors. */
+html.light [class~="active:bg-neutral-700"]:not([class*="dark:active:bg-"]):active { background-color: #e4e4e7; }
+html.light [class~="bg-neutral-600"]:not([class*="dark:bg-"]) { background-color: #d4d4d8; }
+html.light [class~="bg-neutral-700"]:not([class*="dark:bg-"]) { background-color: #e4e4e7; }
+html.light [class~="bg-neutral-700/40"]:not([class*="dark:bg-"]) { background-color: color-mix(in srgb, #e4e4e7 40%, transparent); }
+html.light [class~="bg-neutral-800"]:not([class*="dark:bg-"]) { background-color: #f4f4f5; }
+html.light [class~="bg-neutral-900"]:not([class*="dark:bg-"]) { background-color: #ffffff; }
+html.light [class~="bg-neutral-900/40"]:not([class*="dark:bg-"]) { background-color: color-mix(in srgb, #ffffff 40%, transparent); }
+html.light [class~="bg-neutral-900/50"]:not([class*="dark:bg-"]) { background-color: color-mix(in srgb, #ffffff 50%, transparent); }
+html.light [class~="bg-neutral-900/60"]:not([class*="dark:bg-"]) { background-color: color-mix(in srgb, #ffffff 60%, transparent); }
+html.light [class~="bg-neutral-900/80"]:not([class*="dark:bg-"]) { background-color: color-mix(in srgb, #ffffff 80%, transparent); }
+html.light [class~="bg-neutral-900/95"]:not([class*="dark:bg-"]) { background-color: color-mix(in srgb, #ffffff 95%, transparent); }
+html.light [class~="bg-neutral-950"]:not([class*="dark:bg-"]) { background-color: #f4f4f5; }
+html.light [class~="bg-neutral-950/40"]:not([class*="dark:bg-"]) { background-color: color-mix(in srgb, #f4f4f5 40%, transparent); }
+html.light [class~="border-neutral-500"]:not([class*="dark:border-"]) { border-color: #a1a1aa; }
+html.light [class~="border-neutral-500/30"]:not([class*="dark:border-"]) { border-color: color-mix(in srgb, #a1a1aa 30%, transparent); }
+html.light [class~="border-neutral-600"]:not([class*="dark:border-"]) { border-color: #a1a1aa; }
+html.light [class~="border-neutral-700"]:not([class*="dark:border-"]) { border-color: #d4d4d8; }
+html.light [class~="border-neutral-800"]:not([class*="dark:border-"]) { border-color: #e4e4e7; }
+html.light [class~="border-neutral-800/80"]:not([class*="dark:border-"]) { border-color: color-mix(in srgb, #e4e4e7 80%, transparent); }
+html.light [class~="hover:bg-neutral-700"]:not([class*="dark:hover:bg-"]):hover { background-color: #e4e4e7; }
+html.light [class~="hover:bg-neutral-800"]:not([class*="dark:hover:bg-"]):hover { background-color: #f4f4f5; }
+html.light [class~="hover:bg-neutral-800/40"]:not([class*="dark:hover:bg-"]):hover { background-color: color-mix(in srgb, #f4f4f5 40%, transparent); }
+html.light [class~="hover:bg-neutral-800/60"]:not([class*="dark:hover:bg-"]):hover { background-color: color-mix(in srgb, #f4f4f5 60%, transparent); }
+html.light [class~="hover:bg-neutral-800/80"]:not([class*="dark:hover:bg-"]):hover { background-color: color-mix(in srgb, #f4f4f5 80%, transparent); }
+html.light [class~="hover:border-neutral-500"]:not([class*="dark:hover:border-"]):hover { border-color: #a1a1aa; }
+html.light [class~="hover:text-neutral-300"]:not([class*="dark:hover:text-"]):hover { color: #3f3f46; }
+html.light [class~="text-neutral-100"]:not([class*="dark:text-"]) { color: #18181b; }
+html.light [class~="text-neutral-200"]:not([class*="dark:text-"]) { color: #27272a; }
+html.light [class~="text-neutral-300"]:not([class*="dark:text-"]) { color: #3f3f46; }
+html.light [class~="text-neutral-400"]:not([class*="dark:text-"]) { color: #52525b; }
+html.light [class~="text-neutral-500"] { color: var(--desk-muted); }
 html.light body { background: var(--desk-background); color: var(--desk-ink); }
 html.light :is([class~="bg-[#121212]"], [class~="bg-[#141416]"], [class~="bg-[#151517]"]) { background-color: var(--desk-background); }
 html.light :is([class~="bg-[#18181b]"], [class~="bg-[#202124]"]) { background-color: var(--desk-surface); }
@@ -339,7 +362,7 @@ html.light [class~="bg-[#27272a]"] { background-color: var(--desk-border); }
 html.light :is([class~="text-[#f4f4f5]"], [class~="text-white"]) { color: var(--desk-ink); }
 html.light [class~="hover:text-white"]:hover { color: var(--desk-ink); }
 /* Solid intent buttons keep their white foreground, including hover states. */
-html.light :is([class~="bg-blue-600"], [class~="bg-blue-500"], [class~="bg-red-600"], [class~="bg-rose-600"], [class~="bg-emerald-600"]) { color: #ffffff; }
+html.light :is([class~="bg-blue-600"], [class~="bg-blue-500"], [class~="bg-red-600"], [class~="bg-rose-600"], [class~="bg-emerald-600"], [class~="bg-purple-600"], [class~="bg-indigo-600"], [class~="bg-blue-700"]) { color: #ffffff; }
 html.light select option { background-color: #ffffff; color: #18181b; }
 html.light .canvas-text-editor { --editor-placeholder: #52525b; }
 html.light .canvas-text-editor[data-surface="sticky"] { --editor-placeholder: #475569; }

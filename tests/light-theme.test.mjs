@@ -1,0 +1,81 @@
+import {beforeAll, afterEach, test, expect} from 'bun:test';
+import {readFileSync} from 'node:fs';
+import React from 'react';
+import {renderToStaticMarkup} from 'react-dom/server';
+import {Window} from 'happy-dom';
+import {compile} from '@tailwindcss/node';
+import postcss from 'postcss';
+import {transform} from 'lightningcss';
+import {convert} from '@asamuzakjp/css-color';
+import {BoardsSidebar} from '../components/BoardsSidebar.tsx';
+import {PropertiesPanel} from '../components/PropertiesPanel.tsx';
+import {DEFAULT_STYLE} from '../draw/types.ts';
+let css, browser;
+const noop=()=>{};
+const props={isOpen:true,onOpenChange:noop,selectedElement:null,selectionCount:1,currentStyle:DEFAULT_STYLE,onSwapArrow:noop,onChangeFontSize:noop,onUpdateStyle:noop,onUpdateElement:noop,onDuplicate:noop,onDelete:noop,onBringToFront:noop,onSendToBack:noop,onBackgroundChange:noop,theme:'light'};
+beforeAll(async()=>{
+ const source=readFileSync(new URL('../app/globals.css',import.meta.url),'utf8');
+ const components=['PropertiesPanel','ColorControl','ColorPalette','BackgroundStylePicker','FontSelect','BoardHeader','BoardsSidebar'];
+ const candidates=new Set(components.flatMap(name=>readFileSync(new URL(`../components/${name}.tsx`,import.meta.url),'utf8').match(/[\w:.[\]#%/-]+/g)||[]));
+ const compiler=await compile(source,{base:new URL('../app',import.meta.url).pathname,onDependency(){}});
+ const ast=postcss.parse(transform({code:Buffer.from(compiler.build([...candidates])),targets:{chrome:80<<16}}).code.toString());
+ // Happy DOM has no cascade-layer support; preserve the emitted layer order.
+ ast.walkAtRules('layer',rule=>rule.nodes?rule.replaceWith(...rule.nodes):rule.remove());
+ // Resolve modern color literals for Happy DOM's older color parser.
+ ast.walkDecls(declaration=>{if(/^(lab|lch|oklab|oklch)\(/.test(declaration.value))declaration.value=convert.colorToHex(declaration.value)||declaration.value;});
+ // Lower the app's class-based dark selector for this DOM's cascade parser.
+ ast.walkRules(rule=>{rule.selector=rule.selector.replace(/(\.[^\s,]+):where\(\.dark, \.dark \*\)/g,'.dark $1');});
+ css=ast.toString();
+});
+afterEach(()=>browser?.close());
+function render(element,mode='light'){
+ browser=new Window();const doc=browser.document;doc.documentElement.className=mode;
+ doc.head.innerHTML=`<style>${css}</style>`;doc.body.innerHTML=renderToStaticMarkup(element);return doc;
+}
+const style=element=>browser.getComputedStyle(element);
+function neutralLightness(color){
+ if(color.startsWith('oklch('))return (Number(color.match(/[\d.]+/)[0])/(color.includes('%')?100:1))**3;
+ const rgb=color.startsWith('#')?(color.length===4?color.slice(1).split('').map(c=>c+c).join(''):color.slice(1)).match(/../g).slice(0,3).map(v=>parseInt(v,16)):color.match(/[\d.]+/g)?.slice(0,3).map(Number);
+ if(!rgb)throw Error(`Unsupported test color ${color}`);
+ return rgb.map(n=>{const v=n/255;return v<=.04045?v/12.92:((v+.055)/1.055)**2.4;}).reduce((sum,v,i)=>sum+v*[.2126,.7152,.0722][i],0);
+}
+function readable(element,surface){
+ const a=neutralLightness(style(element).color),b=neutralLightness(style(surface).backgroundColor);
+ expect((Math.max(a,b)+.05)/(Math.min(a,b)+.05)).toBeGreaterThanOrEqual(4.5);
+}
+test('compiled light Appearance uses light option surfaces and readable selected text',()=>{
+ const doc=render(React.createElement(PropertiesPanel,{...props,selectedTool:'text',selectedElement:{...DEFAULT_STYLE,id:'text',type:'text',text:'Example',fontSize:24,fontFamily:'sans',textAlign:'left'}}));
+ const panel=doc.querySelector('[aria-label="Appearance settings"]');
+ const font=doc.querySelector('[aria-label="Font family"] button[aria-pressed="true"]');
+ expect(neutralLightness(style(font).backgroundColor)).toBeGreaterThan(.8);readable(font,font);
+ const size=doc.querySelector('[aria-label="Increase font size"]');
+ expect(neutralLightness(style(size).backgroundColor)).toBeGreaterThan(.8);readable(size,size);
+ const input=doc.querySelector('[aria-label="Document card title"]')||doc.querySelector('#color-custom-stroke-color');
+ expect(neutralLightness(style(input).backgroundColor)).toBeGreaterThan(.8);readable(input,input);
+ readable(panel.querySelector('h2'),panel);
+});
+test('compiled arrow options, native choices, and active formatting stay readable in light mode',()=>{
+ const doc=render(React.createElement(PropertiesPanel,{...props,selectedTool:'arrow'}));
+ const selected=doc.querySelector('[aria-label="Arrow routing"] [aria-pressed="true"]');
+ expect(neutralLightness(style(selected).backgroundColor)).toBeGreaterThan(.8);readable(selected,selected);
+ const option=doc.querySelector('option');expect(neutralLightness(style(option).color)).toBeLessThan(.02);
+ const legacy=doc.createElement('button');legacy.className='bg-purple-600 text-white';legacy.textContent='Bold';doc.body.append(legacy);readable(legacy,legacy);
+});
+test('legacy surfaces still adapt and dark mode retains its authored controls',()=>{
+ const doc=render(React.createElement(PropertiesPanel,{...props,selectedTool:'text'}),'dark');
+ const size=doc.querySelector('[aria-label="Increase font size"]');expect(neutralLightness(style(size).backgroundColor)).toBeLessThan(.1);readable(size,size);
+ doc.documentElement.className='light';const legacy=doc.createElement('div');legacy.className='bg-neutral-900 text-neutral-200';doc.body.append(legacy);
+ expect(neutralLightness(style(legacy).backgroundColor)).toBeGreaterThan(.8);readable(legacy,legacy);
+});
+
+test('expanded Appearance options keep inactive labels and form controls readable',()=>{
+ const doc=render(React.createElement(PropertiesPanel,{...props,selectedTool:'rectangle'}));
+ const details=doc.querySelector('details');details.open=true;
+ const inactive=doc.querySelector('[title="Sketchy (Excalidraw)"]');readable(inactive,inactive.parentElement);
+ for(const select of doc.querySelectorAll('select'))for(const option of select.options)readable(option,option);
+});
+
+test('workspace search and organization selects have readable light surfaces and options',()=>{
+ const doc=render(React.createElement(BoardsSidebar,{isOpen:false,onClose:()=>{},boards:[],activeBoardId:'',workspaces:[{id:'personal',name:'Personal'}],workspaceId:'personal',onChangeWorkspace:()=>{},onCreateWorkspace:()=>{},onMoveBoard:()=>{},onSelectBoard:()=>{},onCreateBoard:()=>{},onDuplicateBoard:()=>{},onDeleteBoard:()=>{},onImportFile:async()=>{},theme:'light'}));
+ for(const select of doc.querySelectorAll('select')){expect(neutralLightness(style(select).backgroundColor)).toBeGreaterThan(.8);readable(select,select);for(const option of select.options)readable(option,option);}
+});
