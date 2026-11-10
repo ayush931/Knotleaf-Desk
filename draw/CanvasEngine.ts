@@ -1,3 +1,4 @@
+import { arrangementDeltas, type Arrangement } from "./arrangement";
 import { CODE_FONT_WEIGHT, CODE_LINE_HEIGHT } from "./codeLayout";
 import { canvasBackground } from "./canvasAppearance";
 import { stepCanvasFontSize, textSizeShortcut } from "@/lib/textShortcuts";
@@ -638,24 +639,15 @@ export class CanvasEngine {
     this.commit();
   }
 
-  public arrangeSelected(mode: "left" | "top" | "horizontal") {
-    const shapes = this.getSelectedElements().filter(e => !["arrow", "line", "pencil"].includes(e.type));
-    if (shapes.length < 2) return;
-    const movedIds = new Set(shapes.map(e => e.id));
-    const changes = new Map<string, CanvasElement>();
-    if (mode === "horizontal") {
-      if (shapes.length < 3) return;
-      const sorted = [...shapes].sort((a, b) => a.x - b.x);
-      const first = sorted[0], last = sorted[sorted.length - 1];
-      const totalWidth = sorted.reduce((n, e) => n + e.width, 0);
-      const gap = (last.x + last.width - first.x - totalWidth) / (sorted.length - 1);
-      let x = first.x;
-      for (const el of sorted) { changes.set(el.id, translateElement(el, x - el.x, 0, movedIds)); x += el.width + gap; }
-    } else {
-      const coordinate = Math.min(...shapes.map(e => mode === "left" ? e.x : e.y));
-      for (const el of shapes) changes.set(el.id, translateElement(el, mode === "left" ? coordinate - el.x : 0, mode === "top" ? coordinate - el.y : 0, movedIds));
-    }
-    this.elements = resolveBindings(this.elements.map(e => changes.get(e.id) ?? e), movedIds);
+  public arrangeSelected(mode: Arrangement) {
+    if (this.readOnly) return;
+    const deltas = arrangementDeltas(this.getSelectedElements(), mode);
+    if (!deltas.size) return;
+    const movedIds = new Set(deltas.keys());
+    this.elements = resolveBindings(this.elements.map(el => {
+      const delta = deltas.get(el.id);
+      return delta ? translateElement(el, delta.x, delta.y, movedIds) : el;
+    }), movedIds);
     this.commit();
   }
 

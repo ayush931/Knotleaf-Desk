@@ -76,6 +76,7 @@ import { CodeEditor } from "./CodeEditor";
 import { BoardTools } from "./BoardTools";
 import { saveVersion } from "@/lib/boardLibrary";
 import { PresentationMode } from "./PresentationMode";
+import { SelectionTools } from "./SelectionTools";
 import { ShortcutsModal } from "./ShortcutsModal";
 
 const isEditableTarget = (t: EventTarget | null) =>
@@ -1140,13 +1141,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
               /></div>
             )}
 
-            {!isPresentationOpen && !focusMode && selectedElements.length > 1 && <div role="toolbar" aria-label="Arrange selection" className="absolute bottom-16 left-2 z-30 flex max-w-[calc(100%-1rem)] flex-wrap items-center gap-1 rounded-lg border border-neutral-700 bg-neutral-900 p-1.5 text-xs text-neutral-300 shadow-lg">
-              <button onClick={() => engineRef.current?.connectSelected()} className="rounded px-2 py-1.5 text-blue-400 hover:bg-neutral-800">Connect selected</button>
-              <span className="h-4 w-px bg-neutral-700" />
-              <button onClick={() => engineRef.current?.arrangeSelected("left")} className="rounded px-2 py-1.5 hover:bg-neutral-800">Align left</button>
-              <button onClick={() => engineRef.current?.arrangeSelected("top")} className="rounded px-2 py-1.5 hover:bg-neutral-800">Align top</button>
-              <button disabled={selectedElements.length < 3} onClick={() => engineRef.current?.arrangeSelected("horizontal")} className="rounded px-2 py-1.5 hover:bg-neutral-800 disabled:opacity-40">Space evenly</button>
-            </div>}
+            {!isPresentationOpen && !focusMode && selectedElements.length > 1 && <SelectionTools selection={selectedElements} onUndo={() => engineRef.current?.undo()} onRedo={() => engineRef.current?.redo()} onConnect={() => engineRef.current?.connectSelected()} onArrange={mode => engineRef.current?.arrangeSelected(mode)} />}
 
             {!isPresentationOpen && !focusMode && (
               <ZoomBar

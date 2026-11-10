@@ -273,3 +273,7 @@ First creation and every refocus preserve the exact text anchor, including empty
 The chosen Arrow routing applies consistently to direct drawing, connector-port dragging and connected-shape generation. Straight remains the fallback; Elbow and Curved retain endpoint bindings, undo/redo and manual bend controls.
 
 Red dashed alignment guides show all matching edges and centers together, including bottom and middle. Snapping chooses a single nearest delta per axis, then guides use final bounds and merge duplicate reference spans. Vertical/horizontal gap rulers retain pixel distances and equal-spacing indicators. Guides clear on finish/cancel and never enter saved artwork or exports.
+
+Arrange selection offers left/center/right and top/middle/bottom alignment against visible selection bounds, plus horizontal/vertical equal-gap distribution with fixed endpoints. Attached text is excluded as an independent target when its parent is selected; it follows the parent once and bound arrows resolve afterward. One action is one Undo step; no-op and read-only actions do not write. Controls disable when eligible object counts are insufficient. Multi-selection retains Duplicate/Delete and layer actions in Appearance.
+
+ShortcutsModal follows native dialog focus/Escape/inertness behavior, restores focus on close, honors Light/Dark themes and shows Cmd-compatible shortcut labels.
