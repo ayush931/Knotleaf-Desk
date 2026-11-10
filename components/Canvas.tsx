@@ -1039,7 +1039,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
                     fontSize: `${inlineText.fontSize * zoom}px`,
                     lineHeight: 1.35,
                     fontFamily: inlineFamily,
-                    fontWeight: inlineText.bold ? 700 : 400,
+                    fontWeight: inlineText.bold ? 700 : 500,
                     fontStyle: inlineText.italic ? "italic" : "normal",
                     textDecoration: [inlineText.underline && "underline", inlineText.strikethrough && "line-through"].filter(Boolean).join(" ") || "none",
                     textAlign: inlineTextAlign,

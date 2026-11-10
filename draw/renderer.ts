@@ -89,7 +89,7 @@ export function setFont(
   ctx: CanvasRenderingContext2D,
   size: number,
   family: FontFamily,
-  weight: number | string = 400,
+  weight: number | string = 500,
   italic = false
 ) {
   ctx.font = `${italic ? "italic " : ""}${weight} ${size}px ${fontStack(family)}`;
@@ -312,7 +312,7 @@ export function layoutDocument(
     let content = raw.slice(leadingSpaces);
     let prefix = "";
     let fontSize = baseFontSize;
-    let fontWeight: number | string = formatting.bold ? 700 : 400;
+    let fontWeight: number | string = formatting.bold ? 700 : 500;
     let isItalic = !!formatting.italic;
     let isStrikethrough = false;
     let lineHeight = baseFontSize * LINE_HEIGHT;
@@ -1457,7 +1457,7 @@ function drawSticky(ctx: CanvasRenderingContext2D, el: CanvasElement) {
 
   ctx.save();
   const size = fontSize || 14;
-  setFont(ctx, size, el.fontFamily || "sans", el.bold ? 700 : 400, el.italic);
+  setFont(ctx, size, el.fontFamily || "sans", el.bold ? 700 : 500, el.italic);
   ctx.fillStyle = el.stroke || "#1E293B";
   ctx.textBaseline = "top";
   ctx.textAlign = el.textAlign || "left";
@@ -1751,15 +1751,51 @@ export function getConnectorHandles(el: CanvasElement, zoom = 1) {
     x: port.x + (port.anchor === "left" ? -offset : port.anchor === "right" ? offset : 0),
     y: port.y + (port.anchor === "top" ? -offset : port.anchor === "bottom" ? offset : 0) }));
 }
-export function drawConnectorHandles(ctx: CanvasRenderingContext2D, el: CanvasElement, zoom: number, active?: AnchorPosition) {
-  ctx.save(); ctx.setLineDash([]); ctx.strokeStyle = ACCENT; ctx.lineWidth = 1.5 / zoom;
-  for (const handle of getConnectorHandles(el, zoom)) {
-    ctx.beginPath(); ctx.moveTo(handle.portX, handle.portY); ctx.lineTo(handle.x, handle.y); ctx.stroke();
-    ctx.beginPath(); ctx.arc(handle.x, handle.y, 8 / zoom, 0, Math.PI * 2);
-    ctx.fillStyle = active === handle.anchor ? ACCENT : "#ffffff"; ctx.fill(); ctx.stroke();
-    ctx.strokeStyle = active === handle.anchor ? "#ffffff" : ACCENT;
-    ctx.beginPath(); ctx.moveTo(handle.x-3/zoom,handle.y);ctx.lineTo(handle.x+3/zoom,handle.y);
-    ctx.moveTo(handle.x,handle.y-3/zoom);ctx.lineTo(handle.x,handle.y+3/zoom);ctx.stroke();ctx.strokeStyle=ACCENT;
+export function drawConnectorHandles(
+  ctx: CanvasRenderingContext2D,
+  el: CanvasElement,
+  zoom: number,
+  active?: AnchorPosition,
+  lightCanvas = false
+) {
+  ctx.save();
+  ctx.setLineDash([]);
+  const handles = getConnectorHandles(el, zoom);
+  for (const handle of handles) {
+    const isHovered = active === handle.anchor;
+    // Connecting line from edge port to handle
+    ctx.beginPath();
+    ctx.moveTo(handle.portX, handle.portY);
+    ctx.lineTo(handle.x, handle.y);
+    ctx.strokeStyle = isHovered ? ACCENT : (lightCanvas ? "rgba(59, 130, 246, 0.35)" : "rgba(96, 165, 250, 0.35)");
+    ctx.lineWidth = (isHovered ? 1.5 : 1) / zoom;
+    ctx.stroke();
+
+    // Circle background and border
+    ctx.beginPath();
+    ctx.arc(handle.x, handle.y, 8 / zoom, 0, Math.PI * 2);
+    if (isHovered) {
+      ctx.fillStyle = ACCENT;
+      ctx.strokeStyle = ACCENT;
+      ctx.lineWidth = 1.5 / zoom;
+    } else {
+      ctx.fillStyle = lightCanvas ? "rgba(255, 255, 255, 0.9)" : "rgba(39, 39, 42, 0.85)";
+      ctx.strokeStyle = lightCanvas ? "rgba(59, 130, 246, 0.45)" : "rgba(96, 165, 250, 0.45)";
+      ctx.lineWidth = 1.2 / zoom;
+    }
+    ctx.fill();
+    ctx.stroke();
+
+    // Plus (+) sign inside circle
+    const plusColor = isHovered ? "#ffffff" : (lightCanvas ? "rgba(59, 130, 246, 0.65)" : "rgba(147, 197, 253, 0.7)");
+    ctx.strokeStyle = plusColor;
+    ctx.lineWidth = 1.5 / zoom;
+    ctx.beginPath();
+    ctx.moveTo(handle.x - 3.5 / zoom, handle.y);
+    ctx.lineTo(handle.x + 3.5 / zoom, handle.y);
+    ctx.moveTo(handle.x, handle.y - 3.5 / zoom);
+    ctx.lineTo(handle.x, handle.y + 3.5 / zoom);
+    ctx.stroke();
   }
   ctx.restore();
 }
