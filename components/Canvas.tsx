@@ -1192,7 +1192,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
         workspaceId={workspaceId}
         onChangeWorkspace={setWorkspaceId}
         onCreateWorkspace={name => { const workspace = createWorkspace(name); setWorkspaces(getWorkspaces()); setWorkspaceId(workspace.id); }}
-        onMoveBoard={(id, nextWorkspace) => { moveBoardToWorkspace(id, nextWorkspace); if (id === board.id) { const updated = getBoard(id); if (updated) { boardRef.current = updated; setBoard(updated); } } refreshBoardsList(); }}
+        onMoveBoard={(id, nextWorkspace) => { moveBoardToWorkspace(id, nextWorkspace); if (id === board.id) { const updated = getBoard(id); if (updated) { boardRef.current = updated; setBoard(updated); setWorkspaceId(updated.workspaceId || "personal"); } } refreshBoardsList(); }}
         boards={boardsList}
         activeBoardId={board.id}
         onSelectBoard={handleSelectBoard}

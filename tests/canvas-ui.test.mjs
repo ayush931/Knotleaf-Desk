@@ -521,3 +521,14 @@ test('light mode changes the canvas and persists without rewriting stored artwor
  expect(document.documentElement.classList.contains('light')).toBe(false);
  expect(named('Drawing canvas').dataset.background).toBe('#121212');
 });
+
+test('moving the open board also follows its destination workspace',async()=>{
+ const id=await renderBoard();await clickNamed('Open workspaces');await clickNamed('Create workspace');
+ const input=document.getElementById('workspace-name');
+ await act(async()=>{Object.getOwnPropertyDescriptor(browser.HTMLInputElement.prototype,'value').set.call(input,'Project team');input.dispatchEvent(new browser.Event('input',{bubbles:true}));});
+ await act(async()=>input.closest('form').dispatchEvent(new browser.Event('submit',{bubbles:true,cancelable:true})));
+ const workspaceSelect=document.getElementById('workspace-select');const destination=workspaceSelect.value;expect(destination).not.toBe('personal');
+ await act(async()=>{workspaceSelect.value='personal';workspaceSelect.dispatchEvent(new browser.Event('change',{bubbles:true}));});
+ await act(async()=>{const move=named('Workspace for Test canvas');move.value=destination;move.dispatchEvent(new browser.Event('change',{bubbles:true}));});
+ expect(document.getElementById('workspace-select').value).toBe(destination);expect(getBoard(id).workspaceId).toBe(destination);
+});
