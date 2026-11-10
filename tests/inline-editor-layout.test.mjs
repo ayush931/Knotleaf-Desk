@@ -41,3 +41,12 @@ test('focusing existing text never moves its anchor or changes its alignment wid
   expect(inlineEditorLayout(input)).toEqual(first);expect(first.maxHeight).toBeGreaterThanOrEqual(first.minHeight);
  }
 });
+
+
+test('anchored creation keeps exact fractional dimensions and never introduces viewport scrolling',()=>{
+ for(const text of ['', 'First text', 'Line\n'.repeat(100)])for(const zoom of [.33,.75,1,1.25,3])for(const [x,y] of [[895,595],[-25,-10],[100,100]]){
+  const layout=inlineEditorLayout({...base,text,zoom,screenX:x,screenY:y,contentWidth:137*zoom,preservePosition:true});
+  expect([layout.left,layout.top]).toEqual([x,y]);if(text)expect(layout.width).toBe(137*zoom);
+  expect(layout.maxHeight).toBe(Infinity);
+ }
+});

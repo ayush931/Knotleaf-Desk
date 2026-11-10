@@ -130,3 +130,18 @@ test('default text layout and font styling uses bolder font weight 500', async (
  setFont(dummyCtx, 16, 'sans');
  expect(dummyCtx.font).toContain('500');
 });
+
+
+test('plain text and sticky glyphs use the same CSS line-box baseline at every font size',()=>{
+ for(const fontFamily of ['sans','serif','mono'])for(const fontSize of [12,24,48])for(const bold of [false,true]){
+  const {ctx}=context(),paint=[];ctx.measureText=text=>({width:text.length*8,fontBoundingBoxAscent:fontSize*.9,fontBoundingBoxDescent:fontSize*.25});
+  ctx.fillText=function(text,x,y){paint.push({text,x,y,baseline:this.textBaseline});};
+  const el={...rect,type:'text',x:17.5,y:23.25,width:160,height:160,text:'First\nSecond',fontFamily,fontSize,bold};
+  drawElement(ctx,el,{theme:'dark'});
+  const baseline=(fontSize*1.35-fontSize*1.15)/2+fontSize*.9;
+  expect(paint[0]).toMatchObject({text:'First',x:17.5,baseline:'alphabetic'});expect(paint[0].y).toBeCloseTo(23.25+baseline);
+  expect(paint[1].y).toBeCloseTo(23.25+baseline+fontSize*1.35);
+  paint.length=0;drawElement(ctx,{...el,type:'sticky'},{theme:'dark'});
+  expect(paint[0].y).toBeCloseTo(23.25+12+baseline);expect(paint[0].baseline).toBe('alphabetic');
+ }
+});

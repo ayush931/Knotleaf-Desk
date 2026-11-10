@@ -749,16 +749,18 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
       const freeText = !inlineText.boxWidth && (inlineText.kind === "new-text" || inlineText.kind === "text" && selectedElement?.type === "text" && !selectedElement.isDocCard && !selectedElement.isCodeCard);
       const unchangedText = selectedElement?.type === "text" && inlineText.text === selectedElement.text && inlineText.fontSize === selectedElement.fontSize && inlineText.fontFamily === selectedElement.fontFamily && inlineText.align === (selectedElement.textAlign || "left") && !!inlineText.bold === !!selectedElement.bold && !!inlineText.italic === !!selectedElement.italic;
       const contentWidth = freeText ? (unchangedText ? selectedElement.width : measureTextBlock(context, inlineText.text, inlineText.fontSize, inlineText.fontFamily, inlineText).width) * zoom : undefined;
-      const layout = inlineEditorLayout({ ...inlineText, preservePosition: inlineText.kind !== "new-text" && !!inlineText.text, contentWidth, placeholder: inlinePlaceholder, measure: text => context.measureText(text).width, zoom,
+      const layout = inlineEditorLayout({ ...inlineText, preservePosition: true, contentWidth, placeholder: inlinePlaceholder, measure: text => context.measureText(text).width, zoom,
         preferredWidth: inlineText.boxWidth ? inlineText.boxWidth*zoom : inlineText.kind === "sticky" || selectedElement?.type === "text" && selectedElement.isDocCard ? inlineText.screenWidth : undefined,
         viewportWidth: containerRef.current?.clientWidth || 900, viewportHeight: containerRef.current?.clientHeight || 600 });
       context.restore();
-      editor.style.width = `${Math.ceil(layout.width)}px`;
+      editor.style.width = `${layout.width}px`;
       editor.style.left = `${layout.left}px`; editor.style.top = `${layout.top}px`;
       editor.style.minHeight = `${layout.minHeight}px`;
       editor.style.height = "auto";
       editor.style.height = `${Math.min(layout.maxHeight, Math.max(layout.minHeight, editor.scrollHeight, inlineText.screenHeight || 0))}px`;
-      editor.style.overflowY = editor.scrollHeight > layout.maxHeight ? "auto" : "hidden";
+      editor.style.overflowY = "hidden";
+      // Native caret scrolling must not offset the source relative to the canvas.
+      editor.scrollLeft = 0; editor.scrollTop = 0;
     };
     resizeEditor();
     document.fonts?.addEventListener("loadingdone", resizeEditor);
@@ -908,6 +910,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
                   data-surface={inlineText.kind === "sticky" ? "sticky" : "canvas"}
                   ref={inlineTextareaRef}
                   value={inlineText.text}
+                  onScroll={event => { event.currentTarget.scrollLeft = 0; event.currentTarget.scrollTop = 0; }}
                   aria-label="Edit text"
                   onChange={(e) => setInlineText((prev) => (prev ? { ...prev, text: e.target.value } : null))}
                   onBlur={event => {
@@ -1055,7 +1058,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
                     outline: inlineText.boxWidth ? "1px solid #3b82f6" : "none",
                     outlineOffset: "3px",
                     resize: "none",
-                    overflowX: "auto",
+                    overflowX: "hidden",
                     boxShadow: "none",
                   }}
                 />

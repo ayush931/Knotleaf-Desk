@@ -26,5 +26,5 @@ export function inlineEditorLayout(input: EditorLayoutInput) {
   const left = input.preservePosition ? input.screenX : Math.max(0, Math.min(input.screenX, input.viewportWidth - width - inset));
   const minHeight = Math.min(Math.max(1, input.viewportHeight - inset * 2), Math.ceil(input.fontSize * input.zoom * 1.5 + 4));
   const top = input.preservePosition ? input.screenY : Math.max(0, Math.min(input.screenY, input.viewportHeight - minHeight - inset));
-  return { width, left, top, minHeight, maxHeight: Math.max(input.preservePosition ? minHeight : 1, input.viewportHeight - top - inset) };
+  return { width, left, top, minHeight, maxHeight: input.preservePosition ? Number.POSITIVE_INFINITY : Math.max(1, input.viewportHeight - top - inset) };
 }

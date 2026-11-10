@@ -1,4 +1,4 @@
-import { CODE_FONT_WEIGHT, codeLineMetrics } from "./codeLayout";
+import { CODE_FONT_WEIGHT, codeLineMetrics, lineBoxMetrics } from "./codeLayout";
 import { canvasElementAppearance, lightCodeInk } from "./canvasAppearance";
 import { isLightBackground } from "@/lib/background.mjs";
 import { cardBackground } from "./cardAppearance";
@@ -448,6 +448,7 @@ export function textContentBounds(ctx: CanvasRenderingContext2D, el: TextElement
     if (line.type === "quote") boxes.push({ minX: el.x, maxX: el.x + 3, minY: el.y + ly, maxY: el.y + ly + line.lineHeight - 2 });
     if (line.type.startsWith("todo-")) { const top = el.y + ly + (line.lineHeight - 14) / 2; boxes.push({ minX: el.x + indent, maxX: el.x + indent + 14, minY: top, maxY: top + 14 }); }
     else if (line.type === "number") {
+      ctx.textBaseline = "top";
       setFont(ctx, Math.max(10, line.fontSize - 1), el.fontFamily, 600); ctx.textAlign = "right";
       const prefix = ctx.measureText(line.prefix || "1.");
       if (![prefix.actualBoundingBoxLeft, prefix.actualBoundingBoxRight, prefix.actualBoundingBoxAscent, prefix.actualBoundingBoxDescent].every(Number.isFinite)) { ctx.restore(); return null; }
@@ -458,18 +459,20 @@ export function textContentBounds(ctx: CanvasRenderingContext2D, el: TextElement
     setFont(ctx, line.fontSize, el.fontFamily, line.fontWeight, line.isItalic);
     const align = list || line.type === "quote" ? "left" : el.textAlign || "left";
     ctx.textAlign = align;
+    ctx.textBaseline = "alphabetic";
+    const baseline = lineBoxMetrics(ctx, line.fontSize, LINE_HEIGHT).baseline;
     const metrics = ctx.measureText(line.content);
     if (![metrics.actualBoundingBoxLeft, metrics.actualBoundingBoxRight, metrics.actualBoundingBoxAscent, metrics.actualBoundingBoxDescent].every(Number.isFinite)) { ctx.restore(); return null; }
     const anchor = list ? indent + 22 : line.type === "quote" ? 14 : align === "center" ? el.width / 2 : align === "right" ? el.width : indent;
     const textY = ly + (line.type === "quote" ? 1 : 0);
-    let bottom = textY + metrics.actualBoundingBoxDescent;
+    let bottom = textY + baseline + metrics.actualBoundingBoxDescent;
     let left = anchor - metrics.actualBoundingBoxLeft, right = anchor + metrics.actualBoundingBoxRight;
     if (el.underline || el.strikethrough) {
       const start = align === "center" ? anchor - metrics.width / 2 : align === "right" ? anchor - metrics.width : anchor;
       left = Math.min(left, start); right = Math.max(right, start + metrics.width);
       if (el.underline) bottom = Math.max(bottom, textY + line.fontSize * 1.05 + Math.max(1, line.fontSize / 16) / 2);
     }
-    boxes.push({ minX: el.x + left, maxX: el.x + right, minY: el.y + textY - metrics.actualBoundingBoxAscent, maxY: el.y + bottom });
+    boxes.push({ minX: el.x + left, maxX: el.x + right, minY: el.y + textY + baseline - metrics.actualBoundingBoxAscent, maxY: el.y + bottom });
   }
   ctx.restore(); return boxes.length ? unionBounds(boxes) : null;
 }
@@ -1178,7 +1181,10 @@ function drawPencil(ctx: CanvasRenderingContext2D, el: CanvasElement) {
 
 
 function drawStyledText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, size: number, formatting: TextFormatting) {
-  ctx.fillText(text, x, y);
+  ctx.save();
+  ctx.textBaseline = "alphabetic";
+  ctx.fillText(text, x, y + lineBoxMetrics(ctx, size, LINE_HEIGHT).baseline);
+  ctx.restore();
   if (!text || (!formatting.underline && !formatting.strikethrough)) return;
   const width = ctx.measureText(text).width;
   const left = ctx.textAlign === "center" ? x - width / 2 : ctx.textAlign === "right" ? x - width : x;
