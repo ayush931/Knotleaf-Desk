@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useLayoutEffect, useRef } from "react";
 import { X } from "lucide-react";
 import { Theme } from "@/draw/types";
 
@@ -82,20 +82,25 @@ const GROUPS: { title: string; items: [string, string][] }[] = [
   },
 ];
 
-export function ShortcutsModal({ isOpen, onClose }: ShortcutsModalProps) {
+export function ShortcutsModal({ isOpen, onClose, theme }: ShortcutsModalProps) {
+  const dialog = useRef<HTMLDialogElement>(null);
+  const closeButton = useRef<HTMLButtonElement>(null);
+  useLayoutEffect(() => {
+    if (!isOpen) return;
+    const previous = document.activeElement;
+    const node = dialog.current;
+    node?.showModal();
+    closeButton.current?.focus({ preventScroll: true });
+    return () => { node?.close(); if (previous instanceof HTMLElement && previous.isConnected) previous.focus({ preventScroll: true }); };
+  }, [isOpen]);
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onMouseDown={onClose}>
-      <div
-        role="dialog"
-        aria-label="Keyboard shortcuts"
-        onMouseDown={(e) => e.stopPropagation()}
-        className="w-full max-w-3xl max-h-[85vh] overflow-y-auto rounded-2xl border border-neutral-800 shadow-2xl p-6 bg-[#18181b] text-white"
-      >
+    <dialog ref={dialog} onCancel={onClose} aria-label="Keyboard shortcuts" className={`m-auto w-[min(768px,94vw)] max-h-[85dvh] overflow-y-auto rounded-2xl border p-6 shadow-2xl backdrop:bg-black/60 ${theme === "light" ? "border-neutral-200 bg-white text-neutral-900" : "border-neutral-800 bg-[#18181b] text-white"}`}>
+      <div>
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-lg font-semibold">Keyboard shortcuts</h2>
-          <button onClick={onClose} aria-label="Close" className="p-1.5 rounded-lg opacity-60 hover:opacity-100">
+          <button ref={closeButton} type="button" onClick={onClose} aria-label="Close keyboard shortcuts" className="p-1.5 rounded-lg opacity-60 hover:opacity-100">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -107,7 +112,7 @@ export function ShortcutsModal({ isOpen, onClose }: ShortcutsModalProps) {
                 {g.items.map(([keys, label]) => (
                   <li key={keys} className="flex items-center justify-between gap-3 text-sm">
                     <span className="opacity-80">{label}</span>
-                    <kbd className="shrink-0 px-2 py-0.5 rounded border border-neutral-700 bg-neutral-800 text-[11px] font-mono text-neutral-300">{keys}</kbd>
+                    <kbd className={`shrink-0 max-w-[48%] px-2 py-0.5 rounded border text-[11px] font-mono ${theme === "light" ? "border-neutral-300 bg-neutral-100 text-neutral-700" : "border-neutral-700 bg-neutral-800 text-neutral-300"}`}>{keys.replace(/Ctrl(?!\/Cmd)/g, "Ctrl/Cmd")}</kbd>
                   </li>
                 ))}
               </ul>
@@ -115,6 +120,6 @@ export function ShortcutsModal({ isOpen, onClose }: ShortcutsModalProps) {
           ))}
         </div>
       </div>
-    </div>
+    </dialog>
   );
 }

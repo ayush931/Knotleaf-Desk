@@ -620,3 +620,39 @@ test('first text creation stays anchored through typing, native caret scrolling,
   await act(async()=>root.render(null));
  }
 });
+
+
+test('arrangement controls expose all eight actions and count attached labels as part of their parent',async()=>{
+ const {SelectionTools}=await import('../components/SelectionTools.tsx');let mode;
+ const a={...inspectorShape,id:'a'},b={...inspectorShape,id:'b',x:300},label={...a,id:'label',type:'text',containerId:'a'};
+ await act(async()=>root.render(React.createElement(SelectionTools,{selection:[a,b,label],onArrange:value=>{mode=value;},onConnect(){}})));
+ const toolbar=named('Arrange selection'),buttons=[...toolbar.querySelectorAll('button')];expect(buttons.filter(b=>b.textContent.startsWith('Align'))).toHaveLength(6);
+ expect(buttons.find(b=>b.textContent==='Space vertically').disabled).toBe(true);await act(async()=>buttons.find(b=>b.textContent==='Align right').click());expect(mode).toBe('right');
+ await act(async()=>root.render(React.createElement(SelectionTools,{selection:[a,b,{...a,id:'c'}],onArrange:value=>{mode=value;},onConnect(){}})));
+ await act(async()=>[...named('Arrange selection').querySelectorAll('button')].find(b=>b.textContent==='Space vertically').click());expect(mode).toBe('vertical');
+});
+test('multiple selected objects retain Appearance selection actions',async()=>{
+ let duplicated=0;await act(async()=>root.render(React.createElement(Inspector,{props:{selectedElement:null,selectionCount:3,onDuplicate(){duplicated++;}}})));
+ await clickNamed('Open appearance settings');expect(!!named('Selection actions')).toBe(true);await clickNamed('Duplicate selection');expect(duplicated).toBe(1);expect(!!named('Delete selection')).toBe(true);
+});
+test('keyboard shortcuts use a themed native modal, Mac labels, Escape and restored focus',async()=>{
+ const {ShortcutsModal}=await import('../components/ShortcutsModal.tsx');
+ function Harness({theme}){const [open,setOpen]=React.useState(false);return React.createElement(React.Fragment,null,React.createElement('button',{'aria-label':'Open shortcut help',onClick:()=>setOpen(true)},'Help'),React.createElement(ShortcutsModal,{isOpen:open,onClose:()=>setOpen(false),theme}));}
+ for(const theme of ['light','dark']){
+  await act(async()=>root.render(React.createElement(Harness,{theme,key:theme})));const trigger=named('Open shortcut help');trigger.focus();await clickNamed('Open shortcut help');
+  const dialog=named('Keyboard shortcuts');expect(dialog.tagName).toBe('DIALOG');expect(dialog.open).toBe(true);expect(document.activeElement).toBe(named('Close keyboard shortcuts'));expect(dialog.textContent.includes('Ctrl/Cmd+Z')).toBe(true);expect(dialog.classList.contains(theme==='light'?'bg-white':'bg-[#18181b]')).toBe(true);
+  await act(async()=>dialog.dispatchEvent(new browser.Event('cancel',{bubbles:true})));expect(!named('Keyboard shortcuts')).toBe(true);expect(document.activeElement).toBe(trigger);
+ }
+});
+
+
+test('Mac select-all exposes arrangement and vertical spacing updates the saved board',async()=>{
+ localStorage.clear();const board=createBoard('Arrange three shapes');board.elements=[100,220,500].map((y,index)=>({...inspectorShape,id:`shape-${index}`,x:100+index*180,y,width:100,height:80}));
+ const {saveBoard}=await import('../lib/storage.ts');saveBoard(board);setActiveBoardId(board.id);
+ await act(async()=>root.render(React.createElement(AppRouterContext.Provider,{value:router},React.createElement(SearchParamsContext.Provider,{value:new URLSearchParams()},React.createElement(Canvas)))));
+ await act(async()=>window.dispatchEvent(new browser.KeyboardEvent('keydown',{key:'a',metaKey:true,bubbles:true})));
+ const tools=named('Arrange selection');expect(!!tools).toBe(true);const space=[...tools.querySelectorAll('button')].find(b=>b.textContent==='Space vertically');space.focus();await act(async()=>space.click());
+ expect(getBoard(board.id).elements.map(el=>el.y)).toEqual([100,300,500]);
+ await act(async()=>space.dispatchEvent(new browser.KeyboardEvent('keydown',{key:'z',metaKey:true,bubbles:true})));expect(getBoard(board.id).elements.map(el=>el.y)).toEqual([100,220,500]);
+ await act(async()=>space.dispatchEvent(new browser.KeyboardEvent('keydown',{key:'z',metaKey:true,shiftKey:true,bubbles:true})));expect(getBoard(board.id).elements.map(el=>el.y)).toEqual([100,300,500]);
+});

@@ -1828,3 +1828,17 @@ test('dragging displays top, middle and bottom guides together and clears them o
  expect(engine.getElements().find(el=>el.id===source.id).y).toBe(100);
  listeners.pointerup(point(205,133));expect(engine.guides).toEqual([]);engine.undo();expect(engine.getElements()).toEqual([source,alignedTarget]);engine.destroy();
 });
+
+
+test('arranging selected shapes moves attached text once, preserves arrows and undoes in one step',()=>{
+ const label={...base,id:'label',type:'text',text:'Attached',x:130,y:120,width:50,height:24,fontSize:20,fontFamily:'sans',containerId:source.id,containerOffset:{x:.25,y:.25}};
+ const initial=[source,target,arrow,label],{engine}=setup(initial);engine.selectedIds=new Set([source.id,target.id,label.id,arrow.id]);
+ engine.arrangeSelected('bottom');const moved=engine.getElements(),shape=moved.find(e=>e.id===source.id),text=moved.find(e=>e.id===label.id),connector=moved.find(e=>e.id===arrow.id);
+ expect(shape.y+shape.height).toBe(target.y+target.height);expect(text.x).toBe(shape.x+30);expect(text.y).toBe(shape.y+20);expect(text.containerId).toBe(source.id);
+ expect(connector.startY).toBe(shape.y+shape.height/2);expect(connector.endBinding).toEqual(arrow.endBinding);
+ engine.undo();expect(engine.getElements()).toEqual(initial);engine.redo();expect(engine.getElements()).toEqual(moved);engine.destroy();
+});
+test('arrangement is read-only in presentation and no-ops do not create undo steps',()=>{
+ const {engine}=setup([source,target]);engine.selectedIds=new Set([source.id,target.id]);engine.readOnly=true;engine.arrangeSelected('left');expect(engine.getElements()).toEqual([source,target]);
+ engine.readOnly=false;let writes=0;engine.onChange=()=>writes++;engine.arrangeSelected('vertical');expect(writes).toBe(0);engine.destroy();
+});
