@@ -1719,3 +1719,24 @@ test('saved code cards paint only syntax-colored code without a language label o
  }
  engine.destroy();
 });
+
+test('code cards resize their viewport without changing fonts and retain dimensions through edits and undo',()=>{
+ const card={...base,id:'code-sizing',type:'text',isCodeCard:true,isDocCard:true,codeLanguage:'javascript',text:'const n = 1;',fontSize:14,fontFamily:'mono',textAlign:'left',fill:'#18181b',fillStyle:'solid',x:100,y:100,width:300,height:100};
+ const {engine,drag}=setup([card]);engine.selectAll();drag(419,219,299,179);
+ let current=engine.getElements()[0];expect(current).toMatchObject({width:180,height:60,fontSize:14,codeAutoSize:false});
+ const long='const longerName = "keep all of this code";\n'.repeat(20);engine.updateCode(card.id,long,'javascript');
+ current=engine.getElements()[0];expect(current).toMatchObject({width:180,height:60,fontSize:14,text:long});
+ engine.undo();expect(engine.getElements()[0]).toMatchObject({width:180,height:60,text:card.text});engine.redo();
+ engine.updateSelectedElement({codeAutoSize:true});expect(engine.getElements()[0].width).toBeGreaterThan(180);expect(engine.getElements()[0].height).toBeGreaterThan(60);
+ engine.undo();expect(engine.getElements()[0]).toMatchObject({width:180,height:60,codeAutoSize:false});
+ const restored=JSON.parse(JSON.stringify(engine.getElements()[0]));expect(restored.text).toBe(long);expect(restored.codeAutoSize).toBe(false);expect(isValidElement(restored)).toBe(true);expect(isValidElement({...restored,codeAutoSize:'false'})).toBe(false);
+ engine.destroy();
+});
+
+test('code dimensions clamp to a small viewport and Fit to code shrinks existing automatic cards',()=>{
+ const card={...base,id:'code-fit',type:'text',isCodeCard:true,isDocCard:true,text:'x',fontSize:14,fontFamily:'mono',textAlign:'left',fill:'#18181b',fillStyle:'solid',x:100,y:100,width:500,height:300,codeAutoSize:true};
+ const {engine}=setup([card]);engine.selectAll();engine.updateSelectedElement({codeAutoSize:true});
+ expect(engine.getElements()[0].width).toBeLessThan(200);expect(engine.getElements()[0].height).toBeLessThan(100);
+ engine.updateSelectedElement({width:1,height:1,codeAutoSize:false});expect(engine.getElements()[0]).toMatchObject({width:80,height:32,fontSize:14});
+ const clips=[];engine.ctx.rect=(...args)=>clips.push(args);engine.draw();expect(clips).toContainEqual([100,100,80,32]);engine.destroy();
+});

@@ -166,12 +166,12 @@ export function getElementBounds(el: CanvasElement, scene: CanvasElement[] = [])
       const ink = cachedTextContentBounds(el);
       if (ink) return ink;
     }
-    const pad = isDocCard ? 16 : 0;
+    const pad = isDocCard || el.isCodeCard ? 16 : 0;
     return {
       minX: el.x - pad,
       minY: el.y - pad,
       maxX: el.x + Math.max(el.width, isDocCard ? 24 : 1) + pad,
-      maxY: el.y + Math.max(el.height, el.fontSize * 1.35) + pad,
+      maxY: el.y + (el.isCodeCard ? el.height : Math.max(el.height, el.fontSize * 1.35)) + pad,
     };
   }
   const r = normalizeRect(el);
@@ -1210,6 +1210,7 @@ function drawText(ctx: CanvasRenderingContext2D, el: CanvasElement) {
     const build = () => ctx.roundRect(el.x - 16, el.y - 16, el.width + 32, el.height + 32, 10);
     drawBackgroundFill(ctx, el, build, { x: el.x - 16, y: el.y - 16, width: el.width + 32, height: el.height + 32 });
     ctx.beginPath(); build(); ctx.stroke();
+    ctx.beginPath(); ctx.rect(el.x, el.y, el.width, el.height); ctx.clip();
     ctx.textBaseline = "top";
     setFont(ctx, el.fontSize, "mono");
     result.lines.forEach((line, row) => { let x = el.x; for (const token of line) { ctx.fillStyle = cardLight ? lightCodeInk(token.color) : token.color; ctx.fillText(token.text, x, el.y + el.fontSize * 0.25 + row * el.fontSize * 1.5); x += ctx.measureText(token.text).width; } });

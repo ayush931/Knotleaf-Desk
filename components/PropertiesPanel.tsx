@@ -1,6 +1,6 @@
 "use client";
 import { textSizeShortcut } from "@/lib/textShortcuts";
-import { cardBackground } from "@/draw/cardAppearance";
+import { cardBackground, MIN_CODE_WIDTH, MIN_CODE_HEIGHT } from "@/draw/cardAppearance";
 
 import React, { useLayoutEffect, useRef } from "react";
 import { ColorPalette } from "./ColorPalette";
@@ -101,6 +101,7 @@ export function PropertiesPanel({
   const context = selectionCount > 1 ? `${selectionCount} elements selected` : selectedElement ? `${selectedElement.type === "text" && selectedElement.attachment ? "Attachment" : selectedElement.type === "text" && selectedElement.isCodeCard ? "Code card" : selectedElement.type === "text" && selectedElement.isDocCard ? "Document card" : selectedElement.type.charAt(0).toUpperCase() + selectedElement.type.slice(1)} selected` : isTextEditing ? "Text formatting" : "Style for new elements";
 
   const isArrow = selectedElement?.type === "arrow" || (!selectedElement && selectedTool === "arrow");
+  const isCode = selectedElement?.type === "text" && selectedElement.isCodeCard;
   const isIcon = selectedElement?.type === "icon";
   const isAttachment = selectedElement?.type === "text" && !!selectedElement.attachment;
   const isImage = selectedElement?.type === "image" || isAttachment;
@@ -196,7 +197,7 @@ export function PropertiesPanel({
   };
 
   const isTextual = !isAttachment && (isTextEditing || selectedElement?.type === "text" || selectedElement?.type === "sticky" || (!selectedElement && ["text", "doc", "sticky"].includes(selectedTool)));
-  const hasBackground = !isImage && !isIcon && !isArrow && selectedElement?.type !== "line" && selectedTool !== "line" && selectedTool !== "pencil" && (!isTextual || selectedElement?.type === "sticky" || selectedElement?.type === "text" && selectedElement.isDocCard || selectedTool === "doc" || selectedTool === "sticky");
+  const hasBackground = !isImage && !isIcon && !isArrow && selectedElement?.type !== "line" && selectedTool !== "line" && selectedTool !== "pencil" && (!isTextual || selectedElement?.type === "sticky" || selectedElement?.type === "text" && (selectedElement.isDocCard || selectedElement.isCodeCard) || selectedTool === "doc" || selectedTool === "sticky");
   const textEl = selectedElement && (selectedElement.type === "text" || selectedElement.type === "sticky") ? selectedElement : null;
   const activeFontSize = textEl ? textEl.fontSize : currentStyle.fontSize;
   const activeFamily = textEl ? textEl.fontFamily || "sans" : currentStyle.fontFamily;
@@ -284,6 +285,14 @@ export function PropertiesPanel({
       </header>
       <div className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain p-4">
       {selectedTool === "highlighter" ? <p className="text-xs leading-5 text-neutral-500 dark:text-neutral-400">The red highlighter fades after 0.2 seconds. It is visible to collaborators and is never saved or exported.</p> : <>
+      {isCode && selectedElement?.type === "text" && <section aria-label="Code card size" className="space-y-2">
+        <h3 className="text-[11px] font-medium text-neutral-500 dark:text-neutral-400">Card size</h3>
+        <div className="grid grid-cols-2 gap-2">
+          {([['width','Width',MIN_CODE_WIDTH],['height','Height',MIN_CODE_HEIGHT]] as const).map(([key,label,min])=><label key={key} className="space-y-1 text-[11px] text-neutral-600 dark:text-neutral-400">{label} (px)<input aria-label={`Code card ${key}`} type="number" min={min+32} max={10000} step="8" value={Math.round(selectedElement[key]+32)} onChange={event=>{const value=event.currentTarget.valueAsNumber;if(Number.isFinite(value))onUpdateElement({[key]:Math.max(min,Math.min(9968,value-32)),codeAutoSize:false});}} className="w-full rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 px-2 py-1 text-xs text-neutral-800 dark:text-neutral-200" /></label>)}
+        </div>
+        <button type="button" onClick={()=>onUpdateElement({codeAutoSize:true})} className="rounded-md border border-neutral-300 dark:border-neutral-700 px-2 py-1 text-xs text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800">Fit to code</button>
+        <p className="text-[10px] text-neutral-500 dark:text-neutral-400">Drag the corners to resize without changing text size. Smaller cards scroll while editing.</p>
+      </section>}
       {/* Text: size, family, alignment. Shortcuts: Ctrl+Shift+> / < */}
       {isTextual && (
         <div className="space-y-2">
@@ -479,7 +488,7 @@ export function PropertiesPanel({
 
       {hasBackground && <div className="space-y-2">
         <ColorControl label="Background color" value={activeFill === "transparent" ? "transparent" : parseFillColor(activeFill).color} onChange={fill => changeBackground(fill)} />
-        <ColorPalette kind="background" presets={["#303236", "#454b53", "#48596b", "#4a5b4c", "#6a6048", "#674c4b", "#5c5268", "#c7ba91"]} value={activeFill} onChange={fill => changeBackground(fill)} />
+        <ColorPalette kind="background" presets={isCode ? ["#000000", "#09090b", "#121212", "#18181b", "#242428", "#111d2d", "#ffffff"] : ["#303236", "#454b53", "#48596b", "#4a5b4c", "#6a6048", "#674c4b", "#5c5268", "#c7ba91"]} value={activeFill} onChange={fill => changeBackground(fill)} />
         <BackgroundStylePicker value={activeFillStyle} onChange={pattern => changeBackground(activeFill === "transparent" ? "#48596b" : parseFillColor(activeFill).color, pattern)} />
         <button type="button" aria-pressed={activeFill === "transparent"} onClick={() => changeBackground("transparent")} className="rounded-md border border-neutral-300 dark:border-neutral-700 px-2 py-1 text-xs text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-900 dark:hover:text-white">No background</button>
       </div>}

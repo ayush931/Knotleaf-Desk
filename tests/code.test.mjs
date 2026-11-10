@@ -85,7 +85,7 @@ test('syntax tokens distinguish functions, numbers, strings, keywords and commen
 
 test('all syntax colors have readable contrast on default light and dark code cards',()=>{
  const luminance=hex=>{const rgb=hex.slice(1).match(/../g).map(v=>parseInt(v,16)/255).map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4);return rgb.reduce((sum,v,i)=>sum+v*[.2126,.7152,.0722][i],0);};
- for(const [theme,background]of [['dark','#111d2d'],['light','#ffffff']])for(const color of Object.values(CODE_COLORS[theme])){
+ for(const [theme,background]of [['dark','#111d2d'],['dark','#18181b'],['dark','#000000'],['light','#ffffff']])for(const color of Object.values(CODE_COLORS[theme])){
   const a=luminance(color),b=luminance(background);expect((Math.max(a,b)+.05)/(Math.min(a,b)+.05)).toBeGreaterThanOrEqual(4.5);
  }
 });

@@ -16,7 +16,7 @@ export function canvasElementAppearance<T extends CanvasElement>(element: T, lig
   if (!light || element.type === 'image' || element.type === 'sticky') return element;
   let next = element;
   if (element.type === 'text' && (element.isDocCard || element.isCodeCard || element.attachment) && !element.cardFillCustom &&
-      ['#18181b', '#10151e', DOCUMENT_CARD_FILL, CODE_CARD_FILL].includes(element.fill.toLowerCase())) {
+      ['#18181b', '#10151e', '#111d2d', DOCUMENT_CARD_FILL, CODE_CARD_FILL].includes(element.fill.toLowerCase())) {
     next = { ...element, fill: '#ffffff' };
   }
   const lightSurface = next.fill === 'transparent' || next.fillStyle === 'none' ||
