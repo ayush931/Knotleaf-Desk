@@ -41,3 +41,9 @@ test("custom colors, explicit old-default colors, patterns, attachments and plai
   ])
     expect(cardBackground(value)).toBe(value);
 });
+
+test('code cards use charcoal-black defaults while explicit midnight and black choices are preserved',()=>{
+ expect(CODE_CARD_FILL).toBe('#18181b');
+ for(const fill of ['#111d2d','#10151e','#18181b'])expect(cardBackground({isCodeCard:true,fill,fillStyle:'solid'}).fill).toBe(CODE_CARD_FILL);
+ for(const fill of ['#000000','#09090b','#111d2d'])expect(cardBackground({isCodeCard:true,fill,fillStyle:'solid',cardFillCustom:true}).fill).toBe(fill);
+});

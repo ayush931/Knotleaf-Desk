@@ -178,3 +178,8 @@ test('light SVG export matches the white canvas and readable ink without changin
  const dark=boardToSvg([shape],false,[shape],undefined,'dot','dark');
  expect(dark).toContain('fill="#121212"');expect(dark).toContain('stroke="#FFFFFF"');
 });
+
+test('fixed-size code SVG retains its source but clips it to the chosen viewport',()=>{
+ const card={...base,id:'fixed-code',type:'text',isCodeCard:true,isDocCard:true,text:'const longName = "all source stays saved";\n'.repeat(5),fontSize:14,fontFamily:'mono',textAlign:'left',codeLanguage:'javascript',codeAutoSize:false,fill:'#000000',fillStyle:'solid',cardFillCustom:true,x:100,y:100,width:80,height:32};
+ const svg=boardToSvg([card],true);expect(svg).toContain('<clipPath');expect(svg).toContain('width="192" height="144"');expect(svg).toContain('clip-path="url(');expect(svg).toContain('all source stays saved');expect(card.text.split('\n')).toHaveLength(6);expect(card.width).toBe(80);
+});

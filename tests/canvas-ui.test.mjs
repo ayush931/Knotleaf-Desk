@@ -544,3 +544,15 @@ test('canvas code editor has no language UI and shares its syntax colors with th
   expect(document.querySelector('.code-source').style.height).toBe('100px');expect(named('Code source').value).toBe(props.value);
  }
 });
+
+test('Appearance lets code cards shrink, fit and choose explicit black backgrounds',async()=>{
+ const changes=[];const card={...DEFAULT_STYLE,id:'sized-code',type:'text',isCodeCard:true,text:'const x=1;',fontSize:14,fontFamily:'mono',textAlign:'left',x:100,y:100,width:200,height:80,fill:'#18181b',fillStyle:'solid'};
+ await act(async()=>root.render(React.createElement(PropertiesPanel,{...inspectorProps,isOpen:true,onOpenChange(){},selectedElement:card,onUpdateElement:change=>changes.push(change)})));
+ const width=named('Code card width');expect(width.value).toBe('232');expect(named('Code card height').value).toBe('112');
+ await act(async()=>{Object.getOwnPropertyDescriptor(browser.HTMLInputElement.prototype,'value').set.call(width,'152');width.dispatchEvent(new browser.Event('input',{bubbles:true}));});
+ expect(changes.at(-1)).toMatchObject({width:120,codeAutoSize:false});
+ await act(async()=>[...document.querySelectorAll('button')].find(button=>button.textContent==='Fit to code').click());expect(changes.at(-1)).toEqual({codeAutoSize:true});
+ await clickNamed('Background #000000');expect(changes.at(-1)).toMatchObject({fill:'#000000',cardFillCustom:true});
+ const {CodeEditor}=await import('../components/CodeEditor.tsx');await act(async()=>root.render(React.createElement(CodeEditor,{value:card.text,language:'auto',onChange(){},onClose(){},x:10,y:10,width:80,height:32,zoom:1,fontSize:14,background:{fill:'#09090b',fillStyle:'solid',cardFillCustom:true}})));
+ expect(document.querySelector('.code-source').style.height).toBe('32px');expect(named('Inline code editor').dataset.light).toBe('false');expect(named('Code source').value).toBe(card.text);
+});

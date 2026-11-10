@@ -1,7 +1,7 @@
 import { canvasBackground } from "./canvasAppearance";
 import { stepCanvasFontSize, textSizeShortcut } from "@/lib/textShortcuts";
 import { capturePointer, isContextPointer, releasePointer } from "@/lib/pointerInput";
-import { CODE_CARD_FILL, DOCUMENT_CARD_FILL } from "./cardAppearance";
+import { CODE_CARD_FILL, DOCUMENT_CARD_FILL, MIN_CODE_WIDTH, MIN_CODE_HEIGHT } from "./cardAppearance";
 import { sceneFontFamilies } from "./fonts";
 import { HIGHLIGHTER_LIFETIME, HIGHLIGHTER_LIMIT, liveHighlights, type HighlightPoint } from "./highlighter";
 import { isLocalAsset } from "@/lib/localAssets.mjs";
@@ -607,7 +607,7 @@ export class CanvasEngine {
     this.elements = this.elements.map((el) => {
       if (!ids.has(el.id)) return el;
       const next = { ...el, ...props } as CanvasElement;
-      return next.type === "text" && el.type === "text" ? this.remeasureChangedText(el, next) : next.type === "sticky" ? this.fitSticky(next) : next;
+      return next.type === "text" && el.type === "text" ? next.isCodeCard && "codeAutoSize" in props && props.codeAutoSize === true ? this.remeasureText(next) : this.remeasureChangedText(el, next) : next.type === "sticky" ? this.fitSticky(next) : next;
     });
     this.elements = resolveBindings(this.elements, new Set(ids));
     this.commit();
@@ -674,7 +674,7 @@ export class CanvasEngine {
   }
 
   private remeasureChangedText(before: TextElement, next: TextElement): TextElement {
-    const layout = (el: TextElement) => [el.text, el.fontSize, el.fontFamily, el.textAlign || "left", !!el.bold, !!el.italic, !!el.underline, !!el.strikethrough, el.width, el.height, !!el.textBox, !!el.isDocCard, !!el.isCodeCard];
+    const layout = (el: TextElement) => [el.text, el.fontSize, el.fontFamily, el.textAlign || "left", !!el.bold, !!el.italic, !!el.underline, !!el.strikethrough, el.width, el.height, !!el.textBox, !!el.isDocCard, !!el.isCodeCard, el.codeAutoSize];
     const previous = layout(before);
     return layout(next).some((value, index) => value !== previous[index]) ? this.remeasureText(next) : next;
   }
@@ -682,8 +682,9 @@ export class CanvasEngine {
   private remeasureText(el: TextElement): TextElement {
     if (el.attachment) return el;
     if (el.isCodeCard) {
+      if (el.codeAutoSize === false) return { ...el, width: Math.max(MIN_CODE_WIDTH, el.width), height: Math.max(MIN_CODE_HEIGHT, el.height) };
       setFont(this.ctx, el.fontSize, "mono");
-      return { ...el, width: Math.max(280, ...expandCodeTabs(el.text).split("\n").map(line => this.ctx.measureText(line).width)) + 24, height: Math.max(100, el.text.split("\n").length * el.fontSize * 1.5 + 8) };
+      return { ...el, width: Math.max(120, ...expandCodeTabs(el.text).split("\n").map(line => this.ctx.measureText(line).width)) + 8, height: Math.max(40, el.text.split("\n").length * el.fontSize * 1.5 + 8) };
     }
     if (el.textBox) { const width=Math.max(32,el.width); const layout=layoutDocument(this.ctx,el.text,el.fontSize,el.fontFamily,{...el,width}); return {...el,width,height:Math.max(el.height,layout.totalHeight)}; }
     const size = measureTextBlock(this.ctx, el.text, el.fontSize, el.fontFamily, el);
@@ -2383,6 +2384,12 @@ export class CanvasEngine {
       const rect = { x: x0, y: y0, width: x1 - x0, height: y1 - y0 };
       if (snapshot.type === "pencil") return { ...snapshot, ...rect, points: snapshot.points.map(p => ({ x: x0 + (p.x - r.x) * rect.width / Math.max(r.w, 1), y: y0 + (p.y - r.y) * rect.height / Math.max(r.h, 1) })) };
       if (snapshot.type === "text") {
+        if (snapshot.isCodeCard) {
+          const width = Math.max(MIN_CODE_WIDTH, rect.width), height = Math.max(MIN_CODE_HEIGHT, rect.height);
+          return { ...snapshot, codeAutoSize: false, width, height,
+            x: g.handle.includes("w") ? r.x+r.w-width : r.x,
+            y: g.handle.includes("n") ? r.y+r.h-height : r.y };
+        }
         if(snapshot.textBox)return this.remeasureText({...snapshot,...rect});
         const horizontal = g.handle.includes("w") || g.handle.includes("e");
         const vertical = g.handle.includes("n") || g.handle.includes("s");

@@ -170,6 +170,8 @@ export interface TextElement extends BaseElement, TextFormatting {
   isDocCard?: boolean;
   cardFillCustom?: boolean;
   isCodeCard?: boolean;
+  /** False keeps the user-sized code viewport when its source changes. */
+  codeAutoSize?: boolean;
   codeLanguage?: string;
   title?: string;
 }
