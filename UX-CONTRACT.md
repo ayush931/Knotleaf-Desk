@@ -271,3 +271,5 @@ Gaining/losing text focus preserves canvas coordinates, code viewport, and align
 First creation and every refocus preserve the exact text anchor, including empty hints, viewport edges and fractional zoom. Inline text grows instead of internally scrolling; native caret scroll offsets reset before paint and on scroll. Plain/sticky canvas text uses measured CSS 1.35 line-box baselines, and glyph hit bounds share that baseline. Code retains its separate scrollable viewport contract.
 
 The chosen Arrow routing applies consistently to direct drawing, connector-port dragging and connected-shape generation. Straight remains the fallback; Elbow and Curved retain endpoint bindings, undo/redo and manual bend controls.
+
+Red dashed alignment guides show all matching edges and centers together, including bottom and middle. Snapping chooses a single nearest delta per axis, then guides use final bounds and merge duplicate reference spans. Vertical/horizontal gap rulers retain pixel distances and equal-spacing indicators. Guides clear on finish/cancel and never enter saved artwork or exports.
