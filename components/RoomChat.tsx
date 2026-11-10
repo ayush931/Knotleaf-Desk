@@ -42,7 +42,7 @@ export function RoomChat({
       className="space-y-3 rounded-lg border border-neutral-700 bg-neutral-950/40 p-3"
     >
       <h3 className="flex items-center gap-2 text-sm font-medium text-neutral-200">
-        <MessageCircle aria-hidden="true" className="h-4 w-4 text-blue-400" />
+        <MessageCircle aria-hidden="true" className="h-4 w-4 text-neutral-400" />
         {label}
         <span className="ml-auto text-[11px] font-normal text-neutral-500">
           {messages.length}/100
@@ -68,12 +68,12 @@ export function RoomChat({
             follow.current =
               el.scrollHeight - el.scrollTop - el.clientHeight < 32;
         }}
-        className="max-h-52 min-h-16 space-y-3 overflow-y-auto overscroll-contain rounded-md text-xs focus-visible:outline-2 focus-visible:outline-blue-500"
+        className="max-h-52 min-h-16 space-y-3 overflow-y-auto overscroll-contain rounded-md text-xs focus-visible:outline-2 focus-visible:outline-black dark:focus-visible:outline-white"
       >
         {messages.map((message) => (
           <li key={message.id} className="min-w-0">
             <div className="flex items-baseline gap-2">
-              <span className="min-w-0 truncate font-medium text-blue-300">
+              <span className="min-w-0 truncate font-medium text-neutral-300">
                 {message.name}
               </span>
               <time
@@ -140,7 +140,7 @@ export function RoomChat({
           <button
             type="submit"
             disabled={!connected || !draft.trim()}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-blue-500/40 bg-blue-500/10 px-3 py-2 text-xs text-blue-300 hover:bg-blue-500/20 disabled:opacity-40"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-500/40 bg-neutral-500/10 px-3 py-2 text-xs text-neutral-300 hover:bg-neutral-500/20 disabled:opacity-40"
           >
             <Send aria-hidden="true" className="h-3.5 w-3.5" />
             Send
@@ -157,7 +157,7 @@ export function RoomChat({
           : "Chat disconnected. Your draft is kept; reconnect to send."}
       </p>
       {error && (
-        <p role="alert" className="text-xs text-rose-300">
+        <p role="alert" className="text-xs text-neutral-300">
           {error}
         </p>
       )}

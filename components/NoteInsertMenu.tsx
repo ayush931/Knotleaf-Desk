@@ -61,7 +61,7 @@ export function NoteInsertMenu({
     <div
       role="region"
       aria-label="Insert note block"
-      className="absolute z-50 w-80 max-w-[calc(100%-1rem)] overflow-hidden rounded-xl border border-neutral-700 bg-[#18181b] text-xs shadow-xl"
+      className="absolute z-50 w-80 max-w-[calc(100%-1rem)] overflow-hidden rounded-xl border border-neutral-700 bg-white dark:bg-black text-xs shadow-xl"
       style={{
         top: position.top,
         left: position.left,
@@ -128,7 +128,7 @@ export function NoteInsertMenu({
               tabIndex={i === index ? 0 : -1}
               onFocus={() => onIndex(i)}
               key={command.id}
-              className={`block w-full rounded-lg px-3 py-2 text-left ${i === index ? "bg-blue-500/15 text-blue-300" : "text-neutral-200 hover:bg-neutral-800"}`}
+              className={`block w-full rounded-lg px-3 py-2 text-left ${i === index ? "bg-neutral-500/15 text-neutral-300" : "text-neutral-200 hover:bg-neutral-800"}`}
               onMouseEnter={() => onIndex(i)}
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => onRun(command)}

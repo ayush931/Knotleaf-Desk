@@ -260,7 +260,7 @@ export function PropertiesPanel({
       <button ref={openButton} type="button" onMouseDown={event => { if (preserveTextFocus) event.preventDefault(); }} onClick={() => onOpenChange(true)}
         style={{ top: topOffset }} aria-expanded={false}
         title="Style · stroke, background and text" aria-label="Open appearance settings" aria-controls="appearance-settings"
-        className="absolute left-2 z-30 flex h-9 w-9 sm:h-8 sm:w-8 items-center justify-center rounded-md border drawing-panel text-xs font-medium text-neutral-700 dark:text-neutral-200 shadow-sm transition-colors hover:border-neutral-400 dark:hover:border-neutral-500 hover:text-neutral-900 dark:hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
+        className="absolute left-2 z-30 flex h-9 w-9 sm:h-8 sm:w-8 items-center justify-center rounded-md border drawing-panel text-xs font-medium text-neutral-700 dark:text-neutral-200 shadow-sm transition-colors hover:border-neutral-400 dark:hover:border-neutral-500 hover:text-neutral-900 dark:hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black dark:focus-visible:outline-white"
       ><Palette aria-hidden="true" strokeWidth={1.75} className="h-[18px] w-[18px] shrink-0" /><span className="sr-only">Style</span></button>
     );
   }
@@ -278,10 +278,10 @@ export function PropertiesPanel({
       className="absolute left-2 z-30 flex w-72 max-w-[calc(100%-1rem)] flex-col overflow-hidden rounded-md border drawing-panel text-neutral-800 dark:text-neutral-200 shadow-sm select-none"
     >
       <header className="flex shrink-0 items-center gap-3 border-b border-neutral-200 dark:border-neutral-800 px-4 py-3">
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-blue-50 dark:bg-blue-500/20 text-blue-700 dark:text-blue-200"><Palette className="h-4 w-4" /></span>
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-neutral-50 dark:bg-neutral-500/20 text-neutral-700 dark:text-neutral-200"><Palette className="h-4 w-4" /></span>
         <div className="min-w-0 flex-1"><h2 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Appearance</h2><p className="truncate text-[11px] text-neutral-500 dark:text-neutral-400">{context}</p></div>
         <button ref={closeButton} type="button" onClick={close} title="Hide appearance settings · Escape" aria-label="Collapse appearance settings"
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-neutral-500 dark:text-neutral-400 transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-900 dark:hover:text-white focus-visible:outline-2 focus-visible:outline-blue-500"><X className="h-4 w-4" /></button>
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-neutral-500 dark:text-neutral-400 transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-900 dark:hover:text-white focus-visible:outline-2 focus-visible:outline-black dark:focus-visible:outline-white"><X className="h-4 w-4" /></button>
       </header>
       <div className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain p-4">
       {selectedTool === "highlighter" ? <p className="text-xs leading-5 text-neutral-500 dark:text-neutral-400">The red highlighter fades after 0.2 seconds. It is visible to collaborators and is never saved or exported.</p> : <>
@@ -301,7 +301,7 @@ export function PropertiesPanel({
             {([ ["bold", "B", "Bold", "B"], ["italic", "I", "Italic", "I"], ["underline", "U", "Underline", "U"], ["strikethrough", "S", "Strikethrough", "Shift+X"] ] as const).map(([key, label, name, shortcut]) => {
               const active = !!(textEl || currentStyle)[key];
               return <button key={key} aria-label={name} aria-pressed={active} title={`${name} (Ctrl/Cmd+${shortcut})`}
-                className={`h-7 rounded-md text-xs transition ${active ? "bg-purple-600 text-white font-semibold shadow-xs" : "bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700"} ${key === "bold" ? "font-bold" : key === "italic" ? "italic" : key === "underline" ? "underline" : "line-through"}`}
+                className={`h-7 rounded-md text-xs transition ${active ? "ui-primary text-white font-semibold shadow-xs" : "bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700"} ${key === "bold" ? "font-bold" : key === "italic" ? "italic" : key === "underline" ? "underline" : "line-through"}`}
                 onClick={() => { onUpdateElement({ [key]: !active }); onUpdateStyle({ [key]: !active }); }}>{label}</button>;
             })}
           </div>
@@ -321,7 +321,7 @@ export function PropertiesPanel({
                   onUpdateElement({ fontFamily: fam });
                   onUpdateStyle({ fontFamily: fam });
                 }}
-                className={`min-h-7 px-1 py-1 rounded font-medium transition cursor-pointer focus-visible:outline-2 focus-visible:outline-blue-500 active:bg-neutral-200 dark:active:bg-neutral-600 ${activeFamily === fam ? "bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white shadow-xs" : "text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200/60 dark:hover:bg-neutral-700/60 hover:text-neutral-900 dark:hover:text-white"}`}
+                className={`min-h-7 px-1 py-1 rounded font-medium transition cursor-pointer focus-visible:outline-2 focus-visible:outline-black dark:focus-visible:outline-white active:bg-neutral-200 dark:active:bg-neutral-600 ${activeFamily === fam ? "bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white shadow-xs" : "text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200/60 dark:hover:bg-neutral-700/60 hover:text-neutral-900 dark:hover:text-white"}`}
               >
                 {label}
               </button>
@@ -349,7 +349,7 @@ export function PropertiesPanel({
             <details className="border-t border-neutral-200 dark:border-neutral-800 pt-2 text-xs"><summary className="cursor-pointer py-1 text-neutral-500 dark:text-neutral-400">Document card</summary><div className="mt-2 space-y-2">
               <div className="flex items-center justify-between">
                 <label className="text-[10px] font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider flex items-center gap-1">
-                  <FileText className="w-3 h-3 text-purple-500 dark:text-purple-400" />
+                  <FileText className="w-3 h-3 text-neutral-500 dark:text-neutral-400" />
                   Doc Container
                 </label>
                 <button
@@ -362,7 +362,7 @@ export function PropertiesPanel({
                   }
                   className={`px-2 py-0.5 rounded text-[10px] font-medium transition cursor-pointer ${
                     textEl.isDocCard
-                      ? "bg-purple-600 text-white font-semibold shadow-xs"
+                      ? "ui-primary text-white font-semibold shadow-xs"
                       : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700 hover:text-neutral-900 dark:hover:text-white"
                   }`}
                 >
@@ -376,7 +376,7 @@ export function PropertiesPanel({
                   placeholder="Card Title (e.g. Spec, Notes)..."
                   value={textEl.title || ""}
                   onChange={(e) => onUpdateElement({ title: e.target.value })}
-                  className="w-full text-[11px] py-1 px-2 rounded-lg bg-neutral-100 dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 dark:placeholder:text-neutral-500 outline-none focus:border-purple-500 transition"
+                  className="w-full text-[11px] py-1 px-2 rounded-lg bg-neutral-100 dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 dark:placeholder:text-neutral-500 outline-none focus:border-neutral-500 transition"
                 />
               )}
             </div></details>
@@ -449,7 +449,7 @@ export function PropertiesPanel({
               <button
                 onClick={() => handleApplyBulletVariant("clear")}
                 title="Clear Bullets / Numbering"
-                className="w-full py-0.5 rounded text-[10px] text-neutral-500 dark:text-neutral-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition text-center cursor-pointer"
+                className="w-full py-0.5 rounded text-[10px] text-neutral-500 dark:text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition text-center cursor-pointer"
               >
                 Clear List Bullets
               </button>
@@ -469,7 +469,7 @@ export function PropertiesPanel({
                 const bend = event.currentTarget.valueAsNumber;
                 if (Number.isFinite(bend)) onUpdateElement({ bendOffset: bend * 2 });
               }}
-              className="w-20 rounded border border-neutral-300 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-900 px-2 py-1 text-neutral-800 dark:text-neutral-200 focus-visible:outline-2 focus-visible:outline-blue-500" />
+              className="w-20 rounded border border-neutral-300 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-900 px-2 py-1 text-neutral-800 dark:text-neutral-200 focus-visible:outline-2 focus-visible:outline-black dark:focus-visible:outline-white" />
           </label>
           <p className="text-[10px] text-neutral-500 dark:text-neutral-400">Use positive or negative values to bend either way. Set 0 for a straight line.</p>
         </div>
@@ -600,7 +600,7 @@ export function PropertiesPanel({
       {isArrow && (
         <div className="pt-2 border-t border-neutral-200 dark:border-neutral-800 space-y-2">
           <div>
-            <label className="text-[10px] font-semibold text-blue-500 uppercase tracking-wider block mb-1">
+            <label className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wider block mb-1">
               Arrow Routing
             </label>
             <div role="group" aria-label="Arrow routing" className="grid grid-cols-3 gap-1 p-0.5 rounded-lg bg-neutral-100 dark:bg-neutral-800 text-[10px] text-center">
@@ -625,7 +625,7 @@ export function PropertiesPanel({
                     : "text-neutral-500 hover:text-neutral-800 dark:hover:text-white"
                 }`}
               >
-                <CornerDownRight className="w-3 h-3 text-blue-500" />
+                <CornerDownRight className="w-3 h-3 text-neutral-500" />
                 Elbow
               </button>
               <button
@@ -637,7 +637,7 @@ export function PropertiesPanel({
                     : "text-neutral-500 hover:text-neutral-800 dark:hover:text-white"
                 }`}
               >
-                <Spline className="w-3 h-3 text-purple-500" />
+                <Spline className="w-3 h-3 text-neutral-500" />
                 Curved
               </button>
             </div>
@@ -657,7 +657,7 @@ export function PropertiesPanel({
                       const routing = bend === 0 ? "straight" : "curved";
                       onUpdateElement({ routing, elbow: routing, bendOffset: bend * 2 });
                     }}
-                    className="w-20 rounded border border-neutral-300 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-900 px-2 py-1 text-neutral-800 dark:text-neutral-200 focus-visible:outline-2 focus-visible:outline-blue-500"
+                    className="w-20 rounded border border-neutral-300 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-900 px-2 py-1 text-neutral-800 dark:text-neutral-200 focus-visible:outline-2 focus-visible:outline-black dark:focus-visible:outline-white"
                   />
                 </label>
                 <p className="text-[10px] text-neutral-500 dark:text-neutral-400">Use positive or negative values to bend either way. Choose Straight to reset.</p>
@@ -675,7 +675,7 @@ export function PropertiesPanel({
                 aria-label="Arrow start cap"
                 value={activeHeadStart}
                 onChange={(e) => handleHeadStart(e.target.value as ArrowHead)}
-                className="w-full text-[11px] py-1 px-1.5 rounded-lg bg-neutral-100 dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 text-neutral-800 dark:text-neutral-200 outline-none focus:border-blue-500"
+                className="w-full text-[11px] py-1 px-1.5 rounded-lg bg-neutral-100 dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 text-neutral-800 dark:text-neutral-200 outline-none focus:border-neutral-500"
               >
                 <option value="none">None</option>
                 <option value="arrow">Arrow</option>
@@ -692,7 +692,7 @@ export function PropertiesPanel({
                 aria-label="Arrow end cap"
                 value={activeHeadEnd}
                 onChange={(e) => handleHeadEnd(e.target.value as ArrowHead)}
-                className="w-full text-[11px] py-1 px-1.5 rounded-lg bg-neutral-100 dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 text-neutral-800 dark:text-neutral-200 outline-none focus:border-blue-500"
+                className="w-full text-[11px] py-1 px-1.5 rounded-lg bg-neutral-100 dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 text-neutral-800 dark:text-neutral-200 outline-none focus:border-neutral-500"
               >
                 <option value="arrow">Arrow</option>
                 <option value="none">None</option>
@@ -726,7 +726,7 @@ export function PropertiesPanel({
               title="Toggle Live Animated Flow (Marching dots/dashes)"
               className={`flex-1 py-1 px-1 rounded-lg text-[10px] font-medium flex items-center justify-center gap-1 transition cursor-pointer ${
                 isAnimated
-                  ? "bg-amber-500/20 text-amber-500 border border-amber-500/30 font-semibold"
+                  ? "bg-neutral-500/20 text-neutral-500 border border-neutral-500/30 font-semibold"
                   : "bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-300"
               }`}
             >
@@ -746,7 +746,7 @@ export function PropertiesPanel({
               value={arrowEl?.label || ""}
               onChange={(e) => handleArrowLabel(e.target.value)}
               placeholder="e.g. HTTP, Events..."
-              className="w-full text-[11px] py-1 px-2 rounded-lg bg-neutral-100 dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 outline-none focus:border-blue-500 transition"
+              className="w-full text-[11px] py-1 px-2 rounded-lg bg-neutral-100 dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 outline-none focus:border-neutral-500 transition"
             />
           </div>
         </div>
@@ -766,7 +766,7 @@ export function PropertiesPanel({
           aria-label="Opacity"
           value={activeOpacity ?? 1}
           onChange={(e) => handleOpacity(parseFloat(e.target.value))}
-          className="w-full h-1 bg-neutral-200 dark:bg-neutral-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
+          className="w-full h-1 bg-neutral-200 dark:bg-neutral-700 rounded-lg appearance-none cursor-pointer accent-black dark:accent-white"
         />
       </div>
 
@@ -774,10 +774,10 @@ export function PropertiesPanel({
       {onBackgroundChange && <details className="border-t border-neutral-200 dark:border-neutral-800 pt-2"><summary className="cursor-pointer py-1 text-xs text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-200 transition">Canvas background</summary><div className="mt-2 space-y-2"><ColorControl label="Canvas background color" value={background.fill} onChange={fill => onBackgroundChange({ ...background, fill, fillOpacity: 1 })} /><BackgroundStylePicker label="Canvas background style" value={background.fillStyle} onChange={fillStyle => onBackgroundChange({ ...background, fillStyle, fillOpacity: 1 })} /></div></details>}
       </div>
       {selectionCount > 0 && <footer aria-label="Selection actions" className="grid shrink-0 grid-cols-2 gap-2 border-t border-neutral-200 dark:border-neutral-800 bg-neutral-50/95 dark:bg-neutral-900/80 p-3 text-xs">
-        <button onClick={onDuplicate} aria-label="Duplicate selection" title="Duplicate (Ctrl/Cmd+D)" className="flex h-8 items-center justify-center gap-2 rounded-lg border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 focus-visible:outline-2 focus-visible:outline-blue-500 transition cursor-pointer"><Copy className="h-3.5 w-3.5" />Duplicate</button>
-        <button onClick={onDelete} aria-label="Delete selection" title="Delete (Del)" className="flex h-8 items-center justify-center gap-2 rounded-lg border border-neutral-300 dark:border-neutral-700 text-rose-600 dark:text-rose-400 hover:border-rose-500/50 hover:bg-rose-50 dark:hover:bg-rose-500/10 focus-visible:outline-2 focus-visible:outline-rose-500 transition cursor-pointer"><Trash2 className="h-3.5 w-3.5" />Delete</button>
-        <button onClick={onBringToFront} className="flex h-8 items-center justify-center gap-2 rounded-lg text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-900 dark:hover:text-white focus-visible:outline-2 focus-visible:outline-blue-500 transition cursor-pointer"><BringToFront className="h-3.5 w-3.5" />Bring to front</button>
-        <button onClick={onSendToBack} className="flex h-8 items-center justify-center gap-2 rounded-lg text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-900 dark:hover:text-white focus-visible:outline-2 focus-visible:outline-blue-500 transition cursor-pointer"><SendToBack className="h-3.5 w-3.5" />Send to back</button>
+        <button onClick={onDuplicate} aria-label="Duplicate selection" title="Duplicate (Ctrl/Cmd+D)" className="flex h-8 items-center justify-center gap-2 rounded-lg border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 focus-visible:outline-2 focus-visible:outline-black dark:focus-visible:outline-white transition cursor-pointer"><Copy className="h-3.5 w-3.5" />Duplicate</button>
+        <button onClick={onDelete} aria-label="Delete selection" title="Delete (Del)" className="flex h-8 items-center justify-center gap-2 rounded-lg border border-neutral-300 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400 hover:border-neutral-500/50 hover:bg-neutral-50 dark:hover:bg-neutral-500/10 focus-visible:outline-2 focus-visible:outline-neutral-500 transition cursor-pointer"><Trash2 className="h-3.5 w-3.5" />Delete</button>
+        <button onClick={onBringToFront} className="flex h-8 items-center justify-center gap-2 rounded-lg text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-900 dark:hover:text-white focus-visible:outline-2 focus-visible:outline-black dark:focus-visible:outline-white transition cursor-pointer"><BringToFront className="h-3.5 w-3.5" />Bring to front</button>
+        <button onClick={onSendToBack} className="flex h-8 items-center justify-center gap-2 rounded-lg text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-900 dark:hover:text-white focus-visible:outline-2 focus-visible:outline-black dark:focus-visible:outline-white transition cursor-pointer"><SendToBack className="h-3.5 w-3.5" />Send to back</button>
       </footer>}
     </div>
   );

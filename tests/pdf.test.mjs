@@ -1,5 +1,5 @@
 import { test, expect } from 'bun:test';
-import { PDFDocument } from 'pdf-lib';
+import { PDFDocument, decodePDFRawStream } from 'pdf-lib';
 import { createProjectPdf, choosePageEnd } from '../draw/projectPdf.tsx';
 const png = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j8i8AAAAASUVORK5CYII=';
 test('PDF exports independently support canvas, notes and the combined project', async () => {
@@ -27,4 +27,12 @@ test('PDF notes break before intersecting lines and always advance', () => {
 test('canvas PDF pages match artwork aspect ratio without added margins or labels',async()=>{
  const pdf=await PDFDocument.load(await createProjectPdf({title:'Canvas parity',canvas:png,includeCanvas:true,includeNotes:false}));
  expect(pdf.getPage(0).getWidth()).toBe(pdf.getPage(0).getHeight());
+});
+
+
+test('combined PDF retains separate canvas and notes theme backgrounds',async()=>{
+ const pdf=await PDFDocument.load(await createProjectPdf({title:'Separate themes',includeCanvas:true,includeNotes:true,backgroundColor:'#000000',notesBackgroundColor:'#ffffff',notesInkColor:'#000000'}));
+ const streams=pdf.getPages().map(page=>{const ref=page.node.Contents().get(0);return new TextDecoder().decode(decodePDFRawStream(pdf.context.lookup(ref)).decode());});
+ const fill=source=>source.match(/([0-9.]+) ([0-9.]+) ([0-9.]+) rg/).slice(1).map(Number);
+ expect(fill(streams[0])).toEqual([0,0,0]);expect(fill(streams[1])).toEqual([1,1,1]);
 });

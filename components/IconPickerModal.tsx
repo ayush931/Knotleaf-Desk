@@ -108,7 +108,7 @@ export function IconPickerModal({ isOpen, onClose, onSelectIcon, onSelectOnline 
     }
   };
 
-  const panel = "bg-[#18181b] border-neutral-800 text-white";
+  const panel = "bg-white dark:bg-black border-neutral-800 text-white";
   const subtle = "text-neutral-400";
   const cell = "border-neutral-800 hover:bg-neutral-800/80";
   const input = "bg-neutral-800 border-neutral-700 text-white";
@@ -119,21 +119,21 @@ export function IconPickerModal({ isOpen, onClose, onSelectIcon, onSelectOnline 
       <div className="flex max-h-[85dvh] flex-col">
         <div className="px-5 py-4 border-b flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <Library className="w-5 h-5 text-blue-500" />
+            <Library className="w-5 h-5 text-neutral-500" />
             <h2 className="font-semibold">Insert icon</h2>
           </div>
           <div className="flex items-center rounded-lg p-0.5 bg-neutral-500/10 text-xs font-medium">
             <button
               aria-pressed={mode === "bundled"}
               onClick={() => { insertion.current?.abort(); insertion.current = null; setBusyId(null); setPickError(""); setMode("bundled"); }}
-              className={`px-3 py-1.5 rounded-md flex items-center gap-1.5 ${mode === "bundled" ? "bg-blue-600 text-white" : subtle}`}
+              className={`px-3 py-1.5 rounded-md flex items-center gap-1.5 ${mode === "bundled" ? "ui-primary text-white" : subtle}`}
             >
               <Library className="w-3.5 h-3.5" /> Built-in
             </button>
             <button
               aria-pressed={mode === "online"}
               onClick={() => { setPickError(""); setMode("online"); }}
-              className={`px-3 py-1.5 rounded-md flex items-center gap-1.5 ${mode === "online" ? "bg-blue-600 text-white" : subtle}`}
+              className={`px-3 py-1.5 rounded-md flex items-center gap-1.5 ${mode === "online" ? "ui-primary text-white" : subtle}`}
             >
               <Globe className="w-3.5 h-3.5" /> Search online
             </button>
@@ -155,7 +155,7 @@ export function IconPickerModal({ isOpen, onClose, onSelectIcon, onSelectOnline 
               onCompositionEnd={() => setComposing(false)}
               onChange={(e) => { setSearch(e.target.value); setPickError(""); }}
               placeholder={mode === "online" ? "Search 200,000+ icons: aws lambda, kubernetes, postgres…" : "Search built-in icons…"}
-              className={`w-full pl-9 pr-9 py-2 text-sm rounded-xl border focus:outline-none focus:ring-2 focus:ring-blue-500 ${input}`}
+              className={`w-full pl-9 pr-9 py-2 text-sm rounded-xl border focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white ${input}`}
             />
             {search && <button aria-label="Clear icon search" onClick={() => { setSearch(""); setPickError(""); searchInput.current?.focus(); }} className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-neutral-400 hover:text-white"><X className="h-4 w-4" /></button>}
           </div>
@@ -166,7 +166,7 @@ export function IconPickerModal({ isOpen, onClose, onSelectIcon, onSelectOnline 
                   key={c.id}
                   onClick={() => setCategory(c.id)}
                   className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap border transition ${
-                    category === c.id ? "bg-blue-600 border-blue-600 text-white" : `border-neutral-500/30 ${subtle}`
+                    category === c.id ? "ui-primary border-neutral-600 text-white" : `border-neutral-500/30 ${subtle}`
                   }`}
                 >
                   {c.label}
@@ -207,12 +207,12 @@ export function IconPickerModal({ isOpen, onClose, onSelectIcon, onSelectOnline 
                 </div>
               )}
               {status === "error" && (
-                <div role="alert" className="py-8 text-center text-sm text-rose-400"><p>{online.error}</p><button onClick={retrySearch} className="mt-3 rounded-lg border border-neutral-700 px-3 py-2 text-neutral-200">Retry search</button></div>
+                <div role="alert" className="py-8 text-center text-sm text-neutral-400"><p>{online.error}</p><button onClick={retrySearch} className="mt-3 rounded-lg border border-neutral-700 px-3 py-2 text-neutral-200">Retry search</button></div>
               )}
               {status === "idle" && !composing && search.trim().length >= 2 && visibleOnline.length === 0 && (
                 <p className={`text-sm text-center py-10 ${subtle}`}>No icons found for &ldquo;{search.trim()}&rdquo;.</p>
               )}
-              {pickError && <p role="alert" className="mb-3 text-sm text-rose-400">{pickError} You can retry or choose another icon.</p>}
+              {pickError && <p role="alert" className="mb-3 text-sm text-neutral-400">{pickError} You can retry or choose another icon.</p>}
               <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2.5">
                 {visibleOnline.map((hit) => {
                   const [prefix, name] = hit.id.split(":");

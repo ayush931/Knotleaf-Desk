@@ -195,7 +195,7 @@ export function PresentationPresenter({
           {error && (
             <p
               role="alert"
-              className="bg-red-950 px-3 py-2 text-xs text-red-200"
+              className="bg-neutral-950 px-3 py-2 text-xs text-neutral-200"
             >
               {error}
             </p>
@@ -272,7 +272,7 @@ export function PresentationPresenter({
                     key={`${i}:${slide.start}`}
                     aria-label={`Go to slide ${i + 1}: ${slide.title}`}
                     onClick={() => jump(i)}
-                    className={`overflow-hidden rounded-lg border text-left ${active === i ? "border-blue-500 ring-1 ring-blue-500" : "border-neutral-700"}`}
+                    className={`overflow-hidden rounded-lg border text-left ${active === i ? "border-neutral-500 ring-1 ring-black dark:ring-white" : "border-neutral-700"}`}
                   >
                     <div className="pointer-events-none aspect-video">
                       <SlideSurface slide={slide} deck={deck} lazy />
@@ -319,7 +319,7 @@ export function PresentationPresenter({
                       ["Esc", "Close a tool, then exit"],
                     ].map(([keys, action]) => (
                       <div key={keys} className="contents">
-                        <dt className="font-mono text-blue-300">{keys}</dt>
+                        <dt className="font-mono text-neutral-300">{keys}</dt>
                         <dd className="text-neutral-300">{action}</dd>
                       </div>
                     ))}
@@ -335,7 +335,7 @@ export function PresentationPresenter({
           </div>
           <div className="h-0.5 shrink-0 bg-neutral-800">
             <div
-              className="h-full bg-blue-500 transition-[width] duration-200 motion-reduce:transition-none"
+              className="h-full ui-primary transition-[width] duration-200 motion-reduce:transition-none"
               style={{ width: `${((active + 1) / slides.length) * 100}%` }}
             />
           </div>
@@ -353,7 +353,7 @@ export function PresentationPresenter({
                     setColor(value);
                     setTool("pen");
                   }}
-                  className={`h-6 w-6 rounded-full border-2 ${color === value ? "border-white ring-1 ring-blue-500" : "border-neutral-600"}`}
+                  className={`h-6 w-6 rounded-full border-2 ${color === value ? "border-white ring-1 ring-black dark:ring-white" : "border-neutral-600"}`}
                   style={{ background: value }}
                 />
               ))}
@@ -470,7 +470,7 @@ export function PresentationPresenter({
               {timeGoal > 0 && (
                 <span
                   aria-label="Time remaining"
-                  className={`whitespace-nowrap text-[10px] tabular-nums ${elapsed >= timeGoal ? "text-red-300" : "text-neutral-400"}`}
+                  className={`whitespace-nowrap text-[10px] tabular-nums ${elapsed >= timeGoal ? "text-neutral-300" : "text-neutral-400"}`}
                 >
                   {elapsed >= timeGoal ? "Over by " : "Left "}
                   {Math.floor(Math.abs(timeGoal - elapsed) / 60)}:

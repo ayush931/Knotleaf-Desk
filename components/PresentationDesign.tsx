@@ -34,7 +34,7 @@ export function PresentationDesign({
       aria-labelledby={title}
       onCancel={onClose}
       onClose={onClose}
-      className="m-auto max-h-[88dvh] w-[min(660px,94vw)] overflow-auto rounded-xl border border-neutral-700 bg-[#18181b] p-5 text-neutral-200 backdrop:bg-black/70"
+      className="m-auto max-h-[88dvh] w-[min(660px,94vw)] overflow-auto rounded-xl border border-neutral-700 bg-white dark:bg-black p-5 text-neutral-200 backdrop:bg-black/70"
     >
       <header className="mb-5 flex items-center justify-between">
         <div>
@@ -62,13 +62,13 @@ export function PresentationDesign({
               key={name}
               aria-pressed={(deck.template || "classic") === name}
               onClick={() => onChange({ template: name })}
-              className={`rounded-lg border p-3 text-left capitalize ${(deck.template || "classic") === name ? "border-blue-500 bg-blue-500/10 text-blue-200" : "border-neutral-700 hover:border-neutral-500"}`}
+              className={`rounded-lg border p-3 text-left capitalize ${(deck.template || "classic") === name ? "border-neutral-500 bg-neutral-500/10 text-neutral-200" : "border-neutral-700 hover:border-neutral-500"}`}
             >
               <div
-                className={`mb-3 h-14 rounded bg-neutral-950 p-2 ${name === "spotlight" ? "flex flex-col items-center justify-center" : ""} ${name === "editorial" ? "border-t-2 border-blue-300" : ""}`}
+                className={`mb-3 h-14 rounded bg-neutral-950 p-2 ${name === "spotlight" ? "flex flex-col items-center justify-center" : ""} ${name === "editorial" ? "border-t-2 border-neutral-300" : ""}`}
               >
                 <span
-                  className={`mb-1 block h-1.5 w-8 rounded bg-blue-200 ${name === "spotlight" ? "w-12!" : ""}`}
+                  className={`mb-1 block h-1.5 w-8 rounded bg-neutral-200 ${name === "spotlight" ? "w-12!" : ""}`}
                 />
                 <span className="mb-1 block h-1 w-12 rounded bg-neutral-600" />
                 {name !== "minimal" && (
@@ -146,7 +146,7 @@ export function PresentationDesign({
             }
           />
           <button
-            className="text-blue-300 hover:underline"
+            className="text-neutral-300 hover:underline"
             type="button"
             onClick={() => onChange({ backgroundColor: undefined })}
           >
@@ -181,7 +181,7 @@ export function PresentationDesign({
             Image opacity
             <input
               aria-label="Background image opacity"
-              className="min-w-0 flex-1 accent-blue-500"
+              className="min-w-0 flex-1 accent-black dark:accent-white"
               type="range"
               min="0"
               max="100"
@@ -219,7 +219,7 @@ export function PresentationDesign({
           }}
         />
         {error && (
-          <p role="alert" className="mt-2 text-xs text-red-300">
+          <p role="alert" className="mt-2 text-xs text-neutral-300">
             {error}
           </p>
         )}
@@ -232,7 +232,7 @@ export function PresentationDesign({
             onChange={(event) =>
               onChange({ animateBackground: event.target.checked })
             }
-            className="accent-blue-500"
+            className="accent-black dark:accent-white"
           />
           Slow backdrop animation
         </label>
@@ -243,7 +243,7 @@ export function PresentationDesign({
             onChange={(event) =>
               onChange({ animateBlocks: event.target.checked })
             }
-            className="accent-blue-500"
+            className="accent-black dark:accent-white"
           />
           Stagger slide content
         </label>

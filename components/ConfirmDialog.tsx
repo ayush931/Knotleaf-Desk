@@ -25,7 +25,7 @@ export function ConfirmDialog({
       onCancel={onClose}
       onClose={onClose}
       aria-labelledby={titleId}
-      className="m-auto w-[min(400px,90vw)] rounded-xl border border-neutral-700 bg-[#18181b] p-5 text-neutral-100 shadow-2xl"
+      className="m-auto w-[min(400px,90vw)] rounded-xl border border-neutral-700 bg-white dark:bg-black p-5 text-neutral-100 shadow-2xl"
     >
       <h2 id={titleId} className="text-base font-semibold">
         {variant === "delete-presentation" ? `Delete “${name}”?` : variant === "replace-presentation"
@@ -54,7 +54,7 @@ export function ConfirmDialog({
             onConfirm();
             onClose();
           }}
-          className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-500"
+          className="rounded-lg ui-primary px-4 py-2 text-sm font-medium text-white hover:bg-neutral-500"
         >
           {variant === "delete-presentation" ? "Delete presentation" : variant === "replace-presentation"
             ? "Open presentation"

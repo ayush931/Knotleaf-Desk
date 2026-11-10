@@ -39,7 +39,7 @@ export async function renderToCanvas(elements: CanvasElement[], theme: Theme, sc
   ctx.translate(-bounds.minX + PADDING, -bounds.minY + PADDING);
   let lastYield = performance.now();
   for (let index = 0; index < elements.length; index++) {
-    drawElement(ctx, elements[index], { theme, scene, lightCanvas: theme === "light" && isLightBackground(displayBackground) });
+    drawElement(ctx, elements[index], { theme, scene, lightCanvas: transparent || displayBackground.fillOpacity===0 ? theme === "light" : isLightBackground(displayBackground) });
     if (index % 32 === 31 && performance.now() - lastYield >= 8) {
       await new Promise(resolve => setTimeout(resolve, 0));
       lastYield = performance.now();

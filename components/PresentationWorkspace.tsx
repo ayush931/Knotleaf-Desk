@@ -138,7 +138,7 @@ export function PresentationWorkspace(props: WorkspaceProps) {
       {error && (
         <div
           role="alert"
-          className="flex items-center justify-between bg-red-950 px-3 py-2 text-xs text-red-200"
+          className="flex items-center justify-between bg-neutral-950 px-3 py-2 text-xs text-neutral-200"
         >
           {error}
           <button
@@ -532,7 +532,7 @@ function PresentationEditor({
           aria-label="Presentation title"
           value={deck.title}
           onChange={(event) => update({ title: event.target.value })}
-          className="min-w-0 w-36 rounded border border-transparent bg-transparent px-1 py-1 text-sm font-semibold focus:border-blue-500 focus:outline-none"
+          className="min-w-0 w-36 rounded border border-transparent bg-transparent px-1 py-1 text-sm font-semibold focus:border-neutral-500 focus:outline-none"
         />
         <button className={button} onClick={onLibrary}>
           Library <span className="text-neutral-500">{libraryCount}</span>
@@ -628,7 +628,7 @@ function PresentationEditor({
         </button>
         <button
           ref={presentButton}
-          className={`${button} border-blue-600! bg-blue-600! text-white! hover:bg-blue-500!`}
+          className={`${button} border-neutral-600! ui-primary! text-white! hover:bg-neutral-500!`}
           onClick={() => {
             setPresenting(true);
           }}
@@ -1003,7 +1003,7 @@ function PresentationEditor({
       {error && (
         <div
           role="alert"
-          className="flex shrink-0 items-start justify-between gap-2 border-b border-red-800 bg-red-950/40 px-3 py-2 text-xs text-red-200"
+          className="flex shrink-0 items-start justify-between gap-2 border-b border-neutral-800 bg-neutral-950/40 px-3 py-2 text-xs text-neutral-200"
         >
           {error}
           <button
@@ -1016,14 +1016,14 @@ function PresentationEditor({
       )}
       {projector.following && (
         <button
-          className="shrink-0 bg-blue-500/10 px-3 py-1 text-left text-[10px] text-blue-300"
+          className="shrink-0 bg-neutral-500/10 px-3 py-1 text-left text-[10px] text-neutral-300"
           onClick={projector.stopFollowing}
         >
           Following audience · slide {active + 1} · Click to return to editing
         </button>
       )}
       {busy && (
-        <div role="status" className="shrink-0 px-3 py-1 text-xs text-blue-300">
+        <div role="status" className="shrink-0 px-3 py-1 text-xs text-neutral-300">
           {busy}
         </div>
       )}
@@ -1064,7 +1064,7 @@ function PresentationEditor({
             >
               <span
                 className={
-                  issue.severity === "error" ? "text-red-300" : "text-amber-200"
+                  issue.severity === "error" ? "text-neutral-300" : "text-neutral-200"
                 }
               >
                 Slide {issue.slide} · Line {issue.line}
@@ -1114,7 +1114,7 @@ function PresentationEditor({
                 projector.stopFollowing();
                 setIndex(slideAt(slides, event.currentTarget.selectionStart));
               }}
-              className="min-h-0 flex-1 resize-none bg-[#18181b] p-4 font-mono text-[13px] leading-6 text-neutral-200 outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-blue-500"
+              className="min-h-0 flex-1 resize-none bg-white dark:bg-black p-4 font-mono text-[13px] leading-6 text-neutral-200 outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-black dark:focus-visible:ring-white"
             />
           </div>
         )}
@@ -1161,7 +1161,7 @@ function PresentationEditor({
             onPointerUp={(event) =>
               event.currentTarget.releasePointerCapture(event.pointerId)
             }
-            className="hidden w-1 shrink-0 cursor-col-resize bg-neutral-800 hover:bg-blue-500 focus-visible:bg-blue-500 md:block"
+            className="hidden w-1 shrink-0 cursor-col-resize bg-neutral-800 hover:bg-neutral-500 focus-visible:bg-neutral-500 md:block"
           />
         )}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
@@ -1180,7 +1180,7 @@ function PresentationEditor({
                 {slides.map((slide, i) => (
                   <button
                     key={`${i}:${slide.start}`}
-                    className={`overflow-hidden rounded border ${i === active ? "border-blue-500" : "border-neutral-700"}`}
+                    className={`overflow-hidden rounded border ${i === active ? "border-neutral-500" : "border-neutral-700"}`}
                     onClick={() => {
                       setIndex(i);
                       setGrid(false);
@@ -1253,7 +1253,7 @@ function PresentationEditor({
                     }
                     placeholder="What do you want to say on this slide?"
                     rows={3}
-                    className="mt-2 block w-full resize-none rounded border border-neutral-700 bg-neutral-950 p-2 text-xs leading-5 text-neutral-200 outline-none focus:border-blue-500"
+                    className="mt-2 block w-full resize-none rounded border border-neutral-700 bg-neutral-950 p-2 text-xs leading-5 text-neutral-200 outline-none focus:border-neutral-500"
                   />
                 </label>
               </details>
@@ -1267,7 +1267,7 @@ function PresentationEditor({
             type="checkbox"
             checked={!!deck.allowScripts}
             onChange={(event) => update({ allowScripts: event.target.checked })}
-            className="accent-blue-500"
+            className="accent-black dark:accent-white"
           />
           Run embedded scripts in an isolated preview{" "}
           <span className="text-neutral-500">
@@ -1311,7 +1311,7 @@ function PresentationEditor({
               aria-label={`Slide ${i + 1}: ${slide.title}`}
               aria-current={i === active ? "step" : undefined}
               onClick={() => setIndex(i)}
-              className={`h-full w-36 shrink-0 truncate rounded border px-3 text-left text-xs ${active === i ? "border-blue-500 bg-blue-500/10 text-blue-200" : "border-neutral-700 bg-neutral-900 text-neutral-400 hover:bg-neutral-800"}`}
+              className={`h-full w-36 shrink-0 truncate rounded border px-3 text-left text-xs ${active === i ? "border-neutral-500 bg-neutral-500/10 text-neutral-200" : "border-neutral-700 bg-neutral-900 text-neutral-400 hover:bg-neutral-800"}`}
             >
               <span className="mr-2 text-neutral-500">{i + 1}</span>
               {slide.title}

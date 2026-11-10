@@ -123,14 +123,14 @@ export function ClassroomAudioSource({
           {enabled &&
             (processing?.echoCancellation === false ||
               (noiseSuppression && processing?.noiseSuppression === false)) && (
-              <p role="status" className="text-[11px] text-amber-300">
+              <p role="status" className="text-[11px] text-neutral-300">
                 This microphone or browser reports that audio processing is
                 unavailable. Try another microphone.
               </p>
             )}
         </div>
       )}
-      {error && <p className="text-[11px] text-amber-300">{error}</p>}
+      {error && <p className="text-[11px] text-neutral-300">{error}</p>}
     </div>
   );
 }

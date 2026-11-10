@@ -14,7 +14,7 @@ export function EraserControls({ size, mode, top, onChange }: { size:number; mod
     if (input.current) input.current.value=String(value);
     onChange(value,mode);
   };
-  return <div role="group" aria-label="Eraser options" style={{top}} className="absolute left-1/2 z-30 w-[min(340px,calc(100%-24px))] -translate-x-1/2 max-sm:left-14 max-sm:right-3 max-sm:w-auto max-sm:translate-x-0 rounded-xl border border-neutral-700 bg-[#18181b] p-2 text-xs text-neutral-300 shadow-sm">
+  return <div role="group" aria-label="Eraser options" style={{top}} className="absolute left-1/2 z-30 w-[min(340px,calc(100%-24px))] -translate-x-1/2 max-sm:left-14 max-sm:right-3 max-sm:w-auto max-sm:translate-x-0 rounded-xl border border-neutral-700 bg-white dark:bg-black p-2 text-xs text-neutral-300 shadow-sm">
     <div className="flex items-center gap-2">
       <label htmlFor="eraser-size" className="shrink-0">Size</label>
       <button type="button" aria-label="Decrease eraser size" className="note-tool" onClick={()=>apply(size/1.25)}><Minus className="h-3.5 w-3.5"/></button>
@@ -23,6 +23,6 @@ export function EraserControls({ size, mode, top, onChange }: { size:number; mod
       <button type="button" aria-label="Increase eraser size" className="note-tool" onClick={()=>apply(size*1.25)}><Plus className="h-3.5 w-3.5"/></button>
       <select aria-label="Erase" value={mode} onChange={e=>onChange(size,e.target.value as EraserMode)} className="min-w-0 flex-1 rounded border border-neutral-600 bg-neutral-950 p-1 text-white"><option value="all">All elements</option><option value="drawings">Lines & freehand</option><option value="objects">Shapes & cards</option></select>
     </div>
-    {error?<p id="eraser-error" role="alert" className="mt-1 text-blue-300">{error}</p>:<p id="eraser-help" className="mt-1 text-[10px] text-neutral-400">Removes touched elements. Undo restores them.</p>}
+    {error?<p id="eraser-error" role="alert" className="mt-1 text-neutral-300">{error}</p>:<p id="eraser-help" className="mt-1 text-[10px] text-neutral-400">Removes touched elements. Undo restores them.</p>}
   </div>;
 }

@@ -78,7 +78,7 @@ export function RoomJoinForm({
         </button>
       </div>
       {error && (
-        <p id={`${id}-error`} role="alert" className="text-xs text-rose-300">
+        <p id={`${id}-error`} role="alert" className="text-xs text-neutral-300">
           {error}
         </p>
       )}

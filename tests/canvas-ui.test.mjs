@@ -519,7 +519,7 @@ test('light mode changes the canvas and persists without rewriting stored artwor
  await clickNamed('Switch to dark mode');
  expect(document.documentElement.classList.contains('dark')).toBe(true);
  expect(document.documentElement.classList.contains('light')).toBe(false);
- expect(named('Drawing canvas').dataset.background).toBe('#1c2029');
+ expect(named('Drawing canvas').dataset.background).toBe('#000000');
 });
 
 test('moving the open board also follows its destination workspace',async()=>{
@@ -640,7 +640,7 @@ test('keyboard shortcuts use a themed native modal, Mac labels, Escape and resto
  function Harness({theme}){const [open,setOpen]=React.useState(false);return React.createElement(React.Fragment,null,React.createElement('button',{'aria-label':'Open shortcut help',onClick:()=>setOpen(true)},'Help'),React.createElement(ShortcutsModal,{isOpen:open,onClose:()=>setOpen(false),theme}));}
  for(const theme of ['light','dark']){
   await act(async()=>root.render(React.createElement(Harness,{theme,key:theme})));const trigger=named('Open shortcut help');trigger.focus();await clickNamed('Open shortcut help');
-  const dialog=named('Keyboard shortcuts');expect(dialog.tagName).toBe('DIALOG');expect(dialog.open).toBe(true);expect(document.activeElement).toBe(named('Close keyboard shortcuts'));expect(dialog.textContent.includes('Ctrl/Cmd+Z')).toBe(true);expect(dialog.classList.contains(theme==='light'?'bg-white':'bg-[#18181b]')).toBe(true);
+  const dialog=named('Keyboard shortcuts');expect(dialog.tagName).toBe('DIALOG');expect(dialog.open).toBe(true);expect(document.activeElement).toBe(named('Close keyboard shortcuts'));expect(dialog.textContent.includes('Ctrl/Cmd+Z')).toBe(true);expect(dialog.classList.contains(theme==='light'?'bg-white':'dark:bg-black')).toBe(true);
   await act(async()=>dialog.dispatchEvent(new browser.Event('cancel',{bubbles:true})));expect(!named('Keyboard shortcuts')).toBe(true);expect(document.activeElement).toBe(trigger);
  }
 });
@@ -663,4 +663,38 @@ test('new board writing uses Caveat and retains the saved size through blur and 
  await act(async()=>editor.dispatchEvent(new browser.KeyboardEvent('keydown',{key:'Escape',bubbles:true})));
  expect(getBoard(id).elements[0].fontFamily).toBe('hand');const size=getBoard(id).elements[0].fontSize;
  const next=await startText();expect(next.style.fontFamily.includes('--font-caveat')).toBe(true);expect(next.style.fontSize).toBe(`${size}px`);
+});
+
+
+test('theme picker independently applies Canvas, Notes and Both, saves settings and preserves artwork',async()=>{
+ localStorage.clear();const board=createBoard('Theme scopes');board.viewMode='split';board.background={fill:'#123456',fillStyle:'solid',fillOpacity:1};board.elements=[inspectorShape];board.markdownNotes='# Keep this note\n\n';const original=structuredClone(board);
+ const {saveBoard}=await import('../lib/storage.ts');saveBoard(board);setActiveBoardId(board.id);
+ const show=()=>root.render(React.createElement(AppRouterContext.Provider,{value:router},React.createElement(SearchParamsContext.Provider,{value:new URLSearchParams()},React.createElement(Canvas))));
+ await act(async()=>show());await clickNamed('Canvas and notes themes');
+ const scope=()=>document.getElementById('theme-scope');const changeScope=async value=>act(async()=>{scope().value=value;scope().dispatchEvent(new browser.Event('change',{bubbles:true}));});
+ const apply=async()=>act(async()=>[...document.querySelectorAll('button')].find(b=>b.textContent==='Apply theme').click());
+ await changeScope('notes');await clickNamed('Theme: Forest');await apply();
+ expect(named('Drawing canvas').dataset.background).toBe('#123456');expect(named('Board notes').dataset.notesTheme).toBe('forest');
+ await changeScope('canvas');await clickNamed('Theme: Paper');
+ const checkbox=[...document.querySelectorAll('input[type="checkbox"]')].find(input=>input.parentElement.textContent.includes('Use theme background'));await act(async()=>checkbox.click());await apply();expect(named('Drawing canvas').dataset.background).toBe('#123456');
+ await act(async()=>checkbox.click());await apply();expect(named('Drawing canvas').dataset.background).toBe('#211e19');expect(named('Board notes').dataset.notesTheme).toBe('forest');
+ await changeScope('both');await clickNamed('Theme: Slate');await apply();await clickNamed('Close themes');
+ expect(named('Drawing canvas').dataset.background).toBe('#161d29');expect(named('Board notes').dataset.notesTheme).toBe('slate');
+ await clickNamed('Switch to light mode');expect(named('Drawing canvas').dataset.background).toBe('#f4f7fc');expect(named('Board notes').dataset.notesMode).toBe('light');
+ expect(getBoard(board.id).elements).toEqual(original.elements);expect(getBoard(board.id).markdownNotes).toBe(original.markdownNotes);
+ await act(async()=>root.render(null));await act(async()=>show());expect(named('Drawing canvas').dataset.background).toBe('#f4f7fc');expect(named('Board notes').dataset.notesTheme).toBe('slate');
+});
+test('theme storage failure is visible while the session appearance stays usable',async()=>{
+ await renderBoard('split');await clickNamed('Canvas and notes themes');const select=document.getElementById('theme-scope');await act(async()=>{select.value='notes';select.dispatchEvent(new browser.Event('change',{bubbles:true}));});await clickNamed('Theme: Forest');
+ const original=Object.getOwnPropertyDescriptor(globalThis,'localStorage'),storage=globalThis.localStorage;Object.defineProperty(globalThis,'localStorage',{configurable:true,writable:true,value:{getItem:key=>storage.getItem(key),setItem(){throw Error('Quota');}}});
+ try{await act(async()=>[...document.querySelectorAll('button')].find(b=>b.textContent==='Apply theme').click());expect([...document.querySelectorAll('[role="alert"]')].some(e=>e.textContent.includes('Could not save'))).toBe(true);expect(named('Board notes').dataset.notesTheme).toBe('forest');}finally{Object.defineProperty(globalThis,'localStorage',original);}
+});
+
+
+test('notes page-mode control changes only notes and stays consistent with the shared theme scope',async()=>{
+ const {MarkdownWorkspace}=await import('../components/MarkdownWorkspace.tsx');const {NotesThemeContext}=await import('../lib/notesThemeContext.ts');let currentMode='dark';
+ function Harness(){const [mode,setMode]=React.useState('dark');return React.createElement(NotesThemeContext.Provider,{value:{mode,onModeChange:value=>{currentMode=value;setMode(value);return true;}}},React.createElement(MarkdownWorkspace,{value:'# Title',onChange(){},initialView:'source'}));}
+ await act(async()=>root.render(React.createElement(Harness)));await clickNamed('Markdown options');
+ const select=named('Markdown page theme');expect(select.value).toBe('dark');await act(async()=>{select.value='paper';select.dispatchEvent(new browser.Event('change',{bubbles:true}));});
+ expect(currentMode).toBe('light');expect(select.value).toBe('paper');
 });

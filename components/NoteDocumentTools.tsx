@@ -97,7 +97,7 @@ export function NoteTypographyTools({
         <span
           id={errorId}
           role="alert"
-          className="max-w-48 shrink-0 whitespace-normal text-xs text-rose-400"
+          className="max-w-48 shrink-0 whitespace-normal text-xs text-neutral-400"
         >
           {error}
         </span>
@@ -124,7 +124,7 @@ export function NoteInlineStyleTools({
     <>
       <button
         type="button"
-        className={`note-tool ${underline ? "text-blue-400" : ""}`}
+        className={`note-tool ${underline ? "text-neutral-400" : ""}`}
         aria-label="Underline"
         aria-pressed={underline}
         title="Underline · Ctrl/Cmd+U"
@@ -146,7 +146,7 @@ export function NoteInlineStyleTools({
       </button>
       <button
         type="button"
-        className={`note-tool ${highlight ? "text-blue-400" : ""}`}
+        className={`note-tool ${highlight ? "text-neutral-400" : ""}`}
         data-note-overlay-trigger
         aria-label="Text highlight"
         title="Highlight color"
@@ -243,7 +243,7 @@ export function NoteStylePanel({
     <aside
       role="region"
       aria-label={title}
-      className="absolute left-2 top-24 z-40 w-72 max-w-[calc(100%-1rem)] space-y-3 overflow-auto rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-[#18181b] p-3 text-xs text-neutral-800 dark:text-neutral-200 shadow-lg"
+      className="absolute left-2 top-24 z-40 w-72 max-w-[calc(100%-1rem)] space-y-3 overflow-auto rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-white dark:bg-black p-3 text-xs text-neutral-800 dark:text-neutral-200 shadow-lg"
       style={{ maxHeight: "calc(100% - 110px)" }}
     >
       <div className="flex items-center justify-between">
@@ -361,7 +361,7 @@ export function NoteStylePanel({
                   key={color}
                   aria-label={`${title} ${color}`}
                   title={color}
-                  className="h-8 rounded border border-neutral-300 dark:border-neutral-600 focus-visible:outline-2 focus-visible:outline-blue-500"
+                  className="h-8 rounded border border-neutral-300 dark:border-neutral-600 focus-visible:outline-2 focus-visible:outline-black dark:focus-visible:outline-white"
                   style={{ backgroundColor: color }}
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => {

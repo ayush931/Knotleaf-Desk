@@ -110,7 +110,7 @@ export function PresentationAnnotations({
         )}
         {editing && (
           <button
-            className="inline-flex items-center gap-1 rounded px-2 py-1.5 text-red-300 hover:bg-neutral-800"
+            className="inline-flex items-center gap-1 rounded px-2 py-1.5 text-neutral-300 hover:bg-neutral-800"
             onClick={() => {
               remove(editing.id);
               close();
@@ -145,9 +145,9 @@ export function PresentationAnnotations({
             value={comment}
             onChange={(event) => setComment(event.target.value)}
             placeholder="Add a private session comment…"
-            className="min-w-0 flex-1 rounded border border-neutral-700 bg-neutral-950 px-2 py-1.5 outline-none focus:border-blue-500"
+            className="min-w-0 flex-1 rounded border border-neutral-700 bg-neutral-950 px-2 py-1.5 outline-none focus:border-neutral-500"
           />
-          <button type="submit" className="rounded bg-blue-600 px-3 text-white">
+          <button type="submit" className="rounded ui-primary px-3 text-white">
             Save
           </button>
         </form>

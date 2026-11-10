@@ -65,11 +65,11 @@ test('light canvas changes background and neutral ink reversibly without mutatin
  const {canvasBackground,canvasElementAppearance}=await import('../draw/canvasAppearance.ts');
  const original={...rect,fill:'transparent',fillStyle:'none'};
  expect(canvasBackground(DEFAULT_BACKGROUND,'light')).toEqual({...DEFAULT_BACKGROUND,fill:'#ffffff'});
- expect(canvasBackground(DEFAULT_BACKGROUND,'dark')).toEqual({...DEFAULT_BACKGROUND,fill:'#1c2029'});
+ expect(canvasBackground(DEFAULT_BACKGROUND,'dark')).toEqual({...DEFAULT_BACKGROUND,fill:'#000000'});
  const custom={...DEFAULT_BACKGROUND,fill:'#ec4899',fillStyle:'crosshatch'};
  expect(canvasBackground(custom,'light')).toEqual(custom);
  const {ctx,strokes}=context();drawElement(ctx,original,{theme:'light'});
- expect(strokes.at(-1).color).toBe('#1f2937');expect(original.stroke).toBe('#ffffff');
+ expect(strokes.at(-1).color).toBe('#000000');expect(original.stroke).toBe('#ffffff');
  expect(canvasElementAppearance(original,false)).toBe(original);
  expect(canvasElementAppearance({...original,stroke:'#ef4444'},true).stroke).toBe('#ef4444');
  expect(canvasElementAppearance({...original,fill:'#101010',fillStyle:'solid',fillOpacity:1},true).stroke).toBe('#ffffff');
@@ -78,12 +78,12 @@ test('light canvas changes background and neutral ink reversibly without mutatin
 test('default document and code cards use readable light surfaces and custom cards retain their colors',async()=>{
  const {canvasElementAppearance,lightCodeInk}=await import('../draw/canvasAppearance.ts');
  const card={...rect,fillOpacity:1,type:'text',isDocCard:true,text:'Notes',fill:'#242428',stroke:'#FFFFFF',fontSize:20,fontFamily:'sans',textAlign:'left'};
- expect(canvasElementAppearance(card,true)).toMatchObject({fill:'#ffffff',stroke:'#1f2937'});
+ expect(canvasElementAppearance(card,true)).toMatchObject({fill:'#ffffff',stroke:'#000000'});
  expect(canvasElementAppearance({...card,isCodeCard:true,fill:'#111d2d'},true).fill).toBe('#ffffff');
  const pureCodeCard={...rect,fillOpacity:1,type:'text',isCodeCard:true,text:'const x=1;',fill:'#111d2d',stroke:'#FFFFFF',fontSize:14,fontFamily:'mono',textAlign:'left'};
- expect(canvasElementAppearance(pureCodeCard,true)).toMatchObject({fill:'#ffffff',stroke:'#1f2937'});
+ expect(canvasElementAppearance(pureCodeCard,true)).toMatchObject({fill:'#ffffff',stroke:'#000000'});
  const attachmentCard={...rect,fillOpacity:1,type:'text',attachment:{name:'doc.pdf',size:1024},text:'doc.pdf',fill:'#18181b',stroke:'#FFFFFF',fontSize:14,fontFamily:'sans',textAlign:'left'};
- expect(canvasElementAppearance(attachmentCard,true)).toMatchObject({fill:'#ffffff',stroke:'#1f2937'});
+ expect(canvasElementAppearance(attachmentCard,true)).toMatchObject({fill:'#ffffff',stroke:'#000000'});
  expect(canvasElementAppearance({...card,cardFillCustom:true},true)).toEqual({...card,cardFillCustom:true});
  expect(lightCodeInk('#d4d4d8')).toBe('#27272a');expect(lightCodeInk('#b8a8c4')).toBe('#6b3f87');
 });
@@ -93,7 +93,7 @@ test('drawio export reflects light theme canvas background', async () => {
  const xml = boardToDrawio({ title: 'Test', elements: [], createdAt: 1, updatedAt: 1, id: '1', theme: 'light', viewMode: 'canvas', gridType: 'dot', snapToGrid: false, zoom: 1, panOffset: { x: 0, y: 0 } });
  expect(xml).toContain('background="#ffffff"');
  const darkXml = boardToDrawio({ title: 'Test', elements: [], createdAt: 1, updatedAt: 1, id: '1', theme: 'dark', viewMode: 'canvas', gridType: 'dot', snapToGrid: false, zoom: 1, panOffset: { x: 0, y: 0 } });
- expect(darkXml).toContain('background="#1c2029"');
+ expect(darkXml).toContain('background="#000000"');
 });
 
 test('canvas elements on light surfaces render legible borders, checkboxes, and quotes', async () => {
@@ -103,8 +103,8 @@ test('canvas elements on light surfaces render legible borders, checkboxes, and 
  drawElement(ctx, docCard, { theme: 'light', lightCanvas: true });
  expect(strokes.some(s => s.color === '#d4d4d8')).toBe(true);
  expect(strokes.some(s => s.color === 'rgba(0, 0, 0, 0.12)')).toBe(true);
- expect(strokes.some(s => s.color === 'rgba(0, 0, 0, 0.35)')).toBe(true);
- expect(fills.some(f => f.color === '#4b5563')).toBe(true);
+ expect(strokes.some(s => s.color === docCard.stroke)).toBe(true);
+ expect(fills.some(f => f.color === docCard.stroke)).toBe(true);
 });
 
 test('plus connection handles render in dim colors when idle and brighten on hover', async () => {
@@ -112,11 +112,11 @@ test('plus connection handles render in dim colors when idle and brighten on hov
  const { ctx, strokes, fills } = context();
  drawConnectorHandles(ctx, rect, 1, 'right', true);
  // Idle handles have dim translucent stroke / plus
- expect(strokes.some(s => s.color === 'rgba(59, 130, 246, 0.45)')).toBe(true);
- expect(strokes.some(s => s.color === 'rgba(59, 130, 246, 0.65)')).toBe(true);
+ expect(strokes.some(s => s.color === 'rgba(0, 0, 0, 0.45)')).toBe(true);
+ expect(strokes.some(s => s.color === 'rgba(0, 0, 0, 0.65)')).toBe(true);
  expect(fills.some(f => f.color === 'rgba(255, 255, 255, 0.9)')).toBe(true);
  // Active handle (right) has bright accent fill and stroke
- expect(fills.some(f => f.color === '#3B82F6')).toBe(true);
+ expect(fills.some(f => f.color === '#000000')).toBe(true);
 });
 
 test('default text layout and font styling uses bolder font weight 500', async () => {

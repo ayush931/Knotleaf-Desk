@@ -8,6 +8,7 @@ import postcss from 'postcss';
 import {transform} from 'lightningcss';
 import {convert} from '@asamuzakjp/css-color';
 import {BoardsSidebar} from '../components/BoardsSidebar.tsx';
+import {workspacePalette,workspaceThemeStyle,WORKSPACE_THEMES} from '../lib/workspaceThemes.ts';
 import {TopToolbar} from '../components/TopToolbar.tsx';
 import {PropertiesPanel} from '../components/PropertiesPanel.tsx';
 import {DEFAULT_STYLE} from '../draw/types.ts';
@@ -86,5 +87,17 @@ for(const mode of ['light','dark'])test(`bright drawing tools retain readable ac
  const doc=render(React.createElement(TopToolbar,{selectedTool:'select',setSelectedTool:noop,onUndo:noop,onRedo:noop,canUndo:true,canRedo:true,onOpenIconPicker:noop,theme:mode}),mode);
  const toolbar=doc.querySelector('[aria-label="Drawing tools"]'),active=toolbar.querySelector('[aria-pressed="true"]'),inactive=toolbar.querySelector('[aria-label="Pan (H)"]');
  readable(active,active);readable(inactive,toolbar);
- const lightness=neutralLightness(style(toolbar).backgroundColor);expect(lightness).toBeGreaterThan(mode==='light'?.9:.02);
+ const lightness=neutralLightness(style(toolbar).backgroundColor);if(mode==='light')expect(lightness).toBeGreaterThan(.9);else expect(lightness).toBe(0);
+});
+
+
+for(const {id} of WORKSPACE_THEMES)for(const mode of ['light','dark'])test(`${id} notes remain readable across rich, source and preview with opposite app mode (${mode})`,()=>{
+ const p=workspacePalette(id,mode),section=React.createElement('section',{className:'notes-theme','data-notes-theme':id,style:workspaceThemeStyle(id,mode,true)},
+  React.createElement('header',{className:'bg-neutral-900'},React.createElement('span',{id:'note-label',className:'text-neutral-400'},'Notes')),
+  React.createElement('div',{className:'notes-rich'},React.createElement('div',{className:'tiptap',id:'rich-note'},'Rich text')),
+  React.createElement('div',{className:'notes-source'},React.createElement('pre',{id:'source-paint'},React.createElement('span',{className:'hljs-keyword',id:'source-token'},'const')),React.createElement('textarea',{'aria-label':'Source caret'})),
+  React.createElement('section',{className:'markdown-reader','data-theme':mode==='light'?'paper':'dark',id:'reader-note'},'Preview'));
+ const doc=render(section,mode==='light'?'dark':'light'),root=doc.querySelector('section');
+ readable(doc.getElementById('note-label'),doc.querySelector('header'));readable(doc.getElementById('rich-note'),root);readable(doc.getElementById('source-token'),root);readable(doc.getElementById('reader-note'),doc.getElementById('reader-note'));
+ expect(neutralLightness(style(root).backgroundColor)).toBeCloseTo(neutralLightness(p.background));expect(['transparent','#0000','rgba(0, 0, 0, 0)']).toContain(style(doc.querySelector('textarea')).color);
 });

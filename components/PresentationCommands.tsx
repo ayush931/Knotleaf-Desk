@@ -46,7 +46,7 @@ export function PresentationCommands({
           onClose();
         }
       }}
-      className="mx-auto mt-[12dvh] w-[min(600px,94vw)] overflow-hidden rounded-xl border border-neutral-700 bg-[#18181b] p-0 text-neutral-200 backdrop:bg-black/70"
+      className="mx-auto mt-[12dvh] w-[min(600px,94vw)] overflow-hidden rounded-xl border border-neutral-700 bg-white dark:bg-black p-0 text-neutral-200 backdrop:bg-black/70"
     >
       <h2 id={title} className="sr-only">
         Presentation commands
@@ -83,7 +83,7 @@ export function PresentationCommands({
                 command.run();
                 onClose();
               }}
-              className={`block w-full rounded-lg px-3 py-2 text-left ${i === active ? "bg-blue-500/10 text-blue-200" : "hover:bg-neutral-800"}`}
+              className={`block w-full rounded-lg px-3 py-2 text-left ${i === active ? "bg-neutral-500/10 text-neutral-200" : "hover:bg-neutral-800"}`}
             >
               <strong className="text-sm font-medium">{command.label}</strong>
               <span className="mt-0.5 block text-xs text-neutral-400">

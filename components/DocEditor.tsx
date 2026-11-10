@@ -1,4 +1,5 @@
 "use client";
+import {workspacePalette, type WorkspacePalette} from "@/lib/workspaceThemes";
 
 import { MarkdownWorkspace } from "./MarkdownWorkspace";
 import type { MarkdownView } from "@/lib/markdownWorkspace";
@@ -91,6 +92,7 @@ interface DocEditorProps {
   onOpenNote?: (id: string) => boolean;
   onCreateNote?: (title: string) => NotePage;
   theme: "dark" | "light";
+  themeColors?: WorkspacePalette;
   focusRange?: { start: number; end: number };
 }
 export function DocEditor(props: DocEditorProps) {
@@ -105,11 +107,11 @@ export function DocEditor(props: DocEditorProps) {
     <div className="flex h-full min-h-0 min-w-0 flex-col">
       {source ? (
         <>
-          <div className="flex shrink-0 items-center justify-between border-b border-neutral-800 bg-[#18181b] px-3 py-2 text-xs text-neutral-400">
+          <div className="flex shrink-0 items-center justify-between border-b border-neutral-800 bg-white dark:bg-black px-3 py-2 text-xs text-neutral-400">
             <span>Markdown source</span>
             <button
               type="button"
-              className="rounded px-2 py-1 text-blue-400 hover:bg-neutral-800"
+              className="rounded px-2 py-1 text-neutral-400 hover:bg-neutral-800"
               onClick={() => setSource(false)}
             >
               Back to writing
@@ -137,6 +139,8 @@ function RichNotesEditor({
   getNotes,
   onOpenNote,
   onCreateNote,
+  theme,
+  themeColors=workspacePalette('mono',theme),
 }: DocEditorProps & { onSource: () => void; onPreview:()=>void }) {
   const change = useRef(onChange),
     latest = useRef(value),
@@ -640,7 +644,7 @@ function RichNotesEditor({
     const text = editor.getText(),
       body =
         format === "html"
-          ? `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapedTitle.innerHTML}</title><style>:root{${NOTE_FONTS.map((font) => `${font.variable}:${font.fallback}`).join(";")}}body{max-width:900px;margin:40px auto;padding:0 24px;background:#18181b;color:#e4e4e7;font-family:${fontCssStack(appearance.font)};font-size:${appearance.size}px;line-height:${appearance.lineHeight};overflow-wrap:anywhere}table{border-collapse:collapse;width:100%}td,th{border:1px solid #52525b;padding:8px}blockquote,details{border-left:3px solid #c7ba91;background:#302d24;padding:16px;border-radius:8px}a{color:#60a5fa}mark{background-color:#665329;color:inherit}pre{padding:16px;background:#121212;white-space:pre-wrap}img{max-width:100%}ul[data-type=taskList]{list-style:none;padding:0}</style></head><body>${notesToSafeHtml(serializeRichNotes(editor))}</body></html>`
+          ? `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapedTitle.innerHTML}</title><style>:root{${NOTE_FONTS.map((font) => `${font.variable}:${font.fallback}`).join(";")}}body{max-width:900px;margin:40px auto;padding:0 24px;background:${themeColors?.background || "#000000"};color:${themeColors?.ink || "#ffffff"};font-family:${fontCssStack(appearance.font)};font-size:${appearance.size}px;line-height:${appearance.lineHeight};overflow-wrap:anywhere}table{border-collapse:collapse;width:100%}td,th{border:1px solid ${themeColors.border};padding:8px}blockquote,details{border-left:3px solid ${themeColors.border};background:${themeColors?.code || "#171717"};padding:16px;border-radius:8px}a{color:${themeColors?.accent || "#ffffff"}}mark{background-color:#665329;color:inherit}pre{padding:16px;background:${themeColors?.code || "#171717"};white-space:pre-wrap}img{max-width:100%}ul[data-type=taskList]{list-style:none;padding:0}</style></head><body>${notesToSafeHtml(serializeRichNotes(editor))}</body></html>`
           : text;
     const url = URL.createObjectURL(
       new Blob([body], {
@@ -751,7 +755,7 @@ function RichNotesEditor({
     <section
       ref={root}
       aria-label="Notes editor"
-      className="relative flex h-full min-h-0 min-w-0 flex-col bg-[#18181b] text-neutral-200"
+      className="relative flex h-full min-h-0 min-w-0 flex-col bg-white dark:bg-black text-neutral-200"
       onClick={(event) => {
         const anchor = (event.target as HTMLElement).closest("a");
         const id = anchor && readNoteHref(anchor.getAttribute("href") || "");
@@ -932,7 +936,7 @@ function RichNotesEditor({
           <button
             type="button"
             data-note-overlay-trigger
-            className="note-tool flex h-8 items-center gap-1 whitespace-nowrap px-2 text-blue-400"
+            className="note-tool flex h-8 items-center gap-1 whitespace-nowrap px-2 text-neutral-400"
             aria-label="Insert note block"
             title="Insert block or template · type / while writing"
             onClick={() => {
@@ -983,7 +987,7 @@ function RichNotesEditor({
               aria-label={t.label}
               aria-pressed={t.active}
               disabled={!editor}
-              className={`note-tool ${t.active ? "bg-blue-500/15 text-blue-400" : ""}`}
+              className={`note-tool ${t.active ? "bg-neutral-500/15 text-neutral-400" : ""}`}
               onMouseDown={(e) => e.preventDefault()}
               onClick={t.run}
             >
@@ -1006,7 +1010,7 @@ function RichNotesEditor({
               aria-label={t.label}
               aria-pressed={t.active}
               disabled={!editor}
-              className={`note-tool ${t.active ? "bg-blue-500/15 text-blue-400" : ""}`}
+              className={`note-tool ${t.active ? "bg-neutral-500/15 text-neutral-400" : ""}`}
               onMouseDown={(e) => e.preventDefault()}
               onClick={t.run}
             >
@@ -1061,7 +1065,7 @@ function RichNotesEditor({
             <aside
               role="region"
               aria-label="Export notes"
-              className="absolute left-2 top-24 z-40 w-64 max-w-[calc(100%-1rem)] space-y-1 rounded-xl border border-neutral-700 bg-[#18181b] p-3 text-xs shadow-lg"
+              className="absolute left-2 top-24 z-40 w-64 max-w-[calc(100%-1rem)] space-y-1 rounded-xl border border-neutral-700 bg-white dark:bg-black p-3 text-xs shadow-lg"
             >
               <div className="mb-2 flex items-center justify-between">
                 <h3 className="font-semibold">Export notes</h3>
@@ -1196,12 +1200,12 @@ function RichNotesEditor({
             placeholder="https://example.com"
           />
           {linkError && (
-            <p id="note-link-error" role="alert" className="text-rose-400">
+            <p id="note-link-error" role="alert" className="text-neutral-400">
               {linkError}
             </p>
           )}
           <div className="flex gap-2">
-            <button className="rounded bg-blue-600 px-3 py-1">
+            <button className="rounded ui-primary px-3 py-1">
               Apply link
             </button>
             <button

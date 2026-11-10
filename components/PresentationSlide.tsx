@@ -244,14 +244,14 @@ export function SlideSurface({
         />
       )}
       {overflow && !lazy && !animate && (
-        <span className="absolute left-2 top-2 rounded bg-amber-950 px-2 py-1 text-xs text-amber-200">
+        <span className="absolute left-2 top-2 rounded bg-neutral-950 px-2 py-1 text-xs text-neutral-200">
           Content overflows. Split this slide or shorten the text.
         </span>
       )}
       {laser && pointer && (
         <span
           aria-hidden="true"
-          className="pointer-events-none absolute h-3 w-3 rounded-full bg-red-500 shadow-[0_0_16px_4px_#ef444499]"
+          className="pointer-events-none absolute h-3 w-3 rounded-full ui-primary shadow-[0_0_16px_4px_#ef444499]"
           style={{ left: pointer.x - 6, top: pointer.y - 6 }}
         />
       )}

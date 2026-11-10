@@ -25,6 +25,7 @@ import { getIconImage, readIconInk, type IconInkBounds } from "./iconSvg";
 import { FONT_OPTIONS } from "./fonts";
 
 export const ACCENT = "#3B82F6";
+export const uiAccent = (light = false) => light ? "#000000" : "#FFFFFF";
 export const LINE_HEIGHT = 1.35;
 
 export interface Bounds {
@@ -498,8 +499,8 @@ export function gridAppearance(zoom: number, light = false) {
   while (spacing < 14) spacing *= 2;
   return {
     spacing, radius: Math.max(0.9, Math.min(zoom, 1.4)),
-    dotColor: light ? "rgba(51, 65, 85, 0.18)" : "rgba(203, 219, 242, 0.18)",
-    lineColor: light ? "rgba(51, 65, 85, 0.1)" : "rgba(203, 219, 242, 0.1)",
+    dotColor: light ? "rgba(0, 0, 0, 0.16)" : "rgba(255, 255, 255, 0.16)",
+    lineColor: light ? "rgba(0, 0, 0, 0.1)" : "rgba(255, 255, 255, 0.1)",
   };
 }
 
@@ -552,7 +553,7 @@ export function drawGrid(
 
 export function drawElement(ctx: CanvasRenderingContext2D, el: CanvasElement, opts: DrawOptions) {
   const { theme, flowOffset = 0 } = opts;
-  el = canvasElementAppearance(el, opts.lightCanvas ?? theme === "light");
+  el = canvasElementAppearance(el, opts.lightCanvas ?? theme === "light", opts.scene);
   ctx.save();
   ctx.globalAlpha = el.opacity ?? 1;
   ctx.lineJoin = "round";
@@ -603,7 +604,7 @@ export function drawElement(ctx: CanvasRenderingContext2D, el: CanvasElement, op
   ctx.restore();
 
   if (opts.selected) {
-    drawSelection(ctx, el, opts.zoom ?? 1, opts.scene);
+    drawSelection(ctx, el, opts.zoom ?? 1, opts.scene, opts.lightCanvas ?? theme === "light");
   }
 }
 
@@ -1217,7 +1218,7 @@ function drawText(ctx: CanvasRenderingContext2D, el: CanvasElement, codeScroll?:
     const x=el.x-16,y=el.y-16,w=el.width+32,h=el.height+32;
     ctx.save();ctx.fillStyle=el.fill;ctx.strokeStyle=isLight?"#d4d4d8":"#3f3f46";ctx.lineWidth=1;
     ctx.beginPath();ctx.roundRect(x,y,w,h,10);ctx.fill();ctx.stroke();
-    ctx.strokeStyle="#3B82F6";ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(x+20,y+20);ctx.lineTo(x+36,y+20);ctx.lineTo(x+44,y+28);ctx.lineTo(x+44,y+52);ctx.lineTo(x+20,y+52);ctx.closePath();ctx.stroke();
+    ctx.strokeStyle=el.stroke;ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(x+20,y+20);ctx.lineTo(x+36,y+20);ctx.lineTo(x+44,y+28);ctx.lineTo(x+44,y+52);ctx.lineTo(x+20,y+52);ctx.closePath();ctx.stroke();
     ctx.textBaseline="top";ctx.textAlign="left";ctx.fillStyle=el.stroke;setFont(ctx,14,"sans",600);
     let name=el.attachment.name;while(name.length>1&&ctx.measureText(name).width>w-88)name=name.slice(0,-2)+"…";
     ctx.fillText(name,x+60,y+21);ctx.fillStyle=isLight?"#52525b":"#a1a1aa";setFont(ctx,11,"sans");
@@ -1293,9 +1294,9 @@ function drawText(ctx: CanvasRenderingContext2D, el: CanvasElement, codeScroll?:
 
     if (line.type === "quote") {
       ctx.save();
-      ctx.fillStyle = "#3B82F6";
+      ctx.fillStyle = color;
       ctx.fillRect(x, ly, 3, line.lineHeight - 2);
-      ctx.fillStyle = isLight ? "#4b5563" : "rgba(244, 244, 245, 0.85)";
+      ctx.fillStyle = color;
       setFont(ctx, line.fontSize, fontFamily, line.fontWeight, true);
       drawStyledText(ctx, line.content, x + 14, ly + 1, line.fontSize, el);
       ctx.restore();
@@ -1309,13 +1310,13 @@ function drawText(ctx: CanvasRenderingContext2D, el: CanvasElement, codeScroll?:
       const boxY = ly + (line.lineHeight - boxSize) / 2;
       ctx.save();
       if (line.type === "todo-checked") {
-        ctx.fillStyle = "#3B82F6";
+        ctx.fillStyle = color;
         ctx.beginPath();
         if (ctx.roundRect) ctx.roundRect(indentX, boxY, boxSize, boxSize, 3);
         else ctx.rect(indentX, boxY, boxSize, boxSize);
         ctx.fill();
         // Checkmark
-        ctx.strokeStyle = "#FFFFFF";
+        ctx.strokeStyle = isLightBackground({fill:color,fillStyle:"solid",fillOpacity:1}) ? "#000000" : "#FFFFFF";
         ctx.lineWidth = 1.8;
         ctx.beginPath();
         ctx.moveTo(indentX + 3, boxY + 7);
@@ -1323,8 +1324,8 @@ function drawText(ctx: CanvasRenderingContext2D, el: CanvasElement, codeScroll?:
         ctx.lineTo(indentX + 11, boxY + 3.5);
         ctx.stroke();
       } else {
-        ctx.fillStyle = isLight ? "rgba(0, 0, 0, 0.04)" : "rgba(255, 255, 255, 0.04)";
-        ctx.strokeStyle = isLight ? "rgba(0, 0, 0, 0.35)" : "rgba(255, 255, 255, 0.4)";
+        ctx.fillStyle = isLightBackground({fill:color,fillStyle:"solid",fillOpacity:1}) ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)";
+        ctx.strokeStyle = color;
         ctx.lineWidth = 1.4;
         ctx.beginPath();
         if (ctx.roundRect) ctx.roundRect(indentX, boxY, boxSize, boxSize, 3);
@@ -1338,10 +1339,10 @@ function drawText(ctx: CanvasRenderingContext2D, el: CanvasElement, codeScroll?:
       const textX = indentX + 22;
       if (line.type === "todo-checked") {
         ctx.save();
-        ctx.fillStyle = isLight ? "#9ca3af" : "rgba(244, 244, 245, 0.55)";
+        ctx.fillStyle = color;
         drawStyledText(ctx, line.content, textX, ly, line.fontSize, el);
         const tw = ctx.measureText(line.content).width;
-        ctx.strokeStyle = isLight ? "#9ca3af" : "rgba(244, 244, 245, 0.45)";
+        ctx.strokeStyle = color;
         ctx.lineWidth = 1.2;
         ctx.beginPath();
         ctx.moveTo(textX, ly + line.lineHeight / 2);
@@ -1681,12 +1682,12 @@ function drawFrame(ctx: CanvasRenderingContext2D, el: CanvasElement) {
 
 // --- Selection & overlays --------------------------------------------------------
 
-export function drawSelection(ctx: CanvasRenderingContext2D, el: CanvasElement, zoom: number, scene: CanvasElement[] = []) {
+export function drawSelection(ctx: CanvasRenderingContext2D, el: CanvasElement, zoom: number, scene: CanvasElement[] = [], lightCanvas = false) {
   const z = zoom || 1;
   ctx.save();
   ctx.setLineDash([]);
-  ctx.strokeStyle = ACCENT;
-  ctx.fillStyle = "#FFFFFF";
+  ctx.strokeStyle = uiAccent(lightCanvas);
+  ctx.fillStyle = uiAccent(!lightCanvas);
   ctx.lineWidth = 1.5 / z;
 
   if (el.type === "arrow" || el.type === "line") {
@@ -1696,14 +1697,14 @@ export function drawSelection(ctx: CanvasRenderingContext2D, el: CanvasElement, 
       { x: el.endX, y: el.endY, bound: !!el.endBinding },
     ];
     for (const p of endpoints) {
-      ctx.fillStyle = p.bound ? ACCENT : "#FFFFFF";
+      ctx.fillStyle = p.bound ? uiAccent(lightCanvas) : uiAccent(!lightCanvas);
       ctx.beginPath();
       ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
     }
     {
-      ctx.fillStyle = "#FFFFFF";
+      ctx.fillStyle = uiAccent(!lightCanvas);
       const mid = (el.type === "arrow" ? computeArrowPath(el, scene) : computeLinePath(el)).midPt;
       const d = 4.5 / z;
       ctx.beginPath();
@@ -1718,15 +1719,15 @@ export function drawSelection(ctx: CanvasRenderingContext2D, el: CanvasElement, 
   } else {
     const b = getElementBounds(el);
     const pad = getSelectionPadding(el, z);
-    drawBoundsOutline(ctx, b, z, pad, false);
-    drawResizeHandles(ctx, b, z, hasSideResizeHandles(el), pad);
+    drawBoundsOutline(ctx, b, z, pad, false, lightCanvas);
+    drawResizeHandles(ctx, b, z, hasSideResizeHandles(el), pad, lightCanvas);
   }
   ctx.restore();
 }
 
-export function drawBoundsOutline(ctx: CanvasRenderingContext2D, b: Bounds, zoom: number, pad = 0, dashed = true) {
+export function drawBoundsOutline(ctx: CanvasRenderingContext2D, b: Bounds, zoom: number, pad = 0, dashed = true, lightCanvas = false) {
   ctx.save();
-  ctx.strokeStyle = ACCENT;
+  ctx.strokeStyle = uiAccent(lightCanvas);
   ctx.lineWidth = 1.2 / zoom;
   ctx.setLineDash(dashed ? [5 / zoom, 4 / zoom] : []);
   ctx.strokeRect(b.minX - pad, b.minY - pad, b.maxX - b.minX + pad * 2, b.maxY - b.minY + pad * 2);
@@ -1756,13 +1757,13 @@ export function getResizeHandles(b: Bounds, zoom: number, includeSides = false, 
   return corners;
 }
 
-export function drawResizeHandles(ctx: CanvasRenderingContext2D, b: Bounds, zoom: number, includeSides = false, pad = 0) {
+export function drawResizeHandles(ctx: CanvasRenderingContext2D, b: Bounds, zoom: number, includeSides = false, pad = 0, lightCanvas = false) {
   const s = 8 / zoom;
   const pts = getResizeHandles(b, zoom, includeSides, pad);
   ctx.save();
   ctx.setLineDash([]);
-  ctx.fillStyle = "#FFFFFF";
-  ctx.strokeStyle = ACCENT;
+  ctx.fillStyle = uiAccent(!lightCanvas);
+  ctx.strokeStyle = uiAccent(lightCanvas);
   ctx.lineWidth = 1.5 / zoom;
   for (const p of pts) {
     ctx.beginPath();
@@ -1796,7 +1797,7 @@ export function drawConnectorHandles(
     ctx.beginPath();
     ctx.moveTo(handle.portX, handle.portY);
     ctx.lineTo(handle.x, handle.y);
-    ctx.strokeStyle = isHovered ? ACCENT : (lightCanvas ? "rgba(59, 130, 246, 0.35)" : "rgba(96, 165, 250, 0.35)");
+    ctx.strokeStyle = isHovered ? uiAccent(lightCanvas) : (lightCanvas ? "rgba(0, 0, 0, 0.35)" : "rgba(255, 255, 255, 0.35)");
     ctx.lineWidth = (isHovered ? 1.5 : 1) / zoom;
     ctx.stroke();
 
@@ -1804,19 +1805,19 @@ export function drawConnectorHandles(
     ctx.beginPath();
     ctx.arc(handle.x, handle.y, 8 / zoom, 0, Math.PI * 2);
     if (isHovered) {
-      ctx.fillStyle = ACCENT;
-      ctx.strokeStyle = ACCENT;
+      ctx.fillStyle = uiAccent(lightCanvas);
+      ctx.strokeStyle = uiAccent(lightCanvas);
       ctx.lineWidth = 1.5 / zoom;
     } else {
-      ctx.fillStyle = lightCanvas ? "rgba(255, 255, 255, 0.9)" : "rgba(39, 39, 42, 0.85)";
-      ctx.strokeStyle = lightCanvas ? "rgba(59, 130, 246, 0.45)" : "rgba(96, 165, 250, 0.45)";
+      ctx.fillStyle = lightCanvas ? "rgba(255, 255, 255, 0.9)" : "rgba(0, 0, 0, 0.85)";
+      ctx.strokeStyle = lightCanvas ? "rgba(0, 0, 0, 0.45)" : "rgba(255, 255, 255, 0.45)";
       ctx.lineWidth = 1.2 / zoom;
     }
     ctx.fill();
     ctx.stroke();
 
     // Plus (+) sign inside circle
-    const plusColor = isHovered ? "#ffffff" : (lightCanvas ? "rgba(59, 130, 246, 0.65)" : "rgba(147, 197, 253, 0.7)");
+    const plusColor = isHovered ? uiAccent(!lightCanvas) : (lightCanvas ? "rgba(0, 0, 0, 0.65)" : "rgba(255, 255, 255, 0.7)");
     ctx.strokeStyle = plusColor;
     ctx.lineWidth = 1.5 / zoom;
     ctx.beginPath();
@@ -1833,7 +1834,8 @@ export function drawElementAnchors(
   ctx: CanvasRenderingContext2D,
   anchors: { anchor: AnchorPosition; x: number; y: number }[],
   snappedAnchor: AnchorPosition | null | undefined,
-  zoom = 1
+  zoom = 1,
+  lightCanvas = false
 ) {
   ctx.save();
   for (const a of anchors) {
@@ -1841,19 +1843,19 @@ export function drawElementAnchors(
     const r = (snapped ? 6 : 4.5) / zoom;
     ctx.beginPath();
     ctx.arc(a.x, a.y, r, 0, Math.PI * 2);
-    ctx.fillStyle = snapped ? ACCENT : "#FFFFFF";
+    ctx.fillStyle = snapped ? uiAccent(lightCanvas) : uiAccent(!lightCanvas);
     ctx.fill();
-    ctx.strokeStyle = ACCENT;
+    ctx.strokeStyle = uiAccent(lightCanvas);
     ctx.lineWidth = (snapped ? 2 : 1.5) / zoom;
     ctx.stroke();
   }
   ctx.restore();
 }
 
-export function drawMarquee(ctx: CanvasRenderingContext2D, b: Bounds, zoom: number) {
+export function drawMarquee(ctx: CanvasRenderingContext2D, b: Bounds, zoom: number, lightCanvas = false) {
   ctx.save();
-  ctx.fillStyle = "rgba(16, 185, 129, 0.08)";
-  ctx.strokeStyle = ACCENT;
+  ctx.fillStyle = lightCanvas ? "rgba(0,0,0,0.08)" : "rgba(255,255,255,0.08)";
+  ctx.strokeStyle = uiAccent(lightCanvas);
   ctx.lineWidth = 1 / zoom;
   ctx.fillRect(b.minX, b.minY, b.maxX - b.minX, b.maxY - b.minY);
   ctx.strokeRect(b.minX, b.minY, b.maxX - b.minX, b.maxY - b.minY);
