@@ -83,7 +83,7 @@ export const TopToolbar = memo(function TopToolbar({
   const iconBtn = `shrink-0 h-9 w-9 rounded-lg flex items-center justify-center transition disabled:opacity-35 disabled:cursor-not-allowed cursor-pointer text-neutral-700 dark:text-neutral-200 hover:bg-neutral-50 dark:hover:bg-neutral-500/20 hover:text-neutral-900 dark:hover:text-white focus-visible:outline-2 focus-visible:outline-black dark:focus-visible:outline-white`;
 
   return (
-    <div ref={toolbar} className="drawing-dock absolute top-3 left-1/2 -translate-x-1/2 z-30 w-max max-w-[calc(100%-1rem)]">
+    <div ref={toolbar} className="drawing-dock absolute top-0 left-1/2 -translate-x-1/2 z-30 w-max max-w-[calc(100%-1rem)]">
       <div
         role="toolbar"
         aria-label="Drawing tools"
