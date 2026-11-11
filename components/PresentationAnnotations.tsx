@@ -109,7 +109,7 @@ export function PresentationAnnotations({
           </>
         )}
         {editing && (
-          <button
+          <button data-ui-tone="danger"
             className="inline-flex items-center gap-1 rounded px-2 py-1.5 text-neutral-300 hover:bg-neutral-800"
             onClick={() => {
               remove(editing.id);
@@ -120,7 +120,7 @@ export function PresentationAnnotations({
             Remove highlight
           </button>
         )}
-        <button
+        <button data-ui-tone="neutral"
           className="ml-auto rounded p-1.5 hover:bg-neutral-800"
           aria-label="Close text annotation"
           onClick={close}
@@ -147,7 +147,7 @@ export function PresentationAnnotations({
             placeholder="Add a private session comment…"
             className="min-w-0 flex-1 rounded border border-neutral-700 bg-neutral-950 px-2 py-1.5 outline-none focus:border-neutral-500"
           />
-          <button type="submit" className="rounded ui-primary px-3 text-white">
+          <button data-ui-tone="success" type="submit" className="rounded ui-primary px-3 text-white">
             Save
           </button>
         </form>

@@ -1,5 +1,5 @@
 import {test,expect} from 'bun:test';
-import {createReminder,completeReminder,tickReminders,parseReminders,nextOccurrence,validateSchedule} from '../lib/reminders.ts';
+import {createReminder,completeReminder,reopenReminder,tickReminders,parseReminders,nextOccurrence,validateSchedule} from '../lib/reminders.ts';
 const at=(s)=>+new Date(s);
 const schedule={kind:'once',start:'2030-06-03',time:'09:00',days:[]};
 const make=(s=schedule)=>createReminder('Review notes',s,5,true,at('2030-06-02T12:00:00'),'test');
@@ -40,4 +40,8 @@ test('daily recurrence follows local wall-clock time across a daylight-saving tr
 
 test('tasks can be completed early, skipping that occurrence while retaining the next repeat',()=>{
  const r=make({...schedule,kind:'range',end:'2030-06-05'});const early=completeReminder(r,at('2030-06-02T13:00:00'));expect(early.nextDue).toBe(at('2030-06-04T09:00:00'));expect(completeReminder(make(),at('2030-06-02T13:00:00')).nextDue).toBeNull();
+});
+
+test('undoing completion immediately re-arms the saved task without changing its recurrence',()=>{
+ const done=completeReminder(make(),at('2030-06-03T10:00:00'));const now=at('2030-06-04T12:00:00'),reopened=reopenReminder(done,now);expect(reopened.schedule).toEqual(done.schedule);expect(reopened.completedAt).toBeNull();expect(tickReminders(parseReminders(JSON.stringify([reopened])),now).alerts).toHaveLength(1);
 });

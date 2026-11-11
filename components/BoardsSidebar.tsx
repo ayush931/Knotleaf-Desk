@@ -1,8 +1,7 @@
 "use client";
 
-import { brandAsset } from "@/lib/brandAssets";
+import { BrandMark } from "./BrandMark";
 
-import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import { X, Plus, Trash2, Copy, Search, Upload, FolderOpen, ArrowRight, Pin } from "lucide-react";
 import { loadPreferences, savePreferences } from "@/lib/preferences";
@@ -51,8 +50,8 @@ export function BoardsSidebar(p: Props) {
     <dialog ref={dialog} onCancel={p.onClose} onClose={p.onClose} aria-labelledby="workspace-title" className="workspace-drawer m-0 h-dvh max-h-dvh w-[340px] max-w-[92vw] border-0 border-r border-neutral-800 bg-white dark:bg-black p-0 text-neutral-100 shadow-2xl" onClick={e => { if (e.target === dialog.current && e.clientX > (dialog.current?.getBoundingClientRect().right ?? 340)) p.onClose(); }}>
       <div className="flex h-full flex-col">
         <div className="flex items-center justify-between border-b border-neutral-800 px-4 py-3">
-          <div className="flex items-center gap-2"><Image src={brandAsset("/icons/mark.svg")} alt="" width={28} height={28} /><h2 id="workspace-title" className="text-sm font-semibold">Knotleaf Desk</h2></div>
-          <button onClick={p.onClose} aria-label="Close workspaces" className={actionClass}><X className="h-4 w-4" /></button>
+          <div className="flex items-center gap-2"><BrandMark size={28} label=""/><h2 id="workspace-title" className="text-sm font-semibold">Knotleaf Desk</h2></div>
+          <button data-ui-tone="neutral" onClick={p.onClose} aria-label="Close workspaces" className={actionClass}><X className="h-4 w-4" /></button>
         </div>
         <div className="space-y-3 border-b border-neutral-800 p-4">
           <label className="block text-xs text-neutral-400" htmlFor="workspace-select">Current workspace</label>
@@ -60,18 +59,18 @@ export function BoardsSidebar(p: Props) {
             <select id="workspace-select" className={inputClass} value={p.workspaceId} onChange={e => { p.onChangeWorkspace(e.target.value); updateSearch(""); setDeleting(null); }}>
               {p.workspaces.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
             </select>
-            <button aria-label="Create workspace" title="Create workspace" className={actionClass} onClick={() => setCreating(!creating)}><Plus className="h-4 w-4" /></button>
+            <button data-ui-tone="info" aria-label="Create workspace" title="Create workspace" className={actionClass} onClick={() => setCreating(!creating)}><Plus className="h-4 w-4" /></button>
           </div>
           {creating && <form noValidate onSubmit={e => { e.preventDefault(); if (!name.trim()) return; p.onCreateWorkspace(name.trim()); setName(""); setCreating(false); }} className="space-y-2">
             <label htmlFor="workspace-name" className="text-xs text-neutral-400">Workspace name</label>
             <input id="workspace-name" autoFocus maxLength={80} value={name} onChange={e => setName(e.target.value)} className={inputClass} placeholder="e.g. Product planning" />
-            <div className="flex gap-2"><button type="submit" disabled={!name.trim()} className="flex-1 rounded-lg ui-primary px-3 py-2 text-xs font-semibold text-white hover:bg-neutral-500 disabled:opacity-40">Create workspace</button><button type="button" onClick={() => setCreating(false)} className="px-3 text-xs text-neutral-400">Cancel</button></div>
+            <div className="flex gap-2"><button data-ui-tone="info" type="submit" disabled={!name.trim()} className="flex-1 rounded-lg ui-primary px-3 py-2 text-xs font-semibold text-white hover:bg-neutral-500 disabled:opacity-40">Create workspace</button><button data-ui-tone="neutral" type="button" onClick={() => setCreating(false)} className="px-3 text-xs text-neutral-400">Cancel</button></div>
           </form>}
-          <button onClick={() => { p.onCreateBoard(); updateSearch(""); }} className="flex w-full items-center justify-center gap-2 rounded-lg ui-primary py-2 text-sm font-medium text-white hover:bg-neutral-500"><Plus className="h-4 w-4" />New board</button>
+          <button data-ui-tone="info" onClick={() => { p.onCreateBoard(); updateSearch(""); }} className="flex w-full items-center justify-center gap-2 rounded-lg ui-primary py-2 text-sm font-medium text-white hover:bg-neutral-500"><Plus className="h-4 w-4" />New board</button>
           <div className="relative">
             <Search className="absolute left-3 top-2.5 h-4 w-4 text-neutral-500" />
             <input ref={searchInput} aria-label="Search boards" placeholder="Search boards…" value={search} onChange={e => updateSearch(e.target.value)} className={`${inputClass} pl-9 pr-9`} />
-            {search && <button aria-label="Clear board search" onClick={() => { updateSearch(""); searchInput.current?.focus(); }} className="absolute right-1 top-1 p-1.5 text-neutral-400"><X className="h-4 w-4" /></button>}
+            {search && <button data-ui-tone="danger" aria-label="Clear board search" onClick={() => { updateSearch(""); searchInput.current?.focus(); }} className="absolute right-1 top-1 p-1.5 text-neutral-400"><X className="h-4 w-4" /></button>}
           </div>
           <div className="grid grid-cols-2 gap-2">
             <label className="space-y-1 text-[11px] text-neutral-400">Search in<select aria-label="Board search scope" value={library.scope} onChange={e=>{updateLibrary({scope:e.target.value as BoardLibrarySettings['scope']});setDeleting(null);}} className={selectClass}><option value="workspace">This workspace</option><option value="all">All workspaces</option></select></label>
@@ -90,16 +89,16 @@ export function BoardsSidebar(p: Props) {
                 <span className="mt-1 block text-[11px] text-neutral-500">{library.scope === "all" && `${p.workspaces.find(w=>w.id===(b.workspaceId||"personal"))?.name || "Workspace"} · `}{b.elementCount} elements · {new Date(b.updatedAt).toLocaleDateString()}</span>
               </button>
               <button aria-label={`Duplicate ${b.title}`} title="Duplicate board" onClick={() => p.onDuplicateBoard(b.id)} className={actionClass}><Copy className="h-3.5 w-3.5" /></button>
-              <button aria-label={`Delete ${b.title}`} title="Delete board" onClick={() => setDeleting(b.id)} className={`${actionClass} hover:text-neutral-400`}><Trash2 className="h-3.5 w-3.5" /></button>
+              <button data-ui-tone="danger" aria-label={`Delete ${b.title}`} title="Delete board" onClick={() => setDeleting(b.id)} className={`${actionClass} hover:text-neutral-400`}><Trash2 className="h-3.5 w-3.5" /></button>
             </div>
-            {deleting === b.id ? <div className="space-y-2 border-t border-neutral-800 p-3"><p className="text-xs text-neutral-300">Delete “{b.title}”? This removes the board and its notes from this browser.</p><div className="flex gap-2"><button autoFocus onClick={() => setDeleting(null)} className="rounded-md bg-neutral-800 px-3 py-1.5 text-xs">Cancel</button><button onClick={() => { p.onDeleteBoard(b.id); setDeleting(null); }} className="rounded-md ui-primary px-3 py-1.5 text-xs text-white">Delete board</button></div></div> : p.workspaces.length > 1 && <details className="px-3 pb-2 text-[11px] text-neutral-500"><summary className="cursor-pointer py-1 hover:text-neutral-300">Move board</summary><label className="flex items-center gap-2 py-1"><ArrowRight className="h-3 w-3" />Move to<select aria-label={`Workspace for ${b.title}`} value={b.workspaceId || "personal"} onChange={e => p.onMoveBoard(b.id, e.target.value)} className="min-w-0 flex-1 bg-transparent text-neutral-400">{p.workspaces.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}</select></label></details>}
+            {deleting === b.id ? <div className="space-y-2 border-t border-neutral-800 p-3"><p className="text-xs text-neutral-300">Delete “{b.title}”? This removes the board and its notes from this browser.</p><div className="flex gap-2"><button data-ui-tone="neutral" autoFocus onClick={() => setDeleting(null)} className="rounded-md bg-neutral-800 px-3 py-1.5 text-xs">Cancel</button><button data-ui-tone="danger" onClick={() => { p.onDeleteBoard(b.id); setDeleting(null); }} className="rounded-md ui-primary px-3 py-1.5 text-xs text-white">Delete board</button></div></div> : p.workspaces.length > 1 && <details className="px-3 pb-2 text-[11px] text-neutral-500"><summary className="cursor-pointer py-1 hover:text-neutral-300">Move board</summary><label className="flex items-center gap-2 py-1"><ArrowRight className="h-3 w-3" />Move to<select aria-label={`Workspace for ${b.title}`} value={b.workspaceId || "personal"} onChange={e => p.onMoveBoard(b.id, e.target.value)} className="min-w-0 flex-1 bg-transparent text-neutral-400">{p.workspaces.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}</select></label></details>}
           </div>)}
           {visible.length < filtered.length && <button type="button" onClick={()=>setPage({key:resultKey,limit:limit+50})} className="mb-3 w-full rounded-lg border border-neutral-700 py-2 text-xs text-neutral-300 hover:bg-neutral-800">Load more boards ({filtered.length-visible.length} remaining)</button>}
           {!filtered.length && <div className="px-4 py-10 text-center"><FolderOpen className="mx-auto mb-3 h-7 w-7 text-neutral-600" /><p className="text-sm text-neutral-300">{search.trim() ? "No matching boards" : "A space for your next idea"}</p><p className="mt-2 text-xs text-neutral-500">{search.trim() ? "Try another search or clear the filter." : "Create a board to start drawing and taking notes."}</p></div>}
         </div>
         <div className="space-y-3 border-t border-neutral-800 p-4">
           <input ref={file} type="file" aria-label="Import project or Markdown from workspace" accept=".knotleaf,.json,.md,.markdown" className="hidden" onChange={event=>{const selected=event.target.files?.[0];event.target.value="";if(!selected)return;p.onClose();void p.onImportFile(selected);}} />
-          <button onClick={() => file.current?.click()} className="flex w-full items-center justify-center gap-2 rounded-lg border border-neutral-700 py-2 text-xs text-neutral-300 hover:bg-neutral-800"><Upload className="h-3.5 w-3.5" />Open project or notes</button>
+          <button data-ui-tone="info" onClick={() => file.current?.click()} className="flex w-full items-center justify-center gap-2 rounded-lg border border-neutral-700 py-2 text-xs text-neutral-300 hover:bg-neutral-800"><Upload className="h-3.5 w-3.5" />Open project or notes</button>
           <p className="text-center text-[11px] text-neutral-500">Local workspaces · saved on this device</p>
         </div>
       </div>

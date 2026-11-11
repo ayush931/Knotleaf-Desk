@@ -109,7 +109,7 @@ export function DocEditor(props: DocEditorProps) {
         <>
           <div className="flex shrink-0 items-center justify-between border-b border-neutral-800 bg-white dark:bg-black px-3 py-2 text-xs text-neutral-400">
             <span>Markdown source</span>
-            <button
+            <button data-ui-tone="neutral"
               type="button"
               className="rounded px-2 py-1 text-neutral-400 hover:bg-neutral-800"
               onClick={() => setSource(false)}
@@ -140,7 +140,7 @@ function RichNotesEditor({
   onOpenNote,
   onCreateNote,
   theme,
-  themeColors=workspacePalette('mono',theme),
+  themeColors=workspacePalette('black',theme),
 }: DocEditorProps & { onSource: () => void; onPreview:()=>void }) {
   const change = useRef(onChange),
     latest = useRef(value),
@@ -871,7 +871,7 @@ function RichNotesEditor({
               >
                 <Network className="h-4 w-4" />
               </button>
-              <button
+              <button data-ui-tone="info"
                 type="button"
                 data-note-overlay-trigger
                 className="note-tool"
@@ -903,7 +903,7 @@ function RichNotesEditor({
               >
                 <ListTree className="h-4 w-4" />
               </button>
-              <button
+              <button data-ui-tone="info"
                 type="button"
                 className="note-tool"
                 title="Copy notes"
@@ -913,7 +913,7 @@ function RichNotesEditor({
                 <Copy className="h-4 w-4" />
               </button>
 
-              <button type="button" className="note-tool" title="Read Markdown · source, preview and split" aria-label="Open Markdown preview" onClick={onPreview}><BookOpen className="h-4 w-4"/></button>
+              <button data-ui-tone="info" type="button" className="note-tool" title="Read Markdown · source, preview and split" aria-label="Open Markdown preview" onClick={onPreview}><BookOpen className="h-4 w-4"/></button>
               <button
                 type="button"
                 className="note-tool"
@@ -1017,7 +1017,7 @@ function RichNotesEditor({
               <t.icon className="h-4 w-4" />
             </button>
           ))}
-          <button
+          <button data-ui-tone="pending"
             type="button"
             className="note-tool"
             title="Undo"
@@ -1028,7 +1028,7 @@ function RichNotesEditor({
           >
             <Undo2 className="h-4 w-4" />
           </button>
-          <button
+          <button data-ui-tone="info"
             type="button"
             className="note-tool"
             title="Redo"
@@ -1069,7 +1069,7 @@ function RichNotesEditor({
             >
               <div className="mb-2 flex items-center justify-between">
                 <h3 className="font-semibold">Export notes</h3>
-                <button
+                <button data-ui-tone="neutral"
                   type="button"
                   aria-label="Close note export"
                   className="note-tool"
@@ -1078,7 +1078,7 @@ function RichNotesEditor({
                   <X className="h-4 w-4" />
                 </button>
               </div>
-              <button
+              <button data-ui-tone="info"
                 type="button"
                 aria-label="Download notes as HTML"
                 className="block w-full rounded px-2 py-2 text-left hover:bg-neutral-800"
@@ -1089,7 +1089,7 @@ function RichNotesEditor({
               >
                 Styled HTML
               </button>
-              <button
+              <button data-ui-tone="info"
                 type="button"
                 aria-label="Download notes as text"
                 className="block w-full rounded px-2 py-2 text-left hover:bg-neutral-800"
@@ -1100,7 +1100,7 @@ function RichNotesEditor({
               >
                 Plain text
               </button>
-              <button
+              <button data-ui-tone="info"
                 type="button"
                 aria-label="Download notes as Markdown"
                 className="block w-full rounded px-2 py-2 text-left hover:bg-neutral-800"
@@ -1208,7 +1208,7 @@ function RichNotesEditor({
             <button className="rounded ui-primary px-3 py-1">
               Apply link
             </button>
-            <button
+            <button data-ui-tone="danger"
               type="button"
               onClick={() => {
                 editor
@@ -1223,7 +1223,7 @@ function RichNotesEditor({
             >
               Remove link
             </button>
-            <button
+            <button data-ui-tone="neutral"
               type="button"
               onClick={closeLink}
               className="rounded px-2 py-1 hover:bg-neutral-800"
@@ -1289,7 +1289,7 @@ function RichNotesEditor({
             >
               <ArrowDown className="h-3.5 w-3.5" />
             </button>
-            <button
+            <button data-ui-tone="neutral"
               type="button"
               aria-label="Close note search"
               className="note-tool"

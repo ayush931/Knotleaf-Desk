@@ -138,7 +138,7 @@ export function IconPickerModal({ isOpen, onClose, onSelectIcon, onSelectOnline 
               <Globe className="w-3.5 h-3.5" /> Search online
             </button>
           </div>
-          <button onClick={closePicker} aria-label="Close" className={`p-1.5 rounded-lg ${subtle} hover:text-current`}>
+          <button data-ui-tone="neutral" onClick={closePicker} aria-label="Close" className={`p-1.5 rounded-lg ${subtle} hover:text-current`}>
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -207,7 +207,7 @@ export function IconPickerModal({ isOpen, onClose, onSelectIcon, onSelectOnline 
                 </div>
               )}
               {status === "error" && (
-                <div role="alert" className="py-8 text-center text-sm text-neutral-400"><p>{online.error}</p><button onClick={retrySearch} className="mt-3 rounded-lg border border-neutral-700 px-3 py-2 text-neutral-200">Retry search</button></div>
+                <div role="alert" className="py-8 text-center text-sm text-neutral-400"><p>{online.error}</p><button data-ui-tone="pending" onClick={retrySearch} className="mt-3 rounded-lg border border-neutral-700 px-3 py-2 text-neutral-200">Retry search</button></div>
               )}
               {status === "idle" && !composing && search.trim().length >= 2 && visibleOnline.length === 0 && (
                 <p className={`text-sm text-center py-10 ${subtle}`}>No icons found for &ldquo;{search.trim()}&rdquo;.</p>

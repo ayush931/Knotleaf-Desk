@@ -102,7 +102,7 @@ export function NoteInsertMenu({
             <X className="h-3 w-3" />
           </button>
         )}
-        <button
+        <button data-ui-tone="neutral"
           type="button"
           aria-label="Close block menu"
           className="note-tool"

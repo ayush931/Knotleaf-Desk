@@ -42,7 +42,7 @@ export function ConfirmDialog({
             : "Remove all shapes and notes. You can undo the canvas change with Ctrl+Z."}
       </p>
       <div className="mt-5 flex justify-end gap-2">
-        <button
+        <button data-ui-tone="neutral"
           autoFocus
           onClick={onClose}
           className="rounded-lg bg-neutral-800 px-4 py-2 text-sm text-neutral-200 hover:bg-neutral-700"
@@ -50,6 +50,7 @@ export function ConfirmDialog({
           Cancel
         </button>
         <button
+          data-ui-tone={variant==="replace-presentation"?"info":"danger"}
           onClick={() => {
             onConfirm();
             onClose();

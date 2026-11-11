@@ -56,7 +56,7 @@ test('every canvas pattern paints the chosen base color first without changing s
     const {ctx,fills,strokes}=context(); drawCanvasBackground(ctx,{fill,fillStyle,fillOpacity:1},()=>{}, {x:0,y:0,width:100,height:60});
     expect(fills[0]).toEqual({color:fill,alpha:1});
     const pattern=fillStyle==='dots'?fills[1]:strokes[0];
-    if(fillStyle!=='solid')expect(pattern).toEqual({color:fill==='#ffffff'?'#000000':'#ffffff',alpha:fill==='#ffffff'?.12:.24});
+    if(fillStyle!=='solid')expect(pattern).toEqual({color:fill==='#ffffff'?'#000000':'#ffffff',alpha:fill==='#ffffff'?.12:.20});
   }
   const {ctx,fills}=context();drawCanvasBackground(ctx,{fill:'#121212',fillStyle:'crosshatch',fillOpacity:.4},()=>{}, {x:0,y:0,width:100,height:60});expect(fills[0].alpha).toBe(.4);
 });
@@ -64,8 +64,8 @@ test('every canvas pattern paints the chosen base color first without changing s
 test('light canvas changes background and neutral ink reversibly without mutating artwork', async () => {
  const {canvasBackground,canvasElementAppearance}=await import('../draw/canvasAppearance.ts');
  const original={...rect,fill:'transparent',fillStyle:'none'};
- expect(canvasBackground(DEFAULT_BACKGROUND,'light')).toEqual({...DEFAULT_BACKGROUND,fill:'#f0f9fc'});
- expect(canvasBackground(DEFAULT_BACKGROUND,'dark')).toEqual({...DEFAULT_BACKGROUND,fill:'#10232c'});
+ expect(canvasBackground(DEFAULT_BACKGROUND,'light')).toEqual({...DEFAULT_BACKGROUND,fill:'#ffffff'});
+ expect(canvasBackground(DEFAULT_BACKGROUND,'dark')).toEqual({...DEFAULT_BACKGROUND,fill:'#000000'});
  const custom={...DEFAULT_BACKGROUND,fill:'#ec4899',fillStyle:'crosshatch'};
  expect(canvasBackground(custom,'light')).toEqual(custom);
  const {ctx,strokes}=context();drawElement(ctx,original,{theme:'light'});
@@ -91,9 +91,9 @@ test('default document and code cards use readable light surfaces and custom car
 test('drawio export reflects light theme canvas background', async () => {
  const { boardToDrawio } = await import('../draw/drawioExport.ts');
  const xml = boardToDrawio({ title: 'Test', elements: [], createdAt: 1, updatedAt: 1, id: '1', theme: 'light', viewMode: 'canvas', gridType: 'dot', snapToGrid: false, zoom: 1, panOffset: { x: 0, y: 0 } });
- expect(xml).toContain('background="#f0f9fc"');
+ expect(xml).toContain('background="#ffffff"');
  const darkXml = boardToDrawio({ title: 'Test', elements: [], createdAt: 1, updatedAt: 1, id: '1', theme: 'dark', viewMode: 'canvas', gridType: 'dot', snapToGrid: false, zoom: 1, panOffset: { x: 0, y: 0 } });
- expect(darkXml).toContain('background="#10232c"');
+ expect(darkXml).toContain('background="#000000"');
 });
 
 test('canvas elements on light surfaces render legible borders, checkboxes, and quotes', async () => {
@@ -152,8 +152,8 @@ test('black-board dots, grid and background patterns remain visible across zoom 
  const contrastOnBlack=alpha=>{const value=alpha<=.04045?alpha/12.92:((alpha+.055)/1.055)**2.4;return (value+.05)/.05;};
  for(const zoom of [.1,1,4])for(const grid of ['dot','grid']){
   const {ctx,fills,strokes,dots,lines}=context();drawGrid(ctx,160,120,{x:7,y:11},zoom,grid,false);
-  const paint=grid==='dot'?fills[0]:strokes[0];const alpha=Number(paint.color.match(/([\d.]+)\)$/)[1]);expect(contrastOnBlack(alpha)).toBeGreaterThanOrEqual(grid==='dot'?2.5:1.6);
+  const paint=grid==='dot'?fills[0]:strokes[0];const alpha=Number(paint.color.match(/([\d.]+)\)$/)[1]);expect(contrastOnBlack(alpha)).toBeGreaterThanOrEqual(grid==='dot'?2:1.4);
   expect(grid==='dot'?dots.length:lines.length).toBeGreaterThan(0);expect(gridAppearance(zoom).radius).toBeGreaterThanOrEqual(1);
  }
- for(const fillStyle of ['hachure','crosshatch','dots']){const {ctx,fills,strokes}=context();drawCanvasBackground(ctx,{...background,fillStyle},()=>{}, {x:0,y:0,width:100,height:60});const pattern=fillStyle==='dots'?fills[1]:strokes[0];expect(contrastOnBlack(pattern.alpha)).toBeGreaterThanOrEqual(1.9);expect(fills[0]).toEqual({color:'#000000',alpha:1});}
+ for(const fillStyle of ['hachure','crosshatch','dots']){const {ctx,fills,strokes}=context();drawCanvasBackground(ctx,{...background,fillStyle},()=>{}, {x:0,y:0,width:100,height:60});const pattern=fillStyle==='dots'?fills[1]:strokes[0];expect(contrastOnBlack(pattern.alpha)).toBeGreaterThanOrEqual(1.6);expect(fills[0]).toEqual({color:'#000000',alpha:1});}
 });

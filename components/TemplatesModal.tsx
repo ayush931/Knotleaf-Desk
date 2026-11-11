@@ -163,7 +163,7 @@ function TemplateDialog({
                 documentation goes in Notes.
               </p>
             </div>
-            <button
+            <button data-ui-tone="neutral"
               type="button"
               aria-label="Close templates"
               title="Close · Escape"
@@ -247,7 +247,7 @@ function TemplateDialog({
                 <p className="mb-3 mt-1 flex-1 text-xs leading-relaxed text-neutral-400">
                   {template.description}
                 </p>
-                <button
+                <button data-ui-tone="info"
                   type="button"
                   aria-label={`Add template: ${template.name}`}
                   disabled={!!busy}

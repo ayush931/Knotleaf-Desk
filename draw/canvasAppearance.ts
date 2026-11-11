@@ -8,7 +8,7 @@ export const DRAWING_PAPER = '#ffffff';
 export const DRAWING_BOARD = '#000000';
 
 /** Theme presentation is reversible and never rewrites saved board colors. */
-export function canvasBackground(value: unknown, theme: Theme, preset: WorkspaceTheme = 'mono'): BackgroundSettings {
+export function canvasBackground(value: unknown, theme: Theme, preset: WorkspaceTheme = 'black'): BackgroundSettings {
   const background = normalizeBackground(value);
   return background.fill.toLowerCase() === '#121212'
     ? { ...background, fill: workspacePalette(preset,theme).background } : background;

@@ -165,7 +165,7 @@ function AccountDialog({ open, onClose, title, children }: { open: boolean; onCl
   }, [open]);
   if (!open) return null;
   return createPortal(<dialog ref={ref} aria-labelledby={id} onCancel={event => { event.preventDefault(); onClose(); }} onClose={onClose} className="m-auto max-h-[calc(100dvh-2rem)] w-[min(400px,calc(100vw-2rem))] cursor-default overflow-y-auto rounded-xl border border-neutral-700 bg-white dark:bg-black p-5 text-neutral-100 shadow-2xl">
-    <div className="mb-4 flex items-start justify-between gap-3"><h2 id={id} className="text-base font-semibold">{title}</h2><button type="button" onClick={onClose} aria-label="Close account dialog" className="-mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-neutral-400 hover:bg-neutral-800 hover:text-white"><X className="h-4 w-4" /></button></div>
+    <div className="mb-4 flex items-start justify-between gap-3"><h2 id={id} className="text-base font-semibold">{title}</h2><button data-ui-tone="neutral" type="button" onClick={onClose} aria-label="Close account dialog" className="-mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-neutral-400 hover:bg-neutral-800 hover:text-white"><X className="h-4 w-4" /></button></div>
     {children}
   </dialog>, document.body);
 }

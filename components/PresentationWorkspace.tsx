@@ -141,7 +141,7 @@ export function PresentationWorkspace(props: WorkspaceProps) {
           className="flex items-center justify-between bg-neutral-950 px-3 py-2 text-xs text-neutral-200"
         >
           {error}
-          <button
+          <button data-ui-tone="neutral"
             aria-label="Dismiss library error"
             onClick={() => setError("")}
           >
@@ -427,7 +427,7 @@ function PresentationEditor({
       <section className="flex flex-1 flex-col items-center justify-center gap-4 p-6 text-sm">
         <p role="alert">{error || "Opening presentation…"}</p>
         {error && (
-          <button
+          <button data-ui-tone="info"
             className={button}
             onClick={() => {
               const raw = localStorage.getItem(deckKey(boardId));
@@ -664,7 +664,7 @@ function PresentationEditor({
             <button className={button} onClick={() => setPlanner("organize")}>
               Organize
             </button>
-            <button
+            <button data-ui-tone="danger"
               className={button}
               aria-label="Delete current slide"
               onClick={() => changeSlide("delete", active)}
@@ -821,7 +821,7 @@ function PresentationEditor({
             </option>
             <option value="json">Presentation backup</option>
           </select>
-          <button
+          <button data-ui-tone="info"
             className={button}
             disabled={!!busy}
             onClick={() =>
@@ -1006,7 +1006,7 @@ function PresentationEditor({
           className="flex shrink-0 items-start justify-between gap-2 border-b border-neutral-800 bg-neutral-950/40 px-3 py-2 text-xs text-neutral-200"
         >
           {error}
-          <button
+          <button data-ui-tone="neutral"
             aria-label="Dismiss presentation error"
             onClick={() => setError("")}
           >
@@ -1038,7 +1038,7 @@ function PresentationEditor({
                 ? `${issues.length} suggestions`
                 : "No issues found"}
             </strong>
-            <button
+            <button data-ui-tone="neutral"
               aria-label="Close presentation checks"
               onClick={() => setLintOpen(false)}
             >
@@ -1206,7 +1206,7 @@ function PresentationEditor({
           {deck.kind !== "html" && (
             <>
               <div className="flex shrink-0 items-center justify-between gap-2 px-3 pb-2">
-                <button
+                <button data-ui-tone="info"
                   className={button}
                   aria-label="Previous preview slide"
                   disabled={active === 0}
@@ -1217,7 +1217,7 @@ function PresentationEditor({
                 <span className="truncate text-xs text-neutral-400">
                   {active + 1} / {slides.length} · {slides[active].title}
                 </span>
-                <button
+                <button data-ui-tone="info"
                   className={button}
                   aria-label="Next preview slide"
                   disabled={active === slides.length - 1}
