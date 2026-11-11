@@ -149,7 +149,7 @@ export function BugReportForm() {
         />
       </details>
       <div className="flex flex-wrap gap-2">
-        <button
+        <button data-ui-tone="info"
           type="button"
           disabled={!ready}
           onClick={() => void copy()}

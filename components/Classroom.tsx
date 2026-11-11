@@ -398,7 +398,7 @@ export function Classroom({
     "flex items-center gap-1.5 rounded-lg border border-neutral-700 px-3 py-2 text-xs hover:bg-neutral-800 disabled:opacity-40";
   return (
     <>
-      <button
+      <button data-ui-tone="info"
         ref={trigger}
         type="button"
         aria-controls={panelId}
@@ -518,7 +518,7 @@ export function Classroom({
                       onFocus={(e) => e.target.select()}
                       className="min-w-0 flex-1 rounded-lg border border-neutral-700 bg-neutral-950 p-2 text-xs text-neutral-300"
                     />
-                    <button
+                    <button data-ui-tone="info"
                       type="button"
                       onClick={() => void copyInvite()}
                       className={control}

@@ -508,7 +508,7 @@ test('light mode changes the canvas and persists without rewriting stored artwor
  expect(document.documentElement.classList.contains('light')).toBe(true);
  expect(document.documentElement.classList.contains('dark')).toBe(false);
  expect(document.documentElement.style.colorScheme).toBe('light');
- expect(named('Drawing canvas').dataset.background).toBe('#f0f9fc');
+ expect(named('Drawing canvas').dataset.background).toBe('#ffffff');
  expect(JSON.parse(localStorage.getItem('knotleaf.preferences.v1')).theme).toBe('light');
  expect(getBoard(id).background).toEqual(original.background);
  expect(getBoard(id).elements).toEqual(original.elements);
@@ -519,7 +519,7 @@ test('light mode changes the canvas and persists without rewriting stored artwor
  await clickNamed('Switch to dark mode');
  expect(document.documentElement.classList.contains('dark')).toBe(true);
  expect(document.documentElement.classList.contains('light')).toBe(false);
- expect(named('Drawing canvas').dataset.background).toBe('#10232c');
+ expect(named('Drawing canvas').dataset.background).toBe('#000000');
 });
 
 test('moving the open board also follows its destination workspace',async()=>{
@@ -701,11 +701,15 @@ test('notes page-mode control changes only notes and stays consistent with the s
 test('reminders remain accessible in canvas and notes without modifying the board',async()=>{
  for(const mode of ['canvas','notes']){const id=await renderBoard(mode);const original=getBoard(id);await clickNamed('Open reminders');expect(document.querySelector('[aria-labelledby="reminders-title"]')).not.toBeNull();await clickNamed('Close reminders');expect(getBoard(id)).toEqual(original);}
 });
-test('Black & White updates logo and portalled dialog tokens, and releases them when the workspace closes',async()=>{
+test('Midnight updates logo and portalled dialog tokens, and releases them when the workspace closes',async()=>{
  const rootStyle=document.documentElement.style;const previous=rootStyle.getPropertyValue('--ui-accent');await renderBoard('canvas');
- await clickNamed('Canvas and notes themes');await clickNamed('Theme: Black & White');await act(async()=>[...document.querySelectorAll('button')].find(b=>b.textContent==='Apply theme').click());await clickNamed('Close themes');
- expect(document.documentElement.dataset.workspaceUi).toBe('true');expect(rootStyle.getPropertyValue('--drawing-panel')).toBe('#000000');expect(rootStyle.getPropertyValue('--ui-accent')).toBe('#ffffff');expect(document.querySelector('[data-brand-mark] path').getAttribute('fill')).toBe('var(--ui-accent)');
+ await clickNamed('Canvas and notes themes');await clickNamed('Theme: Midnight');await act(async()=>[...document.querySelectorAll('button')].find(b=>b.textContent==='Apply theme').click());await clickNamed('Close themes');
+ expect(document.documentElement.dataset.workspaceUi).toBe('true');expect(rootStyle.getPropertyValue('--drawing-panel')).toBe('#000000');expect(rootStyle.getPropertyValue('--ui-accent')).toBe('#93b4ff');expect(document.querySelector('[data-brand-mark] path').getAttribute('fill')).toBe('var(--ui-brand)');
  await clickNamed('Install web app');const dialog=document.querySelector('[aria-labelledby="install-web-app-title"]');expect(dialog.parentElement).toBe(document.body);
- await clickNamed('Close installation instructions');await clickNamed('Switch to light mode');expect(rootStyle.getPropertyValue('--ui-accent')).toBe('#000000');
+ await clickNamed('Close installation instructions');await clickNamed('Switch to light mode');expect(rootStyle.getPropertyValue('--ui-accent')).toBe('#2759bb');
  await act(async()=>root.render(null));expect(rootStyle.getPropertyValue('--ui-accent')).toBe(previous);expect(document.documentElement.hasAttribute('data-workspace-ui')).toBe(false);
+});
+
+test('compact board-view selector switches the workspace and saves the chosen view',async()=>{
+ const id=await renderBoard('canvas');const select=document.querySelector('select[aria-label="Board view"]');expect(select).not.toBeNull();await act(async()=>{select.value='notes';select.dispatchEvent(new browser.Event('change',{bubbles:true}));});expect(getBoard(id).viewMode).toBe('notes');expect(named('Board notes')).not.toBeNull();
 });

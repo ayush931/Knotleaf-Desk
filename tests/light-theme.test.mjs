@@ -8,7 +8,7 @@ import postcss from 'postcss';
 import {transform} from 'lightningcss';
 import {convert} from '@asamuzakjp/css-color';
 import {BoardsSidebar} from '../components/BoardsSidebar.tsx';
-import {workspacePalette,workspaceThemeStyle,WORKSPACE_THEMES} from '../lib/workspaceThemes.ts';
+import {workspacePalette,workspaceThemeStyle,workspaceControlPalette,WORKSPACE_THEMES} from '../lib/workspaceThemes.ts';
 import {BrandMark} from '../components/BrandMark.tsx';
 import {Reminders} from '../components/Reminders.tsx';
 import {TopToolbar} from '../components/TopToolbar.tsx';
@@ -89,7 +89,7 @@ for(const mode of ['light','dark'])test(`bright drawing tools retain readable ac
  const doc=render(React.createElement(TopToolbar,{selectedTool:'select',setSelectedTool:noop,onUndo:noop,onRedo:noop,canUndo:true,canRedo:true,onOpenIconPicker:noop,theme:mode}),mode);
  const toolbar=doc.querySelector('[aria-label="Drawing tools"]'),active=toolbar.querySelector('[aria-pressed="true"]'),inactive=toolbar.querySelector('[aria-label="Pan (H)"]');
  readable(active,active);readable(inactive,toolbar);
- const lightness=neutralLightness(style(toolbar).backgroundColor);if(mode==='light')expect(lightness).toBeGreaterThan(.9);else {expect(lightness).toBeGreaterThan(.015);expect(lightness).toBeLessThan(.12);}
+ const lightness=neutralLightness(style(toolbar).backgroundColor);if(mode==='light')expect(lightness).toBeGreaterThan(.9);else expect(lightness).toBe(0);
 });
 
 
@@ -111,7 +111,7 @@ for(const mode of ['light','dark'])test(`reminder fields and alarm actions remai
 });
 
 for(const {id}of WORKSPACE_THEMES)for(const mode of ['light','dark'])test(`${id} ${mode} chrome follows its palette across buttons, options, dialogs and Notes`,()=>{
- const other=mode==='light'?'dark':'light';const p=workspacePalette(id,mode),note=workspacePalette('forest',other);
+ const other=mode==='light'?'dark':'light';const p=workspacePalette(id,mode),control=workspaceControlPalette(mode),noteControl=workspaceControlPalette(other);
  const doc=render(React.createElement('div',null,
   React.createElement(BrandMark),
   React.createElement('div',{className:'drawing-panel',id:'chrome-panel'},
@@ -124,7 +124,13 @@ for(const {id}of WORKSPACE_THEMES)for(const mode of ['light','dark'])test(`${id}
   React.createElement('section',{className:'notes-theme','data-notes-theme':'forest',style:workspaceThemeStyle('forest',other,true)},React.createElement('button',{'aria-pressed':true,id:'notes-selected',className:'text-neutral-200 bg-neutral-800'},'Bold'))),mode);
  doc.documentElement.setAttribute('data-workspace-ui','true');for(const [key,value]of Object.entries(workspaceThemeStyle(id,mode)))if(key.startsWith('--'))doc.documentElement.style.setProperty(key,value);
  for(const selector of ['#chrome-panel','#portalled-dialog','#chrome-select','#chrome-option']){const node=doc.querySelector(selector);expect(convert.colorToHex(style(node).backgroundColor),selector).toBe(p.panel);readable(node,node);}
- for(const selector of ['#chrome-selected','#chrome-primary']){const node=doc.querySelector(selector);expect(convert.colorToHex(style(node).backgroundColor)).toBe(p.accent);expect(convert.colorToHex(style(node).color)).toBe(p.accentInk);readable(node,node);}
- const selected=doc.querySelector('#notes-selected');expect(convert.colorToHex(style(selected).backgroundColor)).toBe(note.accent);expect(convert.colorToHex(style(selected).color)).toBe(note.accentInk);readable(selected,selected);
- expect(convert.colorToHex(style(doc.querySelector('#swatch')).backgroundColor)).toBe('#ef4444');expect(doc.querySelector('[data-brand-mark] path').getAttribute('fill')).toBe('var(--ui-accent)');
+ for(const selector of ['#chrome-selected','#chrome-primary']){const node=doc.querySelector(selector);expect(convert.colorToHex(style(node).backgroundColor)).toBe(selector==='#chrome-selected'?control.active:p.accent);expect(convert.colorToHex(style(node).color)).toBe(selector==='#chrome-selected'?control['active-ink']:p.accentInk);readable(node,node);}
+ const selected=doc.querySelector('#notes-selected');expect(convert.colorToHex(style(selected).backgroundColor)).toBe(noteControl.active);expect(convert.colorToHex(style(selected).color)).toBe(noteControl['active-ink']);readable(selected,selected);
+ expect(convert.colorToHex(style(doc.querySelector('#swatch')).backgroundColor)).toBe('#ef4444');expect(doc.querySelector('[data-brand-mark] path').getAttribute('fill')).toBe('var(--ui-brand)');
+});
+
+for(const mode of ['light','dark'])test(`${mode} action states use distinct, legible blue, green, amber and rose colors`,()=>{
+ const control=workspaceControlPalette(mode),doc=render(React.createElement('div',null,...['info','success','pending','danger'].map(tone=>React.createElement('button',{'data-ui-tone':tone,key:tone,id:tone,className:'ui-primary'},tone))),mode);
+ doc.documentElement.setAttribute('data-workspace-ui','true');for(const [key,value]of Object.entries(workspaceThemeStyle('black',mode)))if(key.startsWith('--'))doc.documentElement.style.setProperty(key,value);
+ const colors=new Set();for(const tone of ['info','success','pending','danger']){const node=doc.getElementById(tone);expect(convert.colorToHex(style(node).backgroundColor)).toBe(control[tone]);expect(convert.colorToHex(style(node).color)).toBe(control[tone+'-ink']);readable(node,node);colors.add(style(node).backgroundColor);}expect(colors.size).toBe(4);
 });

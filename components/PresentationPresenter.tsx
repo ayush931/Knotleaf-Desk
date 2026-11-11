@@ -292,7 +292,7 @@ export function PresentationPresenter({
                 >
                   <div className="mb-3 flex items-center justify-between">
                     <h2 className="font-semibold">Presenter controls</h2>
-                    <button
+                    <button data-ui-tone="neutral"
                       className={button}
                       aria-label="Close presenter controls"
                       onClick={() => setHelp(false)}
@@ -381,7 +381,7 @@ export function PresentationPresenter({
                 <Eraser size={14} />
                 Eraser
               </button>
-              <button
+              <button data-ui-tone="pending"
                 className={button}
                 aria-label="Undo annotation"
                 onClick={() => setUndo((value) => value + 1)}

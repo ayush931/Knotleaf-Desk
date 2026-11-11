@@ -45,7 +45,7 @@ export function PresentationDesign({
             Composition, typography, and movement. Your Markdown stays intact.
           </p>
         </div>
-        <button
+        <button data-ui-tone="neutral"
           onClick={onClose}
           autoFocus
           aria-label="Close presentation design"
@@ -167,7 +167,7 @@ export function PresentationDesign({
             {deck.backgroundImage ? "Replace image" : "Upload image"}
           </button>
           {deck.backgroundImage && (
-            <button
+            <button data-ui-tone="danger"
               type="button"
               className="rounded px-2 py-1.5 text-xs text-neutral-400 hover:bg-neutral-800"
               onClick={() => onChange({ backgroundImage: undefined })}

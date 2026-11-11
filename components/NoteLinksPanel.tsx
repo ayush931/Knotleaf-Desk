@@ -47,7 +47,7 @@ export function NoteLinksPanel({
     >
       <div className="mb-2 flex items-center justify-between">
         <h3 className="font-semibold">Note links</h3>
-        <button
+        <button data-ui-tone="neutral"
           type="button"
           aria-label="Close note links"
           className="note-tool"
@@ -97,7 +97,7 @@ export function NoteLinksPanel({
                 <Link2 className="h-3.5 w-3.5 shrink-0" />
                 <span className="truncate">{page.title}</span>
               </button>
-              <button
+              <button data-ui-tone="info"
                 type="button"
                 aria-label={`Open note ${page.title}`}
                 title="Open note"
@@ -153,7 +153,7 @@ export function NoteLinksPanel({
               placeholder="Note title"
               className="min-w-0 flex-1 rounded border border-neutral-700 bg-neutral-950 px-2 py-2"
             />
-            <button
+            <button data-ui-tone="info"
               type="submit"
               title="Create and link note"
               aria-label="Create and link note"

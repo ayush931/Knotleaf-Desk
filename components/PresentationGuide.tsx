@@ -118,7 +118,7 @@ export function PresentationGuide({
               presentation.
             </p>
           </div>
-          <button
+          <button data-ui-tone="neutral"
             autoFocus
             className={button}
             aria-label="Close writing guide"
@@ -231,7 +231,7 @@ export function PresentationGuide({
                       <Plus size={14} />
                       Insert example
                     </button>
-                    <button
+                    <button data-ui-tone="info"
                       className={button}
                       onClick={() =>
                         void (async () => {

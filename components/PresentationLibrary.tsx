@@ -53,7 +53,7 @@ export function PresentationLibrary({
               Your decks and HTML documents, saved on this device.
             </p>
           </div>
-          <button
+          <button data-ui-tone="neutral"
             autoFocus
             aria-label="Close presentation library"
             onClick={onClose}
@@ -63,14 +63,14 @@ export function PresentationLibrary({
           </button>
         </header>
         <div className="my-4 flex flex-wrap gap-2">
-          <button
+          <button data-ui-tone="info"
             onClick={() => onCreate("markdown")}
             className="inline-flex items-center gap-1.5 rounded-lg ui-primary px-3 py-2 text-xs text-white hover:bg-neutral-500"
           >
             <Plus size={14} />
             New presentation
           </button>
-          <button
+          <button data-ui-tone="info"
             onClick={() => onCreate("html")}
             className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-700 px-3 py-2 text-xs hover:bg-neutral-800"
           >
@@ -128,7 +128,7 @@ export function PresentationLibrary({
                 >
                   <Copy size={15} />
                 </button>
-                <button
+                <button data-ui-tone="danger"
                   aria-label={`Delete ${item.title}`}
                   onClick={() => setDeleting(item)}
                   className="rounded p-2 text-neutral-400 hover:bg-neutral-500/10 hover:text-neutral-300"

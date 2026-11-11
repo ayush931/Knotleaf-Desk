@@ -9,8 +9,8 @@
 }
 
 /* One shared surface for the drawing controls, independent of artwork colors. */
-:root { --drawing-panel: #193641; --drawing-border: #416573; --ui-accent: #5ee0c1; --ui-accent-ink: #082c28; --ui-ink:#f0fbff; --ui-muted:#b5d0da; --ui-inset:#0b1b23; --ui-background:#10232c; }
-html.light { --drawing-panel: #ffffff; --drawing-border: #a8cbd6; --ui-accent: #096956; --ui-accent-ink: #ffffff; --ui-ink:#12313e; --ui-muted:#476571; --ui-inset:#e0eff4; --ui-background:#f0f9fc; }
+:root { --drawing-panel:#000000; --drawing-border:#525252; --ui-accent:#93b4ff; --ui-accent-ink:#0b1b34; --ui-ink:#ffffff; --ui-muted:#b8b8b8; --ui-inset:#111318; --ui-background:#000000; --ui-control:#111723;--ui-control-ink:#c0d3f5;--ui-active:#172d50;--ui-active-ink:#b9d2ff;--ui-success:#103629;--ui-success-ink:#92efc2;--ui-pending:#382b10;--ui-pending-ink:#f8d78b;--ui-danger:#3a1720;--ui-danger-ink:#ffb5c3;--ui-info:#172d50;--ui-info-ink:#b9d2ff;--ui-brand:#f6c55b; }
+html.light { --drawing-panel:#ffffff; --drawing-border:#c7c7c7; --ui-accent:#2759bb; --ui-accent-ink:#ffffff; --ui-ink:#000000; --ui-muted:#525252; --ui-inset:#f3f5f9; --ui-background:#ffffff; --ui-control:#f2f5fc;--ui-control-ink:#344f7a;--ui-active:#e8efff;--ui-active-ink:#254982;--ui-success:#e3f6ed;--ui-success-ink:#176843;--ui-pending:#fff2d9;--ui-pending-ink:#85530a;--ui-danger:#fff0f0;--ui-danger-ink:#a62e42;--ui-info:#e8efff;--ui-info-ink:#254982;--ui-brand:#9a5706; }
 .drawing-panel { background-color: var(--drawing-panel); border-color: var(--drawing-border); }
 
 @layer base {
@@ -460,11 +460,27 @@ html[data-workspace-ui]:is(.dark,.light) :is([class~="bg-neutral-50"],[class~="b
 html[data-workspace-ui]:is(.dark,.light) :is([class~="text-white"],[class~="text-black"],[class~="text-neutral-50"],[class~="text-neutral-100"],[class~="text-neutral-200"],[class~="text-neutral-300"],[class~="text-neutral-700"],[class~="text-neutral-800"],[class~="text-neutral-900"],[class~="text-neutral-950"],[class~="dark:text-neutral-50"],[class~="dark:text-neutral-100"],[class~="dark:text-neutral-200"],[class~="dark:text-neutral-300"],[class~="dark:text-neutral-700"],[class~="dark:text-neutral-800"],[class~="dark:text-neutral-900"],[class~="dark:text-neutral-950"]) { color:var(--ui-ink); }
 html[data-workspace-ui]:is(.dark,.light) :is([class~="text-neutral-400"],[class~="text-neutral-500"],[class~="text-neutral-600"],[class~="dark:text-neutral-400"],[class~="dark:text-neutral-500"],[class~="dark:text-neutral-600"]) { color:var(--ui-muted); }
 html[data-workspace-ui]:is(.dark,.light) [class*="border-neutral-"] { border-color:var(--drawing-border); }
+html[data-workspace-ui]:is(.dark,.light) button:not([data-theme-preview]):not(.ui-primary) { background-color:var(--ui-control); color:var(--ui-control-ink); }
 html[data-workspace-ui]:is(.dark,.light) :is(button,input,select,option) { color:var(--ui-ink); }
 html[data-workspace-ui]:is(.dark,.light) :is(select,option,input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"])) { background-color:var(--drawing-panel); border-color:var(--drawing-border); }
 html[data-workspace-ui]:is(.dark,.light) :is(input[type="checkbox"],input[type="radio"],input[type="range"]) { accent-color:var(--ui-accent); }
-html[data-workspace-ui]:is(.dark,.light) :is(button:not(:disabled),[role="button"]):hover { background-color:var(--ui-inset); color:var(--ui-ink); }
-html[data-workspace-ui]:is(.dark,.light) :is(button[aria-pressed="true"],button[aria-checked="true"],button.is-active):not([data-theme-preview]) { background-color:var(--ui-accent); color:var(--ui-accent-ink); border-color:var(--ui-accent); }
+html[data-workspace-ui]:is(.dark,.light) :is(button:not(:disabled),[role="button"]):hover { background-color:var(--ui-active); color:var(--ui-active-ink); }
+html[data-workspace-ui]:is(.dark,.light) :is(button[aria-pressed="true"],button[aria-checked="true"],button.is-active):not([data-theme-preview]) { background-color:var(--ui-active); color:var(--ui-active-ink); border-color:var(--ui-active); }
 html[data-workspace-ui]:is(.dark,.light) :is(.ui-primary,.ui-primary:hover,.ui-primary:active,.ui-primary:focus-visible) { background-color:var(--ui-accent); color:var(--ui-accent-ink); }
 html[data-workspace-ui]:is(.dark,.light) :is(button,input,select,textarea):focus-visible { outline-color:var(--ui-accent); }
 html[data-workspace-ui]:is(.dark,.light) ::-webkit-scrollbar-thumb { background-color:var(--drawing-border); }
+
+/* Blue actions, green completion, amber pending/undo and rose destructive actions. */
+html[data-workspace-ui]:is(.dark,.light) [data-ui-tone="success"] { --action-bg:var(--ui-success); --action-ink:var(--ui-success-ink); }
+html[data-workspace-ui]:is(.dark,.light) [data-ui-tone="pending"] { --action-bg:var(--ui-pending); --action-ink:var(--ui-pending-ink); }
+html[data-workspace-ui]:is(.dark,.light) [data-ui-tone="danger"] { --action-bg:var(--ui-danger); --action-ink:var(--ui-danger-ink); }
+html[data-workspace-ui]:is(.dark,.light) [data-ui-tone="info"] { --action-bg:var(--ui-info); --action-ink:var(--ui-info-ink); }
+html[data-workspace-ui]:is(.dark,.light) [data-ui-tone="neutral"] { --action-bg:var(--ui-inset); --action-ink:var(--ui-muted); }
+html[data-workspace-ui]:is(.dark,.light) :is(button[data-ui-tone],button[data-ui-tone]:hover,button[data-ui-tone]:active,button[data-ui-tone]:focus-visible,.reminder-status[data-ui-tone]) { background-color:var(--action-bg); color:var(--action-ink); border-color:var(--action-bg); }
+html[data-workspace-ui]:is(.dark,.light) button[data-ui-tone]:not(:disabled):hover { outline:1px solid var(--action-ink); outline-offset:-1px; }
+html[data-workspace-ui]:is(.dark,.light) :is(button:disabled,[aria-disabled="true"]) { opacity:.45; cursor:not-allowed; }
+html[data-workspace-ui]:is(.dark,.light) input[type="checkbox"]:checked { accent-color:var(--ui-success-ink); }
+html[data-workspace-ui]:is(.dark,.light) [role="alert"] { color:var(--ui-danger-ink); }
+.reminder-status { display:inline-block; border-radius:5px; padding:3px 6px; }
+.reminder-item { flex-wrap:wrap; }
+.reminder-item>div { min-width:140px; }

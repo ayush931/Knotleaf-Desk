@@ -100,7 +100,7 @@ export function ShortcutsModal({ isOpen, onClose, theme }: ShortcutsModalProps) 
       <div>
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-lg font-semibold">Keyboard shortcuts</h2>
-          <button ref={closeButton} type="button" onClick={onClose} aria-label="Close keyboard shortcuts" className="p-1.5 rounded-lg opacity-60 hover:opacity-100">
+          <button data-ui-tone="neutral" ref={closeButton} type="button" onClick={onClose} aria-label="Close keyboard shortcuts" className="p-1.5 rounded-lg opacity-60 hover:opacity-100">
             <X className="w-5 h-5" />
           </button>
         </div>

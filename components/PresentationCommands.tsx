@@ -64,7 +64,7 @@ export function PresentationCommands({
           }}
           className="min-w-0 flex-1 bg-transparent text-sm outline-none"
         />
-        <button
+        <button data-ui-tone="neutral"
           aria-label="Close presentation commands"
           onClick={onClose}
           className="rounded p-1 hover:bg-neutral-800"

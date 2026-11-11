@@ -72,12 +72,12 @@ export function PresentationPlanner({
           </p>
         </div>
         {mode === "organize" && (
-          <button className={button} disabled={!onUndo} onClick={onUndo}>
+          <button data-ui-tone="pending" className={button} disabled={!onUndo} onClick={onUndo}>
             <Undo2 size={13} />
             Undo change
           </button>
         )}
-        <button
+        <button data-ui-tone="neutral"
           className={button}
           autoFocus
           aria-label="Close slide planner"
@@ -137,7 +137,7 @@ export function PresentationPlanner({
                     <Copy size={14} />
                     Duplicate
                   </button>
-                  <button
+                  <button data-ui-tone="danger"
                     className={`${button} ml-auto`}
                     aria-label={`Delete slide ${index + 1}`}
                     onClick={() => action("delete", index)}

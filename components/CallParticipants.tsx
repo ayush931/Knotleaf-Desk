@@ -151,7 +151,7 @@ export function CallParticipants({
                             : "Make co-host"}
                         </button>
                       )}
-                      <button
+                      <button data-ui-tone="danger"
                         type="button"
                         className="note-tool text-neutral-300"
                         onClick={() => setRemoving(person)}

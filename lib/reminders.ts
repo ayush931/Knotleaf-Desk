@@ -89,3 +89,6 @@ export function parseReminders(raw: string | null): Reminder[] {
         return [];
     }
 }
+
+/** Undo completion resumes the alarm immediately; the schedule remains unchanged. */
+export function reopenReminder(r:Reminder,now=Date.now()):Reminder{return {...r,nextDue:now,activeSince:null,lastNotified:null,completedAt:null};}

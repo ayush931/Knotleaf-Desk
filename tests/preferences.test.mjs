@@ -93,6 +93,12 @@ test('hand-drawn canvas defaults migrate once while explicit Clean, dash and dot
 test('canvas and notes themes persist independently with optional reader mode',()=>{
  savePreferences({workspaceThemes:{canvas:'paper',notes:'forest',notesMode:'light'}});savePreferences({notesWidth:450});
  expect(loadPreferences().workspaceThemes).toEqual({canvas:'paper',notes:'forest',notesMode:'light'});
- expect(normalizePreferences({workspaceThemes:{canvas:'invalid',notes:'slate',notesMode:'invalid'}}).workspaceThemes).toEqual({canvas:'mono',notes:'slate'});
+ expect(normalizePreferences({workspaceThemes:{canvas:'invalid',notes:'slate',notesMode:'invalid'}}).workspaceThemes).toEqual({canvas:'black',notes:'slate'});
  expect(normalizePreferences({markdownWorkspace:{theme:'paper'}}).workspaceThemes.notesMode).toBe('light');
+});
+
+test('Midnight becomes the neutral default once while later explicit palette choices remain saved',()=>{
+ expect(normalizePreferences(null).workspaceThemes).toEqual({canvas:'black',notes:'black'});
+ const migrated=normalizePreferences({workspaceThemes:{canvas:'mono',notes:'forest'}});expect(migrated.workspaceThemes).toEqual({canvas:'black',notes:'forest'});expect(migrated.workspaceColorVersion).toBe(1);
+ expect(normalizePreferences({...migrated,workspaceThemes:{canvas:'mono',notes:'paper'}}).workspaceThemes).toEqual({canvas:'mono',notes:'paper'});
 });

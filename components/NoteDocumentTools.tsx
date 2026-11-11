@@ -248,7 +248,7 @@ export function NoteStylePanel({
     >
       <div className="flex items-center justify-between">
         <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">{title}</h3>
-        <button
+        <button data-ui-tone="neutral"
           type="button"
           aria-label={`Close ${title.toLowerCase()}`}
           className="note-tool"

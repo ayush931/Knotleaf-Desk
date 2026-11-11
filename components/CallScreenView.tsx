@@ -161,7 +161,7 @@ export function CallScreenView({
           <Expand className="mr-1 h-3.5 w-3.5" />
           Enlarge
         </button>
-        <button
+        <button data-ui-tone="info"
           type="button"
           className="note-tool inline-flex shrink-0 items-center gap-1"
           aria-label={`Full screen ${label}`}
@@ -211,7 +211,7 @@ export function CallScreenView({
               <Maximize className="mr-1 h-4 w-4" />
               {fullscreen ? "Exit full screen" : "Full screen"}
             </button>
-            <button
+            <button data-ui-tone="neutral"
               type="button"
               className="note-tool"
               aria-label="Close enlarged screen"

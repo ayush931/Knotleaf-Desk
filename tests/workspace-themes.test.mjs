@@ -19,8 +19,8 @@ test('theme scope changes only the requested pane and Both restores linked light
  expect(original).toEqual({canvas:'paper',notes:'forest',notesMode:'light'});
 });
 test('bad theme preferences recover safely and custom canvas colors remain explicit',()=>{
- expect(normalizeWorkspaceThemes({canvas:'bad',notes:'forest',notesMode:'wrong'})).toEqual({canvas:'mono',notes:'forest'});
- expect(normalizeWorkspaceThemes(null)).toEqual({canvas:'mono',notes:'mono'});
+ expect(normalizeWorkspaceThemes({canvas:'bad',notes:'forest',notesMode:'wrong'})).toEqual({canvas:'black',notes:'forest'});
+ expect(normalizeWorkspaceThemes(null)).toEqual({canvas:'black',notes:'black'});
  const custom={fill:'#000000',fillStyle:'solid',fillOpacity:1};for(const {id}of WORKSPACE_THEMES)for(const mode of ['light','dark'])expect(canvasBackground(custom,mode,id)).toEqual(custom);
 });
 test('theme adaptation keeps text readable inside explicitly dark shapes on light canvas',()=>{

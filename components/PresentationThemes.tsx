@@ -46,7 +46,7 @@ export function PresentationThemes({
             Your Markdown stays the same.
           </p>
         </div>
-        <button
+        <button data-ui-tone="neutral"
           type="button"
           aria-label="Close theme gallery"
           autoFocus
