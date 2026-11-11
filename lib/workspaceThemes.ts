@@ -35,7 +35,7 @@ export function workspaceThemeStyle(preset:WorkspaceTheme,mode:Theme,notes=false
 function mixHex(base:string,accent:string,weight:number){const channel=(offset:number)=>Math.round(parseInt(base.slice(offset,offset+2),16)*(1-weight)+parseInt(accent.slice(offset,offset+2),16)*weight).toString(16).padStart(2,'0');return '#'+[1,3,5].map(channel).join('');}
 export function workspaceControlPalette(mode:Theme,preset:WorkspaceTheme='black'){
  const p=workspacePalette(preset,mode),hover=mixHex(p.panel,p.ink,mode==='dark'?.065:.035),active=mixHex(p.panel,p.accent,mode==='dark'?.14:.065),primary=mixHex(p.panel,p.accent,mode==='dark'?.19:.09);
- return {control:p.panel,'control-ink':p.ink,hover,'hover-ink':p.ink,active,'active-ink':p.accent,
+ return {surface:mixHex(p.panel,p.ink,mode==='dark'?.035:0),control:p.panel,'control-ink':p.ink,hover,'hover-ink':p.ink,active,'active-ink':p.accent,
   success:p.panel,'success-ink':p.muted,pending:p.panel,'pending-ink':p.muted,
   danger:p.panel,'danger-ink':p.ink,info:primary,'info-ink':p.accent,
   brand:preset==='black'||preset==='slate'?(mode==='dark'?'#3b82f6':'#2563eb'):p.accent,

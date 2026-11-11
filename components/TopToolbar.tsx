@@ -80,14 +80,14 @@ export const TopToolbar = memo(function TopToolbar({
     const observer = new ResizeObserver(update); observer.observe(element);
     return () => observer.disconnect();
   }, [onHeightChange]);
-  const iconBtn = `shrink-0 p-2 rounded flex items-center justify-center transition disabled:opacity-35 disabled:cursor-not-allowed cursor-pointer text-neutral-700 dark:text-neutral-200 hover:bg-neutral-50 dark:hover:bg-neutral-500/20 hover:text-neutral-900 dark:hover:text-white focus-visible:outline-2 focus-visible:outline-black dark:focus-visible:outline-white`;
+  const iconBtn = `shrink-0 h-9 w-9 rounded-lg flex items-center justify-center transition disabled:opacity-35 disabled:cursor-not-allowed cursor-pointer text-neutral-700 dark:text-neutral-200 hover:bg-neutral-50 dark:hover:bg-neutral-500/20 hover:text-neutral-900 dark:hover:text-white focus-visible:outline-2 focus-visible:outline-black dark:focus-visible:outline-white`;
 
   return (
-    <div ref={toolbar} className="absolute top-2 left-1/2 -translate-x-1/2 z-30 w-max max-w-[calc(100%-1rem)]">
+    <div ref={toolbar} className="drawing-dock absolute top-3 left-1/2 -translate-x-1/2 z-30 w-max max-w-[calc(100%-1rem)]">
       <div
         role="toolbar"
         aria-label="Drawing tools"
-        className="flex items-center gap-0.5 p-1 rounded-md border flex-nowrap justify-start overflow-x-auto overscroll-x-contain drawing-panel shadow-sm"
+        className="flex items-center gap-0.5 p-1.5 rounded-xl border flex-nowrap justify-start overflow-x-auto overscroll-x-contain drawing-toolbar workspace-surface drawing-panel shadow-sm"
       >
         <TooltipButton data-ui-tone="pending" onClick={onUndo} disabled={!canUndo} title="Undo (Ctrl/Cmd+Z)" aria-label="Undo" className={iconBtn}>
           <Undo2 className="w-4 h-4" />
@@ -109,9 +109,9 @@ export const TopToolbar = memo(function TopToolbar({
               aria-label={`${t.label} (${t.key})`}
               aria-keyshortcuts={t.key.toLowerCase()}
               aria-pressed={active}
-              className={`relative h-8 w-8 shrink-0 rounded flex items-center justify-center transition cursor-pointer focus-visible:outline-2 focus-visible:outline-black dark:focus-visible:outline-white ${
+              className={`relative h-9 w-9 shrink-0 rounded-lg flex items-center justify-center transition cursor-pointer focus-visible:outline-2 focus-visible:outline-black dark:focus-visible:outline-white ${
                 active
-                  ? "ui-primary text-white shadow-sm ring-1 ring-inset ring-black dark:ring-white"
+                  ? "ui-primary text-white shadow-sm"
                   : "text-neutral-700 dark:text-neutral-200 hover:bg-neutral-50 dark:hover:bg-neutral-500/20 hover:text-neutral-900 dark:hover:text-white focus-visible:outline-2 focus-visible:outline-black dark:focus-visible:outline-white"
               }`}
             >

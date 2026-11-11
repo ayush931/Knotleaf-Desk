@@ -89,7 +89,7 @@ for(const mode of ['light','dark'])test(`bright drawing tools retain readable ac
  const doc=render(React.createElement(TopToolbar,{selectedTool:'select',setSelectedTool:noop,onUndo:noop,onRedo:noop,canUndo:true,canRedo:true,onOpenIconPicker:noop,theme:mode}),mode);
  const toolbar=doc.querySelector('[aria-label="Drawing tools"]'),active=toolbar.querySelector('[aria-pressed="true"]'),inactive=toolbar.querySelector('[aria-label="Pan (H)"]');
  readable(active,active);readable(inactive,toolbar);
- const lightness=neutralLightness(style(toolbar).backgroundColor);if(mode==='light')expect(lightness).toBeGreaterThan(.9);else expect(lightness).toBe(0);
+ const lightness=neutralLightness(style(toolbar).backgroundColor);if(mode==='light')expect(lightness).toBeGreaterThan(.9);else expect(lightness).toBeCloseTo(neutralLightness(workspaceControlPalette(mode).surface));
 });
 
 
@@ -123,7 +123,7 @@ for(const {id}of WORKSPACE_THEMES)for(const mode of ['light','dark'])test(`${id}
   React.createElement('dialog',{open:true,id:'portalled-dialog',className:'bg-neutral-900 text-neutral-200'},'Dialog'),
   React.createElement('section',{className:'notes-theme','data-notes-theme':'forest',style:workspaceThemeStyle('forest',other,true)},React.createElement('button',{'aria-pressed':true,id:'notes-selected',className:'text-neutral-200 bg-neutral-800'},'Bold'))),mode);
  doc.documentElement.setAttribute('data-workspace-ui','true');for(const [key,value]of Object.entries(workspaceThemeStyle(id,mode)))if(key.startsWith('--'))doc.documentElement.style.setProperty(key,value);
- for(const selector of ['#chrome-panel','#portalled-dialog','#chrome-select','#chrome-option']){const node=doc.querySelector(selector);expect(convert.colorToHex(style(node).backgroundColor),selector).toBe(p.panel);readable(node,node);}
+ for(const selector of ['#chrome-panel','#portalled-dialog','#chrome-select','#chrome-option']){const node=doc.querySelector(selector);expect(convert.colorToHex(style(node).backgroundColor),selector).toBe(selector==='#portalled-dialog'?control.surface:p.panel);readable(node,node);}
  for(const selector of ['#chrome-selected','#chrome-primary']){const node=doc.querySelector(selector);expect(convert.colorToHex(style(node).backgroundColor)).toBe(selector==='#chrome-selected'?control.active:control.info);expect(convert.colorToHex(style(node).color)).toBe(selector==='#chrome-selected'?control['active-ink']:control['info-ink']);readable(node,node);}
  const selected=doc.querySelector('#notes-selected');expect(convert.colorToHex(style(selected).backgroundColor)).toBe(noteControl.active);expect(convert.colorToHex(style(selected).color)).toBe(noteControl['active-ink']);readable(selected,selected);
  expect(convert.colorToHex(style(doc.querySelector('#swatch')).backgroundColor)).toBe('#ef4444');expect(doc.querySelector('[data-brand-mark] path').getAttribute('fill')).toBe('var(--ui-brand)');

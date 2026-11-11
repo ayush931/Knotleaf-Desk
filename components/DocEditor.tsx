@@ -838,7 +838,7 @@ function RichNotesEditor({
         }
       }}
     >
-      <header className="flex h-10 shrink-0 items-center justify-between gap-1 border-b border-neutral-800 px-2">
+      <header className="workspace-notes-header workspace-surface drawing-panel flex shrink-0 items-center justify-between gap-2 border-b border-neutral-800">
         <h2 className="text-xs font-semibold">Notes</h2>
         <div className="flex items-center gap-0.5">
           <button
@@ -931,7 +931,7 @@ function RichNotesEditor({
         <div
           role="toolbar"
           aria-label="Note formatting"
-          className="flex shrink-0 items-center gap-0.5 overflow-x-auto border-b border-neutral-800 px-2 py-1 [&>button]:shrink-0"
+          className="workspace-notes-toolbar flex shrink-0 items-center gap-1 overflow-x-auto border-b border-neutral-800 px-3 py-2 [&>button]:shrink-0"
         >
           <button
             type="button"

@@ -47,7 +47,7 @@ export function BoardsSidebar(p: Props) {
   const selectClass = `${fieldClass} min-w-0 px-2 py-1.5 text-xs`;
   const actionClass = "p-2 rounded-md text-neutral-400 hover:text-white hover:bg-neutral-800";
   return (
-    <dialog ref={dialog} onCancel={p.onClose} onClose={p.onClose} aria-labelledby="workspace-title" className="workspace-drawer m-0 h-dvh max-h-dvh w-[340px] max-w-[92vw] border-0 border-r border-neutral-800 bg-white dark:bg-black p-0 text-neutral-100 shadow-2xl" onClick={e => { if (e.target === dialog.current && e.clientX > (dialog.current?.getBoundingClientRect().right ?? 340)) p.onClose(); }}>
+    <dialog ref={dialog} onCancel={p.onClose} onClose={p.onClose} aria-labelledby="workspace-title" className="workspace-drawer workspace-surface m-0 h-dvh max-h-dvh w-[360px] max-w-[92vw] border-0 border-r border-neutral-800 bg-white dark:bg-black p-0 text-neutral-100 shadow-2xl" onClick={e => { if (e.target === dialog.current && e.clientX > (dialog.current?.getBoundingClientRect().right ?? 360)) p.onClose(); }}>
       <div className="flex h-full flex-col">
         <div className="flex items-center justify-between border-b border-neutral-800 px-4 py-3">
           <div className="flex items-center gap-2"><BrandMark size={28} label=""/><h2 id="workspace-title" className="text-sm font-semibold">Knotleaf Desk</h2></div>

@@ -61,8 +61,20 @@ test('Done keeps completed state and outlined Mark undone resumes its alarm',asy
  const saved=JSON.parse(localStorage.getItem(REMINDERS_KEY))[0];expect(saved.completedAt).toBeNull();expect(saved.activeSince).not.toBeNull();expect(document.querySelector('.reminder-status').dataset.uiTone).toBe('pending');
 });
 
-test('a completed recurring task keeps its completion emphasis while showing the next occurrence',async()=>{
+test('Done immediately queues the next occurrence across reload without allowing a second click to skip it',async()=>{
  const task=dueReminder();task.schedule={...task.schedule,kind:'weekly',days:[0,1,2,3,4,5,6]};localStorage.setItem(REMINDERS_KEY,JSON.stringify([task]));await render();await act(async()=>window.dispatchEvent(new browser.Event('focus')));await click('Done');
- expect(document.querySelector('[data-reminder-state="done"] .reminder-status').dataset.uiTone).toBe('success');expect(document.querySelector('.reminder-status').textContent).toContain('Done · next');expect(JSON.parse(localStorage.getItem(REMINDERS_KEY))[0].nextDue).toBeGreaterThan(Date.now());
- await click('Mark undone: Finish sketch');await act(async()=>window.dispatchEvent(new browser.Event('focus')));expect(document.querySelector('[data-reminder-state="active"]')).not.toBeNull();
+ expect(document.querySelector('[data-reminder-state="scheduled"]')).not.toBeNull();expect(document.querySelector('.reminder-status').textContent).toContain('Next reminder:');expect(document.querySelector('[data-reminder-state="done"]')).toBeNull();
+ const next=JSON.parse(localStorage.getItem(REMINDERS_KEY))[0].nextDue;expect(next).toBeGreaterThan(Date.now());expect(document.querySelector('[role="status"]').textContent).toContain('Next reminder:');
+ await act(async()=>root.unmount());root=createRoot(document.querySelector('main'));await render();expect(document.querySelector('[data-reminder-state="scheduled"]')).not.toBeNull();expect(JSON.parse(localStorage.getItem(REMINDERS_KEY))[0].nextDue).toBe(next);
+ expect([...document.querySelectorAll('button')].some(b=>b.textContent.trim()==='Done')).toBe(false);await click('Undo last completion: Finish sketch');await act(async()=>window.dispatchEvent(new browser.Event('focus')));expect(document.querySelector('[data-reminder-state="active"]')).not.toBeNull();
+});
+test('Done shows Completed after the last available date in a range',async()=>{
+ const task=dueReminder(),today=new Date(),yesterday=new Date();yesterday.setDate(yesterday.getDate()-1);task.schedule={kind:'range',start:localDate(yesterday),end:localDate(today),time:'00:00',days:[]};localStorage.setItem(REMINDERS_KEY,JSON.stringify([task]));await render();await act(async()=>window.dispatchEvent(new browser.Event('focus')));await click('Done');
+ expect(JSON.parse(localStorage.getItem(REMINDERS_KEY))[0].nextDue).toBeNull();expect(document.querySelector('[data-reminder-state="done"]')).not.toBeNull();expect(document.querySelector('[role="status"]').textContent).toContain('No more reminders scheduled');
+});
+
+test('the next alarm clears the previous completion and offers Done again',async()=>{
+ const task=dueReminder();task.schedule={...task.schedule,kind:'weekly',days:[0,1,2,3,4,5,6]};task.completedAt=Date.now()-86400000;localStorage.setItem(REMINDERS_KEY,JSON.stringify([task]));await render(false);await act(async()=>window.dispatchEvent(new browser.Event('focus')));
+ expect(JSON.parse(localStorage.getItem(REMINDERS_KEY))[0].completedAt).toBeNull();await click('Done');expect(document.querySelector('[aria-label="Active reminders"]')).toBeNull();expect(document.querySelector('[aria-label="Reminder completion"]').textContent).toContain('Next reminder:');expect(JSON.parse(localStorage.getItem(REMINDERS_KEY))[0].nextDue).toBeGreaterThan(Date.now());
+ await click('Dismiss reminder confirmation');expect(document.querySelector('[aria-label="Reminder completion"]')).toBeNull();
 });

@@ -9,8 +9,8 @@
 }
 
 /* One shared surface for the drawing controls, independent of artwork colors. */
-:root { --ui-control:#000000;--ui-control-ink:#ffffff;--ui-active:#101317;--ui-active-ink:#ffffff;--ui-success:#181d24;--ui-success-ink:#ffffff;--ui-pending:#000000;--ui-pending-ink:#b8b8b8;--ui-danger:#000000;--ui-danger-ink:#ffffff;--ui-info:#101317;--ui-info-ink:#ffffff;--ui-brand:#8fa9d5;--ui-outline:#44546c;--ui-focus:#8fa9d5;--drawing-panel:#000000;--drawing-border:#44546c;--ui-accent:#8fa9d5;--ui-accent-ink:#000000;--ui-ink:#ffffff;--ui-muted:#b8b8b8;--ui-inset:#090b0f;--ui-background:#000000;--ui-brand-bg:#000000; }
-html.light { --ui-control:#ffffff;--ui-control-ink:#000000;--ui-active:#f4f6f9;--ui-active-ink:#000000;--ui-success:#eef1f6;--ui-success-ink:#000000;--ui-pending:#ffffff;--ui-pending-ink:#525252;--ui-danger:#ffffff;--ui-danger-ink:#000000;--ui-info:#f4f6f9;--ui-info-ink:#000000;--ui-brand:#3c5f91;--ui-outline:#a5b5cc;--ui-focus:#3c5f91;--drawing-panel:#ffffff;--drawing-border:#a5b5cc;--ui-accent:#3c5f91;--ui-accent-ink:#ffffff;--ui-ink:#000000;--ui-muted:#525252;--ui-inset:#f7f8fa;--ui-background:#ffffff;--ui-brand-bg:#ffffff; }
+:root { --ui-surface:#090909;--ui-control:#000000;--ui-control-ink:#ffffff;--ui-hover:#111111;--ui-hover-ink:#ffffff;--ui-active:#14181e;--ui-active-ink:#8fa9d5;--ui-success:#000000;--ui-success-ink:#b8b8b8;--ui-pending:#000000;--ui-pending-ink:#b8b8b8;--ui-danger:#000000;--ui-danger-ink:#ffffff;--ui-info:#1b2028;--ui-info-ink:#8fa9d5;--ui-brand:#3b82f6;--ui-border:#303030;--ui-outline:#404c60;--ui-focus:#8fa9d5;--drawing-panel:#000000;--drawing-border:#303030;--ui-accent:#8fa9d5;--ui-accent-ink:#000000;--ui-ink:#ffffff;--ui-muted:#b8b8b8;--ui-inset:#090b0f;--ui-background:#000000;--ui-brand-bg:#000000; }
+html.light { --ui-surface:#ffffff;--ui-control:#ffffff;--ui-control-ink:#000000;--ui-hover:#f6f6f6;--ui-hover-ink:#000000;--ui-active:#f2f5f8;--ui-active-ink:#3c5f91;--ui-success:#ffffff;--ui-success-ink:#525252;--ui-pending:#ffffff;--ui-pending-ink:#525252;--ui-danger:#ffffff;--ui-danger-ink:#000000;--ui-info:#edf1f5;--ui-info-ink:#3c5f91;--ui-brand:#2563eb;--ui-border:#d6d6d6;--ui-outline:#bbc7d9;--ui-focus:#3c5f91;--drawing-panel:#ffffff;--drawing-border:#d6d6d6;--ui-accent:#3c5f91;--ui-accent-ink:#ffffff;--ui-ink:#000000;--ui-muted:#525252;--ui-inset:#f7f8fa;--ui-background:#ffffff;--ui-brand-bg:#ffffff; }
 .drawing-panel { background-color: var(--drawing-panel); border-color: var(--drawing-border); }
 
 @layer base {
@@ -481,3 +481,119 @@ html[data-workspace-ui]:is(.dark,.light) .reminder-status { color:var(--ui-muted
 .reminder-item>div { min-width:140px; }
 
 html[data-workspace-ui]:is(.dark,.light) [data-ui-divider] { background-color:var(--drawing-border); }
+
+/* Workspace layout: clear identity, centered modes and a compact floating tool dock. */
+:root { --workspace-header-height:56px; --workspace-radius:14px; --workspace-shadow:0 8px 30px rgb(0 0 0 / .08),0 1px 3px rgb(0 0 0 / .04); }
+html.dark { --workspace-shadow:0 12px 40px rgb(0 0 0 / .4),0 1px 4px rgb(0 0 0 / .25); }
+.workspace-surface { --drawing-panel:var(--ui-surface); --ui-control:var(--ui-surface); }
+.workspace-main-offset { margin-top:var(--workspace-header-height); }
+.workspace-header { height:var(--workspace-header-height); padding:0 16px; gap:14px; }
+.workspace-identity { min-width:0; }
+.workspace-brand-button { display:grid; width:38px; height:38px; padding:0; place-items:center; }
+.workspace-title-block { gap:2px; }
+.workspace-title-block h1 { max-width:200px; font-size:14px; line-height:18px; letter-spacing:-.025em; }
+.workspace-title-block [role=status] { padding:0; }
+.workspace-title-block>span { font-size:10px; line-height:13px; }
+.workspace-title-block>button,.workspace-title-block>span { white-space:nowrap; }
+.workspace-view-switch { --ui-control:transparent; padding:4px; border-radius:11px; background:var(--ui-hover); }
+.workspace-view-button { min-height:30px; padding:0 13px; border-radius:8px; font-size:12px; border:0; }
+.workspace-header-controls { display:flex; flex:1; align-items:center; justify-content:flex-end; gap:6px; min-width:0; }
+.workspace-header-controls>button { height:34px; min-width:34px; padding:7px; border:0; border-radius:9px; }
+.workspace-header-controls .lucide { width:17px; height:17px; stroke-width:1.8; }
+.workspace-export>div>button { height:34px; padding:0 12px; gap:7px; border-radius:9px; font-size:12px; margin:0; }
+.workspace-export-menu { border-radius:16px; box-shadow:var(--workspace-shadow); }
+.workspace-menu { position:absolute; right:16px; top:calc(var(--workspace-header-height) + 10px); width:340px; max-width:calc(100vw - 24px); max-height:calc(100dvh - 90px); overflow:auto; gap:4px; padding:10px; border:1px solid var(--drawing-border); border-radius:16px; box-shadow:var(--workspace-shadow); z-index:60; }
+.workspace-menu.flex { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); }
+.workspace-menu.hidden { display:none; }
+.workspace-menu>button { display:flex; align-items:center; justify-content:flex-start; gap:9px; min-height:38px; padding:9px 10px; border:0; width:auto; border-radius:9px; font-size:12px; line-height:16px; text-align:left; }
+.workspace-menu button span { display:inline; }
+.workspace-menu .lucide { flex-shrink:0; width:16px; height:16px; }
+.drawing-toolbar { border-radius:14px; box-shadow:var(--workspace-shadow); }
+.drawing-toolbar button { border-radius:9px; }
+.drawing-toolbar [data-ui-divider] { height:20px; margin-inline:6px; }
+.workspace-zoom { border-radius:12px; padding:5px; box-shadow:var(--workspace-shadow); }
+.workspace-zoom button { height:30px; border-radius:7px; }
+#appearance-settings { --drawing-panel:var(--ui-surface); --ui-control:var(--ui-surface); left:12px; border-radius:var(--workspace-radius); box-shadow:var(--workspace-shadow); }
+#appearance-settings>header { padding:15px 16px; }
+#appearance-settings>header>span { border-radius:9px; }
+#appearance-settings>div { padding:18px 16px; }
+#appearance-settings input:not([type=range]),#appearance-settings select { border-radius:7px; min-height:30px; }
+.workspace-drawer { border-radius:0 20px 20px 0; box-shadow:var(--workspace-shadow); }
+.workspace-drawer>div>div:first-child { min-height:76px; padding:20px; }
+.workspace-drawer>div>div:nth-child(2) { padding:20px; }
+.workspace-drawer h2 { font-size:16px; letter-spacing:-.025em; }
+.workspace-drawer input,.workspace-drawer select { border-radius:9px; }
+.workspace-notes-header { height:50px; padding:0 16px; }
+.workspace-notes-header h2 { font-size:14px; letter-spacing:-.02em; }
+.workspace-notes-toolbar { min-height:48px; }
+.workspace-notes-toolbar .note-tool { min-height:32px; border-radius:8px; padding:6px 8px; }
+.notes-rich .tiptap { max-width:850px; margin-inline:auto; padding:32px 28px; }
+html[data-workspace-ui] dialog:not(.workspace-drawer):not(.reminder-dialog) { --drawing-panel:var(--ui-surface); --ui-control:var(--ui-surface); border-radius:18px; box-shadow:var(--workspace-shadow); }
+@media(min-width:1100px) { .workspace-header { display:grid; grid-template-columns:minmax(200px,1fr) auto minmax(250px,1fr); } }
+@media(max-width:899px) { .workspace-header { gap:8px; padding:0 12px; } .workspace-view-select { width:86px; border:0; border-radius:9px; background:var(--ui-hover); } }
+@media(max-width:639px) { .workspace-header { padding:0 8px; gap:6px; } .workspace-identity { flex:0 0 38px; } .workspace-header-controls { gap:3px; } .workspace-header-controls>button { min-width:30px; height:32px; padding:6px; } .workspace-export>div>button { width:32px; height:32px; padding:7px; } .workspace-export>div>button>span { display:none; } .notes-rich .tiptap { padding:24px 18px; } .drawing-toolbar { border-radius:12px; } }
+
+/* The reminder list is the primary surface; creating a reminder stays alongside it. */
+.workspace-dialog { padding:0; border:1px solid var(--drawing-border); border-radius:20px; box-shadow:var(--workspace-shadow); overflow:hidden; }
+.reminder-dialog { width:min(960px,94vw); max-height:90dvh; }
+.workspace-dialog-header { display:flex; align-items:center; justify-content:space-between; gap:20px; padding:22px 24px; border-bottom:1px solid var(--drawing-border); }
+.workspace-dialog-heading { display:flex; align-items:center; gap:13px; min-width:0; }
+.workspace-heading-icon { display:grid; place-items:center; flex-shrink:0; width:42px; height:42px; border:1px solid var(--drawing-border); border-radius:12px; }
+.workspace-heading-icon .lucide { width:21px; height:21px; stroke-width:1.7; }
+.workspace-dialog-heading h2 { font-size:18px; line-height:24px; font-weight:650; letter-spacing:-.035em; }
+.workspace-dialog-heading p { margin-top:3px; font-size:12px; line-height:18px; color:var(--ui-muted); }
+.workspace-dialog-actions { display:flex; align-items:center; gap:10px; flex-shrink:0; }
+.workspace-close { display:grid; place-items:center; width:32px; height:32px; border-radius:8px; }
+.workspace-close .lucide { width:17px; height:17px; }
+.reminder-new { display:flex; align-items:center; justify-content:center; gap:6px; min-height:34px; padding:0 11px; border-radius:9px; font-size:12px; font-weight:600; }
+.reminder-new .lucide { width:15px; height:15px; }
+.reminder-layout { display:grid; grid-template-columns:minmax(0,1.08fr) minmax(0,1fr); max-height:calc(90dvh - 94px); overflow-y:auto; }
+.reminder-list-pane { padding:24px; min-width:0; }
+.reminder-compose-pane { padding:24px; min-width:0; border-left:1px solid var(--drawing-border); }
+.reminder-section-heading { margin-bottom:22px; }
+.reminder-section-heading h3 { display:flex; align-items:center; gap:8px; font-size:14px; line-height:20px; font-weight:600; letter-spacing:-.02em; }
+.reminder-section-heading h3>span,.reminder-completed h4>span { padding:1px 7px; border:1px solid var(--drawing-border); border-radius:6px; font-size:11px; font-weight:500; color:var(--ui-muted); }
+.reminder-section-heading p { margin-top:5px; font-size:12px; line-height:18px; color:var(--ui-muted); }
+.reminder-list { display:flex; flex-direction:column; gap:10px; }
+.reminder-item { display:flex; flex-wrap:wrap; align-items:flex-start; gap:10px; padding:14px; border:1px solid var(--drawing-border); border-radius:12px; font-size:13px; }
+.reminder-item>.reminder-task-icon { min-width:0; flex:0 0 30px; width:30px; height:30px; display:grid; place-items:center; border-radius:8px; background:var(--ui-hover); }
+.reminder-task-icon .lucide { width:16px; height:16px; stroke-width:1.7; }
+.reminder-item>.reminder-task-copy { min-width:120px; flex:1; }
+.reminder-task-title { font-size:13px; line-height:19px; font-weight:550; letter-spacing:-.01em; overflow-wrap:anywhere; }
+.reminder-status { margin-top:5px; font-size:11px; line-height:17px; }
+.reminder-task-meta { display:flex; flex-wrap:wrap; align-items:center; gap:4px; margin-top:6px; font-size:10px; line-height:16px; color:var(--ui-muted); }
+.reminder-task-meta .lucide { width:12px; height:12px; }
+.reminder-item>.reminder-task-actions { display:flex; flex:1 0 100%; justify-content:flex-end; align-items:center; gap:6px; min-width:0; }
+.reminder-done { display:flex; align-items:center; gap:5px; border-radius:7px; padding:6px 10px; font-size:11px; font-weight:600; }
+.reminder-done .lucide { width:13px; height:13px; }
+.reminder-undo { padding:6px 8px; font-size:11px; border-radius:7px; }
+.reminder-delete { display:grid; place-items:center; width:28px; height:28px; border-radius:7px; }
+.reminder-delete .lucide { width:14px; height:14px; }
+.reminder-completed { margin-top:25px; }
+.reminder-completed h4 { display:flex; align-items:center; gap:8px; margin-bottom:12px; font-size:12px; font-weight:550; color:var(--ui-muted); }
+.reminder-empty { display:flex; flex-direction:column; align-items:center; justify-content:center; padding:55px 12px; text-align:center; }
+.reminder-empty>.lucide { width:36px; height:36px; stroke-width:1.2; color:var(--ui-muted); margin-bottom:18px; }
+.reminder-empty h3 { font-size:14px; font-weight:550; }
+.reminder-empty p { max-width:240px; margin-top:8px; font-size:12px; line-height:19px; color:var(--ui-muted); }
+.reminder-empty button { margin-top:18px; padding:8px 12px; font-size:12px; border-radius:8px; }
+.reminder-compose-pane form { gap:15px; }
+.reminder-compose-pane form>label,.reminder-compose-pane form label { font-size:11px; line-height:17px; font-weight:550; }
+.reminder-field { min-height:38px; padding:9px 11px; border-radius:9px; font-size:12px; }
+.reminder-compose-pane form p { font-size:11px; line-height:17px; }
+.reminder-compose-pane button[type=submit] { min-height:36px; padding:8px 13px; border-radius:9px; font-size:12px; }
+.reminder-day { border-radius:7px; padding:7px; }
+.reminder-delivery { margin-top:24px; border-top:1px solid var(--drawing-border); padding-top:16px; }
+.reminder-delivery>summary { cursor:pointer; display:flex; justify-content:space-between; gap:10px; font-size:12px; font-weight:550; list-style:none; }
+.reminder-delivery>summary>span { font-size:10px; color:var(--ui-muted); font-weight:400; }
+.reminder-settings { margin-top:14px; border:0; padding:0; }
+.reminder-settings button { border-radius:7px; padding:7px 9px; font-size:11px; }
+.reminder-alarm { padding:18px; border-radius:16px; box-shadow:var(--workspace-shadow); }
+.reminder-alarm .reminder-item { border:0; padding:14px 0 0; border-radius:0; }
+@media(max-width:760px) { .workspace-dialog-header { padding:18px; gap:10px; } .workspace-dialog-heading { gap:10px; } .workspace-heading-icon { display:none; } .workspace-dialog-heading h2 { font-size:17px; } .workspace-dialog-heading p { max-width:190px; font-size:11px; line-height:16px; } .workspace-dialog-actions { gap:6px; } .reminder-new>span { display:none; } .reminder-new { width:32px; padding:0; } .reminder-layout { grid-template-columns:minmax(0,1fr); max-height:calc(90dvh - 90px); } .reminder-list-pane,.reminder-compose-pane { padding:20px; } .reminder-compose-pane { border-left:0; border-top:1px solid var(--drawing-border); } .reminder-empty { padding:30px 10px; } }
+.workspace-export-menu { margin-top:12px; max-height:calc(100dvh - 80px); }
+@media(max-width:760px) { .reminder-empty { align-items:flex-start; padding:4px 0 0; text-align:left; } .reminder-empty>.lucide,.reminder-empty>button,.reminder-empty p { display:none; } .reminder-empty h3 { font-size:12px; font-weight:400; color:var(--ui-muted); } }
+.workspace-dialog[open] { display:flex; flex-direction:column; }
+.workspace-dialog-header { flex-shrink:0; }
+.reminder-layout { flex:1; min-height:0; max-height:none; }
+.workspace-menu>button { font-weight:450; }
+.reminder-confirmation { border-radius:16px; padding:18px; box-shadow:var(--workspace-shadow); }

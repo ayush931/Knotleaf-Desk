@@ -888,7 +888,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
         /></div>
       )}
 
-      <main inert={!roomReady} ref={splitRef} className={`relative flex max-sm:flex-col min-h-0 flex-1 w-full overflow-hidden ${!isPresentationOpen && !focusMode ? "mt-11" : ""}`} >
+      <main inert={!roomReady} ref={splitRef} className={`relative flex max-sm:flex-col min-h-0 flex-1 w-full overflow-hidden ${!isPresentationOpen && !focusMode ? "workspace-main-offset" : ""}`} >
         {viewMode === "slides" && !isPresentationOpen && !focusMode && <React.Suspense fallback={<div role="status" className="flex-1 p-5 text-sm text-neutral-400">Opening presentation…</div>}><PresentationWorkspace key={board.id} boardId={board.id} title={board.title} notes={board.markdownNotes || ""} onCanvasSnapshot={async () => {
           const snapshot = structuredClone(boardRef.current);
           const frames = snapshot.elements.filter(el => el.type === "frame").sort((a,b) => a.y-b.y || a.x-b.x);
@@ -1105,7 +1105,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
               />
             )}
 
-            {!isPresentationOpen && !focusMode && selectedTool === "eraser" && <EraserControls size={eraserSize} mode={eraserMode} top={toolbarHeight+12} onChange={(size,mode)=>{setEraserSize(size);setEraserMode(mode);engineRef.current?.setEraserOptions(size,mode);}}/>}
+            {!isPresentationOpen && !focusMode && selectedTool === "eraser" && <EraserControls size={eraserSize} mode={eraserMode} top={toolbarHeight+24} onChange={(size,mode)=>{setEraserSize(size);setEraserMode(mode);engineRef.current?.setEraserOptions(size,mode);}}/>}
 
             {!isPresentationOpen && !focusMode && (
               <div data-text-controls onBlur={event => {
@@ -1116,7 +1116,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
                 onBackgroundChange={background => persist({ ...boardRef.current, background })}
                 isOpen={appearanceOpen}
                 onOpenChange={setAppearanceOpen}
-                topOffset={toolbarHeight + 12}
+                topOffset={toolbarHeight + 24}
                 selectedTool={selectedTool}
                 isTextEditing={textOptionsVisible}
                 preserveTextFocus={isInlineTextual}

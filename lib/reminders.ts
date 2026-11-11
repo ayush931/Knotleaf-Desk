@@ -62,6 +62,8 @@ export function createReminder(title: string, schedule: ReminderSchedule, interv
     return { id, title: title.trim(), schedule, intervalMinutes, sound, nextDue, activeSince: null, lastNotified: null, completedAt: null };
 }
 export function completeReminder(r: Reminder, now = Date.now()): Reminder { return { ...r, nextDue: r.schedule.kind === 'once' ? null : nextOccurrence(r.schedule, Math.max(now, r.nextDue ?? now)), activeSince: null, lastNotified: null, completedAt: now }; }
+/** A completion acknowledges an occurrence, not the rest of its recurring schedule. */
+export function reminderState(r:Reminder):'active'|'scheduled'|'done' {return r.activeSince!==null?'active':r.nextDue!==null?'scheduled':'done';}
 export function tickReminders(items: Reminder[], now = Date.now()): {
     items: Reminder[];
     alerts: Reminder[];
@@ -72,7 +74,7 @@ export function tickReminders(items: Reminder[], now = Date.now()): {
             return r;
         if (r.lastNotified !== null && now - r.lastNotified < r.intervalMinutes * 60000)
             return r;
-        const active = { ...r, activeSince: r.activeSince ?? r.nextDue, lastNotified: now };
+        const active = { ...r, activeSince: r.activeSince ?? r.nextDue, lastNotified: now, completedAt: null };
         alerts.push(active);
         return active;
     });
