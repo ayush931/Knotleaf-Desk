@@ -129,8 +129,14 @@ for(const {id}of WORKSPACE_THEMES)for(const mode of ['light','dark'])test(`${id}
  expect(convert.colorToHex(style(doc.querySelector('#swatch')).backgroundColor)).toBe('#ef4444');expect(doc.querySelector('[data-brand-mark] path').getAttribute('fill')).toBe('var(--ui-brand)');
 });
 
-for(const {id}of WORKSPACE_THEMES)for(const mode of ['light','dark'])test(`${id} ${mode} action states use subtle emphasis from a single accent`,()=>{
- const control=workspaceControlPalette(mode,id),doc=render(React.createElement('div',null,...['info','success','pending','danger'].map(tone=>React.createElement('button',{'data-ui-tone':tone,key:tone,id:tone,className:'ui-primary'},tone))),mode);
+for(const {id}of WORKSPACE_THEMES)for(const mode of ['light','dark'])test(`${id} ${mode} reserves the accent for selection and main actions`,()=>{
+ const control=workspaceControlPalette(mode,id),p=workspacePalette(id,mode),doc=render(React.createElement('div',null,
+  React.createElement('button',{id:'main',className:'ui-primary','data-ui-tone':'info'},'Create'),
+  React.createElement('button',{id:'selected','aria-pressed':true},'Selected'),
+  ...['info','success','pending','danger'].map(tone=>React.createElement('button',{'data-ui-tone':tone,key:tone,id:tone,className:'border'},tone)),
+  React.createElement('span',{className:'reminder-status','data-ui-tone':'success',id:'complete'},'Completed')),mode);
  doc.documentElement.setAttribute('data-workspace-ui','true');for(const [key,value]of Object.entries(workspaceThemeStyle(id,mode)))if(key.startsWith('--'))doc.documentElement.style.setProperty(key,value);
- const colors=new Set();for(const tone of ['info','success','pending','danger']){const node=doc.getElementById(tone);expect(convert.colorToHex(style(node).backgroundColor)).toBe(control[tone]);expect(convert.colorToHex(style(node).color)).toBe(control[tone+'-ink']);readable(node,node);colors.add(style(node).backgroundColor);}expect(colors.size).toBe(3);const panel=workspacePalette(id,mode).panel;for(const tone of ['info','success'])for(const offset of [1,3,5])expect(Math.abs(parseInt(control[tone].slice(offset,offset+2),16)-parseInt(panel.slice(offset,offset+2),16))).toBeLessThanOrEqual(45);
+ for(const tone of ['info','success','pending','danger']){const node=doc.getElementById(tone);expect(convert.colorToHex(style(node).backgroundColor)).toBe(p.panel);expect(convert.colorToHex(style(node).borderColor)).toBe(control.border);readable(node,node);}
+ for(const [name,background,ink]of [['main',control.info,control['info-ink']],['selected',control.active,control['active-ink']]]){const node=doc.getElementById(name);expect(convert.colorToHex(style(node).backgroundColor)).toBe(background);expect(convert.colorToHex(style(node).color)).toBe(ink);readable(node,node);}
+ expect(['transparent','#0000','rgba(0, 0, 0, 0)']).toContain(style(doc.getElementById('complete')).backgroundColor);expect(convert.colorToHex(style(doc.getElementById('complete')).color)).toBe(p.muted);
 });
