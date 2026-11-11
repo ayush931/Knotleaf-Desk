@@ -943,7 +943,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
                   <button type="button" aria-label="Finish document editing" title="Finish · Ctrl/Cmd+Enter" className="note-tool text-neutral-400" onClick={commitInline}><Check className="h-4 w-4"/></button>
                 </div>}
 
-                <RangeTextEditor textRanges={inlineText.textRanges} fontScale={zoom} onSelect={event=>setTextSelection(event.currentTarget.selectionStart)}
+                <RangeTextEditor light={lightCanvas} textRanges={inlineText.textRanges} fontScale={zoom} onSelect={event=>setTextSelection(event.currentTarget.selectionStart)}
                   className="canvas-text-editor resize-none select-text"
                   data-surface={inlineText.kind === "sticky" ? "sticky" : "canvas"}
                   ref={inlineTextareaRef}
