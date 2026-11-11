@@ -95,14 +95,14 @@ export const TopToolbar = memo(function TopToolbar({
         <TooltipButton data-ui-tone="info" onClick={onRedo} disabled={!canRedo} title="Redo (Ctrl/Cmd+Shift+Z)" aria-label="Redo" className={iconBtn}>
           <Redo2 className="w-4 h-4" />
         </TooltipButton>
-        <span className="h-5 w-px mx-1 bg-neutral-200 dark:bg-neutral-600" />
+        <span aria-hidden="true" data-ui-divider="true" className="h-5 w-px mx-1 bg-neutral-200 dark:bg-neutral-600" />
 
         {onUploadAssets&&<TooltipButton type="button" aria-label="Upload image or file" title="Upload image or file · stored on this device" disabled={uploadingAssets} onClick={onUploadAssets} className={iconBtn}><ImagePlus className="h-4 w-4"/></TooltipButton>}
         {TOOLS.map((t) => {
           const active = selectedTool === t.id;
           return (
             <React.Fragment key={t.id}>
-            {["rectangle", "pencil", "text", "eraser"].includes(t.id) && <span aria-hidden="true" className="mx-1 h-5 w-px shrink-0 bg-neutral-200 dark:bg-neutral-600" />}
+            {["rectangle", "pencil", "text", "eraser"].includes(t.id) && <span aria-hidden="true" data-ui-divider="true" className="mx-1 h-5 w-px shrink-0 bg-neutral-200 dark:bg-neutral-600" />}
             <TooltipButton
               onClick={() => setSelectedTool(t.id)}
               title={`${t.label} (${t.key})${t.hint ? ` · ${t.hint}` : ""}`}
@@ -121,7 +121,7 @@ export const TopToolbar = memo(function TopToolbar({
           );
         })}
 
-        <span className="h-5 w-px mx-1 bg-neutral-200 dark:bg-neutral-600" />
+        <span aria-hidden="true" data-ui-divider="true" className="h-5 w-px mx-1 bg-neutral-200 dark:bg-neutral-600" />
         <TooltipButton
           onClick={onOpenIconPicker}
           title="Insert icon (I)"

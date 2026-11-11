@@ -27,16 +27,17 @@ export function applyWorkspaceTheme(current:WorkspaceThemes,preset:WorkspaceThem
 export type WorkspaceThemeStyle = CSSProperties & { [key: `--${string}`]: string };
 export function workspaceThemeStyle(preset:WorkspaceTheme,mode:Theme,notes=false,logo:LogoStyle='theme'):WorkspaceThemeStyle {
  const p=workspacePalette(preset,mode),controls=workspaceControlPalette(mode,preset);
- const values:Record<string,string>=notes?{'--notes-bg':p.background,'--notes-panel':p.panel,'--notes-border':controls.outline,'--notes-ink':p.ink,'--notes-muted':p.muted,'--notes-code':p.code,'--reader-link':p.accent,'--notes-token-keyword':mode==='light'?'#6b3f87':'#b8a8c4','--notes-token-string':mode==='light'?'#356330':'#afbaa8','--notes-token-comment':mode==='light'?'#606975':'#a3a3a3','--notes-token-number':mode==='light'?'#895824':'#d4b38c','--notes-token-title':mode==='light'?'#285a86':'#9ebbd4'}:{};
- return {...(notes?{colorScheme:mode}:{}),...values,...Object.fromEntries(Object.entries(controls).map(([key,value])=>[`--ui-${key}`,value])),'--drawing-panel':p.panel,'--drawing-border':controls.outline,'--ui-accent':p.accent,'--ui-accent-ink':p.accentInk,'--ui-ink':p.ink,'--ui-muted':p.muted,'--ui-inset':p.code,'--ui-background':p.background,'--ui-brand':logo==='black'?'#000000':p.accent,'--ui-brand-bg':logo==='black'?'#ffffff':p.panel};
+ const values:Record<string,string>=notes?{'--notes-bg':p.background,'--notes-panel':p.panel,'--notes-border':controls.border,'--notes-ink':p.ink,'--notes-muted':p.muted,'--notes-code':p.code,'--reader-link':p.accent,'--notes-token-keyword':mode==='light'?'#6b3f87':'#b8a8c4','--notes-token-string':mode==='light'?'#356330':'#afbaa8','--notes-token-comment':mode==='light'?'#606975':'#a3a3a3','--notes-token-number':mode==='light'?'#895824':'#d4b38c','--notes-token-title':mode==='light'?'#285a86':'#9ebbd4'}:{};
+ return {...(notes?{colorScheme:mode}:{}),...values,...Object.fromEntries(Object.entries(controls).map(([key,value])=>[`--ui-${key}`,value])),'--drawing-panel':p.panel,'--drawing-border':controls.border,'--ui-accent':p.accent,'--ui-accent-ink':p.accentInk,'--ui-ink':p.ink,'--ui-muted':p.muted,'--ui-inset':p.code,'--ui-background':p.background,'--ui-brand':logo==='black'?'#000000':controls.brand,'--ui-brand-bg':logo==='black'?'#ffffff':p.panel};
 }
 
 /** Blend one theme accent into the neutral surface; roles differ by emphasis, not hue. */
 function mixHex(base:string,accent:string,weight:number){const channel=(offset:number)=>Math.round(parseInt(base.slice(offset,offset+2),16)*(1-weight)+parseInt(accent.slice(offset,offset+2),16)*weight).toString(16).padStart(2,'0');return '#'+[1,3,5].map(channel).join('');}
 export function workspaceControlPalette(mode:Theme,preset:WorkspaceTheme='black'){
- const p=workspacePalette(preset,mode),active=mixHex(p.panel,p.accent,mode==='dark'?.11:.055),done=mixHex(p.panel,p.accent,mode==='dark'?.17:.085);
- return {control:p.panel,'control-ink':p.ink,active,'active-ink':p.ink,
-  success:done,'success-ink':p.ink,pending:p.panel,'pending-ink':p.muted,
-  danger:p.panel,'danger-ink':p.ink,info:active,'info-ink':p.ink,
-  brand:p.accent,outline:mixHex(p.border,p.accent,.23),focus:p.accent};
+ const p=workspacePalette(preset,mode),hover=mixHex(p.panel,p.ink,mode==='dark'?.065:.035),active=mixHex(p.panel,p.accent,mode==='dark'?.14:.065),primary=mixHex(p.panel,p.accent,mode==='dark'?.19:.09);
+ return {control:p.panel,'control-ink':p.ink,hover,'hover-ink':p.ink,active,'active-ink':p.accent,
+  success:p.panel,'success-ink':p.muted,pending:p.panel,'pending-ink':p.muted,
+  danger:p.panel,'danger-ink':p.ink,info:primary,'info-ink':p.accent,
+  brand:preset==='black'||preset==='slate'?(mode==='dark'?'#3b82f6':'#2563eb'):p.accent,
+  border:mixHex(p.panel,p.ink,mode==='dark'?.19:.16),outline:mixHex(p.panel,p.accent,mode==='dark'?.45:.35),focus:p.accent};
 }
