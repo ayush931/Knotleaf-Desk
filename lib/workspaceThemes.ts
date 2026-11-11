@@ -1,11 +1,11 @@
 import type { CSSProperties } from 'react';
 import type { Theme } from '@/draw/types';
 export const WORKSPACE_THEMES = [
- {id:'black',name:'Midnight',description:'Black and white with a restrained blue accent.'},
- {id:'mono',name:'Lagoon',description:'Deep ocean, bright teal and airy blue-white.'},
- {id:'paper',name:'Paper',description:'Warm paper and soft charcoal.'},
- {id:'slate',name:'Slate',description:'Cool graphite and quiet blue accents.'},
- {id:'forest',name:'Forest',description:'Deep green and natural paper.'},
+ {id:'black',name:'Studio',description:'Clear white or ink black, cobalt tools, mint and coral details.'},
+ {id:'mono',name:'Tide',description:'Sea-glass surfaces with teal, sky and soft apricot.'},
+ {id:'paper',name:'Parchment',description:'Ivory paper, terracotta, olive and warm graphite.'},
+ {id:'slate',name:'Iris',description:'Lavender surfaces with violet, periwinkle and rose.'},
+ {id:'forest',name:'Meadow',description:'Fresh sage with evergreen, ochre and cornflower.'},
 ] as const;
 export type WorkspaceTheme = typeof WORKSPACE_THEMES[number]['id'];
 export type LogoStyle = 'theme' | 'black';
@@ -14,11 +14,11 @@ export interface WorkspaceThemes {canvas:WorkspaceTheme;notes:WorkspaceTheme;not
 export interface WorkspacePalette {background:string;panel:string;border:string;ink:string;muted:string;accent:string;accentInk:string;code:string}
 const palette=(background:string,panel:string,border:string,ink:string,muted:string,accent:string,accentInk:string,code:string):WorkspacePalette=>({background,panel,border,ink,muted,accent,accentInk,code});
 const palettes:Record<WorkspaceTheme,Record<Theme,WorkspacePalette>>={
- mono:{dark:palette('#10232c','#193641','#416573','#f0fbff','#b5d0da','#5ee0c1','#082c28','#0b1b23'),light:palette('#f0f9fc','#ffffff','#a8cbd6','#12313e','#476571','#096956','#ffffff','#e0eff4')},
- black:{dark:palette('#000000','#000000','#2e3a4d','#ffffff','#b8b8b8','#8fa9d5','#000000','#090b0f'),light:palette('#ffffff','#ffffff','#c5cfdd','#000000','#525252','#3c5f91','#ffffff','#f7f8fa')},
- paper:{dark:palette('#211e19','#2c2720','#62584a','#faf4e9','#c9bfae','#f2dfb7','#241c10','#171510'),light:palette('#faf6ec','#fffdf7','#d3c5ac','#29231a','#655c4b','#604a28','#ffffff','#eee6d6')},
- slate:{dark:palette('#161d29','#202a39','#4f627d','#f2f6ff','#b2c1d6','#a7caff','#10213b','#101620'),light:palette('#f4f7fc','#ffffff','#becde1','#17253a','#52647b','#254e83','#ffffff','#e8eef7')},
- forest:{dark:palette('#14211b','#1d2e25','#4d6f5b','#effaf2','#b0cdb8','#b0e0bd','#102619','#0d1711'),light:palette('#f2f8f1','#fbfff9','#b4cdb6','#1c3022','#4d6955','#2d5638','#ffffff','#e3efe1')}
+ mono:{dark:palette('#10232c','#17313b','#416573','#f0fbff','#b5d0da','#5ee0c1','#082c28','#0b1b23'),light:palette('#f0f9fc','#ffffff','#a8cbd6','#12313e','#476571','#096956','#ffffff','#e0eff4')},
+ black:{dark:palette('#000000','#000000','#2e3a4d','#ffffff','#b8b8b8','#8eb4ff','#000000','#090b0f'),light:palette('#ffffff','#ffffff','#c5cfdd','#000000','#525252','#305db5','#ffffff','#f7f8fa')},
+ paper:{dark:palette('#211e19','#2c2720','#62584a','#faf4e9','#c9bfae','#f0b397','#241c10','#171510'),light:palette('#fbf7f0','#fffdf9','#d8cabb','#302821','#706052','#a5482c','#ffffff','#eee6d6')},
+ slate:{dark:palette('#1b1928','#252237','#57516d','#f5f1ff','#c2bad7','#c2b0ff','#211a3d','#14111f'),light:palette('#f7f5ff','#fdfcff','#d2cbe5','#29223b','#665b79','#7051b8','#ffffff','#efebf8')},
+ forest:{dark:palette('#14211b','#1d2e25','#4d6f5b','#effaf2','#b0cdb8','#b0e0bd','#102619','#0d1711'),light:palette('#f3f8f2','#fcfff9','#bfd1bd','#233326','#52694f','#32613d','#ffffff','#e3efe1')}
 };
 export function normalizeWorkspaceTheme(value:unknown):WorkspaceTheme{return WORKSPACE_THEMES.some(t=>t.id===value)?value as WorkspaceTheme:'black';}
 export function normalizeWorkspaceThemes(value:unknown):WorkspaceThemes{const v=value&&typeof value==='object'?value as Partial<WorkspaceThemes>:{};return {canvas:normalizeWorkspaceTheme(v.canvas),notes:normalizeWorkspaceTheme(v.notes),...(v.notesMode==='dark'||v.notesMode==='light'?{notesMode:v.notesMode}:{})};}
@@ -34,9 +34,9 @@ export function workspaceThemeStyle(preset:WorkspaceTheme,mode:Theme,notes=false
 /** Blend one theme accent into the neutral surface; roles differ by emphasis, not hue. */
 function mixHex(base:string,accent:string,weight:number){const channel=(offset:number)=>Math.round(parseInt(base.slice(offset,offset+2),16)*(1-weight)+parseInt(accent.slice(offset,offset+2),16)*weight).toString(16).padStart(2,'0');return '#'+[1,3,5].map(channel).join('');}
 export function workspaceControlPalette(mode:Theme,preset:WorkspaceTheme='black'){
- const p=workspacePalette(preset,mode),hover=mixHex(p.panel,p.ink,mode==='dark'?.065:.035),active=mixHex(p.panel,p.accent,mode==='dark'?.14:.065),primary=mixHex(p.panel,p.accent,mode==='dark'?.19:.09);
- return {surface:mixHex(p.panel,p.ink,mode==='dark'?.035:0),control:p.panel,'control-ink':p.ink,hover,'hover-ink':p.ink,active,'active-ink':p.accent,
-  success:p.panel,'success-ink':p.muted,pending:p.panel,'pending-ink':p.muted,
+ const p=workspacePalette(preset,mode),support=({black:['#62cdb3','#edaa80'],mono:['#82baf0','#e8b58e'],paper:['#a8ba77','#cd9582'],slate:['#8ebed9','#d7a0bb'],forest:['#c5b36c','#90b5df']} as const)[preset],hover=mixHex(p.panel,p.ink,mode==='dark'?.065:.035),active=mixHex(p.panel,p.accent,mode==='dark'?.14:.065),primary=mixHex(p.panel,p.accent,mode==='dark'?.19:.09);
+ return {secondary:support[0],tertiary:support[1],surface:mixHex(p.panel,p.ink,mode==='dark'?.035:0),control:p.panel,'control-ink':p.ink,hover,'hover-ink':p.ink,active,'active-ink':p.accent,
+  success:mixHex(p.panel,support[0],.12),'success-ink':p.ink,pending:mixHex(p.panel,support[1],.12),'pending-ink':p.ink,
   danger:p.panel,'danger-ink':p.ink,info:primary,'info-ink':p.accent,
   brand:preset==='black'||preset==='slate'?(mode==='dark'?'#3b82f6':'#2563eb'):p.accent,
   border:mixHex(p.panel,p.ink,mode==='dark'?.19:.16),outline:mixHex(p.panel,p.accent,mode==='dark'?.45:.35),focus:p.accent};

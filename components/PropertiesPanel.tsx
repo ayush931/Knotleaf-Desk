@@ -9,8 +9,10 @@ import { parseFillColor } from "@/lib/fillColor";
 import { DEFAULT_BACKGROUND } from "@/lib/background.mjs";
 import type { BackgroundSettings } from "@/draw/types";
 import { ColorControl } from "./ColorControl";
+import { FontSelect } from "./FontSelect";
 import { QUICK_FONTS, fontCssStack } from "@/draw/fonts";
 import {
+  FontFamily,
   CanvasElement,
   StrokeStyle,
   Roundness,
@@ -327,6 +329,9 @@ export function PropertiesPanel({
               </button>
             ))}
           </div>
+          <label className="block text-[11px] text-neutral-500">Font library
+            <FontSelect aria-label="Canvas font library" value={activeFamily} onChange={event=>{const fontFamily=event.target.value as FontFamily;onUpdateElement({fontFamily});onUpdateStyle({fontFamily});}} className="mt-1 w-full rounded-lg border px-2 py-2 text-xs" />
+          </label>
           {isTextual && (
             <div className="grid grid-cols-3 gap-1 p-0.5 mt-1 rounded-lg bg-neutral-100 dark:bg-neutral-800 text-[11px]">
               {(["left", "center", "right"] as const).map((al) => (

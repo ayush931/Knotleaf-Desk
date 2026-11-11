@@ -30,3 +30,9 @@ export function editRanges(before: string, after: string, ranges?: TextRange[]):
   if(newEnd>start){const style=rangeStyleAt(ranges,Math.max(0,start-1));if(Object.keys(style).length)result.push({start,end:newEnd,style});}
   return result.filter(r=>r.end>r.start).sort((a,b)=>a.start-b.start);
 }
+/** A whole-object change replaces only the changed properties in existing ranges. */
+export function clearRangeOverrides(ranges:TextRange[]|undefined,style:RangeStyle):TextRange[]|undefined {
+ if(!ranges)return ranges;
+ const keys=Object.keys(style);
+ return ranges.map(r=>({...r,style:Object.fromEntries(Object.entries(r.style).filter(([key])=>!keys.includes(key)))})).filter(r=>Object.keys(r.style).length);
+}

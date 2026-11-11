@@ -673,19 +673,19 @@ test('theme picker independently applies Canvas, Notes and Both, saves settings 
  await act(async()=>show());await clickNamed('Canvas and notes themes');
  const scope=()=>document.getElementById('theme-scope');const changeScope=async value=>act(async()=>{scope().value=value;scope().dispatchEvent(new browser.Event('change',{bubbles:true}));});
  const apply=async()=>act(async()=>[...document.querySelectorAll('button')].find(b=>b.textContent==='Apply theme').click());
- await changeScope('notes');await clickNamed('Theme: Forest');await apply();
+ await changeScope('notes');await clickNamed('Theme: Meadow');await apply();
  expect(named('Drawing canvas').dataset.background).toBe('#123456');expect(named('Board notes').dataset.notesTheme).toBe('forest');
- await changeScope('canvas');await clickNamed('Theme: Paper');
+ await changeScope('canvas');await clickNamed('Theme: Parchment');
  const checkbox=[...document.querySelectorAll('input[type="checkbox"]')].find(input=>input.parentElement.textContent.includes('Use theme background'));await act(async()=>checkbox.click());await apply();expect(named('Drawing canvas').dataset.background).toBe('#123456');
  await act(async()=>checkbox.click());await apply();expect(named('Drawing canvas').dataset.background).toBe('#211e19');expect(named('Board notes').dataset.notesTheme).toBe('forest');
- await changeScope('both');await clickNamed('Theme: Slate');await apply();await clickNamed('Close themes');
- expect(named('Drawing canvas').dataset.background).toBe('#161d29');expect(named('Board notes').dataset.notesTheme).toBe('slate');
- await clickNamed('Switch to light mode');expect(named('Drawing canvas').dataset.background).toBe('#f4f7fc');expect(named('Board notes').dataset.notesMode).toBe('light');
+ await changeScope('both');await clickNamed('Theme: Iris');await apply();await clickNamed('Close themes');
+ expect(named('Drawing canvas').dataset.background).toBe('#1b1928');expect(named('Board notes').dataset.notesTheme).toBe('slate');
+ await clickNamed('Switch to light mode');expect(named('Drawing canvas').dataset.background).toBe('#f7f5ff');expect(named('Board notes').dataset.notesMode).toBe('light');
  expect(getBoard(board.id).elements).toEqual(original.elements);expect(getBoard(board.id).markdownNotes).toBe(original.markdownNotes);
- await act(async()=>root.render(null));await act(async()=>show());expect(named('Drawing canvas').dataset.background).toBe('#f4f7fc');expect(named('Board notes').dataset.notesTheme).toBe('slate');
+ await act(async()=>root.render(null));await act(async()=>show());expect(named('Drawing canvas').dataset.background).toBe('#f7f5ff');expect(named('Board notes').dataset.notesTheme).toBe('slate');
 });
 test('theme storage failure is visible while the session appearance stays usable',async()=>{
- await renderBoard('split');await clickNamed('Canvas and notes themes');const select=document.getElementById('theme-scope');await act(async()=>{select.value='notes';select.dispatchEvent(new browser.Event('change',{bubbles:true}));});await clickNamed('Theme: Forest');
+ await renderBoard('split');await clickNamed('Canvas and notes themes');const select=document.getElementById('theme-scope');await act(async()=>{select.value='notes';select.dispatchEvent(new browser.Event('change',{bubbles:true}));});await clickNamed('Theme: Meadow');
  const original=Object.getOwnPropertyDescriptor(globalThis,'localStorage'),storage=globalThis.localStorage;Object.defineProperty(globalThis,'localStorage',{configurable:true,writable:true,value:{getItem:key=>storage.getItem(key),setItem(){throw Error('Quota');}}});
  try{await act(async()=>[...document.querySelectorAll('button')].find(b=>b.textContent==='Apply theme').click());expect([...document.querySelectorAll('[role="alert"]')].some(e=>e.textContent.includes('Could not save'))).toBe(true);expect(named('Board notes').dataset.notesTheme).toBe('forest');}finally{Object.defineProperty(globalThis,'localStorage',original);}
 });
@@ -703,10 +703,10 @@ test('reminders remain accessible in canvas and notes without modifying the boar
 });
 test('Midnight updates logo and portalled dialog tokens, and releases them when the workspace closes',async()=>{
  const rootStyle=document.documentElement.style;const previous=rootStyle.getPropertyValue('--ui-accent');await renderBoard('canvas');
- await clickNamed('Canvas and notes themes');await clickNamed('Theme: Midnight');await act(async()=>[...document.querySelectorAll('button')].find(b=>b.textContent==='Apply theme').click());await clickNamed('Close themes');
- expect(document.documentElement.dataset.workspaceUi).toBe('true');expect(rootStyle.getPropertyValue('--drawing-panel')).toBe('#000000');expect(rootStyle.getPropertyValue('--ui-accent')).toBe('#8fa9d5');expect(document.querySelector('[data-brand-mark] path').getAttribute('fill')).toBe('var(--ui-brand)');
+ await clickNamed('Canvas and notes themes');await clickNamed('Theme: Studio');await act(async()=>[...document.querySelectorAll('button')].find(b=>b.textContent==='Apply theme').click());await clickNamed('Close themes');
+ expect(document.documentElement.dataset.workspaceUi).toBe('true');expect(rootStyle.getPropertyValue('--drawing-panel')).toBe('#000000');expect(rootStyle.getPropertyValue('--ui-accent')).toBe('#8eb4ff');expect(document.querySelector('[data-brand-mark] path').getAttribute('fill')).toBe('var(--ui-brand)');
  await clickNamed('Install web app');const dialog=document.querySelector('[aria-labelledby="install-web-app-title"]');expect(dialog.parentElement).toBe(document.body);
- await clickNamed('Close installation instructions');await clickNamed('Switch to light mode');expect(rootStyle.getPropertyValue('--ui-accent')).toBe('#3c5f91');
+ await clickNamed('Close installation instructions');await clickNamed('Switch to light mode');expect(rootStyle.getPropertyValue('--ui-accent')).toBe('#305db5');
  await act(async()=>root.render(null));expect(rootStyle.getPropertyValue('--ui-accent')).toBe(previous);expect(document.documentElement.hasAttribute('data-workspace-ui')).toBe(false);
 });
 
@@ -717,7 +717,7 @@ test('compact board-view selector switches the workspace and saves the chosen vi
 test('logo can use the theme accent or black, and saves independently of the theme scope',async()=>{
  const {loadPreferences}=await import('../lib/preferences.ts');await renderBoard('split');await clickNamed('Canvas and notes themes');const select=document.getElementById('logo-style');
  await act(async()=>{select.value='black';select.dispatchEvent(new browser.Event('change',{bubbles:true}));});expect(loadPreferences().logoStyle).toBe('black');expect(document.documentElement.style.getPropertyValue('--ui-brand')).toBe('#000000');expect(document.documentElement.style.getPropertyValue('--ui-brand-bg')).toBe('#ffffff');
- await clickNamed('Theme: Forest');await act(async()=>[...document.querySelectorAll('button')].find(b=>b.textContent==='Apply theme').click());expect(loadPreferences().logoStyle).toBe('black');
+ await clickNamed('Theme: Meadow');await act(async()=>[...document.querySelectorAll('button')].find(b=>b.textContent==='Apply theme').click());expect(loadPreferences().logoStyle).toBe('black');
  await act(async()=>{select.value='theme';select.dispatchEvent(new browser.Event('change',{bubbles:true}));});expect(document.documentElement.style.getPropertyValue('--ui-brand')).toBe('#b0e0bd');expect(loadPreferences().logoStyle).toBe('theme');
 });
 
@@ -736,4 +736,14 @@ test('selected canvas words retain independent formatting through toolbar action
  await act(async()=>editor.dispatchEvent(new browser.KeyboardEvent('keydown',{bubbles:true,key:'Enter',metaKey:true})));
  const saved=getBoard(id).elements[0];expect(saved.bold).toBe(false);expect(saved.textRanges).toEqual([{start:6,end:11,style:{bold:true,fontSize:18}}]);
  await boardPointer('dblclick',saved.x+2,saved.y+2);const reopened=named('Edit text');expect(reopened.value).toBe('hello world');expect(reopened.querySelector('span').textContent).toBe('hello ');expect(reopened.querySelector('span').style.fontWeight).toBe('');expect(reopened.querySelectorAll('span')[1].style.fontWeight).toBe('700');
+});
+
+test('selected text font wins, and a later whole-object font replaces only font overrides',async()=>{
+ const id=await renderBoard(),editor=await startText();await typeText(editor,'hello world');
+ await act(async()=>{editor.setSelectionRange(6,11);editor.dispatchEvent(new browser.MouseEvent('mouseup',{bubbles:true}));});
+ await clickNamed('Open appearance settings');await clickNamed('Font: Lora');await clickNamed('Bold');
+ await act(async()=>editor.dispatchEvent(new browser.KeyboardEvent('keydown',{bubbles:true,key:'Enter',metaKey:true})));
+ expect(getBoard(id).elements[0].textRanges).toEqual([{start:6,end:11,style:{fontFamily:'serif',bold:true}}]);
+ await clickNamed('Font: Inter');
+ const saved=getBoard(id).elements[0];expect(saved.fontFamily).toBe('sans');expect(saved.textRanges).toEqual([{start:6,end:11,style:{bold:true}}]);
 });

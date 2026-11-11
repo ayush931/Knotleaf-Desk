@@ -1,3 +1,4 @@
+import { clearRangeOverrides, editRanges } from "./textRanges";
 import { arrangementDeltas, type Arrangement } from "./arrangement";
 import { CODE_FONT_WEIGHT, CODE_LINE_HEIGHT } from "./codeLayout";
 import { canvasBackground } from "./canvasAppearance";
@@ -611,6 +612,11 @@ export class CanvasEngine {
     this.elements = this.elements.map((el) => {
       if (!ids.has(el.id)) return el;
       const next = { ...el, ...props } as CanvasElement;
+      if((next.type==="text"||next.type==="sticky")&&!("textRanges" in props)){
+        if("text" in el && next.text!==el.text)next.textRanges=editRanges(el.text,next.text,next.textRanges);
+        const patch=Object.fromEntries(Object.entries(props).filter(([key])=>["fontSize","fontFamily","stroke","bold","italic","underline","strikethrough"].includes(key)).map(([key,value])=>[key==="stroke"?"color":key,value]));
+        next.textRanges=clearRangeOverrides(next.textRanges,patch);
+      }
       return next.type === "text" && el.type === "text" ? next.isCodeCard && "codeAutoSize" in props && props.codeAutoSize === true ? this.remeasureText(next) : this.remeasureChangedText(el, next) : next.type === "sticky" ? this.fitSticky(next) : next;
     });
     this.elements = resolveBindings(this.elements, new Set(ids));
@@ -657,7 +663,7 @@ export class CanvasEngine {
     if (!selected.length) { this.currentStyle[key] = !this.currentStyle[key]; return; }
     const enabled = !selected.every(el => !!el[key]);
     const ids = new Set(selected.map(el => el.id));
-    this.elements = this.elements.map(el => ids.has(el.id) ? el.type === "text" ? this.remeasureText({ ...el, [key]: enabled }) : el.type === "sticky" ? this.fitSticky({ ...el, [key]: enabled }) : el : el);
+    this.elements = this.elements.map(el => ids.has(el.id) ? el.type === "text" ? this.remeasureText({ ...el, textRanges:clearRangeOverrides(el.textRanges,{[key]:enabled}), [key]: enabled }) : el.type === "sticky" ? this.fitSticky({ ...el,textRanges:clearRangeOverrides(el.textRanges,{[key]:enabled}), [key]: enabled }) : el : el);
     this.elements = resolveBindings(this.elements, ids); this.commit();
   }
 
@@ -721,8 +727,8 @@ export class CanvasEngine {
     }
     this.elements = this.elements.map((el) => {
       if (!ids.has(el.id)) return el;
-      if (el.type === "text") return this.remeasureText({ ...el, fontSize: clamp(el.fontSize + delta) });
-      if (el.type === "sticky") return this.fitSticky({ ...el, fontSize: clamp(el.fontSize + delta) });
+      if (el.type === "text") return this.remeasureText({ ...el, textRanges:clearRangeOverrides(el.textRanges,{fontSize:0}), fontSize: clamp(el.fontSize + delta) });
+      if (el.type === "sticky") return this.fitSticky({ ...el,textRanges:clearRangeOverrides(el.textRanges,{fontSize:0}), fontSize: clamp(el.fontSize + delta) });
       return el;
     });
     this.commit();
@@ -1361,7 +1367,8 @@ export class CanvasEngine {
     const reach = 24 / this.zoom;
     let best: { elementId: string; anchor: AnchorPosition; x: number; y: number; all: Anchor[] } | null = null;
     let bestDist = reach;
-    for (const el of this.elements) {
+    for (let i=this.elements.length-1;i>=0;i--) {
+      const el=this.elements[i];
       if (el.id === excludeId || el.type === "frame" || (onlyId && el.id !== onlyId)) continue;
       const anchors = getElementAnchors(el);
       for (const a of anchors) {

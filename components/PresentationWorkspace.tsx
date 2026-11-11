@@ -525,7 +525,7 @@ function PresentationEditor({
         }
       }}
       aria-label="Presentation workspace"
-      className="flex min-h-0 min-w-0 flex-1 flex-col bg-[#151517] text-neutral-200 select-text"
+      className="presentation-studio flex min-h-0 min-w-0 flex-1 flex-col bg-[#151517] text-neutral-200 select-text"
     >
       <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-neutral-800 px-3 py-2">
         <input
@@ -628,7 +628,7 @@ function PresentationEditor({
         </button>
         <button
           ref={presentButton}
-          className={`${button} border-neutral-600! ui-primary! text-white! hover:bg-neutral-500!`}
+          className={`${button} ui-primary`}
           onClick={() => {
             setPresenting(true);
           }}

@@ -24,7 +24,7 @@ export function FontSelect({
       {FONT_GROUPS.map((group) => (
         <optgroup key={group} label={group}>
           {FONT_OPTIONS.filter((font) => font.group === group).map((font) => (
-            <option key={font.id} value={font.id}>
+            <option key={font.id} value={font.id} style={{fontFamily:fontCssStack(font.id)}}>
               {font.label}
             </option>
           ))}
