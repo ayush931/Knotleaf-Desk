@@ -2,7 +2,7 @@
 
 Validated locally on macOS with a production Next.js build and isolated headless Chrome profiles.
 
-- Automated suite: 767 passing tests; two PostgreSQL tests skipped without a test database.
+- Automated suite: 764 passing tests in a clean checkout; two PostgreSQL tests skipped without a test database.
 - TypeScript, ESLint, webpack production build and strict UI audit passed.
 - Server smoke: local mode, home/assets, durable room creation, two-client sync, classroom signaling, and persistence after restart passed.
 - Live canvas: created document cards, connected both arrow endpoints at the painted borders, saved selected-word Sora formatting, replaced it through a whole-object Inter change, and applied Iris to the workspace.
