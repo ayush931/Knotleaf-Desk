@@ -1,6 +1,6 @@
 "use client";
 import { RangeTextEditor } from "./RangeTextEditor";
-import { editRanges, formatRange, rangeStyleAt } from "@/draw/textRanges";
+import { clearRangeOverrides, editRanges, formatRange, rangeStyleAt } from "@/draw/textRanges";
 import { canvasBackground, canvasElementAppearance, neutralInk } from "@/draw/canvasAppearance";
 import { stepCanvasFontSize, textSizeShortcut } from "@/lib/textShortcuts";
 import { usePointerDrag } from "@/lib/usePointerDrag";
@@ -623,7 +623,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
       if (!container || engineRef.current !== engine) return;
       engine.resize(container.clientWidth, container.clientHeight);
       const left = appearanceOpen && container.clientWidth >= 640 ? 320 : 48;
-      engine.focusElements(ids, false, { left, right: 48, top: Math.max(80, toolbarHeight + 24), bottom: 80 });
+      engine.focusElements(ids, false, { left, right: 48, top: 48, bottom: Math.max(100, toolbarHeight + 44) });
     });
   };
 
@@ -760,8 +760,9 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
         return;
       }
     }
+    const rangePatch=Object.fromEntries(Object.entries({fontSize:style.fontSize,fontFamily:style.fontFamily,color:style.stroke,bold:style.bold,italic:style.italic,underline:style.underline,strikethrough:style.strikethrough}).filter(([,v])=>v!==undefined));
     setInlineText(previous => previous ? {
-      ...previous,
+      ...previous, textRanges:clearRangeOverrides(previous.textRanges,rangePatch),
       ...(style.fontSize !== undefined ? { fontSize: style.fontSize } : {}),
       ...(style.fontFamily !== undefined ? { fontFamily: style.fontFamily } : {}),
       ...(style.textAlign !== undefined ? { align: style.textAlign } : {}),
@@ -1119,7 +1120,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
               />
             )}
 
-            {!isPresentationOpen && !focusMode && selectedTool === "eraser" && <EraserControls size={eraserSize} mode={eraserMode} top={toolbarHeight+24} onChange={(size,mode)=>{setEraserSize(size);setEraserMode(mode);engineRef.current?.setEraserOptions(size,mode);}}/>}
+            {!isPresentationOpen && !focusMode && selectedTool === "eraser" && <EraserControls size={eraserSize} mode={eraserMode} top={16} onChange={(size,mode)=>{setEraserSize(size);setEraserMode(mode);engineRef.current?.setEraserOptions(size,mode);}}/>}
 
             {!isPresentationOpen && !focusMode && (
               <div data-text-controls onBlur={event => {
@@ -1130,7 +1131,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
                 onBackgroundChange={background => persist({ ...boardRef.current, background })}
                 isOpen={appearanceOpen}
                 onOpenChange={setAppearanceOpen}
-                topOffset={toolbarHeight + 24}
+                topOffset={16}
                 selectedTool={selectedTool}
                 isTextEditing={textOptionsVisible}
                 preserveTextFocus={isInlineTextual}
@@ -1164,7 +1165,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
                   if (isInlineTextual) {
                     const rest=Object.fromEntries(Object.entries(props).filter(([key])=>!["fontSize","fontFamily","stroke","bold","italic","underline","strikethrough","text"].includes(key)));
                     if(Object.keys(rest).length)engineRef.current?.updateSelectedElement(rest);
-                  } else if (selectedTool !== "text") engineRef.current?.updateSelectedElement(props);
+                  } else if (selectedElements.length) engineRef.current?.updateSelectedElement(props);
                 }}
                 onDuplicate={() => { commitInline(); engineRef.current?.duplicateSelected(); }}
                 onDelete={() => { commitInline(); engineRef.current?.deleteSelected(); }}

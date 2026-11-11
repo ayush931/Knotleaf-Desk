@@ -487,7 +487,7 @@ test('text resizing sizes the glyphs and keeps the opposite side anchored', () =
 
 test('document card ports sit at the outer selection boundary', () => {
   const text = { ...base, id: 'doc', type: 'text', isDocCard: true, fill: '#18181B', x: 100, y: 100, width: 120, height: 54, text: 'Document', fontSize: 20, fontFamily: 'sans', textAlign: 'left' };
-  expect(getElementAnchors(text)).toEqual([{ anchor: 'top', x: 160, y: 76 }, { anchor: 'right', x: 244, y: 127 }, { anchor: 'bottom', x: 160, y: 178 }, { anchor: 'left', x: 76, y: 127 }]);
+  expect(getElementAnchors(text)).toEqual([{ anchor: 'top', x: 160, y: 84 }, { anchor: 'right', x: 236, y: 127 }, { anchor: 'bottom', x: 160, y: 170 }, { anchor: 'left', x: 84, y: 127 }]);
   expect(getElementAnchors({ ...source, type: 'frame', title: 'Frame' })).toEqual([]);
 });
 
@@ -1155,7 +1155,7 @@ test('selection outlines leave a small gap outside content at all zoom levels',(
  for(const element of elements)for(const zoom of [.25,1,3]){
   const rects=[],ctx=new Proxy({strokeRect:(...rect)=>rects.push(rect)},{get:(o,k)=>k in o?o[k]:()=>{}});const bounds=getElementBounds(element);drawSelection(ctx,element,zoom);
   const pad=getSelectionPadding(element,zoom);
-  expect(pad*zoom).toBeGreaterThan(0);expect(pad*zoom).toBeLessThanOrEqual(3);
+  expect(pad*zoom).toBeGreaterThanOrEqual(0);expect(pad*zoom).toBeLessThanOrEqual(3);
   expect(rects[0]).toEqual([bounds.minX-pad,bounds.minY-pad,bounds.maxX-bounds.minX+pad*2,bounds.maxY-bounds.minY+pad*2]);
  }
 });
@@ -1763,7 +1763,7 @@ describe('free code-card background resizing',()=>{
    listeners.pointermove(start);expect(engine.canvas.style.cursor).toBe(cursor);listeners.pointerdown(start);expect(engine.gesture.kind).toBe('resize');
    listeners.pointermove(end);listeners.pointerup(end);
    const updated=engine.getElements().find(el=>el.id===card.id);expect(updated).toMatchObject({...expected,fontSize:14,text:card.text,fill:'#000000',codeAutoSize:false});expect(engine.getElements()).toHaveLength(2);
-   const linked=engine.getElements().find(el=>el.id==='linked');expect([linked.startX,linked.startY]).toEqual([updated.x+updated.width+24,updated.y+updated.height/2]);
+   const linked=engine.getElements().find(el=>el.id==='linked');expect([linked.startX,linked.startY]).toEqual([updated.x+updated.width+16,updated.y+updated.height/2]);
    engine.undo();expect(engine.getElements().find(el=>el.id===card.id)).toEqual(card);engine.redo();expect(engine.getElements().find(el=>el.id===card.id)).toMatchObject(expected);engine.destroy();
   }
  });
@@ -1841,4 +1841,14 @@ test('arranging selected shapes moves attached text once, preserves arrows and u
 test('arrangement is read-only in presentation and no-ops do not create undo steps',()=>{
  const {engine}=setup([source,target]);engine.selectedIds=new Set([source.id,target.id]);engine.readOnly=true;engine.arrangeSelected('left');expect(engine.getElements()).toEqual([source,target]);
  engine.readOnly=false;let writes=0;engine.onChange=()=>writes++;engine.arrangeSelected('vertical');expect(writes).toBe(0);engine.destroy();
+});
+
+
+test('document-to-document arrows attach to painted borders and follow the next card when moved',()=>{
+ const a={...base,id:'doc-a',type:'text',isDocCard:true,text:'First',fontSize:16,fontFamily:'sans',textAlign:'left',fill:'#18181b',x:100,y:100,width:240,height:100};
+ const b={...a,id:'doc-b',text:'Next',x:600};
+ const {engine,drag}=setup([{...a,id:'under-a'},{...b,id:'under-b'},a,b]);engine.setTool('arrow');drag(356,150,584,150);
+ const link=engine.getElements().find(el=>el.type==='arrow');expect(link).toMatchObject({startBinding:{elementId:a.id,anchor:'right'},endBinding:{elementId:b.id,anchor:'left'},startX:356,endX:584});
+ engine.selectedIds=new Set([b.id]);engine.updateSelectedElement({x:650});
+ expect(engine.getElements().find(el=>el.id===link.id).endX).toBe(634);engine.undo();expect(engine.getElements().find(el=>el.id===link.id).endX).toBe(584);engine.destroy();
 });

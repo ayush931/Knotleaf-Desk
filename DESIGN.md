@@ -315,3 +315,12 @@ Background decoration is deliberately subdued: Dark uses 18% white dots, 10% gri
 The whiteboard keeps its canvas visually open. Drawing tools live in a single centered, tactile tray, with a restrained theme-colored selected tool; the mode switch uses a neutral inset track. Panels use the same soft corners and neutral surfaces, leaving drawing colors to the board itself. Motion is limited to control feedback and respects reduced-motion preferences.
 
 Canvas text and sticky notes store optional character formatting ranges. A selected passage changes independently for weight, emphasis, decorations, font, size and color; alignment remains a block property. The native contenteditable range survives Appearance actions. Text edits move the ranges, and the shared canvas/SVG/raster renderer preserves them after editing and export. Notes retain their existing rich-editor selection marks.
+
+## Studio workspace revision
+The canvas is the primary surface. A 48px identity header and bottom-centered drawing tray release the upper board for drawing; the inspector opens at the upper left. On narrow screens the tray stays above zoom controls and scrolls horizontally. Notes use a spacious reading column; presentation chrome shares workspace surfaces, rounded slide navigation and legible light-mode syntax. Drawing coordinates and saved content stay portable.
+
+The visible workspace collection is replaced with Studio (cobalt/mint/coral), Tide (teal/sky/apricot), Parchment (terracotta/olive), Iris (violet/periwinkle/rose), and Meadow (evergreen/ochre/cornflower). Legacy internal IDs are retained for saved preference compatibility. Each preset owns its palette in lib/workspaceThemes.ts; supporting hues are restrained and primary selections retain the strongest emphasis. Studio preserves a white Light canvas and black Dark canvas. Decorative patterns remain subdued.
+
+Geist, Sora, Bricolage Grotesque, Newsreader, Handlee and IBM Plex Sans join the shared bundled font library, available in canvas, notes and presentations. Canvas keeps quick preview buttons and adds the full grouped library selector. Fonts are loaded on demand and exports wait for the exact used families.
+
+Card painting uses the same stored bounds as selection and resize handles. Document, code and sticky card outlines sit on the visible edge with zero selection padding; plain-text selection retains its small usability gap.

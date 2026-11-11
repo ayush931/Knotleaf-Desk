@@ -198,6 +198,7 @@ function pointsBounds(pts: Point[]): Bounds {
 export const TEXT_PORT_PADDING = 8;
 export const SELECTION_PADDING = 3;
 export function getSelectionPadding(el: CanvasElement, zoom: number) {
+  if(el.type==="sticky" || el.type==="text" && (el.isDocCard||el.isCodeCard||el.fill!=="transparent"&&el.fillStyle!=="none"))return 0;
   const pad = SELECTION_PADDING / (zoom || 1);
   // Text ports have a fixed content offset; keep the outline inside those ports at low zoom.
   return el.type === "text" ? Math.min(pad, TEXT_PORT_PADDING / 2) : pad;
@@ -206,7 +207,7 @@ export function getSelectionPadding(el: CanvasElement, zoom: number) {
 export function getElementAnchors(el: CanvasElement): { anchor: AnchorPosition; x: number; y: number }[] {
   if (el.type === "arrow" || el.type === "line" || el.type === "pencil" || el.type === "frame") return [];
   const bounds = getElementBounds(el);
-  const pad = el.type === "text" ? TEXT_PORT_PADDING : 0;
+  const pad = el.type === "text" && !el.isDocCard && !el.isCodeCard && (el.fill==="transparent"||el.fillStyle==="none") ? TEXT_PORT_PADDING : 0;
   const r = { x: bounds.minX - pad, y: bounds.minY - pad, w: bounds.maxX - bounds.minX + pad * 2, h: bounds.maxY - bounds.minY + pad * 2 };
   return [
     { anchor: "top", x: r.x + r.w / 2, y: r.y },
@@ -1274,8 +1275,8 @@ function drawText(ctx: CanvasRenderingContext2D, el: CanvasElement, codeScroll?:
     const pad = 16;
     const cardX = x - pad;
     const cardY = y - pad;
-    const cardW = Math.max(el.width, layout.totalWidth) + pad * 2;
-    const cardH = Math.max(el.height, layout.totalHeight) + pad * 2;
+    const cardW = Math.max(el.width,24) + pad * 2;
+    const cardH = Math.max(el.height,el.fontSize*LINE_HEIGHT) + pad * 2;
     ctx.save();
     ctx.shadowColor = isLight ? "rgba(0, 0, 0, 0.08)" : "rgba(0, 0, 0, 0.5)";
     ctx.shadowBlur = 18;

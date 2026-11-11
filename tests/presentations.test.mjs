@@ -357,9 +357,9 @@ test('theme gallery previews the current slide, filters themes, and preserves ov
     const buttons = () => [...container.querySelectorAll('button')];
     await act(async () => buttons().find(button => button.textContent === 'light').click());
     expect(container.querySelector('[aria-label="Use Grove theme"]')).toBeNull();
-    expect(container.querySelector('[aria-label="Use Editorial theme"]')).not.toBeNull();
+    expect(container.querySelector('[aria-label="Use Journal theme"]')).not.toBeNull();
     await act(async () => buttons().find(button => button.textContent === 'dark').click());
-    expect(container.querySelector('[aria-label="Use Editorial theme"]')).toBeNull();
+    expect(container.querySelector('[aria-label="Use Journal theme"]')).toBeNull();
     await act(async () => container.querySelector('[aria-label="Use Grove theme"]').click());
     expect(chosen).toBe('grove'); expect(closed).toBe(1);
   } finally {
