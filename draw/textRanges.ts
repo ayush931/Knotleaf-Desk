@@ -27,8 +27,14 @@ export function editRanges(before: string, after: string, ranges?: TextRange[]):
     if(r.start<start)result.push({...r,end:Math.min(r.end,start)});
     if(r.end>oldEnd)result.push({...r,start:Math.max(r.start,oldEnd)+delta,end:r.end+delta});
   }
-  if(newEnd>start){const style=rangeStyleAt(ranges,Math.max(0,start-1));if(Object.keys(style).length)result.push({start,end:newEnd,style});}
-  return result.filter(r=>r.end>r.start).sort((a,b)=>a.start-b.start);
+  if(newEnd>start){const style=rangeStyleAt(ranges,oldEnd>start?start:Math.max(0,start-1));if(Object.keys(style).length)result.push({start,end:newEnd,style});}
+  const normalized:TextRange[]=[];
+  for(const range of result.filter(r=>r.end>r.start).sort((a,b)=>a.start-b.start)){
+    const previous=normalized.at(-1);
+    if(previous?.end===range.start&&JSON.stringify(previous.style)===JSON.stringify(range.style))previous.end=range.end;
+    else normalized.push(range);
+  }
+  return normalized;
 }
 /** A whole-object change replaces only the changed properties in existing ranges. */
 export function clearRangeOverrides(ranges:TextRange[]|undefined,style:RangeStyle):TextRange[]|undefined {
