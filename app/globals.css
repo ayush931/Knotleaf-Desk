@@ -632,7 +632,7 @@ html[data-workspace-ui]:is(.dark,.light) .workspace-view-switch button[aria-pres
 .workspace-view-switch { border-radius:10px; }
 .workspace-header-controls>button { width:32px; height:30px; min-width:30px; border-radius:8px; }
 .workspace-export>div>button { height:30px; border-radius:8px; }
-.drawing-dock { top:12px; bottom:auto; }
+.drawing-dock { top:0; bottom:auto; }
 .drawing-toolbar { gap:0; padding:2px; border-radius:12px; }
 .drawing-toolbar button { width:36px; height:36px; border-radius:9px; }
 .drawing-toolbar .lucide { width:18px; height:18px; stroke-width:1.7; }

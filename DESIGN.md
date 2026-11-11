@@ -21,7 +21,7 @@ rounded:
   panel: '0.75rem'
 spacing:
   header: '3.5rem'
-  toolbar-inset: '0.75rem'
+  toolbar-inset: '0'
 components:
   button: {}
   drawer: {}
@@ -50,7 +50,7 @@ Inter for controls, Fira Code for Markdown source and coordinates, Caveat as the
 ## Layout
 
 Canvas editor placeholders inherit the chosen font and have explicit full-opacity muted text (#a1a1aa), with slate (#475569) on yellow sticky surfaces. Empty editors measure the complete hint, wrap it when constrained, and stay inside the canvas viewport. Font-load completion and viewport/split changes remeasure the editor. `app/globals.css` owns placeholder colors; `draw/inlineEditorLayout.ts` owns editor bounds.
-56px fixed header, drawing tools inset 12px below it. Inspector is relative to the canvas, below the tools; it scrolls internally only when necessary. Notes split starts at 360px, is draggable and keyboard resizable; below 640px it becomes a vertically stacked split. Notes contain their own vertical scroll; long prose and code wrap instead of forcing horizontal scrolling. Document toolbars keep bounded rows and overflow controls on narrow viewports. The canvas itself pans, never document-scrolls.
+48px fixed header, drawing tools flush with the top of the canvas below it. Inspector is relative to the canvas, below the tools; it scrolls internally only when necessary. Notes split starts at 360px, is draggable and keyboard resizable; below 640px it becomes a vertically stacked split. Notes contain their own vertical scroll; long prose and code wrap instead of forcing horizontal scrolling. Document toolbars keep bounded rows and overflow controls on narrow viewports. The canvas itself pans, never document-scrolls.
 
 ## Elevation & Depth
 Hairline borders and flat opaque surfaces establish hierarchy. Floating panels use only a small shadow; drawing controls have 4–6px corners and no frosted-glass treatment. Modal backdrops darken the workspace. Avoid shadows on document content.
@@ -317,7 +317,7 @@ The whiteboard keeps its canvas visually open. Drawing tools live in a single ce
 Canvas text and sticky notes store optional character formatting ranges. A selected passage changes independently for weight, emphasis, decorations, font, size and color; alignment remains a block property. The native contenteditable range survives Appearance actions. Text edits move the ranges, and the shared canvas/SVG/raster renderer preserves them after editing and export. Notes retain their existing rich-editor selection marks.
 
 ## Studio workspace revision
-The canvas is the primary surface. A 48px identity header and top-centered drawing tray keep the controls in the familiar whiteboard position. The tray uses 36px buttons, 2px outer padding, no inter-button gap and no divider margins; its 12px top inset and horizontal center anchor stay fixed. The inspector and eraser options open below the measured toolbar, and fit-to-content reserves space for it. On narrow screens the tray scrolls horizontally at the top; zoom controls remain at the bottom. Notes use a spacious reading column; presentation chrome shares workspace surfaces, rounded slide navigation and legible light-mode syntax. Drawing coordinates and saved content stay portable.
+The canvas is the primary surface. A 48px identity header and top-centered drawing tray keep the controls in the familiar whiteboard position. The tray uses 36px buttons, 2px outer padding, no inter-button gap and no divider margins; its top inset is zero and its horizontal center anchor stays fixed. The inspector and eraser options open below the measured toolbar, and fit-to-content reserves space for it. On narrow screens the tray scrolls horizontally at the top; zoom controls remain at the bottom. Notes use a spacious reading column; presentation chrome shares workspace surfaces, rounded slide navigation and legible light-mode syntax. Drawing coordinates and saved content stay portable.
 
 The visible workspace collection is replaced with Studio (cobalt/mint/coral), Tide (teal/sky/apricot), Parchment (terracotta/olive), Iris (violet/periwinkle/rose), and Meadow (evergreen/ochre/cornflower). Legacy internal IDs are retained for saved preference compatibility. Each preset owns its palette in lib/workspaceThemes.ts; supporting hues are restrained and primary selections retain the strongest emphasis. Studio preserves a white Light canvas and black Dark canvas. Decorative patterns remain subdued.
 
