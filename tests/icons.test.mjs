@@ -197,3 +197,12 @@ test('black-board SVG exports use the same visible dots and grid as the editor',
  const {gridAppearance}=await import('../draw/renderer.ts');const background={fill:'#000000',fillStyle:'solid',fillOpacity:1};
  for(const grid of ['dot','grid']){const svg=boardToSvg([{...base,type:'rectangle'}],false,[],background,grid,'dark');const paint=gridAppearance(1,false);expect(svg).toContain(grid==='dot'?paint.dotColor:paint.lineColor);expect(svg).toContain('fill="#000000"');}
 });
+
+test('SVG uses the same range colors fonts and styles as the canvas, without changing other characters',()=>{
+ const el={...base,id:'range',type:'text',x:0,y:0,width:200,height:80,text:'ab\nab',fontSize:16,fontFamily:'sans',stroke:'#ffffff',fill:'transparent',opacity:1,zIndex:0,textRanges:[{start:3,end:4,style:{color:'#ef4444',bold:true,fontSize:32,fontFamily:'mono'}}]};
+ const svg=boardToSvg([el],true);
+ expect(svg.match(/fill="#ef4444"/g)).toHaveLength(1);
+ expect(svg).toContain('32px');expect(svg).toContain('700');
+
+ expect(el.textRanges).toHaveLength(1);
+});

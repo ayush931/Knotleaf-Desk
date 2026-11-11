@@ -652,7 +652,7 @@ export class CanvasEngine {
     this.commit();
   }
 
-  public toggleTextFormatting(key: keyof TextFormatting) {
+  public toggleTextFormatting(key: "bold" | "italic" | "underline" | "strikethrough") {
     const selected = this.getSelectedElements().filter(el => el.type === "text" || el.type === "sticky");
     if (!selected.length) { this.currentStyle[key] = !this.currentStyle[key]; return; }
     const enabled = !selected.every(el => !!el[key]);
@@ -664,12 +664,12 @@ export class CanvasEngine {
   private fitSticky(el: StickyElement): StickyElement {
     const width = Math.max(100, el.width);
     setFont(this.ctx, el.fontSize || 15, el.fontFamily || "sans", el.bold ? 700 : 500, el.italic);
-    const height = Math.max(80, el.height, wrapText(this.ctx, el.text, width - 24).length * (el.fontSize || 15) * 1.35 + 28);
+    const height = el.textRanges?.length ? Math.max(el.height,layoutDocument(this.ctx,el.text,el.fontSize,el.fontFamily||"sans",{...el,textBox:true,width:width-24}).totalHeight+28) : Math.max(80, el.height, wrapText(this.ctx, el.text, width - 24).length * (el.fontSize || 15) * 1.35 + 28);
     return { ...el, width, height };
   }
 
   private remeasureChangedText(before: TextElement, next: TextElement): TextElement {
-    const layout = (el: TextElement) => [el.text, el.fontSize, el.fontFamily, el.textAlign || "left", !!el.bold, !!el.italic, !!el.underline, !!el.strikethrough, el.width, el.height, !!el.textBox, !!el.isDocCard, !!el.isCodeCard, el.codeAutoSize];
+    const layout = (el: TextElement) => [JSON.stringify(el.textRanges), el.text, el.fontSize, el.fontFamily, el.textAlign || "left", !!el.bold, !!el.italic, !!el.underline, !!el.strikethrough, el.width, el.height, !!el.textBox, !!el.isDocCard, !!el.isCodeCard, el.codeAutoSize];
     const previous = layout(before);
     return layout(next).some((value, index) => value !== previous[index]) ? this.remeasureText(next) : next;
   }
@@ -684,7 +684,7 @@ export class CanvasEngine {
       this.ctx.restore();
       return { ...el, width, height: Math.max(40, el.text.split("\n").length * el.fontSize * CODE_LINE_HEIGHT + 8) };
     }
-    if (el.textBox) { const width=Math.max(32,el.width); const layout=layoutDocument(this.ctx,el.text,el.fontSize,el.fontFamily,{...el,width}); return {...el,width,height:Math.max(el.height,layout.totalHeight)}; }
+    if (el.textBox) { const width=Math.max(32,el.width); const layout=layoutDocument(this.ctx,el.text,el.fontSize,el.fontFamily||"sans",{...el,width}); return {...el,width,height:Math.max(el.height,layout.totalHeight)}; }
     const size = measureTextBlock(this.ctx, el.text, el.fontSize, el.fontFamily, el);
     return { ...el, width: el.isDocCard ? Math.max(240,size.width) : size.width, height: el.isDocCard ? Math.max(100,size.height) : size.height };
   }
@@ -1015,11 +1015,11 @@ export class CanvasEngine {
               fontFamily: info.fontFamily,
               textAlign: info.align,
               stroke: info.color,
-              bold: !!info.bold, italic: !!info.italic, underline: !!info.underline, strikethrough: !!info.strikethrough,
+              textRanges: info.textRanges, bold: !!info.bold, italic: !!info.italic, underline: !!info.underline, strikethrough: !!info.strikethrough,
             })
           );
         } else if (info.kind === "sticky" && el.type === "sticky") {
-          next.push(this.fitSticky({ ...el, text, fontSize: info.fontSize, fontFamily: info.fontFamily, textAlign: info.align, stroke: info.color, bold: !!info.bold, italic: !!info.italic, underline: !!info.underline, strikethrough: !!info.strikethrough }));
+          next.push(this.fitSticky({ ...el, text, fontSize: info.fontSize, fontFamily: info.fontFamily, textAlign: info.align, stroke: info.color, textRanges: info.textRanges, bold: !!info.bold, italic: !!info.italic, underline: !!info.underline, strikethrough: !!info.strikethrough }));
         } else if (info.kind === "frame-title" && el.type === "frame") {
           next.push({ ...el, title: trimmed || "Frame" });
         } else if (info.kind === "label") {
@@ -1082,7 +1082,7 @@ export class CanvasEngine {
       text,
       fontSize,
       fontFamily,
-      bold: !!formatting.bold, italic: !!formatting.italic, underline: !!formatting.underline, strikethrough: !!formatting.strikethrough,
+      textRanges: formatting.textRanges, bold: !!formatting.bold, italic: !!formatting.italic, underline: !!formatting.underline, strikethrough: !!formatting.strikethrough,
       textAlign: align,
       stroke: color || "#FFFFFF",
       strokeWidth: 1,
@@ -1113,7 +1113,7 @@ export class CanvasEngine {
           screenWidth: el.textBox ? el.width*this.zoom : Math.max(80, el.width * this.zoom + 24),
           ...(el.textBox?{boxWidth:el.width,boxHeight:el.height,screenHeight:el.height*this.zoom}:{}),
           bold: el.bold, italic: el.italic, underline: el.underline, strikethrough: el.strikethrough,
-          text: el.text, fontSize: el.fontSize, fontFamily: el.fontFamily,
+          textRanges: el.textRanges, text: el.text, fontSize: el.fontSize, fontFamily: el.fontFamily,
           color: el.stroke, align: el.textAlign,
         };
         break;
@@ -1126,7 +1126,7 @@ export class CanvasEngine {
           screenWidth: (el.width - 24) * this.zoom,
           screenHeight: (el.height - 24) * this.zoom,
           bold: el.bold, italic: el.italic, underline: el.underline, strikethrough: el.strikethrough,
-          text: el.text, fontSize: el.fontSize, fontFamily: el.fontFamily || "sans",
+          textRanges: el.textRanges, text: el.text, fontSize: el.fontSize, fontFamily: el.fontFamily || "sans",
           color: el.stroke || "#1E293B", align: el.textAlign || "left",
         };
         break;

@@ -32,6 +32,7 @@ export function canvasElementAppearance<T extends CanvasElement>(element: T, lig
   if (!lightSurface) return next;
   const stroke = neutralInk(next.stroke, true);
   if (stroke !== next.stroke) next = { ...next, stroke };
+  if((next.type==='text'||next.type==='sticky')&&next.textRanges?.some(r=>r.style.color&&neutralInk(r.style.color,true)!==r.style.color))next={...next,textRanges:next.textRanges.map(r=>({...r,style:{...r.style,...(r.style.color?{color:neutralInk(r.style.color,true)}:{})}}))};
   if (next.type === 'icon') next = { ...next, iconColor: neutralInk(next.iconColor || next.stroke, true) };
   return next;
 }

@@ -210,6 +210,7 @@ export function sceneFontFamilies(
 ): FontFamily[] {
   const families = new Set<FontFamily>(["sans", "hand", "mono"]);
   for (const element of elements) {
+    if("textRanges" in element)for(const range of element.textRanges||[]){const family=range.style.fontFamily;if(family&&family in FONT_FAMILIES)families.add(family);}
     if (
       "fontFamily" in element &&
       element.fontFamily &&

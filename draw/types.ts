@@ -41,6 +41,7 @@ export type Theme = "dark" | "light";
 export type InlineTextKind = "new-text" | "text" | "sticky" | "label" | "frame-title";
 
 export interface TextFormatting {
+  textRanges?: import("./textRanges").TextRange[];
   bold?: boolean;
   italic?: boolean;
   underline?: boolean;
