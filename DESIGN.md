@@ -3,10 +3,10 @@ version: alpha
 name: Knotleaf Desk
 description: A local-first diagramming desk and Markdown notebook.
 colors:
-  background: '#000000'
-  surface: '#000000'
-  border: '#525252'
-  primary: '#ffffff'
+  background: '#10232c'
+  surface: '#193641'
+  border: '#416573'
+  primary: '#5ee0c1'
   text: '#f4f4f5'
   muted: '#a1a1aa'
 typography:
@@ -34,7 +34,7 @@ components:
 ## Overview
 
 ### Creative North Star
-An Eraser-inspired drawing board: pitch-black/white chrome, a centered grouped tool strip, a spacious dotted canvas and Caveat handwriting for new artwork. Contrasting attachment ports make diagram structure visible.
+An Eraser-inspired drawing board: ocean and teal chrome, a centered grouped tool strip, a spacious dotted canvas and Caveat handwriting for new artwork. Contrasting attachment ports make diagram structure visible.
 
 ### Product context and register
 Personal diagrams and project notes, primarily used on desktop with keyboard and pointer. English interface; no market-specific business rules. This is a product tool, not a marketing page. Repository README and current user instructions supply the product context. Keep Dark and Light as equal drawing-board surfaces. The branch-veined leaf mark is the expressive signature; controls remain familiar. Avoid decorative gradients, giant toolbars, and ornamental cards.
@@ -42,7 +42,7 @@ Personal diagrams and project notes, primarily used on desktop with keyboard and
 Runtime sources are canonical: `app/globals.css` owns global styles and scrollbar tokens; `app/layout.tsx` owns font variables; shared components own utility-class geometry; `draw/renderer.ts` owns canvas visuals and contrasting ports. This document records these implemented values, rather than generating a separate theme.
 
 ## Colors
-Default Black & White uses #000000 canvas/panels, #ffffff ink/active actions and neutral borders; Light reverses black and white. lib/workspaceThemes.ts owns optional Paper, Slate and Forest palettes for independently scoped Canvas and Notes. Red alignment guides retain their measurement role; artwork and syntax colors remain explicit content choices.
+Default Lagoon uses ocean #10232c canvas, #193641 panels, teal #5ee0c1 actions and pale ink. Light uses airy blue-white #f0f9fc with deep teal actions. The legacy mono preference key now identifies Lagoon. lib/workspaceThemes.ts owns optional Paper, Slate and Forest palettes for independently scoped Canvas and Notes. Red alignment guides retain their measurement role; artwork and syntax colors remain explicit content choices.
 
 ## Typography
 Inter for controls, Fira Code for Markdown source and coordinates, Caveat as the default for new canvas writing, sticky notes and built-in template lettering. Canvas text also offers Lora (serif), Nunito (rounded sans), Roboto Condensed and Patrick Hand (printed handwriting). The appearance picker keeps eight familiar families in a compact two-column quick group. At the user’s request it has no More fonts dropdown. FontSelect owns grouped options for selected Notes text and document appearance, deliberately retaining platform popup geometry. The shared catalogue has 31 families across Everyday, Serif, Handwriting, Playful & display, and Monospace; catalogue labels keep the interface font for legibility, while the canvas and note content show the chosen face. New choices include Fredoka, Baloo 2, Permanent Marker, Bangers, Lobster, Special Elite and elegant reading faces. `draw/fonts.ts` owns family IDs, labels, CSS-variable names and fallback stacks; `app/layout.tsx` bundles the corresponding Next fonts. Renderer, inline editor and picker use that shared mapping. Fonts are bundled by Next at build time. Notes use 16px Inter prose by default, with shared font choices and saved reading preferences; optional source uses 13px source with 24px line height. Controls remain compact without compromising focus indicators.
@@ -56,7 +56,7 @@ Canvas editor placeholders inherit the chosen font and have explicit full-opacit
 Hairline borders and flat opaque surfaces establish hierarchy. Floating panels use only a small shadow; drawing controls have 4–6px corners and no frosted-glass treatment. Modal backdrops darken the workspace. Avoid shadows on document content.
 
 ## Shapes
-8px controls, 12px floating panels. Lucide icons use consistent strokes. The blue leaf Knotleaf mark is shared by header and website favicon.
+8px controls, 12px floating panels. Lucide icons use consistent strokes. The teal leaf Knotleaf mark is shared by header and website favicon.
 
 ## Components
 Native buttons for actions. Active view buttons expose aria-pressed. Workspace and export quality selects deliberately use platform-owned native popups. Native dialog owns modal focus, Escape and background inertness. Inline board-deletion confirmation stays inside the workspace dialog and states the consequence. Enabled buttons have hover/pointer/focus states; disabled actions are muted. No browser confirm/alert flows.
@@ -283,6 +283,9 @@ The user clarified that drawing style belongs to the canvas background and rende
 Brightness refinement: app/globals.css owns .drawing-panel via --drawing-panel / --drawing-border tokens, shared by header, centered drawing tools, Appearance, arrangement and zoom. Dark panels are #252d3b against #1c2029 canvas with clearer slate dots, stronger border contrast and near-white tool icons. Light uses pure white paper. Solid blue active tools and blue template/inspector accents bring energy without gradients or ornamental effects. Artwork colors and explicit custom backgrounds remain data-owned; canvas/SVG/raster/draw.io share default background mapping. Hand-drawn strokes, Caveat, centering and saved geometry remain intact.
 
 
-Scoped workspace themes: components/WorkspaceThemes.tsx owns the native theme dialog, four palette previews, Apply to select (Canvas / Notes / Both), an explicit Use theme background checkbox and inline storage feedback. Header keeps a visible paintbrush action. lib/workspaceThemes.ts owns validation, palette contrast, scope updates and CSS variables; preferences store each pane choice locally. Black & White is the default. Notes can independently choose Light/Paper or Dark through the existing reader control via NotesThemeContext; applying Both removes that override so both follow the app mode. Notes source, rich editing, preview, code blocks, links, native controls and caret layers inherit scoped tokens without remounting editors. Source text remains transparent over its highlighted layer. canvasBackground maps only the default background sentinel through the selected palette; applying the checked background option deliberately resets a custom background to the theme base. Changing a preset does not rewrite drawing geometry, fonts or notes. Canvas DOM/engine/raster/SVG/draw.io and copy use the resolved palette; notes HTML and combined PDFs receive separate note colors. Project backups retain content, while theme preferences remain local to this device.
+Scoped workspace themes: components/WorkspaceThemes.tsx owns the native theme dialog, four palette previews, Apply to select (Canvas / Notes / Both), an explicit Use theme background checkbox and inline storage feedback. Header keeps a visible paintbrush action. lib/workspaceThemes.ts owns validation, palette contrast, scope updates and CSS variables; preferences store each pane choice locally. Lagoon is the default. Notes can independently choose Light/Paper or Dark through the existing reader control via NotesThemeContext; applying Both removes that override so both follow the app mode. Notes source, rich editing, preview, code blocks, links, native controls and caret layers inherit scoped tokens without remounting editors. Source text remains transparent over its highlighted layer. canvasBackground maps only the default background sentinel through the selected palette; applying the checked background option deliberately resets a custom background to the theme base. Changing a preset does not rewrite drawing geometry, fonts or notes. Canvas DOM/engine/raster/SVG/draw.io and copy use the resolved palette; notes HTML and combined PDFs receive separate note colors. Project backups retain content, while theme preferences remain local to this device.
 
-Monochrome chrome: all component hue utility classes are replaced with neutral or semantic action styles. ui-primary consumes scoped --ui-accent / --ui-accent-ink, with hover/focus contrast maintained in Light and Dark. Renderer UI overlays derive black/white from the actual canvas surface; handles, connectors, marquee, text boxes and eraser cursors share it. Colored drawings and code syntax remain unchanged. Public SVG/PNG/ICO assets use the monochrome mark with normal cache versioning. Theme changes neither force authentication navigation nor alter pending sign-in state.
+Colored drawing chrome: all component hue utility classes are replaced with neutral or semantic action styles. ui-primary consumes scoped --ui-accent / --ui-accent-ink, with hover/focus contrast maintained in Light and Dark. Renderer UI overlays derive black/white from the actual canvas surface; handles, connectors, marquee, text boxes and eraser cursors share it. Colored drawings and code syntax remain unchanged. Public SVG/PNG/ICO assets use the teal leaf on an ocean tile with normal cache versioning. Theme changes neither force authentication navigation nor alter pending sign-in state.
+
+## Reminders
+Reminders are device-local and available across Canvas, Split and Notes from the alarm-clock header control. Native date/time inputs use device local time. The persistent alarm panel repeats at the selected interval until Done; recurrence advances only on completion. Sound requires a user gesture after reload. Notifications require permission; closed tabs and sleeping devices cannot be promised alarms. Shared palette variables own all reminder surfaces.

@@ -8,6 +8,7 @@ import {
   Menu,
   Sun,
   Paintbrush,
+  AlarmClock,
   Moon,
   MoreHorizontal,
   Maximize2,
@@ -34,6 +35,7 @@ interface BoardHeaderProps {
   theme: "dark" | "light";
   onToggleTheme: () => void;
   onOpenThemes?: () => void;
+  onOpenReminders?: () => void;
   onBeforeRefresh: () => void | Promise<void>;
   recording?: boolean;
   saveError: boolean;
@@ -71,6 +73,7 @@ export function BoardHeader({
   theme,
   onToggleTheme,
   onOpenThemes,
+  onOpenReminders,
   onBeforeRefresh,
   onOpenUploadedFiles,
   recording,
@@ -238,6 +241,7 @@ export function BoardHeader({
         <span className="hidden sm:inline">{theme === "dark" ? "Light mode" : "Dark mode"}</span>
       </button>
       {onOpenThemes&&<button type="button" onClick={onOpenThemes} aria-label="Canvas and notes themes" title="Themes · Canvas, Notes or Both" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-neutral-300 dark:border-neutral-600 hover:bg-neutral-100 dark:hover:bg-neutral-800 focus-visible:outline-2 focus-visible:outline-black dark:focus-visible:outline-white"><Paintbrush className="h-4 w-4"/></button>}
+      {onOpenReminders&&<button type="button" onClick={onOpenReminders} aria-label="Open reminders" title="Reminders" className="reminders-trigger flex h-8 w-8 shrink-0 items-center justify-center rounded-md border"><AlarmClock className="h-4 w-4"/></button>}
       <AccountButton />
       {/* Right Section: Actions */}
       <button ref={actionsButton} type="button" aria-label="Board actions" aria-expanded={actionsOpen} aria-controls="board-actions" onClick={() => setActionsOpen(value => !value)} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-neutral-600 dark:text-neutral-200 hover:bg-neutral-800 hover:text-white min-[1440px]:hidden"><MoreHorizontal className="h-4 w-4" /></button>

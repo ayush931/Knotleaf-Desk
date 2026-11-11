@@ -77,6 +77,7 @@ import { BoardTools } from "./BoardTools";
 import { saveVersion } from "@/lib/boardLibrary";
 import { PresentationMode } from "./PresentationMode";
 import { NotesThemeContext } from "@/lib/notesThemeContext";
+import { Reminders } from "./Reminders";
 import { WorkspaceThemes } from "./WorkspaceThemes";
 import { applyWorkspaceTheme, workspacePalette, workspaceThemeStyle } from "@/lib/workspaceThemes";
 import { SelectionTools } from "./SelectionTools";
@@ -155,6 +156,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
   const themeRef = useRef<Theme>(preferences.theme);
   const [workspaceThemes,setWorkspaceThemes]=useState(preferences.workspaceThemes);
   const [themesOpen,setThemesOpen]=useState(false);
+  const [remindersOpen,setRemindersOpen]=useState(false);
   const displayBackground = canvasBackground(board.background, theme, workspaceThemes.canvas);
   const notesMode=workspaceThemes.notesMode || theme;
   const notesPalette=workspacePalette(workspaceThemes.notes,notesMode);
@@ -841,6 +843,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
           theme={theme}
           onToggleTheme={() => setTheme(value => value === "dark" ? "light" : "dark")}
           onOpenThemes={() => setThemesOpen(true)}
+          onOpenReminders={() => setRemindersOpen(true)}
           onFocusCanvas={toggleFocus}
           onBeforeRefresh={prepareRefresh}
           recording={recording}
@@ -1194,6 +1197,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
 
       <TemplatesModal isOpen={isTemplatesOpen} onClose={() => setIsTemplatesOpen(false)} onSelectTemplate={handleSelectTemplate} theme={theme} />
 
+      <Reminders open={remindersOpen} onClose={()=>setRemindersOpen(false)}/>
       <WorkspaceThemes open={themesOpen} onClose={()=>setThemesOpen(false)} mode={theme} notesMode={notesMode} current={workspaceThemes} onApply={(preset,scope,useThemeBackground)=>{const next=applyWorkspaceTheme(workspaceThemes,preset,scope);setWorkspaceThemes(next);if(scope!=="notes"&&useThemeBackground)persist({...boardRef.current,background:{fill:"#121212",fillStyle:"solid",fillOpacity:1}});return savePreferences({workspaceThemes:next});}} />
       <ShortcutsModal isOpen={isShortcutsOpen} onClose={() => setIsShortcutsOpen(false)} theme={theme} />
 

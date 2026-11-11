@@ -9,6 +9,7 @@ import {transform} from 'lightningcss';
 import {convert} from '@asamuzakjp/css-color';
 import {BoardsSidebar} from '../components/BoardsSidebar.tsx';
 import {workspacePalette,workspaceThemeStyle,WORKSPACE_THEMES} from '../lib/workspaceThemes.ts';
+import {Reminders} from '../components/Reminders.tsx';
 import {TopToolbar} from '../components/TopToolbar.tsx';
 import {PropertiesPanel} from '../components/PropertiesPanel.tsx';
 import {DEFAULT_STYLE} from '../draw/types.ts';
@@ -17,7 +18,7 @@ const noop=()=>{};
 const props={isOpen:true,onOpenChange:noop,selectedElement:null,selectionCount:1,currentStyle:DEFAULT_STYLE,onSwapArrow:noop,onChangeFontSize:noop,onUpdateStyle:noop,onUpdateElement:noop,onDuplicate:noop,onDelete:noop,onBringToFront:noop,onSendToBack:noop,onBackgroundChange:noop,theme:'light'};
 beforeAll(async()=>{
  const source=readFileSync(new URL('../app/globals.css',import.meta.url),'utf8');
- const components=['PropertiesPanel','ColorControl','ColorPalette','BackgroundStylePicker','FontSelect','BoardHeader','BoardsSidebar'];
+ const components=['PropertiesPanel','ColorControl','ColorPalette','BackgroundStylePicker','FontSelect','BoardHeader','BoardsSidebar','Reminders'];
  const candidates=new Set(components.flatMap(name=>readFileSync(new URL(`../components/${name}.tsx`,import.meta.url),'utf8').match(/[\w:.[\]#%/-]+/g)||[]));
  const compiler=await compile(source,{base:new URL('../app',import.meta.url).pathname,onDependency(){}});
  const ast=postcss.parse(transform({code:Buffer.from(compiler.build([...candidates])),targets:{chrome:80<<16}}).code.toString());
@@ -87,7 +88,7 @@ for(const mode of ['light','dark'])test(`bright drawing tools retain readable ac
  const doc=render(React.createElement(TopToolbar,{selectedTool:'select',setSelectedTool:noop,onUndo:noop,onRedo:noop,canUndo:true,canRedo:true,onOpenIconPicker:noop,theme:mode}),mode);
  const toolbar=doc.querySelector('[aria-label="Drawing tools"]'),active=toolbar.querySelector('[aria-pressed="true"]'),inactive=toolbar.querySelector('[aria-label="Pan (H)"]');
  readable(active,active);readable(inactive,toolbar);
- const lightness=neutralLightness(style(toolbar).backgroundColor);if(mode==='light')expect(lightness).toBeGreaterThan(.9);else expect(lightness).toBe(0);
+ const lightness=neutralLightness(style(toolbar).backgroundColor);if(mode==='light')expect(lightness).toBeGreaterThan(.9);else {expect(lightness).toBeGreaterThan(.015);expect(lightness).toBeLessThan(.12);}
 });
 
 
@@ -100,4 +101,10 @@ for(const {id} of WORKSPACE_THEMES)for(const mode of ['light','dark'])test(`${id
  const doc=render(section,mode==='light'?'dark':'light'),root=doc.querySelector('section');
  readable(doc.getElementById('note-label'),doc.querySelector('header'));readable(doc.getElementById('rich-note'),root);readable(doc.getElementById('source-token'),root);readable(doc.getElementById('reader-note'),doc.getElementById('reader-note'));
  expect(neutralLightness(style(root).backgroundColor)).toBeCloseTo(neutralLightness(p.background));expect(['transparent','#0000','rgba(0, 0, 0, 0)']).toContain(style(doc.querySelector('textarea')).color);
+});
+
+for(const mode of ['light','dark'])test(`reminder fields and alarm actions remain readable in ${mode} mode`,()=>{
+ const doc=render(React.createElement(Reminders,{open:true,onClose:noop}),mode);const dialog=doc.querySelector('dialog');
+ readable(dialog,dialog);for(const input of doc.querySelectorAll('.reminder-field'))readable(input,input);const primary=doc.querySelector('.ui-primary');readable(primary,primary);
+ expect(style(doc.querySelector('input[type=date]')).backgroundColor).not.toBe('rgba(0, 0, 0, 0)');
 });

@@ -9,7 +9,7 @@ test('every theme has legible content, muted labels and primary actions in both 
   expect(contrast(p.ink,p.background)).toBeGreaterThanOrEqual(7);expect(contrast(p.muted,p.panel)).toBeGreaterThanOrEqual(4.5);expect(contrast(p.accent,p.accentInk)).toBeGreaterThanOrEqual(4.5);
   expect(canvasBackground(undefined,mode,id).fill).toBe(p.background);expect(workspaceThemeStyle(id,mode,true)['--notes-ink']).toBe(p.ink);
  }
- expect(workspacePalette('mono','dark').background).toBe('#000000');expect(workspacePalette('mono','light').background).toBe('#ffffff');
+ expect(workspacePalette('mono','dark').background).toBe('#10232c');expect(workspacePalette('mono','light').background).toBe('#f0f9fc');
 });
 test('theme scope changes only the requested pane and Both restores linked light/dark mode',()=>{
  const original={canvas:'paper',notes:'forest',notesMode:'light'};
