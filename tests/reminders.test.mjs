@@ -1,5 +1,5 @@
 import {test,expect} from 'bun:test';
-import {createReminder,completeReminder,reopenReminder,tickReminders,parseReminders,nextOccurrence,validateSchedule} from '../lib/reminders.ts';
+import {createReminder,completeReminder,reopenReminder,tickReminders,parseReminders,nextOccurrence,validateSchedule,reminderState} from '../lib/reminders.ts';
 const at=(s)=>+new Date(s);
 const schedule={kind:'once',start:'2030-06-03',time:'09:00',days:[]};
 const make=(s=schedule)=>createReminder('Review notes',s,5,true,at('2030-06-02T12:00:00'),'test');
@@ -44,4 +44,15 @@ test('tasks can be completed early, skipping that occurrence while retaining the
 
 test('undoing completion immediately re-arms the saved task without changing its recurrence',()=>{
  const done=completeReminder(make(),at('2030-06-03T10:00:00'));const now=at('2030-06-04T12:00:00'),reopened=reopenReminder(done,now);expect(reopened.schedule).toEqual(done.schedule);expect(reopened.completedAt).toBeNull();expect(tickReminders(parseReminders(JSON.stringify([reopened])),now).alerts).toHaveLength(1);
+});
+
+test('Done advances through the recurring schedule across reload and resets completion for the next alarm',()=>{
+ const original=make({...schedule,kind:'weekly',days:[1,3]});const first=tickReminders([original],at('2030-06-03T09:00:00')).items[0];expect(reminderState(first)).toBe('active');
+ const next=completeReminder(first,at('2030-06-03T09:01:00'));expect(reminderState(next)).toBe('scheduled');expect(next.nextDue).toBe(at('2030-06-05T09:00:00'));expect(next.lastNotified).toBeNull();
+ const restored=parseReminders(JSON.stringify([next]));expect(tickReminders(restored,next.nextDue-1).alerts).toHaveLength(0);const alarm=tickReminders(restored,next.nextDue);expect(alarm.alerts).toHaveLength(1);expect(reminderState(alarm.items[0])).toBe('active');expect(alarm.items[0].completedAt).toBeNull();
+ const later=completeReminder(alarm.items[0],at('2030-06-05T09:01:00'));expect(reminderState(later)).toBe('scheduled');expect(later.nextDue).toBe(at('2030-06-10T09:00:00'));expect(later.schedule).toEqual(original.schedule);
+});
+test('a final date-range occurrence finishes only when no later schedule exists',()=>{
+ const r=make({...schedule,kind:'range',end:'2030-06-04'});const next=completeReminder(r,at('2030-06-03T09:01:00'));expect(reminderState(next)).toBe('scheduled');expect(next.nextDue).toBe(at('2030-06-04T09:00:00'));
+ const done=completeReminder(next,at('2030-06-04T09:01:00'));expect(reminderState(done)).toBe('done');expect(done.nextDue).toBeNull();expect(tickReminders([done],at('2030-06-05T09:00:00')).alerts).toHaveLength(0);
 });

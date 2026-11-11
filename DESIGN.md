@@ -20,8 +20,8 @@ rounded:
   DEFAULT: '0.5rem'
   panel: '0.75rem'
 spacing:
-  header: '2.75rem'
-  toolbar-inset: '0.375rem'
+  header: '3.5rem'
+  toolbar-inset: '0.75rem'
 components:
   button: {}
   drawer: {}
@@ -50,7 +50,7 @@ Inter for controls, Fira Code for Markdown source and coordinates, Caveat as the
 ## Layout
 
 Canvas editor placeholders inherit the chosen font and have explicit full-opacity muted text (#a1a1aa), with slate (#475569) on yellow sticky surfaces. Empty editors measure the complete hint, wrap it when constrained, and stay inside the canvas viewport. Font-load completion and viewport/split changes remeasure the editor. `app/globals.css` owns placeholder colors; `draw/inlineEditorLayout.ts` owns editor bounds.
-44px fixed header, drawing tools inset 6px below it. Inspector is relative to the canvas, below the tools; it scrolls internally only when necessary. Notes split starts at 360px, is draggable and keyboard resizable; below 640px it becomes a vertically stacked split. Notes contain their own vertical scroll; long prose and code wrap instead of forcing horizontal scrolling. Document toolbars keep bounded rows and overflow controls on narrow viewports. The canvas itself pans, never document-scrolls.
+56px fixed header, drawing tools inset 12px below it. Inspector is relative to the canvas, below the tools; it scrolls internally only when necessary. Notes split starts at 360px, is draggable and keyboard resizable; below 640px it becomes a vertically stacked split. Notes contain their own vertical scroll; long prose and code wrap instead of forcing horizontal scrolling. Document toolbars keep bounded rows and overflow controls on narrow viewports. The canvas itself pans, never document-scrolls.
 
 ## Elevation & Depth
 Hairline borders and flat opaque surfaces establish hierarchy. Floating panels use only a small shadow; drawing controls have 4–6px corners and no frosted-glass treatment. Modal backdrops darken the workspace. Avoid shadows on document content.
@@ -302,3 +302,10 @@ Accent is reserved for selected tools, selected formatting/view controls, primar
 Logo color offers the theme accent or Black. Blue logos use clearer #3b82f6 in Dark and #2563eb in Light, independently of the softer UI accent. Other preset logos keep their own accent. Black uses a white backplate for contrast; the preference persists independently of Canvas/Notes scope. Installed icons/favicons use the clear blue leaf on black.
 
 Below 900px, the header uses a native Board view selector and keeps workspace, mode, theme, reminders, account and actions controls in view. Secondary file tools and Focus canvas remain available from Board actions. Desktop retains the centered view tabs and grouped drawing toolbar.
+
+## Modern workspace layout
+The drawing board has a 56px identity bar: a clear blue leaf opens Workspaces, the board title and local save status sit together, view modes form a centered segmented switch, and theme/reminders/account/export stay directly accessible. Utilities live in a labelled two-column Board actions disclosure at every width. Commands that open dialogs close the disclosure and restore focus through its trigger. Export remains directly accessible, including an icon at narrow widths.
+
+The centered drawing dock uses 36px controls, 14px corners and quiet elevation. Appearance, zoom, workspaces, native dialogs and note controls share neutral raised surfaces (a slight neutral lift in Dark; white in Light), consistent radii and shadows. Notes headers and formatting controls have clearer spacing; prose keeps its own typography and source overlays retain their exact geometry. The header height and canvas offset share --workspace-header-height; drawing tool measurement owns inspector placement. Layout changes never rewrite saved element coordinates or notes.
+
+Reminders use a task-first split layout: upcoming/completed tasks on the left and a new-reminder composer on the right. Rows prioritize task title and next date, with neutral metadata and explicit actions. Sound/notification setup is a native disclosure. A New reminder action focuses the task field; on mobile both panes stack in one scroll area and the empty state stays compact. Date/time inputs and existing validation remain native. Done advances recurring tasks immediately into Scheduled, shows the next date, prevents a repeated Done click from skipping the queued occurrence, and re-enables Done when the next alarm activates. A dismissible eight-second acknowledgement confirms the next date from the alarm widget.

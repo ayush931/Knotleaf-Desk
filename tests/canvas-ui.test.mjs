@@ -247,7 +247,7 @@ test('Report bug opens directly from the visible screen action and retains a dra
   expect(named('Bug report').closest('[hidden]')).toBeNull();
   const setter = Object.getOwnPropertyDescriptor(browser.HTMLInputElement.prototype, 'value').set;
   await act(async () => { setter.call(named('Bug summary'), 'My draft'); named('Bug summary').dispatchEvent(new browser.Event('input', { bubbles: true })); });
-  await clickNamed('Close board tools'); await clickNamed('Board tools: find, history, templates and report a bug');
+  await clickNamed('Close board tools'); await clickNamed('Board actions'); await clickNamed('Board tools: find, history, templates and report a bug');
   await act(async () => new Promise(resolve => setTimeout(resolve, 5)));
   await act(async () => [...document.querySelectorAll('dialog[open] button')].find(button => button.textContent === 'Report bug').click());
   expect(named('Bug summary').value).toBe('My draft');
@@ -719,4 +719,11 @@ test('logo can use the theme accent or black, and saves independently of the the
  await act(async()=>{select.value='black';select.dispatchEvent(new browser.Event('change',{bubbles:true}));});expect(loadPreferences().logoStyle).toBe('black');expect(document.documentElement.style.getPropertyValue('--ui-brand')).toBe('#000000');expect(document.documentElement.style.getPropertyValue('--ui-brand-bg')).toBe('#ffffff');
  await clickNamed('Theme: Forest');await act(async()=>[...document.querySelectorAll('button')].find(b=>b.textContent==='Apply theme').click());expect(loadPreferences().logoStyle).toBe('black');
  await act(async()=>{select.value='theme';select.dispatchEvent(new browser.Event('change',{bubbles:true}));});expect(document.documentElement.style.getPropertyValue('--ui-brand')).toBe('#b0e0bd');expect(loadPreferences().logoStyle).toBe('theme');
+});
+
+test('modern header keeps export directly accessible and menu commands close the menu',async()=>{
+ await renderBoard();expect(named('Export board')).not.toBeNull();expect(document.getElementById('board-actions').classList.contains('hidden')).toBe(true);await clickNamed('Board actions');expect(named('Board actions').getAttribute('aria-expanded')).toBe('true');await clickNamed('Keyboard shortcuts');expect(named('Board actions').getAttribute('aria-expanded')).toBe('false');expect(document.querySelector('dialog[aria-label="Keyboard shortcuts"]').open).toBe(true);await clickNamed('Close keyboard shortcuts');expect(document.activeElement).toBe(named('Board actions'));
+});
+test('new reminder action focuses its task field in the modern composer',async()=>{
+ await renderBoard();await clickNamed('Open reminders');const button=[...document.querySelectorAll('button')].find(b=>b.textContent.trim()==='New reminder');await act(async()=>button.click());expect(document.activeElement).toBe(document.querySelector('input[name="title"]'));
 });

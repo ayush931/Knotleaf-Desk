@@ -5,7 +5,7 @@ import { BrandMark } from "./BrandMark";
 
 import React, { useState, useRef, useEffect } from "react";
 import {
-  Menu,
+  Keyboard,
   Sun,
   Paintbrush,
   AlarmClock,
@@ -117,6 +117,7 @@ export function BoardHeader({
     document.addEventListener("pointerdown", dismiss);
     return () => document.removeEventListener("pointerdown", dismiss);
   }, [actionsOpen]);
+  const runMenuAction=(action:()=>void)=>{setActionsOpen(false);actionsButton.current?.focus();action();};
   const [preferences] = useState(loadPreferences);
   const [scope, setScope] = useState<ExportScope>(preferences.exportScope);
   const [format, setFormat] = useState(preferences.exportFormat);
@@ -177,27 +178,21 @@ export function BoardHeader({
   };
 
   return (
-    <header className="fixed top-0 left-0 right-0 h-11 z-40 px-2 gap-1 sm:gap-2 flex items-center justify-between border-b select-none drawing-panel text-neutral-800 dark:text-neutral-200">
-      {onFocusCanvas && <button onClick={onFocusCanvas} aria-label="Focus canvas" aria-keyshortcuts="Shift+Z" title="Focus canvas · Shift+Z" className="hidden min-[900px]:flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-neutral-600 dark:text-neutral-200 hover:bg-neutral-800 hover:text-white focus-visible:outline-2 focus-visible:outline-black dark:focus-visible:outline-white"><Maximize2 className="h-4 w-4" /></button>}
+    <header className="workspace-header workspace-surface fixed top-0 left-0 right-0 z-40 flex items-center border-b select-none drawing-panel text-neutral-800 dark:text-neutral-200">
 
       {/* Left Section: Menu & Title */}
-      <div className="flex min-w-0 flex-1 items-center gap-1 sm:gap-2">
+      <div className="workspace-identity flex min-w-0 flex-1 items-center gap-3">
         <button data-ui-tone="info"
           onClick={onToggleSidebar}
           title="Open Boards Workspace"
           aria-label="Open workspaces"
-          className="shrink-0 p-1.5 rounded-lg hover:bg-neutral-800 text-neutral-600 dark:text-neutral-200 hover:text-white transition cursor-pointer"
+          className="workspace-brand-button shrink-0 rounded-lg hover:bg-neutral-800 text-neutral-600 dark:text-neutral-200 hover:text-white transition cursor-pointer"
         >
-          <Menu className="w-4 h-4" />
+          <BrandMark size={30} />
         </button>
 
-        <button aria-label="Board tools: find, history, templates and report a bug" title="Board tools · Find, history, templates & report a bug (Ctrl/Cmd+F)" onClick={onOpenBoardTools} className="hidden min-[900px]:block rounded-lg p-1.5 text-neutral-600 dark:text-neutral-200 hover:bg-neutral-800 hover:text-white"><Search className="h-4 w-4" /></button>
         <input ref={importFile} type="file" aria-label="Import project or Markdown" accept=".knotleaf,.json,.md,.markdown" className="hidden" onChange={event=>{const file=event.target.files?.[0];event.target.value="";if(file)void onImportFile(file);}} />
-        <button data-ui-tone="info" aria-label="Open project or notes" title="Open .knotleaf, .json or Markdown notes" onClick={() => importFile.current?.click()} className="hidden min-[900px]:block rounded-lg p-1.5 text-neutral-600 dark:text-neutral-200 hover:bg-neutral-800 hover:text-white"><FolderOpen className="h-4 w-4" /></button>
-        {onOpenUploadedFiles&&<button type="button" aria-label="Manage uploaded Markdown" title="Uploaded Markdown · storage and cleanup" onClick={onOpenUploadedFiles} className="hidden min-[900px]:block rounded-lg p-1.5 text-neutral-600 dark:text-neutral-200 hover:bg-neutral-800 hover:text-white"><HardDrive className="h-4 w-4"/></button>}
-        <div className="hidden min-[900px]:flex min-w-0 items-center gap-2">
-          {/* The app mark inherits the current theme. */}
-          <BrandMark size={26} className="hidden sm:block shrink-0" />
+        <div className="workspace-title-block hidden min-[640px]:flex min-w-0 flex-col items-start">
 
           {isEditingTitle ? (
             <input
@@ -218,7 +213,7 @@ export function BoardHeader({
               className="flex min-w-0 items-center gap-1 cursor-pointer group"
               title="Knotleaf Desk · Click to rename board"
             >
-              <h1 className="text-xs font-semibold tracking-tight text-neutral-200 group-hover:text-neutral-400 transition max-w-[48px] sm:max-w-[180px] truncate">
+              <h1 className="text-sm font-semibold tracking-tight text-neutral-200 group-hover:text-neutral-400 transition max-w-[200px] truncate">
                 {title || "Untitled board"}
               </h1>
               <span className="text-[10px] text-neutral-600 dark:text-neutral-200 opacity-0 group-hover:opacity-100">
@@ -226,98 +221,26 @@ export function BoardHeader({
               </span>
             </button>
           )}
+        {saveError ? <button data-ui-tone="pending" role="status" onClick={onRetrySave} title="Storage is full or unavailable. Retry saving or export a JSON backup." className="rounded px-2 py-1 text-[11px] text-neutral-400 hover:bg-neutral-500/10">Not saved · retry</button> : <span className="flex shrink-0 items-center gap-1.5 whitespace-nowrap text-[11px] text-neutral-500 dark:text-neutral-300"><span className="h-1 w-1 rounded-full bg-neutral-400" />Saved locally</span>}
         </div>
 
-        {saveError ? <button data-ui-tone="pending" role="status" onClick={onRetrySave} title="Storage is full or unavailable. Retry saving or export a JSON backup." className="rounded px-2 py-1 text-[10px] text-neutral-400 hover:bg-neutral-500/10">Not saved · retry</button> : <span className="hidden lg:flex shrink-0 items-center gap-1.5 whitespace-nowrap text-[10px] text-neutral-500 dark:text-neutral-300"><span className="h-1 w-1 rounded-full bg-neutral-400" />Saved locally</span>}
+
 
       </div>
 
-      <select aria-label="Board view" value={viewMode} onChange={event=>onChangeViewMode(event.target.value as ViewMode)} className="min-[900px]:hidden w-24 shrink-0 rounded-md border border-neutral-700 px-2 py-1.5 text-xs">{(["canvas","split","notes","slides"] as ViewMode[]).map(mode=><option key={mode} value={mode}>{mode==="slides"?"Presentation":mode.charAt(0).toUpperCase()+mode.slice(1)}</option>)}</select>
-      <nav aria-label="Board view" className="hidden min-[900px]:flex h-full shrink-0 items-center gap-0.5">
-        {(["canvas", "split", "notes", "slides"] as ViewMode[]).map(mode => <button key={mode} aria-pressed={viewMode === mode} onClick={() => onChangeViewMode(mode)} className={`h-full border-b-2 px-1 min-[380px]:px-1.5 sm:px-2 py-1 text-[10px] min-[380px]:text-[11px] font-medium capitalize transition ${viewMode === mode ? "border-neutral-500 text-neutral-700 dark:text-neutral-300" : "border-transparent text-neutral-500 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white"}`}>{mode === "slides" ? "Presentation" : mode}</button>)}
+      <select aria-label="Board view" value={viewMode} onChange={event=>onChangeViewMode(event.target.value as ViewMode)} className="workspace-view-select min-[900px]:hidden w-24 shrink-0 rounded-md border border-neutral-700 px-2 py-1.5 text-xs">{(["canvas","split","notes","slides"] as ViewMode[]).map(mode=><option key={mode} value={mode}>{mode==="slides"?"Presentation":mode.charAt(0).toUpperCase()+mode.slice(1)}</option>)}</select>
+      <nav aria-label="Board view" className="workspace-view-switch hidden min-[900px]:flex shrink-0 items-center gap-1">
+        {(["canvas", "split", "notes", "slides"] as ViewMode[]).map(mode => <button key={mode} aria-pressed={viewMode === mode} onClick={() => onChangeViewMode(mode)} className="workspace-view-button text-xs font-medium capitalize transition">{mode === "slides" ? "Presentation" : mode}</button>)}
       </nav>
+      <div className="workspace-header-controls">
       <button type="button" onClick={onToggleTheme} aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} className="flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-neutral-700 px-2 text-xs font-medium text-neutral-200 hover:bg-neutral-800 hover:text-white">
         {theme === "dark" ? <Sun aria-hidden="true" className="h-4 w-4" /> : <Moon aria-hidden="true" className="h-4 w-4" />}
-        <span className="hidden sm:inline">{theme === "dark" ? "Light mode" : "Dark mode"}</span>
+        <span className="sr-only">{theme === "dark" ? "Light mode" : "Dark mode"}</span>
       </button>
       {onOpenThemes&&<button type="button" onClick={onOpenThemes} aria-label="Canvas and notes themes" title="Themes · Canvas, Notes or Both" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-neutral-300 dark:border-neutral-600 hover:bg-neutral-100 dark:hover:bg-neutral-800 focus-visible:outline-2 focus-visible:outline-black dark:focus-visible:outline-white"><Paintbrush className="h-4 w-4"/></button>}
       {onOpenReminders&&<button data-ui-tone="pending" type="button" onClick={onOpenReminders} aria-label="Open reminders" title="Reminders" className="reminders-trigger flex h-8 w-8 shrink-0 items-center justify-center rounded-md border"><AlarmClock className="h-4 w-4"/></button>}
       <AccountButton />
-      {/* Right Section: Actions */}
-      <button ref={actionsButton} type="button" aria-label="Board actions" aria-expanded={actionsOpen} aria-controls="board-actions" onClick={() => setActionsOpen(value => !value)} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-neutral-600 dark:text-neutral-200 hover:bg-neutral-800 hover:text-white min-[1440px]:hidden"><MoreHorizontal className="h-4 w-4" /></button>
-      <div ref={actionsPanel} id="board-actions" onKeyDown={event => { if (event.key === "Escape" && !event.nativeEvent.isComposing) { event.stopPropagation(); setActionsOpen(false); actionsButton.current?.focus(); } }} className={`header-actions absolute right-2 top-12 max-w-[calc(100vw-1rem)] flex-wrap items-center gap-1 rounded-xl border border-neutral-700 bg-white dark:bg-black p-2 shadow-lg min-[1440px]:static min-[1440px]:flex min-[1440px]:max-w-none min-[1440px]:shrink-0 min-[1440px]:flex-nowrap min-[1440px]:rounded-none min-[1440px]:border-0 min-[1440px]:bg-transparent min-[1440px]:p-0 min-[1440px]:shadow-none ${actionsOpen ? "flex" : "hidden"}`}>
-        {onFocusCanvas&&<button type="button" data-ui-tone="info" onClick={onFocusCanvas} className="min-[900px]:hidden rounded-lg p-1.5 text-xs"><Maximize2 className="mr-1 inline h-3.5 w-3.5"/>Focus canvas</button>}
-        <button aria-label="Board tools" onClick={onOpenBoardTools} className="min-[900px]:hidden rounded-lg p-1.5 text-xs text-neutral-300 hover:bg-neutral-800"><Search className="mr-1 inline h-3.5 w-3.5" />Board tools</button>
-        <button data-ui-tone="info" aria-label="Open project or notes" onClick={() => importFile.current?.click()} className="min-[900px]:hidden rounded-lg p-1.5 text-xs text-neutral-300 hover:bg-neutral-800"><FolderOpen className="mr-1 inline h-3.5 w-3.5" />Open project</button>
-        <RefreshWebApp onBeforeRefresh={onBeforeRefresh} recording={recording} />
-        {collaboration}
-        {viewMode !== "slides" && <>
-        {/* Templates Button */}
-        <button
-          onClick={onOpenTemplates}
-          aria-label="Browse diagram templates" title="Browse Diagram Templates"
-          className="px-2.5 py-1 rounded border border-neutral-200 dark:border-neutral-500/40 bg-neutral-50 dark:bg-neutral-500/15 text-neutral-700 dark:text-neutral-200 text-xs font-medium flex items-center gap-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 focus-visible:outline-2 focus-visible:outline-black dark:focus-visible:outline-white transition cursor-pointer"
-        >
-          <LayoutTemplate className="w-3.5 h-3.5" />
-          <span className="hidden md:inline">Templates</span>
-        </button>
-
-        {/* Clear Board Button */}
-        <button data-ui-tone="danger"
-          onClick={() => setClearOpen(true)}
-          aria-label="Clear board"
-          title="Clear this board and its notes"
-          className="flex p-1.5 rounded-lg hover:bg-neutral-500/10 text-neutral-600 dark:text-neutral-200 hover:text-neutral-400 transition cursor-pointer"
-        >
-          <Trash2 className="w-3.5 h-3.5" />
-        </button>
-
-        {/* Snap to Grid Toggle */}
-        <button
-          onClick={onToggleSnap}
-          title={snapToGrid ? "Snap to Grid: ON" : "Snap to Grid: OFF"}
-          aria-label="Snap to grid"
-          aria-pressed={snapToGrid}
-          className={`flex p-1.5 rounded-lg text-xs transition cursor-pointer ${
-            snapToGrid
-              ? "bg-neutral-500/15 text-neutral-400 border border-neutral-500/30"
-              : "hover:bg-neutral-800 text-neutral-600 dark:text-neutral-200 hover:text-white"
-          }`}
-        >
-          <Magnet className="w-3.5 h-3.5" />
-        </button>
-
-        {/* Grid Style Toggle */}
-        <button
-          onClick={cycleGrid}
-          title={`Grid Mode: ${gridType.toUpperCase()}`}
-          aria-label="Cycle grid style"
-          className="flex p-1.5 rounded-lg hover:bg-neutral-800 text-neutral-600 dark:text-neutral-200 hover:text-white transition cursor-pointer"
-        >
-          <Grid className="w-3.5 h-3.5" />
-        </button>
-
-        {/* Presentation / Zen Mode */}
-        <button
-          onClick={onTogglePresentation}
-          title="Present frames"
-          aria-label="Start presentation"
-          className="flex p-1.5 rounded-lg hover:bg-neutral-800 text-neutral-600 dark:text-neutral-200 hover:text-white transition cursor-pointer"
-        >
-          <Play className="w-3.5 h-3.5" />
-        </button>
-
-        </>}
-        <button
-          onClick={onShowShortcuts}
-          title="Keyboard shortcuts (?)"
-          aria-label="Keyboard shortcuts"
-          className="p-1.5 rounded-lg hover:bg-neutral-800 text-neutral-600 dark:text-neutral-200 hover:text-white transition cursor-pointer text-xs font-bold w-7"
-        >
-          ?
-        </button>
-
-        <InstallWebApp />
+      <div className="workspace-export">
         {/* Export Dropdown */}
         {viewMode !== "slides" && <div className="relative" ref={exportMenuRef}>
           <button data-ui-tone="info"
@@ -330,7 +253,7 @@ export function BoardHeader({
           </button>
 
           {showExportMenu && (
-            <div className="absolute right-0 top-full mt-2 w-72 max-w-[92vw] max-h-[calc(100dvh-60px)] overflow-y-auto rounded-xl border shadow-2xl p-1 space-y-0.5 z-50 backdrop-blur-xl animate-fade-in bg-white dark:bg-black border-neutral-700 text-[#f4f4f5]">
+            <div className="workspace-export-menu workspace-surface absolute right-0 top-full mt-2 w-72 max-w-[92vw] max-h-[calc(100dvh-60px)] overflow-y-auto rounded-xl border shadow-2xl p-1 space-y-0.5 z-50 backdrop-blur-xl animate-fade-in bg-white dark:bg-black border-neutral-700 text-[#f4f4f5]">
               <div className="space-y-3 p-3 text-xs text-neutral-300">
                 <label className="block space-y-1.5"><span>File format</span><select aria-label="Export format" value={format} disabled={exporting} onChange={e => { const next = e.target.value; setFormat(next); setExportError(""); if (["png", "jpeg", "webp", "svg", "drawio"].includes(next)) setScope("canvas"); if (next === "markdown") setScope("notes"); if (next === "json") setScope("project"); }} className="w-full rounded-lg border border-neutral-700 bg-neutral-900 p-2">
                   <option value="project">Knotleaf project · editable</option><option value="pdf">PDF document</option><option value="png">PNG image</option><option value="jpeg">JPG image</option><option value="webp">WebP image</option><option value="svg">SVG vector</option><option value="markdown">Markdown notes</option><option value="drawio">draw.io diagram</option><option value="json">Legacy JSON backup</option>
@@ -364,6 +287,86 @@ export function BoardHeader({
             </div>
           )}
         </div>}
+      </div>
+      {/* Right Section: Actions */}
+      <button ref={actionsButton} type="button" aria-label="Board actions" aria-expanded={actionsOpen} aria-controls="board-actions" onClick={() => setActionsOpen(value => !value)} title={saveError?"Not saved · open actions to retry":"Board actions"} className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-neutral-600 dark:text-neutral-200 hover:bg-neutral-800 hover:text-white"><MoreHorizontal className="h-4 w-4"/>{saveError&&<span aria-hidden="true" className="absolute -right-0.5 -top-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full border drawing-panel text-[9px]">!</span>}</button>
+      </div>
+      <div ref={actionsPanel} id="board-actions" onKeyDown={event => { if (event.key === "Escape" && !event.nativeEvent.isComposing) { event.stopPropagation(); setActionsOpen(false); actionsButton.current?.focus(); } }} className={`header-actions workspace-menu workspace-surface ${actionsOpen ? "flex" : "hidden"}`}>
+        {saveError&&<button type="button" aria-label="Retry saving board" onClick={()=>runMenuAction(onRetrySave)} className="rounded-lg p-2 text-xs"><HardDrive className="h-4 w-4"/>Retry saving</button>}
+        {onFocusCanvas&&<button type="button" data-ui-tone="info" aria-label="Focus canvas" onClick={()=>runMenuAction(onFocusCanvas)} className="rounded-lg p-1.5 text-xs"><Maximize2 className="mr-1 inline h-3.5 w-3.5"/>Focus canvas</button>}
+        <button aria-label="Board tools: find, history, templates and report a bug" onClick={()=>runMenuAction(onOpenBoardTools)} className="rounded-lg p-1.5 text-xs text-neutral-300 hover:bg-neutral-800"><Search className="mr-1 inline h-3.5 w-3.5" />Board tools</button>
+        <button data-ui-tone="info" aria-label="Open project or notes" onClick={() => importFile.current?.click()} className="rounded-lg p-1.5 text-xs text-neutral-300 hover:bg-neutral-800"><FolderOpen className="mr-1 inline h-3.5 w-3.5" />Open project</button>
+        {onOpenUploadedFiles&&<button type="button" onClick={onOpenUploadedFiles} aria-label="Manage uploaded Markdown" className="rounded-lg p-2 text-xs"><HardDrive className="h-4 w-4"/>Uploaded files</button>}
+        <RefreshWebApp onBeforeRefresh={onBeforeRefresh} recording={recording} />
+        {collaboration}
+        {viewMode !== "slides" && <>
+        {/* Templates Button */}
+        <button
+          onClick={()=>runMenuAction(onOpenTemplates)}
+          aria-label="Browse diagram templates" title="Browse Diagram Templates"
+          className="px-2.5 py-1 rounded border border-neutral-200 dark:border-neutral-500/40 bg-neutral-50 dark:bg-neutral-500/15 text-neutral-700 dark:text-neutral-200 text-xs font-medium flex items-center gap-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 focus-visible:outline-2 focus-visible:outline-black dark:focus-visible:outline-white transition cursor-pointer"
+        >
+          <LayoutTemplate className="w-3.5 h-3.5" />
+          <span>Templates</span>
+        </button>
+
+        {/* Clear Board Button */}
+        <button data-ui-tone="danger"
+          onClick={() => setClearOpen(true)}
+          aria-label="Clear board"
+          title="Clear this board and its notes"
+          className="flex p-1.5 rounded-lg hover:bg-neutral-500/10 text-neutral-600 dark:text-neutral-200 hover:text-neutral-400 transition cursor-pointer"
+        >
+          <Trash2 className="w-3.5 h-3.5" /><span>Clear board</span>
+        </button>
+
+        {/* Snap to Grid Toggle */}
+        <button
+          onClick={onToggleSnap}
+          title={snapToGrid ? "Snap to Grid: ON" : "Snap to Grid: OFF"}
+          aria-label="Snap to grid"
+          aria-pressed={snapToGrid}
+          className={`flex p-1.5 rounded-lg text-xs transition cursor-pointer ${
+            snapToGrid
+              ? "bg-neutral-500/15 text-neutral-400 border border-neutral-500/30"
+              : "hover:bg-neutral-800 text-neutral-600 dark:text-neutral-200 hover:text-white"
+          }`}
+        >
+          <Magnet className="w-3.5 h-3.5" /><span>Snap to grid</span>
+        </button>
+
+        {/* Grid Style Toggle */}
+        <button
+          onClick={cycleGrid}
+          title={`Grid Mode: ${gridType.toUpperCase()}`}
+          aria-label="Cycle grid style"
+          className="flex p-1.5 rounded-lg hover:bg-neutral-800 text-neutral-600 dark:text-neutral-200 hover:text-white transition cursor-pointer"
+        >
+          <Grid className="w-3.5 h-3.5" /><span>{gridType==="dot"?"Dotted canvas":gridType==="grid"?"Grid canvas":"Plain canvas"}</span>
+        </button>
+
+        {/* Presentation / Zen Mode */}
+        <button
+          onClick={onTogglePresentation}
+          title="Present frames"
+          aria-label="Start presentation"
+          className="flex p-1.5 rounded-lg hover:bg-neutral-800 text-neutral-600 dark:text-neutral-200 hover:text-white transition cursor-pointer"
+        >
+          <Play className="w-3.5 h-3.5" /><span>Present frames</span>
+        </button>
+
+        </>}
+        <button
+          onClick={()=>runMenuAction(onShowShortcuts)}
+          title="Keyboard shortcuts (?)"
+          aria-label="Keyboard shortcuts"
+          className="p-1.5 rounded-lg hover:bg-neutral-800 text-neutral-600 dark:text-neutral-200 hover:text-white transition cursor-pointer text-xs font-bold w-7"
+        >
+          <Keyboard className="h-4 w-4"/><span>Shortcuts</span>
+        </button>
+
+        <InstallWebApp />
+
       </div>
       <ConfirmDialog open={clearOpen} onClose={() => setClearOpen(false)} onConfirm={onClearBoard} />
     </header>
