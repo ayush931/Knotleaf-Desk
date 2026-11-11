@@ -17,3 +17,14 @@ test('editing moves ranges with their text, removes deleted formatting, and inhe
  const inserted=editRanges('hello world','hello worlds',ranges);expect(rangeStyleAt(inserted,11).fontSize).toBe(32);
  expect(editRanges('hello world','hello ',ranges)).toEqual([]);
 });
+
+test('replacing a formatted selection keeps its appearance without affecting surrounding text',()=>{
+ const ranges=formatRange('hello world',undefined,6,11,{fontFamily:'sora',fontSize:28,bold:true});
+ const next=editRanges('hello world','hello team',ranges);
+ expect(rangeStyleAt(next,0)).toEqual({});expect(rangeStyleAt(next,6)).toEqual({fontFamily:'sora',fontSize:28,bold:true});
+});
+test('continued typing coalesces equal formatting instead of accumulating a range per keystroke',()=>{
+ let text='x',ranges=formatRange(text,undefined,0,1,{bold:true});
+ for(let i=0;i<100;i++){const next=text+'x';ranges=editRanges(text,next,ranges);text=next;}
+ expect(ranges).toEqual([{start:0,end:101,style:{bold:true}}]);
+});

@@ -687,3 +687,5 @@ section.notes-theme[data-notes-theme] .notes-rich { padding:24px; background:var
 .notes-rich .tiptap { min-height:calc(100% - 24px); background:var(--notes-bg); border:1px solid var(--notes-border); border-radius:14px; box-shadow:0 4px 24px rgb(0 0 0 / .035); }
 .presentation-studio .slide-stage { border:1px solid var(--drawing-border); border-radius:14px; background:var(--ui-inset); box-shadow:0 8px 28px rgb(0 0 0 / .08); }
 @media(max-width:639px) { section.notes-theme[data-notes-theme] .notes-rich { padding:0; } .notes-rich .tiptap { border:0; border-radius:0; min-height:100%; box-shadow:none; } .presentation-studio .slide-stage { border-radius:8px; } }
+
+.canvas-text-editor[data-empty="true"]::before { content:attr(data-placeholder); position:absolute; color:var(--editor-placeholder); pointer-events:none; }

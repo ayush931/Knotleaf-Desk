@@ -779,3 +779,18 @@ test('selecting all characters gives the font picker priority over whole-card de
  await act(async()=>editor.dispatchEvent(new browser.KeyboardEvent('keydown',{bubbles:true,key:'Enter',metaKey:true})));
  const saved=getBoard(id).elements[0];expect(saved.fontFamily).toBe('hand');expect(saved.textRanges).toEqual([{start:0,end:11,style:{fontFamily:'newsreader'}}]);
 });
+
+for(const tool of ['Text & Bullets (T)','Doc Card (N)','Sticky note (S)'])test(`Enter and Shift Enter insert actual newlines in ${tool}`,async()=>{
+  const id=await renderBoard(),editor=await startText(tool);await typeText(editor,'FirstSecond');editor.setSelectionRange(5,5);
+  await act(async()=>editor.dispatchEvent(new browser.KeyboardEvent('keydown',{bubbles:true,cancelable:true,key:'Enter'})));
+  expect(editor.value).toBe('First\nSecond');expect(editor.selectionStart).toBe(6);
+  editor.setSelectionRange(6,12);await act(async()=>editor.dispatchEvent(new browser.KeyboardEvent('keydown',{bubbles:true,cancelable:true,key:'Enter',shiftKey:true})));
+  expect(editor.value).toBe('First\n\n');expect(editor.selectionStart).toBe(7);
+  await act(async()=>editor.dispatchEvent(new browser.KeyboardEvent('keydown',{bubbles:true,key:'Enter',metaKey:true})));
+  expect(getBoard(id).elements[0].text).toBe('First\n\n');
+});
+test('mobile beforeinput line breaks insert a newline and empty hyphen lists exit on Enter',async()=>{
+ await renderBoard();const editor=await startText();await typeText(editor,'First');editor.setSelectionRange(5,5);
+ await act(async()=>editor.dispatchEvent(new browser.InputEvent('beforeinput',{bubbles:true,cancelable:true,inputType:'insertParagraph'})));expect(editor.value).toBe('First\n');
+ await typeText(editor,'- item\n- ');await act(async()=>editor.dispatchEvent(new browser.KeyboardEvent('keydown',{bubbles:true,cancelable:true,key:'Enter'})));expect(editor.value).toBe('- item\n');
+});

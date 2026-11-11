@@ -1017,7 +1017,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
                       const currentLine = val.slice(lineStart, start);
 
                       // 1. Check for empty bullet item: clear bullet on Enter
-                      const emptyBulletMatch = currentLine.match(/^(\s*)([•○▪◆–→]|\d+\.|\[[ xX]\])\s*$/);
+                      const emptyBulletMatch = currentLine.match(/^(\s*)([•○▪◆–→*\-]|\d+\.|\[[ xX]\])\s*$/);
                       if (emptyBulletMatch) {
                         e.preventDefault();
                         const nextVal = val.slice(0, lineStart) + emptyBulletMatch[1] + val.slice(start);
