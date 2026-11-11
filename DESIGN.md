@@ -289,3 +289,5 @@ Colored drawing chrome: all component hue utility classes are replaced with neut
 
 ## Reminders
 Reminders are device-local and available across Canvas, Split and Notes from the alarm-clock header control. Native date/time inputs use device local time. The persistent alarm panel repeats at the selected interval until Done; recurrence advances only on completion. Sound requires a user gesture after reload. Notifications require permission; closed tabs and sleeping devices cannot be promised alarms. Shared palette variables own all reminder surfaces.
+
+Dark drawing boards use 32% white editor dots (minimum one screen pixel radius) and 20% white grid lines so both remain visible on classic pitch black. Dark background hatch/crosshatch/dot patterns use 24% white over the saved base. Light pattern contrast and artwork fill opacity are preserved. Shared grid/background renderers keep on-screen, raster and SVG output consistent.

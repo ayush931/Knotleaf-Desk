@@ -56,7 +56,7 @@ test('every canvas pattern paints the chosen base color first without changing s
     const {ctx,fills,strokes}=context(); drawCanvasBackground(ctx,{fill,fillStyle,fillOpacity:1},()=>{}, {x:0,y:0,width:100,height:60});
     expect(fills[0]).toEqual({color:fill,alpha:1});
     const pattern=fillStyle==='dots'?fills[1]:strokes[0];
-    if(fillStyle!=='solid')expect(pattern).toEqual({color:fill==='#ffffff'?'#000000':'#ffffff',alpha:.12});
+    if(fillStyle!=='solid')expect(pattern).toEqual({color:fill==='#ffffff'?'#000000':'#ffffff',alpha:fill==='#ffffff'?.12:.24});
   }
   const {ctx,fills}=context();drawCanvasBackground(ctx,{fill:'#121212',fillStyle:'crosshatch',fillOpacity:.4},()=>{}, {x:0,y:0,width:100,height:60});expect(fills[0].alpha).toBe(.4);
 });
@@ -144,4 +144,16 @@ test('plain text and sticky glyphs use the same CSS line-box baseline at every f
   paint.length=0;drawElement(ctx,{...el,type:'sticky'},{theme:'dark'});
   expect(paint[0].y).toBeCloseTo(23.25+12+baseline);expect(paint[0].baseline).toBe('alphabetic');
  }
+});
+
+test('black-board dots, grid and background patterns remain visible across zoom levels',async()=>{
+ const {drawGrid,gridAppearance}=await import('../draw/renderer.ts');
+ const background={fill:'#000000',fillStyle:'solid',fillOpacity:1};
+ const contrastOnBlack=alpha=>{const value=alpha<=.04045?alpha/12.92:((alpha+.055)/1.055)**2.4;return (value+.05)/.05;};
+ for(const zoom of [.1,1,4])for(const grid of ['dot','grid']){
+  const {ctx,fills,strokes,dots,lines}=context();drawGrid(ctx,160,120,{x:7,y:11},zoom,grid,false);
+  const paint=grid==='dot'?fills[0]:strokes[0];const alpha=Number(paint.color.match(/([\d.]+)\)$/)[1]);expect(contrastOnBlack(alpha)).toBeGreaterThanOrEqual(grid==='dot'?2.5:1.6);
+  expect(grid==='dot'?dots.length:lines.length).toBeGreaterThan(0);expect(gridAppearance(zoom).radius).toBeGreaterThanOrEqual(1);
+ }
+ for(const fillStyle of ['hachure','crosshatch','dots']){const {ctx,fills,strokes}=context();drawCanvasBackground(ctx,{...background,fillStyle},()=>{}, {x:0,y:0,width:100,height:60});const pattern=fillStyle==='dots'?fills[1]:strokes[0];expect(contrastOnBlack(pattern.alpha)).toBeGreaterThanOrEqual(1.9);expect(fills[0]).toEqual({color:'#000000',alpha:1});}
 });
