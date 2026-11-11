@@ -8,7 +8,7 @@ export function RangeTextEditor({textRanges, fontScale=1, light=false, ...props}
  const root=useRef<HTMLDivElement>(null), saved=useRef({start:0,end:0}), composing=useRef(false);
  const text=String(props.value||''),baseDecoration=String(props.style?.textDecoration||'');
  const selection=()=>{
-  const el=root.current,sel=window.getSelection();if(!el||!sel?.rangeCount||!el.contains(sel.anchorNode)||!el.contains(sel.focusNode))return saved.current;
+  const el=root.current,sel=window.getSelection();if(!el||document.activeElement!==el||!sel?.rangeCount||!el.contains(sel.anchorNode)||!el.contains(sel.focusNode))return saved.current;
   const r=sel.getRangeAt(0),a=r.cloneRange(),b=r.cloneRange();a.selectNodeContents(el);a.setEnd(r.startContainer,r.startOffset);b.selectNodeContents(el);b.setEnd(r.endContainer,r.endOffset);
   return saved.current={start:a.toString().length,end:b.toString().length};
  };
