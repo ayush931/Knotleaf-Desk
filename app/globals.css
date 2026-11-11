@@ -9,8 +9,8 @@
 }
 
 /* One shared surface for the drawing controls, independent of artwork colors. */
-:root { --drawing-panel:#000000; --drawing-border:#525252; --ui-accent:#93b4ff; --ui-accent-ink:#0b1b34; --ui-ink:#ffffff; --ui-muted:#b8b8b8; --ui-inset:#111318; --ui-background:#000000; --ui-control:#111723;--ui-control-ink:#c0d3f5;--ui-active:#172d50;--ui-active-ink:#b9d2ff;--ui-success:#103629;--ui-success-ink:#92efc2;--ui-pending:#382b10;--ui-pending-ink:#f8d78b;--ui-danger:#3a1720;--ui-danger-ink:#ffb5c3;--ui-info:#172d50;--ui-info-ink:#b9d2ff;--ui-brand:#f6c55b; }
-html.light { --drawing-panel:#ffffff; --drawing-border:#c7c7c7; --ui-accent:#2759bb; --ui-accent-ink:#ffffff; --ui-ink:#000000; --ui-muted:#525252; --ui-inset:#f3f5f9; --ui-background:#ffffff; --ui-control:#f2f5fc;--ui-control-ink:#344f7a;--ui-active:#e8efff;--ui-active-ink:#254982;--ui-success:#e3f6ed;--ui-success-ink:#176843;--ui-pending:#fff2d9;--ui-pending-ink:#85530a;--ui-danger:#fff0f0;--ui-danger-ink:#a62e42;--ui-info:#e8efff;--ui-info-ink:#254982;--ui-brand:#9a5706; }
+:root { --ui-control:#000000;--ui-control-ink:#ffffff;--ui-active:#101317;--ui-active-ink:#ffffff;--ui-success:#181d24;--ui-success-ink:#ffffff;--ui-pending:#000000;--ui-pending-ink:#b8b8b8;--ui-danger:#000000;--ui-danger-ink:#ffffff;--ui-info:#101317;--ui-info-ink:#ffffff;--ui-brand:#8fa9d5;--ui-outline:#44546c;--ui-focus:#8fa9d5;--drawing-panel:#000000;--drawing-border:#44546c;--ui-accent:#8fa9d5;--ui-accent-ink:#000000;--ui-ink:#ffffff;--ui-muted:#b8b8b8;--ui-inset:#090b0f;--ui-background:#000000;--ui-brand-bg:#000000; }
+html.light { --ui-control:#ffffff;--ui-control-ink:#000000;--ui-active:#f4f6f9;--ui-active-ink:#000000;--ui-success:#eef1f6;--ui-success-ink:#000000;--ui-pending:#ffffff;--ui-pending-ink:#525252;--ui-danger:#ffffff;--ui-danger-ink:#000000;--ui-info:#f4f6f9;--ui-info-ink:#000000;--ui-brand:#3c5f91;--ui-outline:#a5b5cc;--ui-focus:#3c5f91;--drawing-panel:#ffffff;--drawing-border:#a5b5cc;--ui-accent:#3c5f91;--ui-accent-ink:#ffffff;--ui-ink:#000000;--ui-muted:#525252;--ui-inset:#f7f8fa;--ui-background:#ffffff;--ui-brand-bg:#ffffff; }
 .drawing-panel { background-color: var(--drawing-panel); border-color: var(--drawing-border); }
 
 @layer base {
@@ -31,7 +31,7 @@ html.light { --drawing-panel:#ffffff; --drawing-border:#c7c7c7; --ui-accent:#275
   }
   button:focus-visible,
   [role="toolbar"] button:focus-visible {
-    outline: 2px solid var(--ui-accent);
+    outline: 2px solid var(--ui-focus);
     outline-offset: 2px;
   }
 }
@@ -88,7 +88,7 @@ html.light { --drawing-panel:#ffffff; --drawing-border:#c7c7c7; --ui-accent:#275
 ::-webkit-scrollbar-thumb:active { background: var(--scrollbar-active); }
 button:not(:disabled), select { cursor: pointer; }
 button:disabled { cursor: default; }
-input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 2px; }
+input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--ui-focus); outline-offset: 2px; }
 
 .canvas-text-editor { --editor-placeholder: #a1a1a1; }
 .canvas-text-editor[data-surface="sticky"] { --editor-placeholder: #475569; }
@@ -406,9 +406,9 @@ html.light .notes-source textarea, [data-light="true"] .code-source textarea { c
 [data-light="true"] .text-slate-400 { color: #525252; }
 
 /* Semantic primary actions stay legible when the document or canvas theme changes. */
-.ui-primary { background-color:var(--ui-accent); color:var(--ui-accent-ink); }
+.ui-primary { background-color:var(--ui-info); color:var(--ui-info-ink); }
 .ui-primary:hover { opacity:.88; }
-html.light .ui-primary { background-color:var(--ui-accent); color:var(--ui-accent-ink); }
+html.light .ui-primary { background-color:var(--ui-info); color:var(--ui-info-ink); }
 section.notes-theme[data-notes-theme] { background:var(--notes-bg); color:var(--notes-ink); }
 section.notes-theme[data-notes-theme] :is(.notes-rich,.notes-source,.markdown-reader,[class~="bg-black"],[class~="bg-neutral-900"],[class~="bg-neutral-950"]) { background-color:var(--notes-bg); color:var(--notes-ink); }
 section.notes-theme[data-notes-theme] :is([class~="bg-neutral-800"],[class~="bg-neutral-100"],[class~="dark:bg-neutral-800"]) { background-color:var(--notes-panel); }
@@ -418,7 +418,7 @@ section.notes-theme[data-notes-theme] :is(input,textarea,select) { background-co
 section.notes-theme[data-notes-theme] :is([class*="border-neutral-"]) { border-color:var(--notes-border); }
 section.notes-theme[data-notes-theme] .markdown-reader { --reader-surface:var(--notes-bg);--reader-ink:var(--notes-ink);--reader-muted:var(--notes-muted);--reader-border:var(--notes-border);--reader-code:var(--notes-code); }
 section.notes-theme[data-notes-theme] .notes-rich .tiptap :is(pre,code) { background:var(--notes-code); }
-section.notes-theme[data-notes-theme] .ui-primary { background-color:var(--ui-accent); color:var(--ui-accent-ink); }
+section.notes-theme[data-notes-theme] .ui-primary { background-color:var(--ui-info); color:var(--ui-info-ink); }
 
 section.notes-theme[data-notes-theme] .notes-source pre { color:var(--notes-ink); background:var(--notes-bg); }
 section.notes-theme[data-notes-theme] .notes-source textarea { color:transparent; -webkit-text-fill-color:transparent; caret-color:var(--notes-ink); background:transparent; }
@@ -436,19 +436,19 @@ section.notes-theme[data-notes-theme] .notes-rich .tiptap :is(blockquote,details
 section.notes-theme[data-notes-theme] .notes-source textarea::placeholder { color:var(--notes-muted); -webkit-text-fill-color:var(--notes-muted); }
 section.notes-theme[data-notes-theme] input[type="checkbox"] { accent-color:var(--ui-accent); }
 
-.ui-primary:is(:hover,:focus-visible,:active), html.light .ui-primary:is(:hover,:focus-visible,:active) { background-color:var(--ui-accent); color:var(--ui-accent-ink); }
+.ui-primary:is(:hover,:focus-visible,:active), html.light .ui-primary:is(:hover,:focus-visible,:active) { background-color:var(--ui-info); color:var(--ui-info-ink); }
 
 /* Shared accent keeps the drawing controls and reminder workflow in the same palette. */
 .reminders-trigger { color:var(--ui-accent); border-color:var(--drawing-border); background:var(--drawing-panel); }
-.reminders-trigger:hover { outline:1px solid var(--ui-accent); }
+.reminders-trigger:hover { outline:1px solid var(--ui-outline); }
 .reminder-dialog { color-scheme:dark; }
 html.light .reminder-dialog { color-scheme:light; }
 .reminder-field { border:1px solid var(--drawing-border); border-radius:6px; padding:8px 10px; font-size:13px; background:var(--drawing-panel); color:inherit; }
-.reminder-field:focus-visible { outline:2px solid var(--ui-accent); outline-offset:2px; }
+.reminder-field:focus-visible { outline:2px solid var(--ui-focus); outline-offset:2px; }
 .reminder-settings,.reminder-day { border-color:var(--drawing-border); }
 .reminder-dialog input[type=checkbox] { accent-color:var(--ui-accent); }
 .reminder-item { display:flex; align-items:center; gap:8px; padding:12px 0; border-bottom:1px solid var(--drawing-border); font-size:13px; }
-.reminder-alarm { border:2px solid var(--ui-accent); }
+.reminder-alarm { border:1px solid var(--ui-outline); }
 nav[aria-label="Board view"] button[aria-pressed="true"] { border-color:var(--ui-accent); color:var(--ui-accent); }
 
 /* Palette bridge for legacy neutral chrome. Explicit artwork/swatches keep inline colors.
@@ -465,22 +465,24 @@ html[data-workspace-ui]:is(.dark,.light) :is(button,input,select,option) { color
 html[data-workspace-ui]:is(.dark,.light) :is(select,option,input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"])) { background-color:var(--drawing-panel); border-color:var(--drawing-border); }
 html[data-workspace-ui]:is(.dark,.light) :is(input[type="checkbox"],input[type="radio"],input[type="range"]) { accent-color:var(--ui-accent); }
 html[data-workspace-ui]:is(.dark,.light) :is(button:not(:disabled),[role="button"]):hover { background-color:var(--ui-active); color:var(--ui-active-ink); }
-html[data-workspace-ui]:is(.dark,.light) :is(button[aria-pressed="true"],button[aria-checked="true"],button.is-active):not([data-theme-preview]) { background-color:var(--ui-active); color:var(--ui-active-ink); border-color:var(--ui-active); }
-html[data-workspace-ui]:is(.dark,.light) :is(.ui-primary,.ui-primary:hover,.ui-primary:active,.ui-primary:focus-visible) { background-color:var(--ui-accent); color:var(--ui-accent-ink); }
-html[data-workspace-ui]:is(.dark,.light) :is(button,input,select,textarea):focus-visible { outline-color:var(--ui-accent); }
+html[data-workspace-ui]:is(.dark,.light) :is(button[aria-pressed="true"],button[aria-checked="true"],button.is-active):not([data-theme-preview]) { background-color:var(--ui-active); color:var(--ui-active-ink); border-color:var(--ui-outline); }
+html[data-workspace-ui]:is(.dark,.light) :is(.ui-primary,.ui-primary:hover,.ui-primary:active,.ui-primary:focus-visible) { background-color:var(--ui-info); color:var(--ui-info-ink); }
+html[data-workspace-ui]:is(.dark,.light) :is(button,input,select,textarea):focus-visible { outline-color:var(--ui-focus); }
 html[data-workspace-ui]:is(.dark,.light) ::-webkit-scrollbar-thumb { background-color:var(--drawing-border); }
 
-/* Blue actions, green completion, amber pending/undo and rose destructive actions. */
+/* One accent per theme: quiet filled completion, outlined pending/destructive actions. */
 html[data-workspace-ui]:is(.dark,.light) [data-ui-tone="success"] { --action-bg:var(--ui-success); --action-ink:var(--ui-success-ink); }
 html[data-workspace-ui]:is(.dark,.light) [data-ui-tone="pending"] { --action-bg:var(--ui-pending); --action-ink:var(--ui-pending-ink); }
 html[data-workspace-ui]:is(.dark,.light) [data-ui-tone="danger"] { --action-bg:var(--ui-danger); --action-ink:var(--ui-danger-ink); }
 html[data-workspace-ui]:is(.dark,.light) [data-ui-tone="info"] { --action-bg:var(--ui-info); --action-ink:var(--ui-info-ink); }
 html[data-workspace-ui]:is(.dark,.light) [data-ui-tone="neutral"] { --action-bg:var(--ui-inset); --action-ink:var(--ui-muted); }
-html[data-workspace-ui]:is(.dark,.light) :is(button[data-ui-tone],button[data-ui-tone]:hover,button[data-ui-tone]:active,button[data-ui-tone]:focus-visible,.reminder-status[data-ui-tone]) { background-color:var(--action-bg); color:var(--action-ink); border-color:var(--action-bg); }
-html[data-workspace-ui]:is(.dark,.light) button[data-ui-tone]:not(:disabled):hover { outline:1px solid var(--action-ink); outline-offset:-1px; }
+html[data-workspace-ui]:is(.dark,.light) :is(button[data-ui-tone],button[data-ui-tone]:hover,button[data-ui-tone]:active,button[data-ui-tone]:focus-visible,.reminder-status[data-ui-tone]) { background-color:var(--action-bg); color:var(--action-ink); border-color:var(--ui-outline); }
+html[data-workspace-ui]:is(.dark,.light) button[data-ui-tone]:not(:disabled):hover { outline:1px solid var(--ui-outline); outline-offset:-1px; }
 html[data-workspace-ui]:is(.dark,.light) :is(button:disabled,[aria-disabled="true"]) { opacity:.45; cursor:not-allowed; }
-html[data-workspace-ui]:is(.dark,.light) input[type="checkbox"]:checked { accent-color:var(--ui-success-ink); }
+html[data-workspace-ui]:is(.dark,.light) input[type="checkbox"]:checked { accent-color:var(--ui-focus); }
 html[data-workspace-ui]:is(.dark,.light) [role="alert"] { color:var(--ui-danger-ink); }
 .reminder-status { display:inline-block; border-radius:5px; padding:3px 6px; }
 .reminder-item { flex-wrap:wrap; }
 .reminder-item>div { min-width:140px; }
+
+html[data-workspace-ui]:is(.dark,.light) :is(.ui-primary,button[data-ui-tone="success"],button[data-ui-tone="pending"],button[data-ui-tone="danger"]) { box-shadow:inset 0 0 0 1px var(--ui-outline); }

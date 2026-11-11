@@ -54,14 +54,14 @@ test('permission controls enable sound and system alarms close when marked Done'
  }finally{for(const [object,key,descriptor]of [[globalThis,'Notification',previousNotification],[globalThis,'AudioContext',previousAudio],[window,'Notification',windowNotification]])if(descriptor)Object.defineProperty(object,key,descriptor);else delete object[key];}
 });
 
-test('Done is green, completed state persists and amber Mark undone resumes its alarm',async()=>{
+test('Done keeps completed state and outlined Mark undone resumes its alarm',async()=>{
  localStorage.setItem(REMINDERS_KEY,JSON.stringify([dueReminder()]));await render();await act(async()=>window.dispatchEvent(new browser.Event('focus')));
  expect([...document.querySelectorAll('button')].find(b=>b.textContent.trim()==='Done').dataset.uiTone).toBe('success');await click('Done');expect(document.querySelector('[data-reminder-state="done"] .reminder-status').dataset.uiTone).toBe('success');
  const undo=document.querySelector('[aria-label="Mark undone: Finish sketch"]');expect(undo.dataset.uiTone).toBe('pending');await click('Mark undone: Finish sketch');await act(async()=>window.dispatchEvent(new browser.Event('focus')));
  const saved=JSON.parse(localStorage.getItem(REMINDERS_KEY))[0];expect(saved.completedAt).toBeNull();expect(saved.activeSince).not.toBeNull();expect(document.querySelector('.reminder-status').dataset.uiTone).toBe('pending');
 });
 
-test('a completed recurring task stays green while showing its next scheduled occurrence',async()=>{
+test('a completed recurring task keeps its completion emphasis while showing the next occurrence',async()=>{
  const task=dueReminder();task.schedule={...task.schedule,kind:'weekly',days:[0,1,2,3,4,5,6]};localStorage.setItem(REMINDERS_KEY,JSON.stringify([task]));await render();await act(async()=>window.dispatchEvent(new browser.Event('focus')));await click('Done');
  expect(document.querySelector('[data-reminder-state="done"] .reminder-status').dataset.uiTone).toBe('success');expect(document.querySelector('.reminder-status').textContent).toContain('Done · next');expect(JSON.parse(localStorage.getItem(REMINDERS_KEY))[0].nextDue).toBeGreaterThan(Date.now());
  await click('Mark undone: Finish sketch');await act(async()=>window.dispatchEvent(new browser.Event('focus')));expect(document.querySelector('[data-reminder-state="active"]')).not.toBeNull();
