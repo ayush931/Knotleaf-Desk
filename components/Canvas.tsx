@@ -1,4 +1,6 @@
 "use client";
+import { RangeTextEditor } from "./RangeTextEditor";
+import { editRanges, formatRange, rangeStyleAt } from "@/draw/textRanges";
 import { canvasBackground, canvasElementAppearance, neutralInk } from "@/draw/canvasAppearance";
 import { stepCanvasFontSize, textSizeShortcut } from "@/lib/textShortcuts";
 import { usePointerDrag } from "@/lib/usePointerDrag";
@@ -193,11 +195,13 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
   const [codeId, setCodeId] = useState<string | null>(null);
   const [recording, setRecording] = useState(false);
   const codeElement = board.elements.find(el => el.id === codeId && el.type === "text" && el.isCodeCard);
+  const [textSelection,setTextSelection]=useState(0);
   const [inlineText, renderInlineText] = useState<InlineTextState | null>(null);
   const inlineTextStateRef = useRef<InlineTextState | null>(null);
   const setInlineText = useCallback((update: React.SetStateAction<InlineTextState | null>) => {
     const previous=inlineTextStateRef.current;
     let next = typeof update === "function" ? update(previous) : update;
+    if(next && previous && next.text !== previous.text) next={...next,textRanges:editRanges(previous.text,next.text,previous.textRanges)};
     inlineTextStateRef.current = next;
     if (next && previous && next.text !== previous.text && sessionRef.current?.synced && engineRef.current) {
       next=engineRef.current.previewInlineText(next);
@@ -679,8 +683,8 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
   const adjustInlineFontSize = (delta: number) => {
     const current = inlineTextStateRef.current;
     if (!current) return;
-    const fontSize = stepCanvasFontSize(current.fontSize, delta);
-    setInlineText(previous => previous ? { ...previous, fontSize } : null);
+    const fontSize = stepCanvasFontSize(rangeStyleAt(current.textRanges,inlineTextareaRef.current?.selectionStart||0).fontSize ?? current.fontSize, delta);
+    updateInlineStyle({fontSize});
     const style = { ...(engineRef.current?.currentStyle || currentStyle), fontSize };
     if (engineRef.current) engineRef.current.currentStyle = style;
     setCurrentStyle(style);
@@ -747,6 +751,15 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
   }, [inlineText?.elementId, inlineText?.kind, inlineText?.canvasX, inlineText?.canvasY]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const updateInlineStyle = (style: Partial<ElementStyleProps>) => {
+    const editor=inlineTextareaRef.current, current=inlineTextStateRef.current;
+    if(editor && current && editor.selectionEnd>editor.selectionStart){
+      const {fontSize,fontFamily,stroke,bold,italic,underline,strikethrough}=style;
+      const patch=Object.fromEntries(Object.entries({fontSize,fontFamily,color:stroke,bold,italic,underline,strikethrough}).filter(([,v])=>v!==undefined));
+      if(Object.keys(patch).length){
+        setInlineText(previous=>previous?{...previous,textRanges:formatRange(previous.text,previous.textRanges,editor.selectionStart,editor.selectionEnd,patch)}:null);
+        return;
+      }
+    }
     setInlineText(previous => previous ? {
       ...previous,
       ...(style.fontSize !== undefined ? { fontSize: style.fontSize } : {}),
@@ -756,6 +769,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
       ...Object.fromEntries((["bold", "italic", "underline", "strikethrough"] as const).filter(key => style[key] !== undefined).map(key => [key, style[key]])),
     } : null);
   };
+  const selectedTextStyle=rangeStyleAt(inlineText?.textRanges,textSelection);
   const isInlineTextual = !!inlineText && ["new-text", "text", "sticky"].includes(inlineText.kind);
   const textOptionsVisible = selectedTool === "text" || isInlineTextual;
   const inlinePlaceholder = inlineText?.kind === "sticky" ? "Write a sticky note…" : selectedElement?.type === "text" && selectedElement.isDocCard ? "Write your document notes…" : inlineText?.kind === "frame-title" ? "Name this frame…" : inlineText?.kind === "label" ? "Add a label…" : "Start typing…";
@@ -929,7 +943,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
                   <button type="button" aria-label="Finish document editing" title="Finish · Ctrl/Cmd+Enter" className="note-tool text-neutral-400" onClick={commitInline}><Check className="h-4 w-4"/></button>
                 </div>}
 
-                <textarea
+                <RangeTextEditor textRanges={inlineText.textRanges} fontScale={zoom} onSelect={event=>setTextSelection(event.currentTarget.selectionStart)}
                   className="canvas-text-editor resize-none select-text"
                   data-surface={inlineText.kind === "sticky" ? "sticky" : "canvas"}
                   ref={inlineTextareaRef}
@@ -949,7 +963,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
                     if (mod && format && isInlineTextual) {
                       e.preventDefault();
                       e.stopPropagation();
-                      setInlineText(previous => previous ? { ...previous, [format]: !previous[format] } : null);
+                      updateInlineStyle({[format]: !(rangeStyleAt(inlineTextStateRef.current?.textRanges,e.currentTarget.selectionStart)[format] ?? inlineTextStateRef.current?.[format])});
                       return;
                     }
                     // Size first: Mac browsers can report Cmd+Shift+Period as Escape.
@@ -1120,9 +1134,9 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
                 selectedTool={selectedTool}
                 isTextEditing={textOptionsVisible}
                 preserveTextFocus={isInlineTextual}
-                selectedElement={isInlineTextual && selectedElement && (selectedElement.type === "text" || selectedElement.type === "sticky") ? { ...selectedElement, fontSize: inlineText!.fontSize, fontFamily: inlineText!.fontFamily, textAlign: inlineText!.align, stroke: inlineText!.color, bold: inlineText!.bold, italic: inlineText!.italic, underline: inlineText!.underline, strikethrough: inlineText!.strikethrough, text: inlineText!.text } : selectedTool === "text" ? null : selectedElement}
+                selectedElement={isInlineTextual && selectedElement && (selectedElement.type === "text" || selectedElement.type === "sticky") ? { ...selectedElement, fontSize: inlineText!.fontSize, fontFamily: inlineText!.fontFamily, textAlign: inlineText!.align, stroke: inlineText!.color, bold: inlineText!.bold, italic: inlineText!.italic, underline: inlineText!.underline, strikethrough: inlineText!.strikethrough, text: inlineText!.text, ...selectedTextStyle, ...(selectedTextStyle.color?{stroke:selectedTextStyle.color}:{}) } : selectedTool === "text" ? null : selectedElement}
                 selectionCount={selectedElements.length}
-                currentStyle={isInlineTextual ? { ...currentStyle, fontSize: inlineText!.fontSize, fontFamily: inlineText!.fontFamily, textAlign: inlineText!.align, stroke: inlineText!.color, bold: inlineText!.bold, italic: inlineText!.italic, underline: inlineText!.underline, strikethrough: inlineText!.strikethrough } : currentStyle}
+                currentStyle={isInlineTextual ? { ...currentStyle, fontSize: inlineText!.fontSize, fontFamily: inlineText!.fontFamily, textAlign: inlineText!.align, stroke: inlineText!.color, bold: inlineText!.bold, italic: inlineText!.italic, underline: inlineText!.underline, strikethrough: inlineText!.strikethrough, ...selectedTextStyle, ...(selectedTextStyle.color?{stroke:selectedTextStyle.color}:{}) } : currentStyle}
                 onUpdateStyle={(st) => {
                   if (isInlineTextual) updateInlineStyle(st);
                   const { stroke, fill, fillStyle, fillOpacity, ...otherStyle } = st;
@@ -1147,7 +1161,10 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
                 }}
                 onUpdateElement={(props) => {
                   if (isInlineTextual && "text" in props && typeof props.text === "string") setInlineText(previous => previous ? { ...previous, text: props.text! } : null);
-                  if (inlineText?.kind !== "new-text" && selectedTool !== "text") engineRef.current?.updateSelectedElement(props);
+                  if (isInlineTextual) {
+                    const rest=Object.fromEntries(Object.entries(props).filter(([key])=>!["fontSize","fontFamily","stroke","bold","italic","underline","strikethrough","text"].includes(key)));
+                    if(Object.keys(rest).length)engineRef.current?.updateSelectedElement(rest);
+                  } else if (selectedTool !== "text") engineRef.current?.updateSelectedElement(props);
                 }}
                 onDuplicate={() => { commitInline(); engineRef.current?.duplicateSelected(); }}
                 onDelete={() => { commitInline(); engineRef.current?.deleteSelected(); }}

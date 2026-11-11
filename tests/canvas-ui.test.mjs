@@ -100,11 +100,11 @@ async function startText(tool = 'Text & Bullets (T)') {
 }
 async function typeText(editor, text) {
   const setter = Object.getOwnPropertyDescriptor(browser.HTMLTextAreaElement.prototype, 'value').set;
-  await act(async () => { setter.call(editor, text); editor.dispatchEvent(new browser.Event('input', { bubbles: true })); });
+  await act(async () => { if(editor.getAttribute('contenteditable')==='true'){editor.textContent=text;editor.setSelectionRange(text.length,text.length);}else setter.call(editor, text); editor.dispatchEvent(new browser.Event('input', { bubbles: true })); });
 }
 test('canvas text focuses, keeps editing through Appearance formatting, saves multiline text and reopens', async () => {
   const id = await renderBoard(); const editor = await startText();
-  expect(editor.placeholder).toBe('Start typing…'); expect(document.activeElement).toBe(editor);
+  expect(editor.dataset.placeholder).toBe('Start typing…'); expect(document.activeElement).toBe(editor);
   await typeText(editor, 'Hello\nworld'); await clickNamed('Open appearance settings');
   expect(named('Edit text')).toBe(editor); expect(document.activeElement).toBe(editor); expect(editor.value).toBe('Hello\nworld');
   await clickNamed('Bold'); await clickNamed('Font: Lora');
@@ -121,8 +121,8 @@ test('document editing wraps and blank text finishes without adding a shape or o
   await renderBoard(); let editor = await startText();
   await act(async () => editor.dispatchEvent(new browser.KeyboardEvent('keydown', { bubbles: true, key: 'Escape' })));
   expect(getOrCreateDefaultBoard().elements).toHaveLength(0); expect(named('Appearance settings')).toBeNull();
-  editor = await startText('Doc Card (N)'); expect(editor.getAttribute('wrap')).toBe('soft');
-  await typeText(editor, 'A document note'); expect(editor.getAttribute('wrap')).toBe('soft'); expect(named('Appearance settings')).toBeNull();
+  editor = await startText('Doc Card (N)'); expect(editor.style.whiteSpace).toBe('pre-wrap');
+  await typeText(editor, 'A document note'); expect(editor.style.whiteSpace).toBe('pre-wrap'); expect(named('Appearance settings')).toBeNull();
 });
 test('focus view hides controls and notes, retains artwork, and restores the saved split view', async () => {
   const id = await renderBoard('split');
@@ -330,7 +330,7 @@ test('Mac Command Shift Period reported as Escape grows inline text instead of f
   const increase = new browser.KeyboardEvent('keydown', { key: 'Escape', metaKey: true, shiftKey: true, bubbles: true, cancelable: true });
   await act(async () => editor.dispatchEvent(increase));
   expect(increase.defaultPrevented).toBe(true);
-  expect(document.querySelector('textarea[aria-label="Edit text"]')).toBe(editor);
+  expect(document.querySelector('[aria-label="Edit text"]')).toBe(editor);
   expect(parseFloat(editor.style.fontSize)).toBe(size + 2);
 });
 
@@ -726,4 +726,14 @@ test('modern header keeps export directly accessible and menu commands close the
 });
 test('new reminder action focuses its task field in the modern composer',async()=>{
  await renderBoard();await clickNamed('Open reminders');const button=[...document.querySelectorAll('button')].find(b=>b.textContent.trim()==='New reminder');await act(async()=>button.click());expect(document.activeElement).toBe(document.querySelector('input[name="title"]'));
+});
+
+test('selected canvas words retain independent formatting through toolbar actions save and reopen',async()=>{
+ const id=await renderBoard(),editor=await startText();await typeText(editor,'hello world');
+ await act(async()=>{editor.setSelectionRange(6,11);editor.dispatchEvent(new browser.MouseEvent('mouseup',{bubbles:true}));});
+ await clickNamed('Open appearance settings');await clickNamed('Bold');await clickNamed('Increase font size');
+ expect(editor.value).toBe('hello world');expect(editor.selectionStart).toBe(6);expect(editor.selectionEnd).toBe(11);
+ await act(async()=>editor.dispatchEvent(new browser.KeyboardEvent('keydown',{bubbles:true,key:'Enter',metaKey:true})));
+ const saved=getBoard(id).elements[0];expect(saved.bold).toBe(false);expect(saved.textRanges).toEqual([{start:6,end:11,style:{bold:true,fontSize:18}}]);
+ await boardPointer('dblclick',saved.x+2,saved.y+2);const reopened=named('Edit text');expect(reopened.value).toBe('hello world');expect(reopened.querySelector('span').textContent).toBe('hello ');expect(reopened.querySelector('span').style.fontWeight).toBe('');expect(reopened.querySelectorAll('span')[1].style.fontWeight).toBe('700');
 });

@@ -1,0 +1,19 @@
+import {test,expect} from 'bun:test';
+import {formatRange,editRanges,rangeStyleAt} from '../draw/textRanges';
+test('formatting only changes the selected substring and preserves independent marks',()=>{
+ let ranges=formatRange('hello world',undefined,6,11,{bold:true,color:'#ff0000'});
+ ranges=formatRange('hello world',ranges,8,10,{italic:true});
+ expect(rangeStyleAt(ranges,0)).toEqual({});
+ expect(rangeStyleAt(ranges,6)).toEqual({bold:true,color:'#ff0000'});
+ expect(rangeStyleAt(ranges,9)).toEqual({bold:true,color:'#ff0000',italic:true});
+ ranges=formatRange('hello world',ranges,8,10,{bold:false});
+ expect(rangeStyleAt(ranges,9).bold).toBe(false);expect(rangeStyleAt(ranges,7).bold).toBe(true);
+ expect(JSON.parse(JSON.stringify(ranges))).toEqual(ranges);
+});
+test('editing moves ranges with their text, removes deleted formatting, and inherits inserted style',()=>{
+ const ranges=formatRange('hello world',undefined,6,11,{fontSize:32});
+ const moved=editRanges('hello world','say hello world',ranges);
+ expect(rangeStyleAt(moved,10).fontSize).toBe(32);expect(rangeStyleAt(moved,6)).toEqual({});
+ const inserted=editRanges('hello world','hello worlds',ranges);expect(rangeStyleAt(inserted,11).fontSize).toBe(32);
+ expect(editRanges('hello world','hello ',ranges)).toEqual([]);
+});

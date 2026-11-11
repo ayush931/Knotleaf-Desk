@@ -1,3 +1,4 @@
+import { rangeStyleAt } from "./textRanges";
 import { CODE_FONT_WEIGHT, codeLineMetrics, lineBoxMetrics } from "./codeLayout";
 import { canvasElementAppearance, lightCodeInk } from "./canvasAppearance";
 import { isLightBackground } from "@/lib/background.mjs";
@@ -275,6 +276,7 @@ export interface DocLine {
     | "todo-unchecked"
     | "todo-checked"
     | "normal";
+  sourceOffset?: number;
   content: string;
   prefix?: string;
   indentLevel: number;
@@ -407,11 +409,24 @@ export function layoutDocument(
       type.startsWith("bullet-") || type === "number" || type.startsWith("todo-") ? 24 : type === "quote" ? 18 : 0;
     const available = Math.max(16,(formatting.width||240)-indentPx-gutterPx);
     const measureContext=ctx||{measureText:(value:string)=>({width:value.length*fontSize*0.6})} as CanvasRenderingContext2D;
-    const pieces=formatting.textBox?wrapText(measureContext,content,available):[content];
+    let pieces=formatting.textBox?wrapText(measureContext,content,available):[content];
+    if(formatting.textBox && ctx && formatting.textRanges?.length){
+      pieces=[];let piece="", width=0, offset=rawLines.slice(0,i).reduce((n,l)=>n+l.length+1,0)+raw.indexOf(content);
+      ctx.save();
+      for(const char of content){const st=rangeStyleAt(formatting.textRanges,offset);setFont(ctx,st.fontSize||fontSize,st.fontFamily||family,(st.bold??formatting.bold)?700:500,st.italic??formatting.italic);const w=ctx.measureText(char).width;
+        if(piece&&width+w>available){pieces.push(piece);piece="";width=0;}piece+=char;width+=w;offset+=char.length;
+      }
+      pieces.push(piece);ctx.restore();
+    }
     for(let piece=0;piece<pieces.length;piece++){
+      const rangeStart=rawLines.slice(0,i).reduce((n,l)=>n+l.length+1,0);
+      const rangeSize=Math.max(fontSize,...(formatting.textRanges||[]).filter(r=>r.start<rangeStart+raw.length&&r.end>rangeStart).map(r=>r.style.fontSize||fontSize));
+      lineHeight=Math.max(lineHeight,rangeSize*LINE_HEIGHT);
       const lineWidth=indentPx+gutterPx+(formatting.textBox?measureContext.measureText(pieces[piece]).width:measuredContentWidth);
-      maxLineWidth=Math.max(maxLineWidth,lineWidth);
-      lines.push({raw,sourceLine:i,type:piece===0?type:"normal",content:pieces[piece],prefix:piece===0?prefix:undefined,indentLevel,fontSize,fontWeight,isItalic,isStrikethrough,lineHeight,yOffset:currentY,width:lineWidth});
+      let richWidth=lineWidth;
+      if(ctx&&formatting.textRanges?.length){let offset=rangeStart+raw.indexOf(content)+pieces.slice(0,piece).reduce((n,p)=>n+p.length,0);richWidth=indentPx+gutterPx;ctx.save();for(const char of pieces[piece]){const st=rangeStyleAt(formatting.textRanges,offset);setFont(ctx,st.fontSize||fontSize,st.fontFamily||family,(st.bold??formatting.bold)?700:500,st.italic??formatting.italic);richWidth+=ctx.measureText(char).width;offset+=char.length;}ctx.restore();}
+      maxLineWidth=Math.max(maxLineWidth,richWidth);
+      lines.push({sourceOffset:rawLines.slice(0,i).reduce((n,l)=>n+l.length+1,0)+raw.indexOf(content)+pieces.slice(0,piece).reduce((n,p)=>n+p.length,0),raw,sourceLine:i,type:piece===0?type:"normal",content:pieces[piece],prefix:piece===0?prefix:undefined,indentLevel,fontSize,fontWeight,isItalic,isStrikethrough,lineHeight,yOffset:currentY,width:richWidth});
       currentY+=lineHeight;
     }
   }
@@ -436,6 +451,7 @@ export function measureTextBlock(
 
 /** Visible glyph bounds for free text; stored alignment boxes need not be resized. */
 export function textContentBounds(ctx: CanvasRenderingContext2D, el: TextElement): Bounds | null {
+  if(el.textRanges?.length)return null;
   const layout = layoutDocument(ctx, el.text, el.fontSize, el.fontFamily, el);
   const boxes: Bounds[] = [];
   ctx.save(); ctx.textBaseline = "top";
@@ -1195,7 +1211,15 @@ function drawPencil(ctx: CanvasRenderingContext2D, el: CanvasElement) {
 }
 
 
-function drawStyledText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, size: number, formatting: TextFormatting) {
+function drawStyledText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, size: number, formatting: TextFormatting & {text?:string; fontFamily?:FontFamily}, sourceOffset=0) {
+  if(formatting.textRanges?.length){
+    const glyphs=Array.from(text);let index=sourceOffset;
+    const parts=glyphs.map(char=>{const style=rangeStyleAt(formatting.textRanges,index);index+=char.length;return {char,style};});
+    ctx.save();const align=ctx.textAlign;
+    const measure=(part:typeof parts[number])=>{setFont(ctx,part.style.fontSize||size,part.style.fontFamily||formatting.fontFamily||"sans",(part.style.bold??formatting.bold)?700:500,part.style.italic??formatting.italic);return ctx.measureText(part.char).width;};
+    const widths=parts.map(measure),baseline=parts.reduce((max,part)=>{measure(part);return Math.max(max,lineBoxMetrics(ctx,part.style.fontSize||size,LINE_HEIGHT).baseline);},0),width=widths.reduce((a,b)=>a+b,0);let left=align==="center"?x-width/2:align==="right"?x-width:x;ctx.textAlign="left";
+    parts.forEach((part,i)=>{ctx.save();measure(part);if(part.style.color)ctx.fillStyle=part.style.color;drawStyledText(ctx,part.char,left,y+baseline-lineBoxMetrics(ctx,part.style.fontSize||size,LINE_HEIGHT).baseline,part.style.fontSize||size,{...formatting,...part.style,textRanges:undefined});ctx.restore();left+=widths[i];});ctx.restore();return;
+  }
   ctx.save();
   ctx.textBaseline = "alphabetic";
   ctx.fillText(text, x, y + lineBoxMetrics(ctx, size, LINE_HEIGHT).baseline);
@@ -1298,7 +1322,7 @@ function drawText(ctx: CanvasRenderingContext2D, el: CanvasElement, codeScroll?:
       ctx.fillRect(x, ly, 3, line.lineHeight - 2);
       ctx.fillStyle = color;
       setFont(ctx, line.fontSize, fontFamily, line.fontWeight, true);
-      drawStyledText(ctx, line.content, x + 14, ly + 1, line.fontSize, el);
+      drawStyledText(ctx, line.content, x + 14, ly + 1, line.fontSize, el, line.sourceOffset);
       ctx.restore();
       continue;
     }
@@ -1340,7 +1364,7 @@ function drawText(ctx: CanvasRenderingContext2D, el: CanvasElement, codeScroll?:
       if (line.type === "todo-checked") {
         ctx.save();
         ctx.fillStyle = color;
-        drawStyledText(ctx, line.content, textX, ly, line.fontSize, el);
+        drawStyledText(ctx, line.content, textX, ly, line.fontSize, el, line.sourceOffset);
         const tw = ctx.measureText(line.content).width;
         ctx.strokeStyle = color;
         ctx.lineWidth = 1.2;
@@ -1350,7 +1374,7 @@ function drawText(ctx: CanvasRenderingContext2D, el: CanvasElement, codeScroll?:
         ctx.stroke();
         ctx.restore();
       } else {
-        drawStyledText(ctx, line.content, textX, ly, line.fontSize, el);
+        drawStyledText(ctx, line.content, textX, ly, line.fontSize, el, line.sourceOffset);
       }
       continue;
     }
@@ -1411,14 +1435,14 @@ function drawText(ctx: CanvasRenderingContext2D, el: CanvasElement, codeScroll?:
       ctx.restore();
 
       const textX = indentX + 22;
-      drawStyledText(ctx, line.content, textX, ly, line.fontSize, el);
+      drawStyledText(ctx, line.content, textX, ly, line.fontSize, el, line.sourceOffset);
       continue;
     }
 
     // Normal line or Heading
     const anchorX = textAlign === "center" ? x + el.width / 2 : textAlign === "right" ? x + el.width : x + line.indentLevel * 18;
     ctx.textAlign = textAlign || "left";
-    drawStyledText(ctx, line.content, anchorX, ly, line.fontSize, el);
+    drawStyledText(ctx, line.content, anchorX, ly, line.fontSize, el, line.sourceOffset);
   }
 
   ctx.restore();
@@ -1486,11 +1510,15 @@ function drawSticky(ctx: CanvasRenderingContext2D, el: CanvasElement) {
   ctx.fillStyle = el.stroke || "#1E293B";
   ctx.textBaseline = "top";
   ctx.textAlign = el.textAlign || "left";
+  if(el.textRanges?.length){const layout=layoutDocument(ctx,text,size,el.fontFamily||"sans",{...el,textBox:true,width:width-24});for(const line of layout.lines)drawStyledText(ctx,line.content,el.textAlign==="center"?x+width/2:el.textAlign==="right"?x+width-12:x+12,y+12+line.yOffset,line.fontSize,el,line.sourceOffset);ctx.restore();return;}
   const lines = wrapText(ctx, text || "", Math.max(20, width - 24));
   const lineHeight = size * LINE_HEIGHT;
+  let sourceOffset=0;
   lines.forEach((line, i) => {
+    sourceOffset=text.indexOf(line,sourceOffset);
     const ly = y + 12 + i * lineHeight;
-    if (ly + lineHeight <= y + height) drawStyledText(ctx, line, el.textAlign === "center" ? x + width / 2 : el.textAlign === "right" ? x + width - 12 : x + 12, ly, size, el);
+    if (ly + lineHeight <= y + height) drawStyledText(ctx, line, el.textAlign === "center" ? x + width / 2 : el.textAlign === "right" ? x + width - 12 : x + 12, ly, size, el, sourceOffset);
+    sourceOffset+=line.length;
   });
   ctx.restore();
 }
