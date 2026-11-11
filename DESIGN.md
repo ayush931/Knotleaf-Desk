@@ -324,3 +324,5 @@ The visible workspace collection is replaced with Studio (cobalt/mint/coral), Ti
 Geist, Sora, Bricolage Grotesque, Newsreader, Handlee and IBM Plex Sans join the shared bundled font library, available in canvas, notes and presentations. Canvas keeps quick preview buttons and adds the full grouped library selector. Fonts are loaded on demand and exports wait for the exact used families.
 
 Card painting uses the same stored bounds as selection and resize handles. Document, code and sticky card outlines sit on the visible edge with zero selection padding; plain-text selection retains its small usability gap.
+
+Card selections reuse the painted corner radius (document 12px, code 10px, sticky 8px) in canvas coordinates, including individual outlines in multi-selection. Resizing handles retain the same geometry.
