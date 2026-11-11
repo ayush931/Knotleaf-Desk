@@ -772,7 +772,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
   };
   const selectedTextStyle=rangeStyleAt(inlineText?.textRanges,textSelection);
   const isInlineTextual = !!inlineText && ["new-text", "text", "sticky"].includes(inlineText.kind);
-  const textOptionsVisible = selectedTool === "text" || isInlineTextual;
+  const textOptionsVisible = selectedTool === "text" || isInlineTextual || selectedElements.length > 0 && selectedElements.every(el=>el.type === "text" || el.type === "sticky");
   const inlinePlaceholder = inlineText?.kind === "sticky" ? "Write a sticky note…" : selectedElement?.type === "text" && selectedElement.isDocCard ? "Write your document notes…" : inlineText?.kind === "frame-title" ? "Name this frame…" : inlineText?.kind === "label" ? "Add a label…" : "Start typing…";
   useLayoutEffect(() => {
     const editor = inlineTextareaRef.current;

@@ -747,3 +747,35 @@ test('selected text font wins, and a later whole-object font replaces only font 
  await clickNamed('Font: Inter');
  const saved=getBoard(id).elements[0];expect(saved.fontFamily).toBe('sans');expect(saved.textRanges).toEqual([{start:6,end:11,style:{bold:true}}]);
 });
+
+test('font picker keeps the selected range through repeated changes while focused outside the editor',async()=>{
+ const id=await renderBoard(),editor=await startText();await typeText(editor,'hello world');
+ await act(async()=>{editor.setSelectionRange(6,11);editor.dispatchEvent(new browser.MouseEvent('mouseup',{bubbles:true}));});
+ await clickNamed('Open appearance settings');const picker=named('Canvas font library');
+ for(const font of ['serif','sora']){
+  await act(async()=>{picker.focus();picker.value=font;picker.dispatchEvent(new browser.Event('change',{bubbles:true}));});
+  // Browsers collapse a DOM range when formatted spans are replaced while the picker owns focus.
+  const collapsed=document.createRange();collapsed.selectNodeContents(editor);collapsed.collapse(true);window.getSelection().removeAllRanges();window.getSelection().addRange(collapsed);
+  expect([editor.selectionStart,editor.selectionEnd]).toEqual([6,11]);
+ }
+ await clickNamed('Bold');
+ await act(async()=>editor.dispatchEvent(new browser.KeyboardEvent('keydown',{bubbles:true,key:'Enter',metaKey:true})));
+ const saved=getBoard(id).elements[0];expect(saved.fontFamily).toBe('hand');expect(saved.bold).toBe(false);expect(saved.textRanges).toEqual([{start:6,end:11,style:{fontFamily:'sora',bold:true}}]);
+});
+
+test('a group of selected text objects exposes fonts and changes every selected object',async()=>{
+ const id=await renderBoard();
+ for(const text of ['First','Second']){const editor=await startText();await typeText(editor,text);await act(async()=>editor.dispatchEvent(new browser.KeyboardEvent('keydown',{bubbles:true,key:'Enter',metaKey:true})));}
+ await clickNamed('Select (V)');document.querySelector('main canvas').focus();await act(async()=>window.dispatchEvent(new browser.KeyboardEvent('keydown',{key:'a',metaKey:true,bubbles:true})));
+ await clickNamed('Open appearance settings');expect(named('Canvas font library')).toBeTruthy();await clickNamed('Font: Lora');
+ const saved=getBoard(id).elements;expect(saved).toHaveLength(2);expect(saved.every(el=>el.fontFamily==='serif')).toBe(true);
+});
+
+test('selecting all characters gives the font picker priority over whole-card defaults',async()=>{
+ const id=await renderBoard(),editor=await startText();await typeText(editor,'hello world');
+ await act(async()=>{editor.select();editor.dispatchEvent(new browser.MouseEvent('mouseup',{bubbles:true}));});await clickNamed('Open appearance settings');
+ const picker=named('Canvas font library');await act(async()=>{picker.focus();picker.value='newsreader';picker.dispatchEvent(new browser.Event('change',{bubbles:true}));});
+ expect([editor.selectionStart,editor.selectionEnd]).toEqual([0,11]);
+ await act(async()=>editor.dispatchEvent(new browser.KeyboardEvent('keydown',{bubbles:true,key:'Enter',metaKey:true})));
+ const saved=getBoard(id).elements[0];expect(saved.fontFamily).toBe('hand');expect(saved.textRanges).toEqual([{start:0,end:11,style:{fontFamily:'newsreader'}}]);
+});
