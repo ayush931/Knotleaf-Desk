@@ -7,7 +7,7 @@ Validated locally on macOS with a production Next.js build and isolated headless
 - Server smoke: local mode, home/assets, durable room creation, two-client sync, classroom signaling, and persistence after restart passed.
 - Live canvas: created document cards, connected both arrow endpoints at the painted borders, saved selected-word Sora formatting, replaced it through a whole-object Inter change, and applied Iris to the workspace.
 - Live notes: selected only “clearer” in a paragraph and applied Newsreader; surrounding text retained its font.
-- Desktop and 390px viewport: inspected canvas, themes, notes and presentation; verified no document-width overflow and no drawing-tray/zoom overlap.
+- Desktop and 390px viewport: inspected canvas, themes, notes and presentation; verified no document-width overflow and no drawing-tray/zoom overlap. The toolbar was subsequently restored to the top center at the user’s request, with inspector and fit-to-content spacing adjusted to match.
 - Regression coverage includes card border/selection/anchor equality, connection movement and undo, overlapping-card target precedence, selected-text formatting, and whole-object override replacement.
 - Fixed issues found during review: wrapped sign-in label, low-contrast light-mode Present action, oversized theme-picker layout, stale font overrides, and connectors choosing an obscured overlapping card.
 

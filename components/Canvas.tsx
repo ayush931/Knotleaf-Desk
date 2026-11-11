@@ -595,7 +595,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
       try { ids=engine.addAssets(assets,point?engine.screenToCanvas(point.x,point.y):undefined,elements=>{if(!saveBoard({...boardRef.current,elements}))throw new Error("Your browser’s local storage is full or unavailable. Free space or use another board, then upload again. No files were added.");}); }
       catch(error){boardRef.current=current;throw error;}
       setAssetNotice(`${files.length} ${files.length===1?'file':'files'} added. Saved only in this browser. Images appear on the canvas; select a file card to download it.`);
-      requestAnimationFrame(()=>{const container=containerRef.current;if(container&&engineRef.current===engine){engine.resize(container.clientWidth,container.clientHeight);engine.focusElements(ids,false,{left:appearanceOpen&&container.clientWidth>=640?320:48,right:48,top:80,bottom:80});}});
+      requestAnimationFrame(()=>{const container=containerRef.current;if(container&&engineRef.current===engine){engine.resize(container.clientWidth,container.clientHeight);engine.focusElements(ids,false,{left:appearanceOpen&&container.clientWidth>=640?320:48,right:48,top:Math.max(80,toolbarHeight+24),bottom:80});}});
     } catch(error) { setAssetError(error instanceof Error?error.message:"Could not upload these files. Try again."); }
     finally {assetPending.current=false;setAssetBusy(false);}
   };
@@ -623,7 +623,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
       if (!container || engineRef.current !== engine) return;
       engine.resize(container.clientWidth, container.clientHeight);
       const left = appearanceOpen && container.clientWidth >= 640 ? 320 : 48;
-      engine.focusElements(ids, false, { left, right: 48, top: 48, bottom: Math.max(100, toolbarHeight + 44) });
+      engine.focusElements(ids, false, { left, right: 48, top: Math.max(80, toolbarHeight + 24), bottom: 80 });
     });
   };
 
@@ -1120,7 +1120,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
               />
             )}
 
-            {!isPresentationOpen && !focusMode && selectedTool === "eraser" && <EraserControls size={eraserSize} mode={eraserMode} top={16} onChange={(size,mode)=>{setEraserSize(size);setEraserMode(mode);engineRef.current?.setEraserOptions(size,mode);}}/>}
+            {!isPresentationOpen && !focusMode && selectedTool === "eraser" && <EraserControls size={eraserSize} mode={eraserMode} top={toolbarHeight+24} onChange={(size,mode)=>{setEraserSize(size);setEraserMode(mode);engineRef.current?.setEraserOptions(size,mode);}}/>}
 
             {!isPresentationOpen && !focusMode && (
               <div data-text-controls onBlur={event => {
@@ -1131,7 +1131,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
                 onBackgroundChange={background => persist({ ...boardRef.current, background })}
                 isOpen={appearanceOpen}
                 onOpenChange={setAppearanceOpen}
-                topOffset={16}
+                topOffset={toolbarHeight + 24}
                 selectedTool={selectedTool}
                 isTextEditing={textOptionsVisible}
                 preserveTextFocus={isInlineTextual}
