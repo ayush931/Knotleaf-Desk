@@ -9,8 +9,8 @@
 }
 
 /* One shared surface for the drawing controls, independent of artwork colors. */
-:root { --drawing-panel: #000000; --drawing-border: #525252; --ui-accent: #ffffff; --ui-accent-ink: #000000; }
-html.light { --drawing-panel: #ffffff; --drawing-border: #c7c7c7; --ui-accent: #000000; --ui-accent-ink: #ffffff; }
+:root { --drawing-panel: #193641; --drawing-border: #416573; --ui-accent: #5ee0c1; --ui-accent-ink: #082c28; }
+html.light { --drawing-panel: #ffffff; --drawing-border: #a8cbd6; --ui-accent: #096956; --ui-accent-ink: #ffffff; }
 .drawing-panel { background-color: var(--drawing-panel); border-color: var(--drawing-border); }
 
 @layer base {
@@ -437,3 +437,16 @@ section.notes-theme[data-notes-theme] .notes-source textarea::placeholder { colo
 section.notes-theme[data-notes-theme] input[type="checkbox"] { accent-color:var(--ui-accent); }
 
 .ui-primary:is(:hover,:focus-visible,:active), html.light .ui-primary:is(:hover,:focus-visible,:active) { background-color:var(--ui-accent); color:var(--ui-accent-ink); }
+
+/* Shared accent keeps the drawing controls and reminder workflow in the same palette. */
+.reminders-trigger { color:var(--ui-accent); border-color:var(--drawing-border); background:var(--drawing-panel); }
+.reminders-trigger:hover { outline:1px solid var(--ui-accent); }
+.reminder-dialog { color-scheme:dark; }
+html.light .reminder-dialog { color-scheme:light; }
+.reminder-field { border:1px solid var(--drawing-border); border-radius:6px; padding:8px 10px; font-size:13px; background:var(--drawing-panel); color:inherit; }
+.reminder-field:focus-visible { outline:2px solid var(--ui-accent); outline-offset:2px; }
+.reminder-settings,.reminder-day { border-color:var(--drawing-border); }
+.reminder-dialog input[type=checkbox] { accent-color:var(--ui-accent); }
+.reminder-item { display:flex; align-items:center; gap:8px; padding:12px 0; border-bottom:1px solid var(--drawing-border); font-size:13px; }
+.reminder-alarm { border:2px solid var(--ui-accent); }
+nav[aria-label="Board view"] button[aria-pressed="true"] { border-color:var(--ui-accent); color:var(--ui-accent); }

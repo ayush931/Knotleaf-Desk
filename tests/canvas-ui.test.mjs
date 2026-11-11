@@ -508,7 +508,7 @@ test('light mode changes the canvas and persists without rewriting stored artwor
  expect(document.documentElement.classList.contains('light')).toBe(true);
  expect(document.documentElement.classList.contains('dark')).toBe(false);
  expect(document.documentElement.style.colorScheme).toBe('light');
- expect(named('Drawing canvas').dataset.background).toBe('#ffffff');
+ expect(named('Drawing canvas').dataset.background).toBe('#f0f9fc');
  expect(JSON.parse(localStorage.getItem('knotleaf.preferences.v1')).theme).toBe('light');
  expect(getBoard(id).background).toEqual(original.background);
  expect(getBoard(id).elements).toEqual(original.elements);
@@ -519,7 +519,7 @@ test('light mode changes the canvas and persists without rewriting stored artwor
  await clickNamed('Switch to dark mode');
  expect(document.documentElement.classList.contains('dark')).toBe(true);
  expect(document.documentElement.classList.contains('light')).toBe(false);
- expect(named('Drawing canvas').dataset.background).toBe('#000000');
+ expect(named('Drawing canvas').dataset.background).toBe('#10232c');
 });
 
 test('moving the open board also follows its destination workspace',async()=>{
@@ -697,4 +697,7 @@ test('notes page-mode control changes only notes and stays consistent with the s
  await act(async()=>root.render(React.createElement(Harness)));await clickNamed('Markdown options');
  const select=named('Markdown page theme');expect(select.value).toBe('dark');await act(async()=>{select.value='paper';select.dispatchEvent(new browser.Event('change',{bubbles:true}));});
  expect(currentMode).toBe('light');expect(select.value).toBe('paper');
+});
+test('reminders remain accessible in canvas and notes without modifying the board',async()=>{
+ for(const mode of ['canvas','notes']){const id=await renderBoard(mode);const original=getBoard(id);await clickNamed('Open reminders');expect(document.querySelector('[aria-labelledby="reminders-title"]')).not.toBeNull();await clickNamed('Close reminders');expect(getBoard(id)).toEqual(original);}
 });
