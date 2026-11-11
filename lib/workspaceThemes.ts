@@ -27,5 +27,5 @@ export type WorkspaceThemeStyle = CSSProperties & { [key: `--${string}`]: string
 export function workspaceThemeStyle(preset:WorkspaceTheme,mode:Theme,notes=false):WorkspaceThemeStyle {
  const p=workspacePalette(preset,mode);
  const values:Record<string,string>=notes?{'--notes-bg':p.background,'--notes-panel':p.panel,'--notes-border':p.border,'--notes-ink':p.ink,'--notes-muted':p.muted,'--notes-code':p.code,'--reader-link':p.accent,'--notes-token-keyword':mode==='light'?'#6b3f87':'#b8a8c4','--notes-token-string':mode==='light'?'#356330':'#afbaa8','--notes-token-comment':mode==='light'?'#606975':'#a3a3a3','--notes-token-number':mode==='light'?'#895824':'#d4b38c','--notes-token-title':mode==='light'?'#285a86':'#9ebbd4'}:{};
- return {...(notes?{colorScheme:mode}:{}),...values,'--drawing-panel':p.panel,'--drawing-border':p.border,'--ui-accent':p.accent,'--ui-accent-ink':p.accentInk};
+ return {...(notes?{colorScheme:mode}:{}),...values,'--drawing-panel':p.panel,'--drawing-border':p.border,'--ui-accent':p.accent,'--ui-accent-ink':p.accentInk,'--ui-ink':p.ink,'--ui-muted':p.muted,'--ui-inset':p.code,'--ui-background':p.background};
 }

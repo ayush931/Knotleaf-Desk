@@ -275,6 +275,15 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
     savePreferences({ theme });
   }, [theme]);
 
+  // Publish chrome tokens above React portals; Notes overrides them in its own pane.
+  useEffect(()=>{
+    const root=document.documentElement,values=workspaceThemeStyle(workspaceThemes.canvas,theme);
+    const previous=new Map(Object.keys(values).filter(key=>key.startsWith('--')).map(key=>[key,root.style.getPropertyValue(key)]));
+    const attribute=root.getAttribute('data-workspace-ui');root.setAttribute('data-workspace-ui','true');
+    for(const [key,value]of Object.entries(values))if(key.startsWith('--'))root.style.setProperty(key,String(value));
+    return()=>{for(const [key,value]of previous)if(value)root.style.setProperty(key,value);else root.style.removeProperty(key);if(attribute===null)root.removeAttribute('data-workspace-ui');else root.setAttribute('data-workspace-ui',attribute);};
+  },[workspaceThemes.canvas,theme]);
+
   // Retire caches from the previous installable version without touching boards.
   useEffect(() => {
     if ("serviceWorker" in navigator) {

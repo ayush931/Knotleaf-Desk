@@ -1,8 +1,7 @@
 "use client";
 
-import { brandAsset } from "@/lib/brandAssets";
+import { BrandMark } from "./BrandMark";
 
-import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import { X, Plus, Trash2, Copy, Search, Upload, FolderOpen, ArrowRight, Pin } from "lucide-react";
 import { loadPreferences, savePreferences } from "@/lib/preferences";
@@ -51,7 +50,7 @@ export function BoardsSidebar(p: Props) {
     <dialog ref={dialog} onCancel={p.onClose} onClose={p.onClose} aria-labelledby="workspace-title" className="workspace-drawer m-0 h-dvh max-h-dvh w-[340px] max-w-[92vw] border-0 border-r border-neutral-800 bg-white dark:bg-black p-0 text-neutral-100 shadow-2xl" onClick={e => { if (e.target === dialog.current && e.clientX > (dialog.current?.getBoundingClientRect().right ?? 340)) p.onClose(); }}>
       <div className="flex h-full flex-col">
         <div className="flex items-center justify-between border-b border-neutral-800 px-4 py-3">
-          <div className="flex items-center gap-2"><Image src={brandAsset("/icons/mark.svg")} alt="" width={28} height={28} /><h2 id="workspace-title" className="text-sm font-semibold">Knotleaf Desk</h2></div>
+          <div className="flex items-center gap-2"><BrandMark size={28} label=""/><h2 id="workspace-title" className="text-sm font-semibold">Knotleaf Desk</h2></div>
           <button onClick={p.onClose} aria-label="Close workspaces" className={actionClass}><X className="h-4 w-4" /></button>
         </div>
         <div className="space-y-3 border-b border-neutral-800 p-4">

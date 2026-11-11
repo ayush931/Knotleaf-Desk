@@ -701,3 +701,11 @@ test('notes page-mode control changes only notes and stays consistent with the s
 test('reminders remain accessible in canvas and notes without modifying the board',async()=>{
  for(const mode of ['canvas','notes']){const id=await renderBoard(mode);const original=getBoard(id);await clickNamed('Open reminders');expect(document.querySelector('[aria-labelledby="reminders-title"]')).not.toBeNull();await clickNamed('Close reminders');expect(getBoard(id)).toEqual(original);}
 });
+test('Black & White updates logo and portalled dialog tokens, and releases them when the workspace closes',async()=>{
+ const rootStyle=document.documentElement.style;const previous=rootStyle.getPropertyValue('--ui-accent');await renderBoard('canvas');
+ await clickNamed('Canvas and notes themes');await clickNamed('Theme: Black & White');await act(async()=>[...document.querySelectorAll('button')].find(b=>b.textContent==='Apply theme').click());await clickNamed('Close themes');
+ expect(document.documentElement.dataset.workspaceUi).toBe('true');expect(rootStyle.getPropertyValue('--drawing-panel')).toBe('#000000');expect(rootStyle.getPropertyValue('--ui-accent')).toBe('#ffffff');expect(document.querySelector('[data-brand-mark] path').getAttribute('fill')).toBe('var(--ui-accent)');
+ await clickNamed('Install web app');const dialog=document.querySelector('[aria-labelledby="install-web-app-title"]');expect(dialog.parentElement).toBe(document.body);
+ await clickNamed('Close installation instructions');await clickNamed('Switch to light mode');expect(rootStyle.getPropertyValue('--ui-accent')).toBe('#000000');
+ await act(async()=>root.render(null));expect(rootStyle.getPropertyValue('--ui-accent')).toBe(previous);expect(document.documentElement.hasAttribute('data-workspace-ui')).toBe(false);
+});

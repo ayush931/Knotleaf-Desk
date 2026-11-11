@@ -9,6 +9,7 @@ import {transform} from 'lightningcss';
 import {convert} from '@asamuzakjp/css-color';
 import {BoardsSidebar} from '../components/BoardsSidebar.tsx';
 import {workspacePalette,workspaceThemeStyle,WORKSPACE_THEMES} from '../lib/workspaceThemes.ts';
+import {BrandMark} from '../components/BrandMark.tsx';
 import {Reminders} from '../components/Reminders.tsx';
 import {TopToolbar} from '../components/TopToolbar.tsx';
 import {PropertiesPanel} from '../components/PropertiesPanel.tsx';
@@ -18,7 +19,7 @@ const noop=()=>{};
 const props={isOpen:true,onOpenChange:noop,selectedElement:null,selectionCount:1,currentStyle:DEFAULT_STYLE,onSwapArrow:noop,onChangeFontSize:noop,onUpdateStyle:noop,onUpdateElement:noop,onDuplicate:noop,onDelete:noop,onBringToFront:noop,onSendToBack:noop,onBackgroundChange:noop,theme:'light'};
 beforeAll(async()=>{
  const source=readFileSync(new URL('../app/globals.css',import.meta.url),'utf8');
- const components=['PropertiesPanel','ColorControl','ColorPalette','BackgroundStylePicker','FontSelect','BoardHeader','BoardsSidebar','Reminders'];
+ const components=['PropertiesPanel','ColorControl','ColorPalette','BackgroundStylePicker','FontSelect','BoardHeader','BoardsSidebar','Reminders','TopToolbar','BrandMark','WorkspaceThemes'];
  const candidates=new Set(components.flatMap(name=>readFileSync(new URL(`../components/${name}.tsx`,import.meta.url),'utf8').match(/[\w:.[\]#%/-]+/g)||[]));
  const compiler=await compile(source,{base:new URL('../app',import.meta.url).pathname,onDependency(){}});
  const ast=postcss.parse(transform({code:Buffer.from(compiler.build([...candidates])),targets:{chrome:80<<16}}).code.toString());
@@ -107,4 +108,23 @@ for(const mode of ['light','dark'])test(`reminder fields and alarm actions remai
  const doc=render(React.createElement(Reminders,{open:true,onClose:noop}),mode);const dialog=doc.querySelector('dialog');
  readable(dialog,dialog);for(const input of doc.querySelectorAll('.reminder-field'))readable(input,input);const primary=doc.querySelector('.ui-primary');readable(primary,primary);
  expect(style(doc.querySelector('input[type=date]')).backgroundColor).not.toBe('rgba(0, 0, 0, 0)');
+});
+
+for(const {id}of WORKSPACE_THEMES)for(const mode of ['light','dark'])test(`${id} ${mode} chrome follows its palette across buttons, options, dialogs and Notes`,()=>{
+ const other=mode==='light'?'dark':'light';const p=workspacePalette(id,mode),note=workspacePalette('forest',other);
+ const doc=render(React.createElement('div',null,
+  React.createElement(BrandMark),
+  React.createElement('div',{className:'drawing-panel',id:'chrome-panel'},
+   React.createElement('button',{id:'chrome-button',className:'text-neutral-400 hover:bg-neutral-800'},'Action'),
+   React.createElement('button',{id:'chrome-selected','aria-pressed':true,className:'bg-neutral-800 text-neutral-200'},'Selected'),
+   React.createElement('button',{id:'chrome-primary',className:'ui-primary'},'Save'),
+   React.createElement('select',{id:'chrome-select',className:'bg-neutral-900 text-neutral-300'},React.createElement('option',{id:'chrome-option'},'Choice')),
+   React.createElement('button',{id:'swatch',style:{backgroundColor:'#ef4444'}},'Artwork color')),
+  React.createElement('dialog',{open:true,id:'portalled-dialog',className:'bg-neutral-900 text-neutral-200'},'Dialog'),
+  React.createElement('section',{className:'notes-theme','data-notes-theme':'forest',style:workspaceThemeStyle('forest',other,true)},React.createElement('button',{'aria-pressed':true,id:'notes-selected',className:'text-neutral-200 bg-neutral-800'},'Bold'))),mode);
+ doc.documentElement.setAttribute('data-workspace-ui','true');for(const [key,value]of Object.entries(workspaceThemeStyle(id,mode)))if(key.startsWith('--'))doc.documentElement.style.setProperty(key,value);
+ for(const selector of ['#chrome-panel','#portalled-dialog','#chrome-select','#chrome-option']){const node=doc.querySelector(selector);expect(convert.colorToHex(style(node).backgroundColor),selector).toBe(p.panel);readable(node,node);}
+ for(const selector of ['#chrome-selected','#chrome-primary']){const node=doc.querySelector(selector);expect(convert.colorToHex(style(node).backgroundColor)).toBe(p.accent);expect(convert.colorToHex(style(node).color)).toBe(p.accentInk);readable(node,node);}
+ const selected=doc.querySelector('#notes-selected');expect(convert.colorToHex(style(selected).backgroundColor)).toBe(note.accent);expect(convert.colorToHex(style(selected).color)).toBe(note.accentInk);readable(selected,selected);
+ expect(convert.colorToHex(style(doc.querySelector('#swatch')).backgroundColor)).toBe('#ef4444');expect(doc.querySelector('[data-brand-mark] path').getAttribute('fill')).toBe('var(--ui-accent)');
 });

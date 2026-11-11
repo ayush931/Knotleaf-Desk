@@ -9,8 +9,8 @@
 }
 
 /* One shared surface for the drawing controls, independent of artwork colors. */
-:root { --drawing-panel: #193641; --drawing-border: #416573; --ui-accent: #5ee0c1; --ui-accent-ink: #082c28; }
-html.light { --drawing-panel: #ffffff; --drawing-border: #a8cbd6; --ui-accent: #096956; --ui-accent-ink: #ffffff; }
+:root { --drawing-panel: #193641; --drawing-border: #416573; --ui-accent: #5ee0c1; --ui-accent-ink: #082c28; --ui-ink:#f0fbff; --ui-muted:#b5d0da; --ui-inset:#0b1b23; --ui-background:#10232c; }
+html.light { --drawing-panel: #ffffff; --drawing-border: #a8cbd6; --ui-accent: #096956; --ui-accent-ink: #ffffff; --ui-ink:#12313e; --ui-muted:#476571; --ui-inset:#e0eff4; --ui-background:#f0f9fc; }
 .drawing-panel { background-color: var(--drawing-panel); border-color: var(--drawing-border); }
 
 @layer base {
@@ -450,3 +450,21 @@ html.light .reminder-dialog { color-scheme:light; }
 .reminder-item { display:flex; align-items:center; gap:8px; padding:12px 0; border-bottom:1px solid var(--drawing-border); font-size:13px; }
 .reminder-alarm { border:2px solid var(--ui-accent); }
 nav[aria-label="Board view"] button[aria-pressed="true"] { border-color:var(--ui-accent); color:var(--ui-accent); }
+
+/* Palette bridge for legacy neutral chrome. Explicit artwork/swatches keep inline colors.
+   Root tokens also reach body portals; Notes supplies the same tokens locally. */
+html[data-workspace-ui]:is(.dark,.light) body { background:var(--ui-background); color:var(--ui-ink); }
+html[data-workspace-ui]:is(.dark,.light) :is(.drawing-panel,dialog,[role="dialog"],[role="menu"],.header-actions) { background-color:var(--drawing-panel); border-color:var(--drawing-border); color:var(--ui-ink); }
+html[data-workspace-ui]:is(.dark,.light) :is([class~="bg-white"],[class~="bg-black"],[class~="bg-neutral-900"],[class~="bg-neutral-950"],[class~="dark:bg-black"],[class~="dark:bg-neutral-900"],[class~="dark:bg-neutral-950"]) { background-color:var(--drawing-panel); }
+html[data-workspace-ui]:is(.dark,.light) :is([class~="bg-neutral-50"],[class~="bg-neutral-100"],[class~="bg-neutral-200"],[class~="bg-neutral-300"],[class~="bg-neutral-600"],[class~="bg-neutral-700"],[class~="bg-neutral-800"],[class~="dark:bg-neutral-50"],[class~="dark:bg-neutral-100"],[class~="dark:bg-neutral-200"],[class~="dark:bg-neutral-300"],[class~="dark:bg-neutral-600"],[class~="dark:bg-neutral-700"],[class~="dark:bg-neutral-800"]) { background-color:var(--ui-inset); }
+html[data-workspace-ui]:is(.dark,.light) :is([class~="text-white"],[class~="text-black"],[class~="text-neutral-50"],[class~="text-neutral-100"],[class~="text-neutral-200"],[class~="text-neutral-300"],[class~="text-neutral-700"],[class~="text-neutral-800"],[class~="text-neutral-900"],[class~="text-neutral-950"],[class~="dark:text-neutral-50"],[class~="dark:text-neutral-100"],[class~="dark:text-neutral-200"],[class~="dark:text-neutral-300"],[class~="dark:text-neutral-700"],[class~="dark:text-neutral-800"],[class~="dark:text-neutral-900"],[class~="dark:text-neutral-950"]) { color:var(--ui-ink); }
+html[data-workspace-ui]:is(.dark,.light) :is([class~="text-neutral-400"],[class~="text-neutral-500"],[class~="text-neutral-600"],[class~="dark:text-neutral-400"],[class~="dark:text-neutral-500"],[class~="dark:text-neutral-600"]) { color:var(--ui-muted); }
+html[data-workspace-ui]:is(.dark,.light) [class*="border-neutral-"] { border-color:var(--drawing-border); }
+html[data-workspace-ui]:is(.dark,.light) :is(button,input,select,option) { color:var(--ui-ink); }
+html[data-workspace-ui]:is(.dark,.light) :is(select,option,input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"])) { background-color:var(--drawing-panel); border-color:var(--drawing-border); }
+html[data-workspace-ui]:is(.dark,.light) :is(input[type="checkbox"],input[type="radio"],input[type="range"]) { accent-color:var(--ui-accent); }
+html[data-workspace-ui]:is(.dark,.light) :is(button:not(:disabled),[role="button"]):hover { background-color:var(--ui-inset); color:var(--ui-ink); }
+html[data-workspace-ui]:is(.dark,.light) :is(button[aria-pressed="true"],button[aria-checked="true"],button.is-active):not([data-theme-preview]) { background-color:var(--ui-accent); color:var(--ui-accent-ink); border-color:var(--ui-accent); }
+html[data-workspace-ui]:is(.dark,.light) :is(.ui-primary,.ui-primary:hover,.ui-primary:active,.ui-primary:focus-visible) { background-color:var(--ui-accent); color:var(--ui-accent-ink); }
+html[data-workspace-ui]:is(.dark,.light) :is(button,input,select,textarea):focus-visible { outline-color:var(--ui-accent); }
+html[data-workspace-ui]:is(.dark,.light) ::-webkit-scrollbar-thumb { background-color:var(--drawing-border); }

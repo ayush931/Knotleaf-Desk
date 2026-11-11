@@ -1,7 +1,7 @@
 "use client";
 
 import { loadPreferences, savePreferences } from "@/lib/preferences";
-import { brandAsset } from "@/lib/brandAssets";
+import { BrandMark } from "./BrandMark";
 
 import React, { useState, useRef, useEffect } from "react";
 import {
@@ -196,9 +196,8 @@ export function BoardHeader({
         <button aria-label="Open project or notes" title="Open .knotleaf, .json or Markdown notes" onClick={() => importFile.current?.click()} className="hidden min-[480px]:block rounded-lg p-1.5 text-neutral-600 dark:text-neutral-200 hover:bg-neutral-800 hover:text-white"><FolderOpen className="h-4 w-4" /></button>
         {onOpenUploadedFiles&&<button type="button" aria-label="Manage uploaded Markdown" title="Uploaded Markdown · storage and cleanup" onClick={onOpenUploadedFiles} className="rounded-lg p-1.5 text-neutral-600 dark:text-neutral-200 hover:bg-neutral-800 hover:text-white"><HardDrive className="h-4 w-4"/></button>}
         <div className="flex min-w-0 items-center gap-2">
-          {/* The app mark is shared with the website favicon. */}
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={brandAsset("/icons/mark.svg")} alt="Knotleaf Desk" title="Knotleaf Desk · Canvas and notes" width={26} height={26} className="hidden sm:block shrink-0" />
+          {/* The app mark inherits the current theme. */}
+          <BrandMark size={26} className="hidden sm:block shrink-0" />
 
           {isEditingTitle ? (
             <input
