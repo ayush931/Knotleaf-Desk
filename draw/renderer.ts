@@ -197,6 +197,12 @@ function pointsBounds(pts: Point[]): Bounds {
 /** Selection has a small screen-space gap; connector geometry stays in canvas space. */
 export const TEXT_PORT_PADDING = 8;
 export const SELECTION_PADDING = 3;
+/** Keep the painted card and its selection path identical, including corners. */
+export function cardCornerRadius(el: CanvasElement): number {
+  if(el.type === "sticky")return 8;
+  if(el.type === "text" && (el.isDocCard||el.isCodeCard||el.attachment||el.fill&&el.fill!=="transparent"))return el.isCodeCard||el.attachment?10:12;
+  return 0;
+}
 export function getSelectionPadding(el: CanvasElement, zoom: number) {
   if(el.type==="sticky" || el.type==="text" && (el.isDocCard||el.isCodeCard||el.fill!=="transparent"&&el.fillStyle!=="none"))return 0;
   const pad = SELECTION_PADDING / (zoom || 1);
@@ -1255,7 +1261,7 @@ function drawText(ctx: CanvasRenderingContext2D, el: CanvasElement, codeScroll?:
     const result = highlightCode(expandCodeTabs(el.text), el.codeLanguage);
     const cardLight = isLightBackground({ fill: el.fill, fillStyle: "solid", fillOpacity: 1 });
     ctx.save(); ctx.fillStyle = cardLight ? "#ffffff" : "#10151e"; ctx.strokeStyle = cardLight ? "#d4d4d8" : "#334155"; ctx.lineWidth = 1;
-    const build = () => ctx.roundRect(el.x - 16, el.y - 16, el.width + 32, el.height + 32, 10);
+    const build = () => ctx.roundRect(el.x - 16, el.y - 16, el.width + 32, el.height + 32, cardCornerRadius(el));
     drawBackgroundFill(ctx, el, build, { x: el.x - 16, y: el.y - 16, width: el.width + 32, height: el.height + 32 });
     ctx.beginPath(); build(); ctx.stroke();
     ctx.beginPath(); ctx.rect(el.x, el.y, el.width, el.height); ctx.clip();
@@ -1281,12 +1287,12 @@ function drawText(ctx: CanvasRenderingContext2D, el: CanvasElement, codeScroll?:
     ctx.shadowColor = isLight ? "rgba(0, 0, 0, 0.08)" : "rgba(0, 0, 0, 0.5)";
     ctx.shadowBlur = 18;
     ctx.shadowOffsetY = 4;
-    const buildCard = () => { if (ctx.roundRect) ctx.roundRect(cardX, cardY, cardW, cardH, 12); else ctx.rect(cardX, cardY, cardW, cardH); };
+    const buildCard = () => { if (ctx.roundRect) ctx.roundRect(cardX, cardY, cardW, cardH, cardCornerRadius(el)); else ctx.rect(cardX, cardY, cardW, cardH); };
     drawBackgroundFill(ctx, el, buildCard, { x: cardX, y: cardY, width: cardW, height: cardH });
     ctx.strokeStyle = isLight ? "#d4d4d8" : "#3f3f46";
     ctx.lineWidth = el.strokeWidth || 1;
     ctx.beginPath();
-    if (ctx.roundRect) ctx.roundRect(cardX, cardY, cardW, cardH, 12);
+    if (ctx.roundRect) ctx.roundRect(cardX, cardY, cardW, cardH, cardCornerRadius(el));
     else ctx.rect(cardX, cardY, cardW, cardH);
     ctx.shadowColor = "transparent";
     ctx.stroke();
@@ -1495,7 +1501,7 @@ export function getCheckboxAtPoint(
 function drawSticky(ctx: CanvasRenderingContext2D, el: CanvasElement) {
   if (el.type !== "sticky") return;
   const { x, y, width, height, text, color, fontSize } = el;
-  const r = 8;
+  const r = cardCornerRadius(el);
 
   ctx.save();
   ctx.shadowColor = "rgba(15, 23, 42, 0.22)";
@@ -1748,18 +1754,20 @@ export function drawSelection(ctx: CanvasRenderingContext2D, el: CanvasElement, 
   } else {
     const b = getElementBounds(el);
     const pad = getSelectionPadding(el, z);
-    drawBoundsOutline(ctx, b, z, pad, false, lightCanvas);
+    drawBoundsOutline(ctx, b, z, pad, false, lightCanvas, cardCornerRadius(el));
     drawResizeHandles(ctx, b, z, hasSideResizeHandles(el), pad, lightCanvas);
   }
   ctx.restore();
 }
 
-export function drawBoundsOutline(ctx: CanvasRenderingContext2D, b: Bounds, zoom: number, pad = 0, dashed = true, lightCanvas = false) {
+export function drawBoundsOutline(ctx: CanvasRenderingContext2D, b: Bounds, zoom: number, pad = 0, dashed = true, lightCanvas = false, radius = 0) {
   ctx.save();
   ctx.strokeStyle = uiAccent(lightCanvas);
   ctx.lineWidth = 1.2 / zoom;
   ctx.setLineDash(dashed ? [5 / zoom, 4 / zoom] : []);
-  ctx.strokeRect(b.minX - pad, b.minY - pad, b.maxX - b.minX + pad * 2, b.maxY - b.minY + pad * 2);
+  if(radius && ctx.roundRect){
+    ctx.beginPath();ctx.roundRect(b.minX-pad,b.minY-pad,b.maxX-b.minX+pad*2,b.maxY-b.minY+pad*2,radius);ctx.stroke();
+  }else ctx.strokeRect(b.minX - pad, b.minY - pad, b.maxX - b.minX + pad * 2, b.maxY - b.minY + pad * 2);
   ctx.restore();
 }
 

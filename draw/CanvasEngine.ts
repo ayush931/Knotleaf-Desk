@@ -1,3 +1,4 @@
+import { cardCornerRadius } from "./renderer";
 import { clearRangeOverrides, editRanges } from "./textRanges";
 import { arrangementDeltas, type Arrangement } from "./arrangement";
 import { CODE_FONT_WEIGHT, CODE_LINE_HEIGHT } from "./codeLayout";
@@ -1290,7 +1291,7 @@ export class CanvasEngine {
     }
 
     if (selected.length > 1) {
-      for (const el of selected) drawBoundsOutline(ctx, getElementBounds(el, this.elements), this.zoom, getSelectionPadding(el, this.zoom), true, lightUi);
+      for (const el of selected) drawBoundsOutline(ctx, getElementBounds(el, this.elements), this.zoom, getSelectionPadding(el, this.zoom), true, lightUi, cardCornerRadius(el));
       const group = unionBounds(selected.map(el => getElementBounds(el, this.elements)));
       if (group) drawBoundsOutline(ctx, group, this.zoom, SELECTION_PADDING / this.zoom, true, lightUi);
     }

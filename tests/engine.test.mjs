@@ -1153,7 +1153,7 @@ test('room undo orders local assets and shared edits without sending image bytes
 test('selection outlines leave a small gap outside content at all zoom levels',()=>{
  const elements=[source,{...source,type:'diamond'},{...source,type:'circle'},{...source,type:'frame',title:'Frame'},{...source,type:'image',source:'data:image/png;base64,aGVsbG8=',imageName:'Image'},{...source,type:'icon',iconId:'arch-client',width:48,height:48},{...source,type:'text',text:'Text',fontSize:20,fontFamily:'sans',isDocCard:false},{...source,type:'text',text:'Card',fontSize:20,fontFamily:'sans',isDocCard:true},{...source,type:'sticky',text:'Note',fontSize:20,fontFamily:'sans',color:'#fff'}];
  for(const element of elements)for(const zoom of [.25,1,3]){
-  const rects=[],ctx=new Proxy({strokeRect:(...rect)=>rects.push(rect)},{get:(o,k)=>k in o?o[k]:()=>{}});const bounds=getElementBounds(element);drawSelection(ctx,element,zoom);
+  const rects=[],ctx=new Proxy({roundRect:(...rect)=>rects.push(rect.slice(0,4)),strokeRect:(...rect)=>rects.push(rect)},{get:(o,k)=>k in o?o[k]:()=>{}});const bounds=getElementBounds(element);drawSelection(ctx,element,zoom);
   const pad=getSelectionPadding(element,zoom);
   expect(pad*zoom).toBeGreaterThanOrEqual(0);expect(pad*zoom).toBeLessThanOrEqual(3);
   expect(rects[0]).toEqual([bounds.minX-pad,bounds.minY-pad,bounds.maxX-bounds.minX+pad*2,bounds.maxY-bounds.minY+pad*2]);
