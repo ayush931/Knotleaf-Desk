@@ -44,5 +44,5 @@ export function drawCanvasBackground(ctx: CanvasRenderingContext2D, style: Backg
   if (style.fillStyle === 'solid') return;
   const n = parseInt(style.fill.slice(1), 16);
   const brightness = (n >> 16) * 0.299 + ((n >> 8) & 255) * 0.587 + (n & 255) * 0.114;
-  drawBackgroundFill(ctx, { ...style, fill: brightness > 150 ? '#000000' : '#ffffff', fillOpacity: (style.fillOpacity ?? 1) * (brightness > 150 ? 0.12 : 0.20) }, build, box);
+  drawBackgroundFill(ctx, { ...style, fill: brightness > 150 ? '#000000' : '#ffffff', fillOpacity: (style.fillOpacity ?? 1) * (brightness > 150 ? 0.07 : 0.12) }, build, box);
 }
