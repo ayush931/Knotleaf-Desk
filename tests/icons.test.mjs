@@ -192,3 +192,8 @@ test('SVG backgrounds match every resolved canvas theme without modifying artwor
   expect(svg).toContain(`fill="${background.fill}"`);expect(JSON.stringify(shape)).toBe(original);
  }
 });
+
+test('black-board SVG exports use the same visible dots and grid as the editor',async()=>{
+ const {gridAppearance}=await import('../draw/renderer.ts');const background={fill:'#000000',fillStyle:'solid',fillOpacity:1};
+ for(const grid of ['dot','grid']){const svg=boardToSvg([{...base,type:'rectangle'}],false,[],background,grid,'dark');const paint=gridAppearance(1,false);expect(svg).toContain(grid==='dot'?paint.dotColor:paint.lineColor);expect(svg).toContain('fill="#000000"');}
+});

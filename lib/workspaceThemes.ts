@@ -2,6 +2,7 @@ import type { CSSProperties } from 'react';
 import type { Theme } from '@/draw/types';
 export const WORKSPACE_THEMES = [
  {id:'mono',name:'Lagoon',description:'Deep ocean, bright teal and airy blue-white.'},
+ {id:'black',name:'Black & White',description:'The original pitch-black canvas and white ink.'},
  {id:'paper',name:'Paper',description:'Warm paper and soft charcoal.'},
  {id:'slate',name:'Slate',description:'Cool graphite and quiet blue accents.'},
  {id:'forest',name:'Forest',description:'Deep green and natural paper.'},
@@ -13,6 +14,7 @@ export interface WorkspacePalette {background:string;panel:string;border:string;
 const palette=(background:string,panel:string,border:string,ink:string,muted:string,accent:string,accentInk:string,code:string):WorkspacePalette=>({background,panel,border,ink,muted,accent,accentInk,code});
 const palettes:Record<WorkspaceTheme,Record<Theme,WorkspacePalette>>={
  mono:{dark:palette('#10232c','#193641','#416573','#f0fbff','#b5d0da','#5ee0c1','#082c28','#0b1b23'),light:palette('#f0f9fc','#ffffff','#a8cbd6','#12313e','#476571','#096956','#ffffff','#e0eff4')},
+ black:{dark:palette('#000000','#000000','#525252','#ffffff','#b8b8b8','#ffffff','#000000','#171717'),light:palette('#ffffff','#ffffff','#c7c7c7','#000000','#525252','#000000','#ffffff','#f5f5f5')},
  paper:{dark:palette('#211e19','#2c2720','#62584a','#faf4e9','#c9bfae','#f2dfb7','#241c10','#171510'),light:palette('#faf6ec','#fffdf7','#d3c5ac','#29231a','#655c4b','#604a28','#ffffff','#eee6d6')},
  slate:{dark:palette('#161d29','#202a39','#4f627d','#f2f6ff','#b2c1d6','#a7caff','#10213b','#101620'),light:palette('#f4f7fc','#ffffff','#becde1','#17253a','#52647b','#254e83','#ffffff','#e8eef7')},
  forest:{dark:palette('#14211b','#1d2e25','#4d6f5b','#effaf2','#b0cdb8','#b0e0bd','#102619','#0d1711'),light:palette('#f2f8f1','#fbfff9','#b4cdb6','#1c3022','#4d6955','#2d5638','#ffffff','#e3efe1')}
