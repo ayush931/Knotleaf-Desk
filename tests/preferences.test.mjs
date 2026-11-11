@@ -102,3 +102,7 @@ test('Midnight becomes the neutral default once while later explicit palette cho
  const migrated=normalizePreferences({workspaceThemes:{canvas:'mono',notes:'forest'}});expect(migrated.workspaceThemes).toEqual({canvas:'black',notes:'forest'});expect(migrated.workspaceColorVersion).toBe(1);
  expect(normalizePreferences({...migrated,workspaceThemes:{canvas:'mono',notes:'paper'}}).workspaceThemes).toEqual({canvas:'mono',notes:'paper'});
 });
+
+test('logo choice persists and invalid values recover to the theme accent',()=>{
+ savePreferences({logoStyle:'black'});savePreferences({notesWidth:420});expect(loadPreferences().logoStyle).toBe('black');expect(normalizePreferences({logoStyle:'invalid'}).logoStyle).toBe('theme');savePreferences({logoStyle:'theme'});expect(loadPreferences().logoStyle).toBe('theme');
+});

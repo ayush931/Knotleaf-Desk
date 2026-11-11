@@ -1,4 +1,4 @@
-import { normalizeWorkspaceThemes, type WorkspaceThemes } from './workspaceThemes';
+import { normalizeWorkspaceThemes, type WorkspaceThemes, type LogoStyle } from './workspaceThemes';
 import { normalizeBoardLibrary, type BoardLibrarySettings } from './boardLibrarySettings';
 import { DEFAULT_STYLE, type ElementStyleProps } from '@/draw/types';
 import { normalizeNoteAppearance, DEFAULT_NOTE_APPEARANCE, type NoteAppearance } from './notesDocument';
@@ -15,6 +15,7 @@ export interface Preferences {
   boardLibrary: BoardLibrarySettings;
   theme: "dark" | "light";
   workspaceThemes: WorkspaceThemes;
+  logoStyle: LogoStyle;
   markdownRetentionDays: 0 | 7;
   markdownWorkspace: MarkdownWorkspaceSettings;
   callNoiseSuppression: boolean;
@@ -32,7 +33,7 @@ export interface Preferences {
   exportScale: number;
   exportTransparent: boolean;
 }
-const defaults = (): Preferences => ({ version:1, workspaceColorVersion:1, canvasTypographyVersion:1, canvasDrawingVersion:1, boardLibrary:normalizeBoardLibrary(undefined), theme:"dark", workspaceThemes:normalizeWorkspaceThemes(undefined), markdownRetentionDays:7, markdownWorkspace:normalizeMarkdownWorkspace(undefined), callNoiseSuppression:true, style:{...DEFAULT_STYLE}, toolColors:normalizeToolColors(undefined), eraserSize:24, eraserMode:'all', notesWidth:360, notesHeight:300, noteAppearance:{...DEFAULT_NOTE_APPEARANCE}, noteTypingSize:null, exportFormat:'project', exportScope:'project', exportScale:2, exportTransparent:false });
+const defaults = (): Preferences => ({ version:1, workspaceColorVersion:1, canvasTypographyVersion:1, canvasDrawingVersion:1, boardLibrary:normalizeBoardLibrary(undefined), theme:"dark", workspaceThemes:normalizeWorkspaceThemes(undefined), logoStyle:'theme', markdownRetentionDays:7, markdownWorkspace:normalizeMarkdownWorkspace(undefined), callNoiseSuppression:true, style:{...DEFAULT_STYLE}, toolColors:normalizeToolColors(undefined), eraserSize:24, eraserMode:'all', notesWidth:360, notesHeight:300, noteAppearance:{...DEFAULT_NOTE_APPEARANCE}, noteTypingSize:null, exportFormat:'project', exportScope:'project', exportScale:2, exportTransparent:false });
 const finite = (n: unknown, min: number, max=Number.MAX_VALUE): n is number => typeof n==='number' && Number.isFinite(n) && n>=min && n<=max;
 const color = (value: unknown): value is string => typeof value==='string' && (value==='transparent' || /^#[\da-f]{6}$/i.test(value));
 export function normalizePreferences(value: unknown): Preferences {
@@ -42,6 +43,7 @@ export function normalizePreferences(value: unknown): Preferences {
   if (data.version!==undefined && data.version!==1) return result;
   if(data.theme === "dark" || data.theme === "light") result.theme=data.theme;
   result.workspaceThemes=normalizeWorkspaceThemes(data.workspaceThemes);
+  if(data.logoStyle==='black'||data.logoStyle==='theme')result.logoStyle=data.logoStyle;
   // Adopt the requested neutral default once; future explicit Lagoon choices stay saved.
   if(data.workspaceColorVersion!==1){
     if(result.workspaceThemes.canvas==='mono')result.workspaceThemes.canvas='black';

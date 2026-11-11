@@ -704,12 +704,19 @@ test('reminders remain accessible in canvas and notes without modifying the boar
 test('Midnight updates logo and portalled dialog tokens, and releases them when the workspace closes',async()=>{
  const rootStyle=document.documentElement.style;const previous=rootStyle.getPropertyValue('--ui-accent');await renderBoard('canvas');
  await clickNamed('Canvas and notes themes');await clickNamed('Theme: Midnight');await act(async()=>[...document.querySelectorAll('button')].find(b=>b.textContent==='Apply theme').click());await clickNamed('Close themes');
- expect(document.documentElement.dataset.workspaceUi).toBe('true');expect(rootStyle.getPropertyValue('--drawing-panel')).toBe('#000000');expect(rootStyle.getPropertyValue('--ui-accent')).toBe('#93b4ff');expect(document.querySelector('[data-brand-mark] path').getAttribute('fill')).toBe('var(--ui-brand)');
+ expect(document.documentElement.dataset.workspaceUi).toBe('true');expect(rootStyle.getPropertyValue('--drawing-panel')).toBe('#000000');expect(rootStyle.getPropertyValue('--ui-accent')).toBe('#8fa9d5');expect(document.querySelector('[data-brand-mark] path').getAttribute('fill')).toBe('var(--ui-brand)');
  await clickNamed('Install web app');const dialog=document.querySelector('[aria-labelledby="install-web-app-title"]');expect(dialog.parentElement).toBe(document.body);
- await clickNamed('Close installation instructions');await clickNamed('Switch to light mode');expect(rootStyle.getPropertyValue('--ui-accent')).toBe('#2759bb');
+ await clickNamed('Close installation instructions');await clickNamed('Switch to light mode');expect(rootStyle.getPropertyValue('--ui-accent')).toBe('#3c5f91');
  await act(async()=>root.render(null));expect(rootStyle.getPropertyValue('--ui-accent')).toBe(previous);expect(document.documentElement.hasAttribute('data-workspace-ui')).toBe(false);
 });
 
 test('compact board-view selector switches the workspace and saves the chosen view',async()=>{
  const id=await renderBoard('canvas');const select=document.querySelector('select[aria-label="Board view"]');expect(select).not.toBeNull();await act(async()=>{select.value='notes';select.dispatchEvent(new browser.Event('change',{bubbles:true}));});expect(getBoard(id).viewMode).toBe('notes');expect(named('Board notes')).not.toBeNull();
+});
+
+test('logo can use the theme accent or black, and saves independently of the theme scope',async()=>{
+ const {loadPreferences}=await import('../lib/preferences.ts');await renderBoard('split');await clickNamed('Canvas and notes themes');const select=document.getElementById('logo-style');
+ await act(async()=>{select.value='black';select.dispatchEvent(new browser.Event('change',{bubbles:true}));});expect(loadPreferences().logoStyle).toBe('black');expect(document.documentElement.style.getPropertyValue('--ui-brand')).toBe('#000000');expect(document.documentElement.style.getPropertyValue('--ui-brand-bg')).toBe('#ffffff');
+ await clickNamed('Theme: Forest');await act(async()=>[...document.querySelectorAll('button')].find(b=>b.textContent==='Apply theme').click());expect(loadPreferences().logoStyle).toBe('black');
+ await act(async()=>{select.value='theme';select.dispatchEvent(new browser.Event('change',{bubbles:true}));});expect(document.documentElement.style.getPropertyValue('--ui-brand')).toBe('#b0e0bd');expect(loadPreferences().logoStyle).toBe('theme');
 });
