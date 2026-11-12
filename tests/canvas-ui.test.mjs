@@ -683,11 +683,11 @@ test('Mac select-all exposes arrangement and vertical spacing updates the saved 
 });
 
 
-test('new board writing uses Caveat and retains the saved size through blur and the next text',async()=>{
- const id=await renderBoard();const editor=await startText();expect(editor.style.fontFamily.includes('--font-caveat')).toBe(true);await typeText(editor,'A hand-written diagram');
+test('new board writing uses Knotleaf Sketch and retains the saved size through blur and the next text',async()=>{
+ const id=await renderBoard();const editor=await startText();expect(editor.style.fontFamily.includes('--font-knotleaf-sketch')).toBe(true);await typeText(editor,'A hand-written diagram');
  await act(async()=>editor.dispatchEvent(new browser.KeyboardEvent('keydown',{key:'Escape',bubbles:true})));
- expect(getBoard(id).elements[0].fontFamily).toBe('hand');const size=getBoard(id).elements[0].fontSize;
- const next=await startText();expect(next.style.fontFamily.includes('--font-caveat')).toBe(true);expect(next.style.fontSize).toBe(`${size}px`);
+ expect(getBoard(id).elements[0].fontFamily).toBe('sketch');const size=getBoard(id).elements[0].fontSize;
+ const next=await startText();expect(next.style.fontFamily.includes('--font-knotleaf-sketch')).toBe(true);expect(next.style.fontSize).toBe(`${size}px`);
 });
 
 
@@ -785,7 +785,7 @@ test('font picker keeps the selected range through repeated changes while focuse
  }
  await clickNamed('Bold');
  await act(async()=>editor.dispatchEvent(new browser.KeyboardEvent('keydown',{bubbles:true,key:'Enter',metaKey:true})));
- const saved=getBoard(id).elements[0];expect(saved.fontFamily).toBe('hand');expect(saved.bold).toBe(false);expect(saved.textRanges).toEqual([{start:6,end:11,style:{fontFamily:'manrope',bold:true}}]);
+ const saved=getBoard(id).elements[0];expect(saved.fontFamily).toBe('sketch');expect(saved.bold).toBe(false);expect(saved.textRanges).toEqual([{start:6,end:11,style:{fontFamily:'manrope',bold:true}}]);
 });
 
 test('a group of selected text objects exposes fonts and changes every selected object',async()=>{
@@ -802,7 +802,7 @@ test('selecting all characters gives the font picker priority over whole-card de
  const picker=named('Canvas font library');await act(async()=>{picker.focus();picker.value='playfair';picker.dispatchEvent(new browser.Event('change',{bubbles:true}));});
  expect([editor.selectionStart,editor.selectionEnd]).toEqual([0,11]);
  await act(async()=>editor.dispatchEvent(new browser.KeyboardEvent('keydown',{bubbles:true,key:'Enter',metaKey:true})));
- const saved=getBoard(id).elements[0];expect(saved.fontFamily).toBe('hand');expect(saved.textRanges).toEqual([{start:0,end:11,style:{fontFamily:'playfair'}}]);
+ const saved=getBoard(id).elements[0];expect(saved.fontFamily).toBe('sketch');expect(saved.textRanges).toEqual([{start:0,end:11,style:{fontFamily:'playfair'}}]);
 });
 
 for(const tool of ['Text & Bullets (T)','Doc Card (N)','Sticky note (S)'])test(`Enter and Shift Enter insert actual newlines in ${tool}`,async()=>{

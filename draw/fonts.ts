@@ -22,6 +22,12 @@ export const FONT_FAMILIES = {
     "Everyday",
     true,
   ),
+  sketch: family(
+    "Knotleaf Sketch",
+    "--font-knotleaf-sketch",
+    '"Knotleaf Sketch", "Comic Sans MS", cursive',
+    "Handwriting",
+  ),
   hand: family(
     "Caveat",
     "--font-caveat",
@@ -208,7 +214,7 @@ export const QUICK_FONTS = FONT_OPTIONS.filter((font) => font.quick);
 export function sceneFontFamilies(
   elements: readonly CanvasElement[],
 ): FontFamily[] {
-  const families = new Set<FontFamily>(["sans", "hand", "mono"]);
+  const families = new Set<FontFamily>(["sans", "sketch", "mono"]);
   for (const element of elements) {
     if("textRanges" in element)for(const range of element.textRanges||[]){const family=range.style.fontFamily;if(family&&family in FONT_FAMILIES)families.add(family);}
     if (

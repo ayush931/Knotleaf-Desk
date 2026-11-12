@@ -118,3 +118,12 @@ Reproduced in Chrome on macOS: `A longer sentence with several words and additio
 - Component regressions cover the empty/free/reopened editor wrapping policy, explicit newline persistence, text-box wrapping and sticky-note wrapping. Safari and physical mobile devices were not exercised in this pass.
 
 The visual pass also exposed document cards wrapping in the editor but expanding to a single long line after commit. Document rendering, measurement, editing bounds and resizing now share bounded card widths, including legacy cards without textBox. New cards begin at 240×100 and grow vertically. Engine regressions cover legacy/new cards and saved/reopened width; Chrome confirmed long document text retains its 240-unit width through save/reload.
+
+## Knotleaf Sketch custom whiteboard font
+
+Added a self-hosted OFL derivative of Shantell Sans with restrained informality, bounce and spacing. Fixed alternates and disabled contextual randomization keep glyph choice stable between contenteditable runs and per-character canvas styling. Both normal and true italic WOFF2 files retain the full upstream 837-codepoint coverage and a 400–700 weight axis. Rebuilding uses pinned source revisions/checksums; attribution/license accompany the assets.
+
+- `bun test`: **845 passed**, **2 PostgreSQL-dependent skipped**; lint, typecheck, webpack production build and strict UI audit passed.
+- FontTools inspection verified both generated family names, weight axes, complete Unicode coverage and absence of contextual randomization.
+- Chrome on macOS loaded all six normal/italic 400/500/700 requests using the actual local faces. Checked fresh Sketch defaults, free-text wrapping/Enter, bold/italic, selected-range Caveat compatibility, all 32 font choices, save/reload and narrow workspace rendering. No runtime errors.
+- Inspected the rendered font at 16/20/24/30/52px on light/dark surfaces; specimen: [Knotleaf Sketch](assets/knotleaf-sketch.png). Existing saved font IDs and persisted device font choices are retained. Safari/physical touch and live collaboration were not exercised in this pass.
