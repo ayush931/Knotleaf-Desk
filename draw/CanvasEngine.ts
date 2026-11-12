@@ -702,7 +702,7 @@ export class CanvasEngine {
       this.ctx.restore();
       return { ...el, width, height: Math.max(40, el.text.split("\n").length * el.fontSize * CODE_LINE_HEIGHT + 8) };
     }
-    if (el.textBox) { const width=Math.max(32,el.width); const layout=layoutDocument(this.ctx,el.text,el.fontSize,el.fontFamily||"sans",{...el,width}); return {...el,width,height:Math.max(el.height,layout.totalHeight)}; }
+    if (el.textBox || el.isDocCard) { const width=Math.max(32,el.width); const layout=layoutDocument(this.ctx,el.text,el.fontSize,el.fontFamily||"sans",{...el,width}); return {...el,width,height:Math.max(el.height,layout.totalHeight)}; }
     const size = measureTextBlock(this.ctx, el.text, el.fontSize, el.fontFamily, el);
     return { ...el, width: el.isDocCard ? Math.max(240,size.width) : size.width, height: el.isDocCard ? Math.max(100,size.height) : size.height };
   }
@@ -1124,12 +1124,13 @@ export class CanvasEngine {
     let state: InlineTextState | null = null;
     switch (el.type) {
       case "text": {
+        const bounded = el.textBox || el.isDocCard;
         const p = this.canvasToScreen(el.x, el.y);
         state = {
           kind: "text", elementId: el.id, canvasX: el.x, canvasY: el.y,
           screenX: p.x, screenY: p.y,
-          screenWidth: el.textBox ? el.width*this.zoom : Math.max(80, el.width * this.zoom + 24),
-          ...(el.textBox?{boxWidth:el.width,boxHeight:el.height,screenHeight:el.height*this.zoom}:{}),
+          screenWidth: bounded ? el.width*this.zoom : Math.max(80, el.width * this.zoom + 24),
+          ...(bounded?{boxWidth:el.width,boxHeight:el.height,screenHeight:el.height*this.zoom}:{}),
           bold: el.bold, italic: el.italic, underline: el.underline, strikethrough: el.strikethrough,
           textRanges: el.textRanges, text: el.text, fontSize: el.fontSize, fontFamily: el.fontFamily,
           color: el.stroke, align: el.textAlign,
@@ -1192,10 +1193,10 @@ export class CanvasEngine {
       setFont(this.ctx, state.fontSize, state.fontFamily, state.bold ? 700 : 500, state.italic);
       const originX = el.x + (el.type === "sticky" ? 12 : 0), originY = el.y + (el.type === "sticky" ? 12 : 0);
       const available = el.width - (el.type === "sticky" ? 24 : 0);
-      const lines = el.type === "sticky" || el.type === "text" && el.textBox ? wrapText(this.ctx, state.text, available) : state.text.split("\n");
+      const lines = el.type === "sticky" || el.type === "text" && (el.textBox || el.isDocCard) ? wrapText(this.ctx, state.text, available) : state.text.split("\n");
       let consumed = 0;
       const offsets = lines.map(line => {
-        if (el.type === "text" && !el.textBox) { const offset = consumed; consumed += line.length + 1; return offset; }
+        if (el.type === "text" && !el.textBox && !el.isDocCard) { const offset = consumed; consumed += line.length + 1; return offset; }
         if (!line && state!.text[consumed] === "\n") consumed++;
         const offset = Math.max(consumed, state!.text.indexOf(line, consumed)); consumed = offset + line.length; return offset;
       });
@@ -1851,7 +1852,7 @@ export class CanvasEngine {
     }
     if (this.tool === "doc") {
       this.updateCursor();
-      const docEl = this.remeasureText(this.makeTextElement("", pt.x, pt.y, 15, this.currentStyle.fontFamily, "#FFFFFF", "left", true));
+      const docEl = this.remeasureText({...this.makeTextElement("", pt.x, pt.y, 15, this.currentStyle.fontFamily, "#FFFFFF", "left", true), textBox:true, width:240, height:100});
       this.elements = [...this.elements, docEl];
       this.selectCreatedElement(docEl.id);
       this.commit();
@@ -2439,7 +2440,7 @@ export class CanvasEngine {
             x: g.handle.includes("w") ? r.x+r.w-width : r.x,
             y: g.handle.includes("n") ? r.y+r.h-height : r.y };
         }
-        if(snapshot.textBox)return this.remeasureText({...snapshot,...rect});
+        if(snapshot.textBox || snapshot.isDocCard)return this.remeasureText({...snapshot,...rect});
         const horizontal = g.handle.includes("w") || g.handle.includes("e");
         const vertical = g.handle.includes("n") || g.handle.includes("s");
         const scale = horizontal && vertical ? Math.max(rect.width / Math.max(r.w, 1), rect.height / Math.max(r.h, 1)) : horizontal ? rect.width / Math.max(r.w, 1) : rect.height / Math.max(r.h, 1);
