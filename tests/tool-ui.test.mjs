@@ -59,6 +59,24 @@ test('selected lines expose a signed bend input and straight reset instructions'
   expect(html).toContain('Set 0 for a straight line');
 });
 
+test('choosing Line immediately exposes Straight and Curved routing modes', () => {
+  const html = renderToStaticMarkup(React.createElement(PropertiesPanel, { ...props, selectedTool: 'line' }));
+  expect(html).toContain('aria-label="Line routing"');
+  for (const label of ['Straight', 'Curved']) expect(html).toContain(label);
+  expect(html).toMatch(/aria-pressed="true"[^>]*>(?:(?!<\/button>).)*Straight/s);
+});
+
+test('selected straight and curved lines expose routing buttons and bend control', () => {
+  const straightHtml = renderToStaticMarkup(React.createElement(PropertiesPanel, { ...props, selectedElement: { ...DEFAULT_STYLE, id: 'line1', type: 'line', startX: 100, startY: 100, endX: 300, endY: 100, routing: 'straight' } }));
+  expect(straightHtml).toContain('aria-label="Line routing"');
+  expect(straightHtml).toMatch(/aria-pressed="true"[^>]*>(?:(?!<\/button>).)*Straight/s);
+  expect(straightHtml).toMatch(/aria-label="Line bend in pixels"[^>]*value="0"/);
+
+  const curvedHtml = renderToStaticMarkup(React.createElement(PropertiesPanel, { ...props, selectedElement: { ...DEFAULT_STYLE, id: 'line2', type: 'line', startX: 100, startY: 100, endX: 300, endY: 100, routing: 'curved', bendOffset: 80 } }));
+  expect(curvedHtml).toMatch(/aria-pressed="true"[^>]*>(?:(?!<\/button>).)*Curved/s);
+  expect(curvedHtml).toMatch(/aria-label="Line bend in pixels"[^>]*value="40"/);
+});
+
 
 test('Appearance offers background colors and previewed patterns without fill-opacity controls', () => {
   const html = renderToStaticMarkup(React.createElement(PropertiesPanel, { ...props, selectedElement: { ...DEFAULT_STYLE, type: 'rectangle', id: 'fill', fill: '#ec4899', fillStyle: 'crosshatch', fillOpacity: 0.25, opacity: 0.8 } }));

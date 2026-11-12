@@ -730,6 +730,32 @@ test('line bend survives moving endpoints and cancellation restores it', () => {
   expect(engine.getElements()[0].bendOffset).toBe(100); engine.destroy();
 });
 
+test('line supports both straight and curved routing with bend controls', () => {
+  const { engine, drag } = setup([]);
+  engine.setStyle({ lineRouting: 'curved' });
+  engine.setTool('line');
+  drag(100, 100, 300, 100);
+  const created = engine.getElements()[0];
+  expect(created.type).toBe('line');
+  expect(created.routing).toBe('curved');
+  expect(created.bendOffset).toBeGreaterThan(0);
+  expect(computeLinePath(created).routing).toBe('curved');
+
+  engine.updateSelectedElement({ routing: 'straight', bendOffset: 0 });
+  const straight = engine.getElements()[0];
+  expect(straight.routing).toBe('straight');
+  expect(computeLinePath(straight).routing).toBe('straight');
+
+  // Dragging midpoint switches to curved
+  const mid = computeLinePath(straight).midPt;
+  drag(mid.x, mid.y, mid.x, mid.y + 50);
+  const bent = engine.getElements()[0];
+  expect(bent.routing).toBe('curved');
+  expect(bent.bendOffset).toBe(100);
+  expect(computeLinePath(bent).routing).toBe('curved');
+  engine.destroy();
+});
+
 
 test('creation and erase tools respond synchronously over existing content without a double-click wait', () => {
   for (const tool of ['doc', 'sticky', 'code', 'text', 'eraser']) {
@@ -1851,4 +1877,9 @@ test('document-to-document arrows attach to painted borders and follow the next 
  const link=engine.getElements().find(el=>el.type==='arrow');expect(link).toMatchObject({startBinding:{elementId:a.id,anchor:'right'},endBinding:{elementId:b.id,anchor:'left'},startX:356,endX:584});
  engine.selectedIds=new Set([b.id]);engine.updateSelectedElement({x:650});
  expect(engine.getElements().find(el=>el.id===link.id).endX).toBe(634);engine.undo();expect(engine.getElements().find(el=>el.id===link.id).endX).toBe(584);engine.destroy();
+});
+
+test('shared selection colors recolor icon glyphs and remain undoable',()=>{
+ const {engine}=setup([]);engine.addOnlineIcon('cloud','lucide:cloud','<path d="M0 0h24v24z"/>','0 0 24 24');
+ const before=engine.getElements()[0].iconColor;engine.updateSelectedElement({stroke:'#22D3EE'});expect(engine.getElements()[0].iconColor).toBe('#22D3EE');engine.undo();expect(engine.getElements()[0].iconColor).toBe(before);engine.destroy();
 });

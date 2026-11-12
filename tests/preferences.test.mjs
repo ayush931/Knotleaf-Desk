@@ -106,3 +106,9 @@ test('Midnight becomes the neutral default once while later explicit palette cho
 test('logo choice persists and invalid values recover to the theme accent',()=>{
  savePreferences({logoStyle:'black'});savePreferences({notesWidth:420});expect(loadPreferences().logoStyle).toBe('black');expect(normalizePreferences({logoStyle:'invalid'}).logoStyle).toBe('theme');savePreferences({logoStyle:'theme'});expect(loadPreferences().logoStyle).toBe('theme');
 });
+
+test('new line routing, minimap and recent colors survive independent saves with validation',()=>{
+ savePreferences({style:{...DEFAULT_STYLE,lineRouting:'curved'},minimapOpen:false,recentColors:['#abcdef','#ABCDEF','bad','#123456']});savePreferences({notesWidth:440});
+ expect(loadPreferences().style.lineRouting).toBe('curved');expect(loadPreferences().minimapOpen).toBe(false);expect(loadPreferences().recentColors).toEqual(['#ABCDEF','#123456']);
+ expect(normalizePreferences({style:{lineRouting:'broken'},recentColors:[null,'bad'],minimapOpen:'yes'}).style.lineRouting).toBe('straight');
+});

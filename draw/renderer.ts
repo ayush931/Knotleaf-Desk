@@ -146,7 +146,7 @@ export function getElementBounds(el: CanvasElement, scene: CanvasElement[] = [])
   if(el.type==="icon")return iconContentBounds(el);
   if (el.type === "arrow" || el.type === "line") {
     const pts: Point[] = [];
-    if (el.type === "arrow" || el.bendOffset) {
+    if (el.type === "arrow" || el.bendOffset || (el.type === "line" && (el as import("./types").LineElement).routing === "curved")) {
       const info = el.type === "arrow" ? computeArrowPath(el, scene) : computeLinePath(el);
       pts.push(...info.points);
       if (info.cpx !== undefined && info.cpy !== undefined) {
@@ -923,6 +923,16 @@ function drawLine(ctx: CanvasRenderingContext2D, el: CanvasElement) {
     ctx.moveTo(a.x, a.y);
     ctx.quadraticCurveTo(info.cpx, info.cpy, b.x, b.y);
     ctx.stroke();
+  } else if (info.routing === "elbow" && info.points.length >= 3) {
+    ctx.beginPath();
+    ctx.moveTo(info.points[0].x, info.points[0].y);
+    for (let i = 1; i < info.points.length - 1; i++) {
+      const radius = Math.min(ELBOW_RADIUS, Math.hypot(info.points[i].x - info.points[i - 1].x, info.points[i].y - info.points[i - 1].y) / 2, Math.hypot(info.points[i + 1].x - info.points[i].x, info.points[i + 1].y - info.points[i + 1].y) / 2);
+      ctx.arcTo(info.points[i].x, info.points[i].y, info.points[i + 1].x, info.points[i + 1].y, radius);
+    }
+    const last = info.points[info.points.length - 1];
+    ctx.lineTo(last.x, last.y);
+    ctx.stroke();
   } else if (el.strokeStyle === "rough") {
     strokeSketch(ctx, [a, b], false, seedOf(el.id), ctx.lineWidth);
   } else {
@@ -945,8 +955,12 @@ export interface ArrowPathInfo {
   endAngle: number;
 }
 
-export function computeLinePath(el: import("./types").LineElement): ArrowPathInfo {
-  return computeArrowPath({ ...el, type: "arrow", routing: el.bendOffset ? "curved" : "straight", bendOffset: el.bendOffset ?? 0 });
+export function computeLinePath(el: import("./types").LineElement, scene: CanvasElement[] = []): ArrowPathInfo {
+  const routing = (el.bendOffset === 0 ? "straight" : (el.routing || (el.bendOffset ? "curved" : "straight"))) as ArrowRouting;
+  const bendOffset = el.bendOffset !== undefined
+    ? el.bendOffset
+    : (routing === "curved" ? Math.max(22, Math.min(65, Math.hypot(el.endX - el.startX, el.endY - el.startY) * 0.22)) : 0);
+  return computeArrowPath({ ...el, type: "arrow", routing, bendOffset }, scene);
 }
 
 export function computeArrowPath(el: ArrowElement, scene: CanvasElement[] = []): ArrowPathInfo {

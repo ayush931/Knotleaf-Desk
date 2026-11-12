@@ -4,6 +4,7 @@ import { DEFAULT_STYLE, type ElementStyleProps } from '@/draw/types';
 import { normalizeNoteAppearance, DEFAULT_NOTE_APPEARANCE, type NoteAppearance } from './notesDocument';
 import { normalizeToolColors, type ToolColorPreferences } from '@/draw/toolColors';
 import { normalizeMarkdownWorkspace, type MarkdownWorkspaceSettings } from './markdownWorkspace';
+import { normalizeRecentColors } from './premiumPalette';
 import { FONT_OPTIONS } from '@/draw/fonts';
 
 const KEY = 'knotleaf.preferences.v1';
@@ -16,6 +17,9 @@ export interface Preferences {
   theme: "dark" | "light";
   workspaceThemes: WorkspaceThemes;
   logoStyle: LogoStyle;
+  /** Latest five drawing colors, newest first. */
+  recentColors: string[];
+  minimapOpen: boolean;
   markdownRetentionDays: 0 | 7;
   markdownWorkspace: MarkdownWorkspaceSettings;
   callNoiseSuppression: boolean;
@@ -33,7 +37,7 @@ export interface Preferences {
   exportScale: number;
   exportTransparent: boolean;
 }
-const defaults = (): Preferences => ({ version:1, workspaceColorVersion:1, canvasTypographyVersion:1, canvasDrawingVersion:1, boardLibrary:normalizeBoardLibrary(undefined), theme:"dark", workspaceThemes:normalizeWorkspaceThemes(undefined), logoStyle:'theme', markdownRetentionDays:7, markdownWorkspace:normalizeMarkdownWorkspace(undefined), callNoiseSuppression:true, style:{...DEFAULT_STYLE}, toolColors:normalizeToolColors(undefined), eraserSize:24, eraserMode:'all', notesWidth:360, notesHeight:300, noteAppearance:{...DEFAULT_NOTE_APPEARANCE}, noteTypingSize:null, exportFormat:'project', exportScope:'project', exportScale:2, exportTransparent:false });
+const defaults = (): Preferences => ({ version:1, workspaceColorVersion:1, canvasTypographyVersion:1, canvasDrawingVersion:1, boardLibrary:normalizeBoardLibrary(undefined), theme:"dark", workspaceThemes:normalizeWorkspaceThemes(undefined), logoStyle:'theme', recentColors:normalizeRecentColors(undefined), minimapOpen:true, markdownRetentionDays:7, markdownWorkspace:normalizeMarkdownWorkspace(undefined), callNoiseSuppression:true, style:{...DEFAULT_STYLE}, toolColors:normalizeToolColors(undefined), eraserSize:24, eraserMode:'all', notesWidth:360, notesHeight:300, noteAppearance:{...DEFAULT_NOTE_APPEARANCE}, noteTypingSize:null, exportFormat:'project', exportScope:'project', exportScale:2, exportTransparent:false });
 const finite = (n: unknown, min: number, max=Number.MAX_VALUE): n is number => typeof n==='number' && Number.isFinite(n) && n>=min && n<=max;
 const color = (value: unknown): value is string => typeof value==='string' && (value==='transparent' || /^#[\da-f]{6}$/i.test(value));
 export function normalizePreferences(value: unknown): Preferences {
@@ -44,6 +48,8 @@ export function normalizePreferences(value: unknown): Preferences {
   if(data.theme === "dark" || data.theme === "light") result.theme=data.theme;
   result.workspaceThemes=normalizeWorkspaceThemes(data.workspaceThemes);
   if(data.logoStyle==='black'||data.logoStyle==='theme')result.logoStyle=data.logoStyle;
+  result.recentColors=normalizeRecentColors(data.recentColors);
+  if(typeof data.minimapOpen==='boolean')result.minimapOpen=data.minimapOpen;
   // Adopt the requested neutral default once; future explicit Lagoon choices stay saved.
   if(data.workspaceColorVersion!==1){
     if(result.workspaceThemes.canvas==='mono')result.workspaceThemes.canvas='black';
@@ -59,7 +65,7 @@ export function normalizePreferences(value: unknown): Preferences {
   for(const key of ['opacity','fillOpacity'] as const)if(finite(style[key],0,1))result.style[key]=style[key];
   if(finite(style.strokeWidth,.1,100))result.style.strokeWidth=style.strokeWidth;
   if(finite(style.fontSize,8,512))result.style.fontSize=style.fontSize;
-  const choices: Record<string,string[]>={strokeStyle:['solid','dashed','dotted','rough'],fillStyle:['none','solid','semi','hachure','crosshatch','dots'],roundness:['sharp','rounded'],fontFamily:FONT_OPTIONS.map(f=>f.id),textAlign:['left','center','right'],arrowRouting:['straight','elbow','curved'],arrowHeadStart:['none','arrow','diamond','dot','bar'],arrowHeadEnd:['none','arrow','diamond','dot','bar']};
+  const choices: Record<string,string[]>={strokeStyle:['solid','dashed','dotted','rough'],fillStyle:['none','solid','semi','hachure','crosshatch','dots'],roundness:['sharp','rounded'],fontFamily:FONT_OPTIONS.map(f=>f.id),textAlign:['left','center','right'],arrowRouting:['straight','elbow','curved'],lineRouting:['straight','curved'],arrowHeadStart:['none','arrow','diamond','dot','bar'],arrowHeadEnd:['none','arrow','diamond','dot','bar']};
   for(const[key,allowed]of Object.entries(choices)){const value=style[key];if(typeof value==='string'&&allowed.includes(value))Object.assign(result.style,{[key]:value});}
   if (data.canvasDrawingVersion !== 1 && result.style.strokeStyle === 'solid') result.style.strokeStyle = 'rough';
   // Adopt handwriting for the former default once; explicit future Inter choices stay saved.

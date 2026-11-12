@@ -12,6 +12,7 @@ import { DEFAULT_STYLE } from '../draw/types.ts';
 import { TemplatesModal } from '../components/TemplatesModal.tsx';
 import { BugReportForm } from '../components/BugReportForm.tsx';
 import { ColorControl } from '../components/ColorControl.tsx';
+import { Minimap, minimapLayout } from '../components/Minimap.tsx';
 const saved = new Map(), contexts = new WeakMap(), captures = new WeakMap(), exports = [];
 let browser, root, createRoot;
 function context(canvas) {
@@ -99,7 +100,7 @@ async function startText(tool = 'Text & Bullets (T)') {
   return named('Edit text');
 }
 async function typeText(editor, text) {
-  const setter = Object.getOwnPropertyDescriptor(browser.HTMLTextAreaElement.prototype, 'value').set;
+  const setter = Object.getOwnPropertyDescriptor(editor.tagName === 'INPUT' ? browser.HTMLInputElement.prototype : browser.HTMLTextAreaElement.prototype, 'value').set;
   await act(async () => { if(editor.getAttribute('contenteditable')==='true'){editor.textContent=text;editor.setSelectionRange(text.length,text.length);}else setter.call(editor, text); editor.dispatchEvent(new browser.Event('input', { bubbles: true })); });
 }
 test('canvas text focuses, keeps editing through Appearance formatting, saves multiline text and reopens', async () => {
@@ -826,4 +827,43 @@ for(const eventName of ['beforeunload','pagehide'])test(`navigation flushes an a
  const id=await renderBoard(),editor=await startText();await typeText(editor,'Draft that must survive refresh');
  await act(async()=>window.dispatchEvent(new browser.Event(eventName)));expect(getBoard(id).elements[0].text).toBe('Draft that must survive refresh');
  await act(async()=>window.dispatchEvent(new browser.Event('pagehide')));expect(getBoard(id).elements).toHaveLength(1);
+});
+
+test('quick colors format only selected characters and remember the matching drawing tool',async()=>{
+ const id=await renderBoard(),editor=await startText();await typeText(editor,'hello world');editor.setSelectionRange(6,11);
+ await clickNamed('Drawing color #A78BFA');expect(named('Edit text')).toBe(editor);
+ await act(async()=>editor.dispatchEvent(new browser.KeyboardEvent('keydown',{key:'Enter',metaKey:true,bubbles:true})));
+ expect(getBoard(id).elements[0].textRanges).toEqual([{start:6,end:11,style:{color:'#A78BFA'}}]);
+ const prefs=JSON.parse(localStorage.getItem('knotleaf.preferences.v1'));expect(prefs.toolColors.text.stroke).toBe('#A78BFA');expect(prefs.toolColors.rectangle.stroke).toBe(DEFAULT_STYLE.stroke);
+ await clickNamed('Rectangle (R)');await clickNamed('Drawing color #22D3EE');await clickNamed('Ellipse (O)');await clickNamed('Rectangle (R)');
+ await boardPointer('pointerdown',350,150);await boardPointer('pointermove',450,250);await boardPointer('pointerup',450,250);
+ expect(getBoard(id).elements.at(-1).stroke).toBe('#22D3EE');
+});
+
+test('quick actions search supports clear, IME-safe execution and keyboard focus restoration',async()=>{
+ await renderBoard();const trigger=named('Open quick actions');await act(async()=>trigger.focus());await clickNamed('Open quick actions');const input=named('Search commands');
+ expect(document.activeElement).toBe(input);expect(document.querySelector('[data-command-palette]').open).toBe(true);
+ await typeText(input,'zzzz-no-match');expect(document.querySelector('[role="option"]')).toBeNull();await clickNamed('Clear command search');expect(input.value).toBe('');expect(document.activeElement).toBe(input);
+ await typeText(input,'Ellipse tool');
+ await act(async()=>input.dispatchEvent(new browser.KeyboardEvent('keydown',{key:'Enter',isComposing:true,bubbles:true,cancelable:true})));expect(named('Search commands')).toBe(input);
+ await act(async()=>input.dispatchEvent(new browser.KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true})));await act(async()=>new Promise(resolve=>window.requestAnimationFrame(resolve)));
+ expect(named('Search commands')).toBeNull();expect(named('Ellipse (O)').getAttribute('aria-pressed')).toBe('true');expect(document.activeElement).toBe(trigger);
+});
+
+test('command shortcut respects text inputs and other open modal dialogs',async()=>{
+ await renderBoard();const editor=await startText();await typeText(editor,'Keep writing');
+ await act(async()=>editor.dispatchEvent(new browser.KeyboardEvent('keydown',{key:'k',metaKey:true,bubbles:true,cancelable:true})));expect(named('Search commands')).toBeNull();
+ await act(async()=>editor.dispatchEvent(new browser.KeyboardEvent('keydown',{key:'Enter',metaKey:true,bubbles:true})));
+ await clickNamed('Open quick actions');await typeText(named('Search commands'),'Canvas & notes themes');await act(async()=>named('Search commands').dispatchEvent(new browser.KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true})));await act(async()=>new Promise(resolve=>window.requestAnimationFrame(resolve)));
+ expect(document.querySelector('[aria-labelledby="workspace-themes-title"]').open).toBe(true);
+ await act(async()=>window.dispatchEvent(new browser.KeyboardEvent('keydown',{key:'k',metaKey:true,bubbles:true,cancelable:true})));expect(named('Search commands')).toBeNull();
+});
+
+
+test('minimap maps thin strokes and supports keyboard navigation without a drag',async()=>{
+ const element={...DEFAULT_STYLE,id:'line-map',type:'line',x:100,y:100,width:200,height:0,startX:100,startY:100,endX:300,endY:100};
+ expect(minimapLayout([element]).items).toHaveLength(1);
+ let point;await act(async()=>root.render(React.createElement(Minimap,{elements:[element],viewport:{zoom:1,pan:{x:0,y:0}},width:800,height:600,open:true,theme:'dark',onToggle:()=>{},onNavigate:next=>{point=next;}})));
+ const map=named('Navigate board map');await act(async()=>map.dispatchEvent(new browser.KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true,cancelable:true})));expect(point).toEqual({x:600,y:300});
+ await act(async()=>map.dispatchEvent(new browser.KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true})));expect(point.x).toBeCloseTo(200);expect(point.y).toBeCloseTo(100.5);
 });

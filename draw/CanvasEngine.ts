@@ -213,7 +213,7 @@ function resolveBindings(list: CanvasElement[], changed: Set<string>): CanvasEle
         touched = true;
       }
     }
-    return touched ? syncLineBox({ ...next, bendOffset: next.type === "line" || (next.routing || next.elbow) === "curved" ? next.bendOffset : undefined }) : el;
+    return touched ? syncLineBox({ ...next, bendOffset: (next.routing || (next as ArrowElement).elbow) === "straight" ? 0 : (next.type === "line" || (next.routing || (next as ArrowElement).elbow) === "curved" ? next.bendOffset : undefined) }) : el;
   });
 }
 
@@ -356,6 +356,11 @@ export class CanvasEngine {
   /** Style applied to newly created elements. */
   public currentStyle: ElementStyleProps = { ...DEFAULT_STYLE };
 
+  public setStyle(style: Partial<ElementStyleProps>) {
+    this.currentStyle = { ...this.currentStyle, ...style };
+    this.onStyleChange?.({ ...this.currentStyle });
+  }
+
   // Callbacks
   public onChange?: (elements: CanvasElement[]) => void;
   public onSelectionChange?: (selected: CanvasElement[]) => void;
@@ -462,6 +467,12 @@ export class CanvasEngine {
   }
 
   public getViewport() { return { zoom: this.zoom, pan: { ...this.pan } }; }
+  /** Centre the viewport on a canvas-space point, used by the minimap and quick navigation. */
+  public centerOn(point: Point) {
+    this.pan = { x: this.cssWidth / 2 - point.x * this.zoom, y: this.cssHeight / 2 - point.y * this.zoom };
+    this.onViewportChange?.(this.getViewport());
+    this.requestRender();
+  }
   public restoreViewport(view: { zoom: number; pan: Point }) {
     this.zoom = Math.max(0.1, Math.min(4, view.zoom)); this.pan = { ...view.pan };
     this.onZoomChange?.(this.zoom); this.requestRender();
@@ -612,7 +623,7 @@ export class CanvasEngine {
     if (ids.size === 0) return;
     this.elements = this.elements.map((el) => {
       if (!ids.has(el.id)) return el;
-      const next = { ...el, ...props } as CanvasElement;
+      const next = { ...el, ...props, ...(el.type === "icon" && props.stroke && !("iconColor" in props) ? { iconColor: props.stroke } : {}) } as CanvasElement;
       if((next.type==="text"||next.type==="sticky")&&!("textRanges" in props)){
         if("text" in el && next.text!==el.text)next.textRanges=editRanges(el.text,next.text,next.textRanges);
         const patch=Object.fromEntries(Object.entries(props).filter(([key])=>["fontSize","fontFamily","stroke","bold","italic","underline","strikethrough"].includes(key)).map(([key,value])=>[key==="stroke"?"color":key,value]));
@@ -2223,7 +2234,17 @@ export class CanvasEngine {
           animated: style.arrowAnimated || false,
         } as ArrowElement;
       case "line":
-        return { ...base, type: "line", startX: start.x, startY: start.y, endX: start.x, endY: start.y } as LineElement;
+        const lineRouting = style.lineRouting || "straight";
+        return {
+          ...base,
+          type: "line",
+          startX: start.x,
+          startY: start.y,
+          endX: start.x,
+          endY: start.y,
+          routing: lineRouting,
+          bendOffset: lineRouting === "curved" ? undefined : 0,
+        } as LineElement;
       case "pencil":
       default:
         return { ...base, type: "pencil", points: [pt] };
@@ -2260,7 +2281,7 @@ export class CanvasEngine {
         this.hoveredAnchors = startShape ? getElementAnchors(startShape) : [];
         this.snapTarget = null;
         const end = this.shiftDown ? this.constrainAngle(origin, pt) : pt;
-        next = { ...d, endX: end.x, endY: end.y, endBinding: undefined } as ArrowElement;
+        next = { ...d, endX: end.x, endY: end.y, endBinding: undefined } as ArrowElement | LineElement;
       }
       if (startShape && this.hitElement(startShape, pt, 7 / this.zoom)) {
         // Still inside the starting shape: stay unattached so a click there draws nothing.
@@ -2327,7 +2348,16 @@ export class CanvasEngine {
       finalEl = { ...d, x: b.minX, y: b.minY, width: b.maxX - b.minX, height: b.maxY - b.minY };
     } else if (d.type === "arrow" || d.type === "line") {
       keep = Math.hypot(d.endX - d.startX, d.endY - d.startY) > MIN_SIZE;
-      if (keep) finalEl = syncLineBox(d);
+      if (keep) {
+        let final = syncLineBox(d);
+        if (final.type === "line" && final.routing === "curved" && final.bendOffset === undefined) {
+          final = {
+            ...final,
+            bendOffset: Math.round(Math.max(22, Math.min(65, Math.hypot(final.endX - final.startX, final.endY - final.startY) * 0.22))),
+          };
+        }
+        finalEl = final;
+      }
     } else {
       keep = d.width > MIN_SIZE && d.height > MIN_SIZE;
     }
@@ -2449,7 +2479,7 @@ export class CanvasEngine {
     const id = el.id;
 
     if (g.handle === "mid") {
-      const routing = el.type === "arrow" ? el.routing || el.elbow || "straight" : "straight";
+      const routing = el.type === "arrow" ? el.routing || el.elbow || "straight" : (el.bendOffset === 0 ? "straight" : (el.routing || (el.bendOffset ? "curved" : "straight")));
       let bendOffset = el.bendOffset;
       if (routing === "curved" || routing === "straight") {
         const mx = (el.startX + el.endX) / 2;
@@ -2465,7 +2495,7 @@ export class CanvasEngine {
         bendOffset = horizontal ? pt.x - el.startX : pt.y - el.startY;
       }
       const nextRouting = routing === "straight" ? "curved" : routing;
-      this.elements = this.elements.map((e) => (e.id === id ? (e.type === "line" ? { ...e, bendOffset } : { ...e, routing: nextRouting, elbow: nextRouting, bendOffset } as CanvasElement) : e));
+      this.elements = this.elements.map((e) => (e.id === id ? (e.type === "line" ? { ...e, routing: nextRouting, bendOffset } : { ...e, routing: nextRouting, elbow: nextRouting, bendOffset } as CanvasElement) : e));
       return;
     }
 
