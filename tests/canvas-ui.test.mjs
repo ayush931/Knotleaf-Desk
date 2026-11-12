@@ -1034,3 +1034,12 @@ test('code Appearance prioritizes selected source, preserves syntax and siblings
  await clickNamed('Bold');saved=getBoard(board.id).elements[0];expect(saved.bold).toBe(true);expect(saved.textRanges[0].style.bold).toBeUndefined();expect(saved.textRanges[0].style.italic).toBe(true);
  await clickNamed('Finish editing code');await boardPointer('dblclick',420,260);expect(named('Code source').innerHTML).toContain('line-through');expect(getBoard(board.id).elements[1]).toEqual(sibling);
 });
+
+test('a whole-code-card font choice is remembered for the next code card',async()=>{
+ const id=await renderBoard();
+ await clickNamed('Code card (C)');await boardPointer('pointerdown',400,250);await boardPointer('pointerup',400,250);
+ await clickNamed('Open appearance settings');await chooseCanvasFont('serif');await clickNamed('Finish editing code');
+ await clickNamed('Code card (C)');await boardPointer('pointerdown',700,500);await boardPointer('pointerup',700,500);
+ expect(getBoard(id).elements.map(el=>el.fontFamily)).toEqual(['serif','serif']);expect(document.querySelector('.code-source').style.fontFamily).toContain('--font-lora');
+
+});

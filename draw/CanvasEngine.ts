@@ -1842,7 +1842,7 @@ export class CanvasEngine {
     }
 
     if (this.tool === "code") {
-      const el = this.remeasureText({ ...this.makeTextElement("", pt.x, pt.y, 14, "mono", "#eeffff", "left", true), isCodeCard: true, fill:this.currentStyle.fill === "transparent" ? CODE_CARD_FILL : this.currentStyle.fill, codeLanguage: "auto", title: "Code" });
+      const el = this.remeasureText({ ...this.makeTextElement("", pt.x, pt.y, 14, this.currentStyle.fontFamily, "#eeffff", "left", true), isCodeCard: true, fill:this.currentStyle.fill === "transparent" ? CODE_CARD_FILL : this.currentStyle.fill, codeLanguage: "auto", title: "Code" });
       this.elements = [...this.elements, el]; this.selectCreatedElement(el.id);
       this.commit(); this.editingId = el.id; this.onEditCode?.(el.id); return;
     }
