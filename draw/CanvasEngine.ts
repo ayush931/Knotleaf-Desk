@@ -2127,7 +2127,7 @@ export class CanvasEngine {
       this.requestRender();
       if (!shapeInterior && !attachedText && (!wasSelect || !["text", "sticky", "arrow", "frame"].includes(hit.type))) return;
     } else if (!wasSelect) return;
-    if (hit?.type === "arrow" && hit.label) { this.openEditorFor(hit); return; }
+    if (hit?.type === "arrow") { this.openEditorFor(hit); return; }
     if (hit?.type === "frame" && pt.y < hit.y + 8 / this.zoom) { this.openEditorFor(hit); return; }
     if (hit?.type === "text" || hit?.type === "sticky") { this.openEditorFor(hit, pt); return; }
     if (hit && !e.altKey && !shapeInterior) return;

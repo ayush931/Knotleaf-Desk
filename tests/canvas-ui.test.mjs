@@ -93,6 +93,7 @@ async function renderBoard(mode = 'canvas') {
 }
 const named = label => document.querySelector(`[aria-label="${label}"]`);
 async function clickNamed(label) { await act(async () => named(label).click()); }
+async function chooseCanvasFont(font) { await act(async()=>{const picker=named('Canvas font library');picker.focus();picker.value=font;picker.dispatchEvent(new browser.Event('change',{bubbles:true}));}); }
 async function boardPointer(type, x, y) { await act(async () => document.querySelector('main canvas').dispatchEvent(new browser.PointerEvent(type, { bubbles: true, clientX: x, clientY: y, button: 0, pointerId: 1, isPrimary: true }))); }
 async function startText(tool = 'Text & Bullets (T)') {
   await clickNamed(tool); await boardPointer('pointerdown', 100, 100); await boardPointer('pointerup', 100, 100);
@@ -108,7 +109,7 @@ test('canvas text focuses, keeps editing through Appearance formatting, saves mu
   expect(editor.dataset.placeholder).toBe('Start typing…'); expect(document.activeElement).toBe(editor);
   await typeText(editor, 'Hello\nworld'); await clickNamed('Open appearance settings');
   expect(named('Edit text')).toBe(editor); expect(document.activeElement).toBe(editor); expect(editor.value).toBe('Hello\nworld');
-  await clickNamed('Bold'); await clickNamed('Font: Lora');
+  await clickNamed('Bold'); await chooseCanvasFont('serif');
   await act(async () => editor.dispatchEvent(new browser.KeyboardEvent('keydown', { bubbles: true, key: 'Z', shiftKey: true })));
   expect(named('Show controls')).toBeNull();
   expect(editor.style.fontWeight).toBe('700');
@@ -742,10 +743,10 @@ test('selected canvas words retain independent formatting through toolbar action
 test('selected text font wins, and a later whole-object font replaces only font overrides',async()=>{
  const id=await renderBoard(),editor=await startText();await typeText(editor,'hello world');
  await act(async()=>{editor.setSelectionRange(6,11);editor.dispatchEvent(new browser.MouseEvent('mouseup',{bubbles:true}));});
- await clickNamed('Open appearance settings');await clickNamed('Font: Lora');await clickNamed('Bold');
+ await clickNamed('Open appearance settings');await chooseCanvasFont('serif');await clickNamed('Bold');
  await act(async()=>editor.dispatchEvent(new browser.KeyboardEvent('keydown',{bubbles:true,key:'Enter',metaKey:true})));
  expect(getBoard(id).elements[0].textRanges).toEqual([{start:6,end:11,style:{fontFamily:'serif',bold:true}}]);
- await clickNamed('Font: Inter');
+ await chooseCanvasFont('sans');
  const saved=getBoard(id).elements[0];expect(saved.fontFamily).toBe('sans');expect(saved.textRanges).toEqual([{start:6,end:11,style:{bold:true}}]);
 });
 
@@ -768,7 +769,7 @@ test('a group of selected text objects exposes fonts and changes every selected 
  const id=await renderBoard();
  for(const text of ['First','Second']){const editor=await startText();await typeText(editor,text);await act(async()=>editor.dispatchEvent(new browser.KeyboardEvent('keydown',{bubbles:true,key:'Enter',metaKey:true})));}
  await clickNamed('Select (V)');document.querySelector('main canvas').focus();await act(async()=>window.dispatchEvent(new browser.KeyboardEvent('keydown',{key:'a',metaKey:true,bubbles:true})));
- await clickNamed('Open appearance settings');expect(named('Canvas font library')).toBeTruthy();await clickNamed('Font: Lora');
+ await clickNamed('Open appearance settings');expect(named('Canvas font library')).toBeTruthy();await chooseCanvasFont('serif');
  const saved=getBoard(id).elements;expect(saved).toHaveLength(2);expect(saved.every(el=>el.fontFamily==='serif')).toBe(true);
 });
 
@@ -948,4 +949,53 @@ test('arrow labels use the same readable editing surface, save independently, an
  // Starting another text draft commits this label in the same pointer event.
  editor=await startText();expect(editor.style.padding).toBe('0px');expect(editor.style.background).toBe('transparent');expect(editor.style.boxShadow).toBe('none');
  expect(getBoard(board.id).elements.find(element=>element.id==='label-one').label).toBe('Saved from\nAppearance');expect(getBoard(board.id).elements.find(element=>element.id==='label-two')).toEqual(board.elements[1]);
+});
+
+test('native multiline insertion preserves line breaks and replaces only the selected text',async()=>{
+ const id=await renderBoard(),editor=await startText();await typeText(editor,'hello world');editor.setSelectionRange(6,11);
+ const input=new browser.InputEvent('beforeinput',{inputType:'insertText',data:'team\r\nnext',bubbles:true,cancelable:true});await act(async()=>editor.dispatchEvent(input));expect(input.defaultPrevented).toBe(true);expect(editor.value).toBe('hello team\nnext');expect(editor.selectionStart).toBe(15);
+ await act(async()=>editor.dispatchEvent(new browser.KeyboardEvent('keydown',{key:'Enter',metaKey:true,bubbles:true})));expect(getBoard(id).elements[0].text).toBe('hello team\nnext');
+});
+test('browser-created block lines preserve both text and caret offsets when normalized',async()=>{
+ await renderBoard();const editor=await startText();await typeText(editor,'Original');
+ await act(async()=>{editor.innerHTML='<span>First</span><div><span>Second</span></div>';const range=document.createRange();range.setStart(editor.lastChild.firstChild.firstChild,6);range.collapse(true);window.getSelection().removeAllRanges();window.getSelection().addRange(range);editor.dispatchEvent(new browser.InputEvent('input',{inputType:'insertText',data:'Second',bubbles:true}));});
+ expect(editor.value).toBe('First\nSecond');expect(editor.selectionStart).toBe(12);expect(editor.innerHTML).not.toContain('<div>');
+});
+test('software-keyboard Enter continues lists and exits an empty item using the same command',async()=>{
+ await renderBoard();const editor=await startText();await typeText(editor,'- First');
+ await act(async()=>editor.dispatchEvent(new browser.InputEvent('beforeinput',{inputType:'insertParagraph',bubbles:true,cancelable:true})));expect(editor.value).toBe('- First\n- ');
+ await act(async()=>editor.dispatchEvent(new browser.InputEvent('beforeinput',{inputType:'insertParagraph',bubbles:true,cancelable:true})));expect(editor.value).toBe('- First\n');
+});
+test('rapid Enter and paste use the latest text and caret without deferred selection jumps',async()=>{
+ await renderBoard();const editor=await startText();await typeText(editor,'- First');
+ await act(async()=>{for(const text of ['Second','Third']){editor.dispatchEvent(new browser.KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}));const paste=new browser.Event('paste',{bubbles:true,cancelable:true});Object.defineProperty(paste,'clipboardData',{value:{getData:()=>text}});editor.dispatchEvent(paste);}});
+ expect(editor.value).toBe('- First\n- Second\n- Third');expect(editor.selectionStart).toBe(editor.value.length);
+});
+test('composition retains native text through formatting rerenders and ignores an unflagged Enter',async()=>{
+ await renderBoard();const editor=await startText();await typeText(editor,'Original');editor.select();await clickNamed('Open appearance settings');
+ await act(async()=>{editor.dispatchEvent(new browser.CompositionEvent('compositionstart',{bubbles:true}));editor.textContent='日本';editor.setSelectionRange(2,2);editor.dispatchEvent(new browser.InputEvent('input',{inputType:'insertCompositionText',isComposing:true,bubbles:true}));});
+ await clickNamed('Bold');expect(editor.textContent).toBe('日本');await act(async()=>editor.dispatchEvent(new browser.KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true})));expect(editor.value).toBe('日本');
+ await act(async()=>editor.dispatchEvent(new browser.CompositionEvent('compositionend',{data:'日本',bubbles:true})));expect(editor.value).toBe('日本');
+});
+test('blurring during composition flushes the current text before committing the object',async()=>{
+ const id=await renderBoard(),editor=await startText();await typeText(editor,'Original');
+ await act(async()=>{editor.dispatchEvent(new browser.CompositionEvent('compositionstart',{bubbles:true}));editor.textContent='文字';editor.dispatchEvent(new browser.InputEvent('input',{inputType:'insertCompositionText',isComposing:true,bubbles:true}));editor.dispatchEvent(new browser.FocusEvent('focusout',{bubbles:true,relatedTarget:document.querySelector('main canvas')}));});
+ expect(getBoard(id).elements[0].text).toBe('文字');
+});
+
+test('indenting multiple selected lines preserves their independent character formatting',async()=>{
+ const id=await renderBoard(),editor=await startText();await typeText(editor,'First\nSecond');editor.setSelectionRange(0,5);await clickNamed('Open appearance settings');await clickNamed('Bold');editor.setSelectionRange(6,12);await clickNamed('Italic');
+ editor.focus();editor.select();await act(async()=>editor.dispatchEvent(new browser.KeyboardEvent('keydown',{key:'Tab',bubbles:true,cancelable:true})));expect(editor.value).toBe('  First\n  Second');
+ await act(async()=>editor.dispatchEvent(new browser.KeyboardEvent('keydown',{key:'Enter',metaKey:true,bubbles:true})));
+ const ranges=getBoard(id).elements[0].textRanges;expect(ranges.some(range=>range.start<=2&&range.end>=7&&range.style.bold)).toBe(true);expect(ranges.some(range=>range.start<=10&&range.end>=16&&range.style.italic)).toBe(true);expect(ranges.some(range=>range.start<=10&&range.end>=16&&range.style.bold)).toBe(false);
+});
+
+test('an empty editor keeps the caret before its placeholder break and clamps textarea-style selections',async()=>{
+ await renderBoard();const editor=await startText();editor.setSelectionRange(0,0);expect(editor.firstChild.nodeType).toBe(3);expect(window.getSelection().anchorNode).toBe(editor.firstChild);editor.setSelectionRange(100,200);expect([editor.selectionStart,editor.selectionEnd]).toEqual([0,0]);
+ await typeText(editor,'First');editor.setSelectionRange(99,200);expect([editor.selectionStart,editor.selectionEnd]).toEqual([5,5]);
+});
+
+test('non-cancelable native insertion is normalized after input rather than inserted twice',async()=>{
+ await renderBoard();const editor=await startText();await typeText(editor,'Original');editor.select();const before=new browser.InputEvent('beforeinput',{inputType:'insertText',data:'First\nSecond',bubbles:true,cancelable:false});await act(async()=>editor.dispatchEvent(before));expect(editor.value).toBe('Original');
+ await act(async()=>{editor.innerHTML='First<div>Second</div>';editor.dispatchEvent(new browser.InputEvent('input',{inputType:'insertText',data:'Second',bubbles:true}));});expect(editor.value).toBe('First\nSecond');
 });

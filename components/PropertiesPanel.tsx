@@ -13,7 +13,6 @@ import { ColorControl } from "./ColorControl";
 import { FontSelect } from "./FontSelect";
 import { COLOR_MOODS, PREMIUM_BACKGROUND_MOODS } from "@/lib/premiumPalette";
 import type { FormattingState } from "@/draw/textRanges";
-import { QUICK_FONTS, fontCssStack } from "@/draw/fonts";
 import {
   FontFamily,
   CanvasElement,
@@ -340,25 +339,8 @@ export function PropertiesPanel({
             <span className="flex-1 text-center text-xs font-mono tabular-nums text-neutral-800 dark:text-neutral-200">{Math.round(activeFontSize)}px</span>
             <button onClick={() => onChangeFontSize(2)} title="Larger (Cmd/Ctrl+Shift+Period)" aria-label="Increase font size" aria-keyshortcuts="Meta+Shift+Period Control+Shift+Period" className="w-7 h-7 rounded-md bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-200 text-sm font-semibold">+</button>
           </div>
-          <div role="group" aria-label="Font family" className="grid grid-cols-2 gap-1 p-0.5 mt-1.5 rounded-lg bg-neutral-100 dark:bg-neutral-800 text-[11px]">
-            {QUICK_FONTS.map(({ id: fam, label }) => (
-              <button
-                key={fam}
-                aria-label={`Font: ${label}`}
-                aria-pressed={activeFamily === fam}
-                style={{ fontFamily: fontCssStack(fam) }}
-                onClick={() => {
-                  onUpdateElement({ fontFamily: fam });
-                  onUpdateStyle({ fontFamily: fam });
-                }}
-                className={`min-h-7 px-1 py-1 rounded font-medium transition cursor-pointer focus-visible:outline-2 focus-visible:outline-black dark:focus-visible:outline-white active:bg-neutral-200 dark:active:bg-neutral-600 ${activeFamily === fam ? "bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white shadow-xs" : "text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200/60 dark:hover:bg-neutral-700/60 hover:text-neutral-900 dark:hover:text-white"}`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
           <label className="block text-[11px] text-neutral-500">Font library
-            <FontSelect aria-label="Canvas font library" value={activeFamily} onChange={event=>{const fontFamily=event.target.value as FontFamily;onUpdateElement({fontFamily});onUpdateStyle({fontFamily});}} className="mt-1 w-full rounded-lg border px-2 py-2 text-xs" />
+            <FontSelect aria-label="Canvas font library" value={activeFamily} onChange={event=>{const fontFamily=event.target.value as FontFamily;onUpdateElement({fontFamily});onUpdateStyle({fontFamily});}} className="mt-1 w-full rounded-lg border border-neutral-300 bg-white px-2 py-2 text-xs text-neutral-900 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100" />
           </label>
           {isTextual && (
             <div className="grid grid-cols-3 gap-1 p-0.5 mt-1 rounded-lg bg-neutral-100 dark:bg-neutral-800 text-[11px]">

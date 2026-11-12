@@ -96,3 +96,15 @@ Arrow labels now use larger 16px/600 text, solid contrast plates, multiline wrap
 - Chrome verified straight, curved and elbow labels in both modes; centered edit geometry; lower-line selection; synchronized Appearance edits; independent labels; offset bend dragging and undo; an actual SVG download retaining typography/content; and reload persistence. No runtime errors.
 
 Previously documented physical-device and external-service verification limits remain.
+
+## Text input and font-control follow-up
+
+Reproduced native multiline insertion flattening `First\nSecond` into `FirstSecond`. RangeTextEditor now reads native block/BR boundaries as newlines, normalizes multiline insertion and paste, and distinguishes its caret placeholder. Enter/Tab transactions are shared by hardware and software input, apply immediately without deferred caret movement, and preserve independent formatting across selected-line indentation. Composition text survives styling rerenders, composing Enter is ignored, blur flushes it before commit, and non-cancelable events are normalized without double insertion. Empty-editor selection restoration places the caret before its break.
+
+Removed the quick font-button grid; the single grouped font dropdown retains all 31 choices. Double-clicking an unlabeled arrow now opens its label editor directly.
+
+- `bun test`: **842 passed**, **2 PostgreSQL-dependent skipped**, across 59 files. Typecheck, lint, production build and strict UI audit passed. DESIGN.md lint had zero errors and three existing orphan-token warnings.
+- New regressions cover DOM newline normalization/caret offsets, native replacement, list continuation/exit, Shift+Enter, rapid input, selected-line indent/outdent with rich marks, composition rerenders/blur, non-cancelable input, empty caret placement and blank-arrow editing.
+- Chrome on macOS verified native multiline insertion, Enter/Delete/undo/redo in plain text/document/sticky editors, unchanged sibling objects, Option+Backspace, rapid lists, software Enter, composition commit/undo/redo, the dropdown-only font UI with selected-text priority, initial arrow-label typing and reload persistence. No runtime errors.
+
+Safari/physical touch and the previously documented external-service cases were not exercised in this pass.
