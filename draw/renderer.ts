@@ -97,6 +97,8 @@ export function setFont(
   weight: number | string = 500,
   italic = false
 ) {
+  // Match RangeTextEditor and per-character rich-text painting.
+  ctx.fontKerning = "none";
   ctx.font = `${italic ? "italic " : ""}${weight} ${size}px ${fontStack(family)}`;
 }
 

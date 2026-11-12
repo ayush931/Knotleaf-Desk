@@ -928,7 +928,10 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
       editor.style.minHeight = `${layout.minHeight}px`;
       editor.style.height = "auto";
       editor.style.height = `${Math.min(layout.maxHeight, Math.max(layout.minHeight, editor.scrollHeight, inlineText.screenHeight || 0))}px`;
-      editor.style.overflowY = "hidden";
+      // Preserve alignment width while allowing italic/marker glyph overhangs.
+      // Both axes must be visible: hidden on either axis creates a scroll clip.
+      editor.style.overflowX = "visible";
+      editor.style.overflowY = "visible";
       // Native caret scrolling must not offset the source relative to the canvas.
       editor.scrollLeft = 0; editor.scrollTop = 0;
     };
@@ -1235,7 +1238,8 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
                     outline: inlineText.boxWidth ? `1px solid ${uiAccent(lightCanvas)}` : "none",
                     outlineOffset: "3px",
                     resize: "none",
-                    overflowX: "hidden",
+                    overflowX: "visible",
+                    overflowY: "visible",
                     boxShadow: "none",
                     ...(inlineText.kind === "label" && selectedElement?.type === "arrow" ? arrowLabelEditorStyle(viewport.zoom, lightCanvas) : {}),
                   }}

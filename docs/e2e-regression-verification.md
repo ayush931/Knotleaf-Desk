@@ -127,3 +127,11 @@ Added a self-hosted OFL derivative of Shantell Sans with restrained informality,
 - FontTools inspection verified both generated family names, weight axes, complete Unicode coverage and absence of contextual randomization.
 - Chrome on macOS loaded all six normal/italic 400/500/700 requests using the actual local faces. Checked fresh Sketch defaults, free-text wrapping/Enter, bold/italic, selected-range Caveat compatibility, all 32 font choices, save/reload and narrow workspace rendering. No runtime errors.
 - Inspected the rendered font at 16/20/24/30/52px on light/dark surfaces; specimen: [Knotleaf Sketch](assets/knotleaf-sketch.png). Existing saved font IDs and persisted device font choices are retained. Safari/physical touch and live collaboration were not exercised in this pass.
+
+## Final-character clipping in Knotleaf Sketch
+
+Reproduced real DOM text widths exceeding the canvas-sized editing box: `Testing the last character` measured 225.69px in the editor versus its 221px box, and a longer sentence measured 530.23px versus 524px. Canvas kerning differed from the editor, and hidden overflow cut off the right edge. Shared setFont now disables kerning consistently; generic editors allow glyph overhangs on both axes without changing alignment padding or coordinates. The same cases now fit inside 226px and 531px boxes with no caret scrolling.
+
+- 845 automated tests passed; 2 PostgreSQL-dependent tests skipped. Lint, typecheck, webpack production build and strict UI audit passed.
+- Chrome on macOS verified the reproduced sentences, all 32 font choices, three zoom levels, rapid typing, explicit multiline input, Enter/Shift+Enter, deletion, Option+Backspace, undo/redo, lists, software Enter, IME composition, selected-range fonts, independent objects, document/sticky/text-box wrapping, arrow labels and save/reload. No runtime errors.
+- Updated the anchored-editor regression to require visible overflow on both axes, retaining zero scroll offsets and unchanged alignment coordinates. Safari/physical touch were not tested in this pass.

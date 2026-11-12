@@ -633,7 +633,7 @@ test('first text creation stays anchored through typing, native caret scrolling,
   for(const text of ['i','A long first line that extends beyond the viewport','First line\nSecond line\n'.repeat(30)]){
    await typeText(editor,text);expect([editor.style.left,editor.style.top]).toEqual([`${x}px`,`${y}px`]);
    await act(async()=>{editor.scrollLeft=2;editor.scrollTop=20;editor.dispatchEvent(new browser.Event('scroll',{bubbles:true}));});
-   expect([editor.scrollLeft,editor.scrollTop]).toEqual([0,0]);expect(editor.style.overflowY).toBe('hidden');
+   expect([editor.scrollLeft,editor.scrollTop]).toEqual([0,0]);expect(editor.style.overflowY).toBe('visible');expect(editor.style.overflowX).toBe('visible');
   }
   const text=editor.value;
   await boardPointer('pointerdown',20,20);await boardPointer('pointerup',20,20);
