@@ -1,5 +1,5 @@
 import {test,expect} from 'bun:test';
-import {WORKSPACE_THEMES,workspacePalette,normalizeWorkspaceThemes,applyWorkspaceTheme,workspaceThemeStyle} from '../lib/workspaceThemes.ts';
+import {WORKSPACE_THEMES,workspacePalette,normalizeWorkspaceThemes,applyWorkspaceTheme,workspaceThemeStyle,workspaceControlPalette} from '../lib/workspaceThemes.ts';
 import {canvasBackground,canvasElementAppearance} from '../draw/canvasAppearance.ts';
 const luminance=hex=>hex.slice(1).match(/../g).map(v=>parseInt(v,16)/255).map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4).reduce((sum,v,i)=>sum+v*[.2126,.7152,.0722][i],0);
 const contrast=(a,b)=>{const x=luminance(a),y=luminance(b);return(Math.max(x,y)+.05)/(Math.min(x,y)+.05);};
@@ -39,4 +39,14 @@ test('selection and connector UI use contrasting monochrome ink on both canvas m
   drawSelection(ctx,shape,1,[],light);drawConnectorHandles(ctx,shape,1,'right',light);drawElementAnchors(ctx,getElementAnchors(shape),'left',1,light);
   expect(colors).toContain(light?'#000000':'#FFFFFF');expect(colors.some(c=>/3b82f6|59, ?130|96, ?165/i.test(c))).toBe(false);
  }
+});
+
+
+test('Clay keeps primary and selected controls readable in both modes and saves by its own name',()=>{
+ expect(WORKSPACE_THEMES.find(theme=>theme.id==='clay').name).toBe('Clay');
+ for(const mode of ['light','dark']){
+  const ui=workspaceControlPalette(mode,'clay');expect(contrast(ui['active-ink'],ui.active)).toBeGreaterThanOrEqual(4.5);expect(contrast(ui['info-ink'],ui.info)).toBeGreaterThanOrEqual(4.5);
+  const p=workspacePalette('clay',mode);expect(workspaceThemeStyle('clay',mode,true)['--notes-bg']).toBe(p.background);
+ }
+ expect(normalizeWorkspaceThemes({canvas:'clay',notes:'clay'})).toEqual({canvas:'clay',notes:'clay'});
 });

@@ -71,3 +71,11 @@ The Appearance trigger now supports immediate pointer dragging, saved canvas-rel
 - Single-shape stroke, fill, width, corners and opacity checks preserve every unselected object; dragging the trigger preserves all artwork. Live browser checks also confirmed independent shape colors/fills.
 
 Physical touch hardware and Safari remain outside the browser coverage recorded here.
+
+## Clay theme verification
+
+Clay adds warm paper and terracotta in Light, and soft charcoal with muted terracotta in Dark. It uses the shared theme registry, scope controls, persisted preferences, gallery, quick actions, Canvas and Notes tokens.
+
+- `bun test`: **819 passed**, **2 PostgreSQL-dependent skipped**. Typecheck, lint, production build and strict UI audit passed.
+- Contrast checks cover body/muted text, primary actions and selected controls in both modes.
+- Chrome verified Canvas/Notes in Light and Dark, reload persistence, Notes-only scope, preserved custom canvas backgrounds when replacement is unchecked, unchanged custom artwork/geometry and a 390px theme gallery. No runtime errors.
