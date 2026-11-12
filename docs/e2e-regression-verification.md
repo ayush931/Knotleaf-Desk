@@ -60,3 +60,14 @@ Formatting states now summarize the entire selected passage or object group, inc
 - Chrome at 1440px and 390px: all four marks toggle visibly on selected characters, selected text and focus survive icon clicks, mixed selection toggles correctly, whole-object formatting undoes in one step, the font picker has 31 choices, no floating selection toolbar appears, and Appearance remains legible and within the viewport in Dark/Light. No runtime errors or horizontal overflow.
 
 The previously documented external-service and physical-device verification limits remain.
+
+## Draggable Appearance verification
+
+The Appearance trigger now supports immediate pointer dragging, saved canvas-relative coordinates, keyboard movement/reset and viewport clamping. Clicking still opens the inspector near the trigger. Cancellation restores the prior position, and dragging preserves character selection.
+
+- `bun test`: **812 passed**, **2 PostgreSQL-dependent skipped**. Typecheck, lint, production build and strict UI audit passed.
+- Component regressions cover drag/click distinction, reload/remount, cancellation/blur/Escape, resize, keyboard/reset and malformed preferences.
+- Chrome checked actual mouse and emulated touch dragging, reload persistence, click-to-open, viewport/panel clamping, keyboard movement/reset and selected-text formatting after a drag. No runtime errors.
+- Single-shape stroke, fill, width, corners and opacity checks preserve every unselected object; dragging the trigger preserves all artwork. Live browser checks also confirmed independent shape colors/fills.
+
+Physical touch hardware and Safari remain outside the browser coverage recorded here.
