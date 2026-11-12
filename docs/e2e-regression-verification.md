@@ -47,3 +47,16 @@ The unfinished local UI draft was reconciled with the merged text-editing and Ap
 - Chrome production-build checks at 1440px and 390px: quick-action modal focus/Escape/restore, Tab containment, empty search and Clear, keyboard execution, selection color/duplicate/undo, keyboard minimap pan/center, selected-word quick color, curved-line creation, saved route/geometry after reload, Aurora Dark/Light, Citrus Light, compact swatches and responsive dialog/close controls. No browser runtime errors or horizontal document overflow.
 
 The existing external authentication, OS notification, physical Safari/touch and PostgreSQL verification limits still apply.
+
+## Appearance simplification and formatting verification
+
+Removed the six added font families (Geist, Sora, Bricolage Grotesque, Newsreader, Handlee and IBM Plex Sans) from selectors and bundles, leaving 31 shared families. Presentation defaults use retained fonts. Removed the floating object-selection color/action toolbar. Appearance now has a visible labeled trigger, a clearer panel border/header and larger labeled formatting controls.
+
+Formatting states now summarize the entire selected passage or object group, including gaps and explicit false overrides. Mixed formatting is exposed through `aria-pressed="mixed"`; one click applies the mark throughout the selection. Group formatting no longer adds an empty extra history entry. SVG-icon clicks preserve the active text selection.
+
+- `bun test`: **807 passed**, **2 PostgreSQL-dependent skipped**.
+- Typecheck, lint, production build and strict UI audit: passed.
+- DESIGN.md lint: zero errors, three existing orphan-token warnings.
+- Chrome at 1440px and 390px: all four marks toggle visibly on selected characters, selected text and focus survive icon clicks, mixed selection toggles correctly, whole-object formatting undoes in one step, the font picker has 31 choices, no floating selection toolbar appears, and Appearance remains legible and within the viewport in Dark/Light. No runtime errors or horizontal overflow.
+
+The previously documented external-service and physical-device verification limits remain.

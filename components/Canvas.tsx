@@ -1,6 +1,6 @@
 "use client";
 import { RangeTextEditor } from "./RangeTextEditor";
-import { clearRangeOverrides, editRanges, formatRange, rangeStyleAt } from "@/draw/textRanges";
+import { clearRangeOverrides, editRanges, formatRange, rangeStyleAt, rangeFormattingState, FORMAT_KEYS, type FormattingState } from "@/draw/textRanges";
 import { canvasBackground, canvasElementAppearance, neutralInk } from "@/draw/canvasAppearance";
 import { stepCanvasFontSize, textSizeShortcut } from "@/lib/textShortcuts";
 import { usePointerDrag } from "@/lib/usePointerDrag";
@@ -32,7 +32,7 @@ import { useCanvasFocus } from "@/lib/useCanvasFocus";
 import { Classroom } from "./Classroom";
 import { CollaborationPanel } from "./CollaborationPanel";
 import { CanvasEngine } from "@/draw/CanvasEngine";
-import { loadCanvasFonts, setFont, measureTextBlock, uiAccent, getElementBounds } from "@/draw/renderer";
+import { loadCanvasFonts, setFont, measureTextBlock, uiAccent } from "@/draw/renderer";
 import { fontCssStack } from "@/draw/fonts";
 import { isColorTool, colorToolForElement, rememberToolColors, type ColorTool } from "@/draw/toolColors";
 import type { CodeViewState } from "@/draw/codeLayout";
@@ -79,7 +79,6 @@ import { TOOL_DEFINITIONS, TopToolbar } from "./TopToolbar";
 import { PropertiesPanel } from "./PropertiesPanel";
 import { CommandPalette, type CommandTone, type PaletteCommand } from "./CommandPalette";
 import { Minimap } from "./Minimap";
-import { SelectionToolbar } from "./SelectionToolbar";
 import { CanvasWelcome } from "./CanvasWelcome";
 import { IconPickerModal } from "./IconPickerModal";
 import { TemplatesModal } from "./TemplatesModal";
@@ -212,7 +211,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
   const [codeId, setCodeId] = useState<string | null>(null);
   const [recording, setRecording] = useState(false);
   const codeElement = board.elements.find(el => el.id === codeId && el.type === "text" && el.isCodeCard);
-  const [textSelection,setTextSelection]=useState(0);
+  const [textSelection,setTextSelection]=useState({start:0,end:0});
   const [inlineText, renderInlineText] = useState<InlineTextState | null>(null);
   const inlineTextStateRef = useRef<InlineTextState | null>(null);
   const inlineHistory = useRef<{past:{state:InlineTextState;start:number;end:number}[];future:{state:InlineTextState;start:number;end:number}[]}>({past:[],future:[]});
@@ -391,7 +390,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
       if (current) engine.commitInlineText(current);
       setInlineText(null); engine.finishCode(); setCodeId(null);
     };
-    engine.onStartInlineText = state => { inlineHistory.current={past:[],future:[]}; inlineEditSelection.current=null; inlineTextStateRef.current = state; setInlineText(state); };
+    engine.onStartInlineText = state => { setTextSelection({start:state.caret ?? 0,end:state.caret ?? state.text.length}); inlineHistory.current={past:[],future:[]}; inlineEditSelection.current=null; inlineTextStateRef.current = state; setInlineText(state); };
     engine.onZoomChange = (z) => setZoom(z);
     engine.onToolChange = (t) => {
       if (isColorTool(t)) {
@@ -874,15 +873,15 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
     engine.setStyle({ stroke: color });
   };
 
-  const applySelectionStrokeWidth = (width: number) => {
-    const engine = engineRef.current;
-    if (!engine) return;
-    engine.updateSelectedElement({ strokeWidth: width });
-    engine.setStyle({ strokeWidth: width });
-  };
-
-  const selectedTextStyle=rangeStyleAt(inlineText?.textRanges,textSelection);
+  const selectedTextStyle=rangeStyleAt(inlineText?.textRanges,textSelection.start);
   const isInlineTextual = !!inlineText && ["new-text", "text", "sticky"].includes(inlineText.kind);
+  const selectedFormatting = selectedElements.filter(element => element.type === "text" || element.type === "sticky").map(element => rangeFormattingState(element.text, element.textRanges, element));
+  const formattingState: FormattingState = isInlineTextual
+    ? rangeFormattingState(inlineText!.text, inlineText!.textRanges, inlineText!, textSelection.start, textSelection.end)
+    : Object.fromEntries(FORMAT_KEYS.map(key => {
+      const values = selectedFormatting.map(state => state[key]);
+      return [key, values.length ? values.every(value => value === values[0]) ? values[0] : "mixed" : !!currentStyle[key]];
+    })) as FormattingState;
   const textOptionsVisible = selectedTool === "text" || isInlineTextual || selectedElements.length > 0 && selectedElements.every(el=>el.type === "text" || el.type === "sticky");
   const inlinePlaceholder = inlineText?.kind === "sticky" ? "Write a sticky note…" : selectedElement?.type === "text" && selectedElement.isDocCard ? "Write your document notes…" : inlineText?.kind === "frame-title" ? "Name this frame…" : inlineText?.kind === "label" ? "Add a label…" : "Start typing…";
   useLayoutEffect(() => {
@@ -968,28 +967,6 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
   },[viewMode,focusMode,isPresentationOpen]);
 
   useEffect(() => { engineRef.current?.setKeyboardEnabled(viewMode === "canvas" || viewMode === "split" || focusMode || isPresentationOpen); }, [viewMode, focusMode, isPresentationOpen]);
-
-  const selectionScreen = useMemo(() => {
-    if (!selectedElements.length || inlineText || appearanceOpen || isPresentationOpen || focusMode || stageSize.width < 480 || stageSize.height < 320) return null;
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    for (const element of selectedElements) {
-      try {
-        const bounds = getElementBounds(element, board.elements);
-        minX = Math.min(minX, bounds.minX); minY = Math.min(minY, bounds.minY);
-        maxX = Math.max(maxX, bounds.maxX); maxY = Math.max(maxY, bounds.maxY);
-      } catch { /* An unfinished element can be skipped until it has geometry. */ }
-    }
-    if (!Number.isFinite(minX)) return null;
-    const left = minX * viewport.zoom + viewport.pan.x, right = maxX * viewport.zoom + viewport.pan.x;
-    const top = minY * viewport.zoom + viewport.pan.y, bottom = maxY * viewport.zoom + viewport.pan.y;
-    if (right < 0 || left > stageSize.width || bottom < 0 || top > stageSize.height) return null;
-    const above = top > 108;
-    return {
-      left: Math.max(176, Math.min(stageSize.width - 176, (left + right) / 2)),
-      top: above ? Math.min(stageSize.height - 16, top - 14) : Math.min(stageSize.height - 58, bottom + 14),
-      placement: above ? "above" as const : "below" as const,
-    };
-  }, [selectedElements, board.elements, viewport, stageSize, inlineText, appearanceOpen, isPresentationOpen, focusMode]);
 
   const showWelcome = !initialRoomId && welcomeDismissedFor !== board.id
     && board.elements.length === 0
@@ -1170,14 +1147,14 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
                   <button type="button" aria-label="Finish document editing" title="Finish · Ctrl/Cmd+Enter" className="note-tool text-neutral-400" onClick={commitInline}><Check className="h-4 w-4"/></button>
                 </div>}
 
-                <RangeTextEditor onBeforeEdit={(start,end)=>{inlineEditSelection.current??={start,end};}} onHistory={changeInlineHistory} light={lightCanvas} textRanges={inlineText.textRanges} fontScale={zoom} onSelect={event=>setTextSelection(event.currentTarget.selectionStart)}
+                <RangeTextEditor onBeforeEdit={(start,end)=>{inlineEditSelection.current??={start,end};}} onHistory={changeInlineHistory} light={lightCanvas} textRanges={inlineText.textRanges} fontScale={zoom} onSelect={event=>setTextSelection({start:event.currentTarget.selectionStart,end:event.currentTarget.selectionEnd})}
                   className="canvas-text-editor resize-none select-text"
                   data-surface={inlineText.kind === "sticky" ? "sticky" : "canvas"}
                   ref={inlineTextareaRef}
                   value={inlineText.text}
                   onScroll={event => { event.currentTarget.scrollLeft = 0; event.currentTarget.scrollTop = 0; }}
                   aria-label="Edit text"
-                  onChange={(e) => setInlineText((prev) => (prev ? { ...prev, text: e.target.value } : null))}
+                  onChange={(e) => { setTextSelection({start:e.currentTarget.selectionStart,end:e.currentTarget.selectionEnd}); setInlineText((prev) => (prev ? { ...prev, text: e.target.value } : null)); }}
                   onBlur={event => {
                     if (event.relatedTarget instanceof HTMLElement && event.relatedTarget.closest("[data-text-controls]")) return;
                     commitInline();
@@ -1191,7 +1168,8 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
                     if (mod && format && isInlineTextual) {
                       e.preventDefault();
                       e.stopPropagation();
-                      updateInlineStyle({[format]: !(rangeStyleAt(inlineTextStateRef.current?.textRanges,e.currentTarget.selectionStart)[format] ?? inlineTextStateRef.current?.[format])});
+                      const current = inlineTextStateRef.current;
+                      if (current) updateInlineStyle({[format]: rangeFormattingState(current.text,current.textRanges,current,e.currentTarget.selectionStart,e.currentTarget.selectionEnd)[format] !== true});
                       return;
                     }
                     // Size first: Mac browsers can report Cmd+Shift+Period as Escape.
@@ -1367,6 +1345,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
                 preserveTextFocus={isInlineTextual}
                 selectedElement={isInlineTextual && selectedElement && (selectedElement.type === "text" || selectedElement.type === "sticky") ? { ...selectedElement, fontSize: inlineText!.fontSize, fontFamily: inlineText!.fontFamily, textAlign: inlineText!.align, stroke: inlineText!.color, bold: inlineText!.bold, italic: inlineText!.italic, underline: inlineText!.underline, strikethrough: inlineText!.strikethrough, text: inlineText!.text, ...selectedTextStyle, ...(selectedTextStyle.color?{stroke:selectedTextStyle.color}:{}) } : selectedTool === "text" ? null : selectedElement}
                 selectionCount={selectedElements.length}
+                formattingState={formattingState}
                 currentStyle={isInlineTextual ? { ...currentStyle, fontSize: inlineText!.fontSize, fontFamily: inlineText!.fontFamily, textAlign: inlineText!.align, stroke: inlineText!.color, bold: inlineText!.bold, italic: inlineText!.italic, underline: inlineText!.underline, strikethrough: inlineText!.strikethrough, ...selectedTextStyle, ...(selectedTextStyle.color?{stroke:selectedTextStyle.color}:{}) } : currentStyle}
                 onUpdateStyle={(st) => {
                   if (st.stroke) rememberColor(st.stroke);
@@ -1376,7 +1355,8 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
                   const defaults = editingExisting ? otherStyle : st;
                   const nextStyle = { ...(engineRef.current?.currentStyle || currentStyle), ...defaults };
                   if (editingExisting && selectedElements.length > 1) {
-                    engineRef.current?.updateSelectedElement({ ...("stroke" in st ? { stroke } : {}), ...("fill" in st ? { fill } : {}), ...("fillStyle" in st ? { fillStyle } : {}), ...("fillOpacity" in st ? { fillOpacity } : {}) });
+                    const colors = { ...("stroke" in st ? { stroke } : {}), ...("fill" in st ? { fill } : {}), ...("fillStyle" in st ? { fillStyle } : {}), ...("fillOpacity" in st ? { fillOpacity } : {}) };
+                    if (Object.keys(colors).length) engineRef.current?.updateSelectedElement(colors);
                   }
                   const editedElement = isInlineTextual && inlineText?.elementId ? engineRef.current?.getElements().find(element=>element.id===inlineText.elementId) : undefined;
                   const tools: ColorTool[] = isInlineTextual
@@ -1412,20 +1392,6 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
                 theme={theme}
               /></div>
             )}
-
-            {selectionScreen && !codeElement && (viewMode === "canvas" || viewMode === "split") && <SelectionToolbar
-              left={selectionScreen.left}
-              top={selectionScreen.top}
-              placement={selectionScreen.placement}
-              selectionCount={selectedElements.length}
-              activeStroke={selectedElement?.stroke || currentStyle.stroke}
-              strokeWidth={selectedElement?.strokeWidth ?? currentStyle.strokeWidth}
-              onColor={applyQuickColor}
-              onStrokeWidth={applySelectionStrokeWidth}
-              onDuplicate={() => { commitInline(); engineRef.current?.duplicateSelected(); }}
-              onDelete={() => { commitInline(); engineRef.current?.deleteSelected(); }}
-              onOpenAppearance={() => setAppearanceOpen(true)}
-            />}
 
             {!isPresentationOpen && !focusMode && selectedElements.length > 1 && <SelectionTools selection={selectedElements} onUndo={() => engineRef.current?.undo()} onRedo={() => engineRef.current?.redo()} onConnect={() => engineRef.current?.connectSelected()} onArrange={mode => engineRef.current?.arrangeSelected(mode)} />}
 

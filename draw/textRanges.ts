@@ -42,3 +42,15 @@ export function clearRangeOverrides(ranges:TextRange[]|undefined,style:RangeStyl
  const keys=Object.keys(style);
  return ranges.map(r=>({...r,style:Object.fromEntries(Object.entries(r.style).filter(([key])=>!keys.includes(key)))})).filter(r=>Object.keys(r.style).length);
 }
+
+export const FORMAT_KEYS = ['bold', 'italic', 'underline', 'strikethrough'] as const;
+export type FormattingState = Record<(typeof FORMAT_KEYS)[number], boolean | 'mixed'>;
+/** Summarize the complete passage, including unformatted gaps and explicit false overrides. */
+export function rangeFormattingState(text: string, ranges: TextRange[] | undefined, base: TextFormatting, start = 0, end = text.length): FormattingState {
+ start = Math.max(0, Math.min(text.length, start)); end = Math.max(start, Math.min(text.length, end));
+ const points = start === end ? [Math.max(0, Math.min(start, text.length - 1))] : [start, ...(ranges || []).flatMap(range => [range.start, range.end]).filter(point => point > start && point < end)];
+ return Object.fromEntries(FORMAT_KEYS.map(key => {
+  const values = points.map(point => !!(rangeStyleAt(ranges, point)[key] ?? base[key]));
+  return [key, values.every(value => value === values[0]) ? values[0] : 'mixed'];
+ })) as FormattingState;
+}

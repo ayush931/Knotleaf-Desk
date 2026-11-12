@@ -8,7 +8,7 @@ export const THEMES = {
     accent: "#7db5ff",
     muted: "#a4b6d0",
     wash: "radial-gradient(ellipse at 100% 0%, #1e3454 0%, #101622 65%)",
-    heading: "var(--font-geist), Arial, sans-serif",
+    heading: "var(--font-inter), Arial, sans-serif",
   },
   paper: {
     label: "Journal · ivory and terracotta",
@@ -26,7 +26,7 @@ export const THEMES = {
     accent: "#c2b0ff",
     muted: "#b0b0bd",
     wash: "linear-gradient(135deg, #303037 0%, #1d1d21 100%)",
-    heading: "var(--font-geist), Arial, sans-serif",
+    heading: "var(--font-inter), Arial, sans-serif",
   },
   ocean: {
     label: "Tide · sea glass and apricot",
@@ -35,7 +35,7 @@ export const THEMES = {
     accent: "#efbb93",
     muted: "#a2bfce",
     wash: "radial-gradient(ellipse at 0% 100%, #1e4c5d 0%, #0f2936 70%)",
-    heading: "var(--font-geist), Arial, sans-serif",
+    heading: "var(--font-inter), Arial, sans-serif",
   },
   dusk: {
     label: "Signal · graphite and tangerine",
@@ -53,7 +53,7 @@ export const THEMES = {
     accent: "#2563eb",
     muted: "#5d708c",
     wash: "linear-gradient(120deg, #ffffff 0%, #f1f6ff 100%)",
-    heading: "var(--font-geist), Arial, sans-serif",
+    heading: "var(--font-inter), Arial, sans-serif",
   },
 } as const;
 export type DeckTheme = keyof typeof THEMES;

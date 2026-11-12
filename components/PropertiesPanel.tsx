@@ -11,6 +11,7 @@ import type { BackgroundSettings } from "@/draw/types";
 import { ColorControl } from "./ColorControl";
 import { FontSelect } from "./FontSelect";
 import { COLOR_MOODS, PREMIUM_BACKGROUND_MOODS } from "@/lib/premiumPalette";
+import type { FormattingState } from "@/draw/textRanges";
 import { QUICK_FONTS, fontCssStack } from "@/draw/fonts";
 import {
   FontFamily,
@@ -37,7 +38,7 @@ import {
   Zap,
   Repeat,
   ArrowLeftRight,
-  FileText,
+  FileText, Bold, Italic, Underline, Strikethrough,
 } from "lucide-react";
 
 interface PropertiesPanelProps {
@@ -51,6 +52,7 @@ interface PropertiesPanelProps {
   isTextEditing?: boolean;
   preserveTextFocus?: boolean;
   selectionCount: number;
+  formattingState?: FormattingState;
   onSwapArrow: () => void;
   onChangeFontSize: (delta: number) => void;
   currentStyle: ElementStyleProps;
@@ -87,6 +89,7 @@ export function PropertiesPanel({
   isTextEditing = false,
   preserveTextFocus = false,
   selectionCount,
+  formattingState,
   onSwapArrow,
   onChangeFontSize,
   currentStyle,
@@ -283,8 +286,8 @@ export function PropertiesPanel({
       <button ref={openButton} type="button" onMouseDown={event => { if (preserveTextFocus) event.preventDefault(); }} onClick={() => onOpenChange(true)}
         style={{ top: topOffset }} aria-expanded={false}
         title="Style · stroke, background and text" aria-label="Open appearance settings" aria-controls="appearance-settings"
-        className="absolute left-2 z-40 flex h-9 w-9 sm:h-8 sm:w-8 items-center justify-center rounded-md border drawing-panel text-xs font-medium text-neutral-700 dark:text-neutral-200 shadow-sm transition-colors hover:border-neutral-400 dark:hover:border-neutral-500 hover:text-neutral-900 dark:hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black dark:focus-visible:outline-white"
-      ><Palette aria-hidden="true" strokeWidth={1.75} className="h-[18px] w-[18px] shrink-0" /><span className="sr-only">Style</span></button>
+        className="appearance-trigger absolute left-2 z-40 flex h-9 items-center justify-center gap-2 rounded-lg border drawing-panel px-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 shadow-sm transition-colors hover:border-neutral-400 dark:hover:border-neutral-500 hover:text-neutral-900 dark:hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black dark:focus-visible:outline-white"
+      ><Palette aria-hidden="true" strokeWidth={1.75} className="h-[18px] w-[18px] shrink-0" /><span>Appearance</span></button>
     );
   }
 
@@ -297,8 +300,8 @@ export function PropertiesPanel({
           event.preventDefault(); event.stopPropagation(); onChangeFontSize(sizeDelta); return;
         }
         if (event.key === "Escape" && !event.nativeEvent.isComposing) { event.preventDefault(); event.stopPropagation(); close(); } }}
-      onMouseDown={event => { if (preserveTextFocus && event.target instanceof HTMLElement && event.target.closest("button, summary")) event.preventDefault(); }}
-      className="absolute left-2 z-40 flex w-72 max-w-[calc(100%-1rem)] flex-col overflow-hidden rounded-md border drawing-panel text-neutral-800 dark:text-neutral-200 shadow-sm select-none"
+      onMouseDown={event => { if (preserveTextFocus && event.target instanceof window.Element && event.target.closest("button, summary")) event.preventDefault(); }}
+      className="appearance-panel absolute left-2 z-40 flex w-72 max-w-[calc(100%-1rem)] flex-col overflow-hidden rounded-md border drawing-panel text-neutral-800 dark:text-neutral-200 shadow-sm select-none"
     >
       <header className="flex shrink-0 items-center gap-3 border-b border-neutral-200 dark:border-neutral-800 px-4 py-3">
         <span className="appearance-mark flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"><Palette className="h-4 w-4" /></span>
@@ -321,11 +324,11 @@ export function PropertiesPanel({
         <div className="space-y-2">
           <label className="text-[11px] font-medium text-neutral-500 dark:text-neutral-400 tracking-wide block mb-1">Text</label>
           <div className="grid grid-cols-4 gap-1" role="group" aria-label="Text formatting">
-            {([ ["bold", "B", "Bold", "B"], ["italic", "I", "Italic", "I"], ["underline", "U", "Underline", "U"], ["strikethrough", "S", "Strikethrough", "Shift+X"] ] as const).map(([key, label, name, shortcut]) => {
-              const active = !!(textEl || currentStyle)[key];
-              return <button key={key} aria-label={name} aria-pressed={active} title={`${name} (Ctrl/Cmd+${shortcut})`}
-                className={`h-7 rounded-md text-xs transition ${active ? "ui-primary text-white font-semibold shadow-xs" : "bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700"} ${key === "bold" ? "font-bold" : key === "italic" ? "italic" : key === "underline" ? "underline" : "line-through"}`}
-                onClick={() => { onUpdateElement({ [key]: !active }); onUpdateStyle({ [key]: !active }); }}>{label}</button>;
+            {([ ["bold", Bold, "Bold", "B"], ["italic", Italic, "Italic", "I"], ["underline", Underline, "Underline", "U"], ["strikethrough", Strikethrough, "Strikethrough", "Shift+X"] ] as const).map(([key, Icon, name, shortcut]) => {
+              const active = formattingState?.[key] ?? !!(textEl || currentStyle)[key];
+              return <button type="button" key={key} aria-label={name} aria-pressed={active} title={`${name} (Ctrl/Cmd+${shortcut})${active === "mixed" ? " · Mixed selection" : ""}`}
+                className="appearance-format flex h-11 flex-col items-center justify-center gap-1 rounded-lg border text-[10px] font-medium transition"
+                onClick={() => { const enabled = active !== true; onUpdateElement({ [key]: enabled }); onUpdateStyle({ [key]: enabled }); }}><Icon aria-hidden="true" className="h-4 w-4" /><span>{key === "strikethrough" ? "Strike" : name}</span></button>;
             })}
           </div>
           <div className="flex items-center gap-1">
