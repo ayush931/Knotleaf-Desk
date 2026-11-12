@@ -86,3 +86,13 @@ Removed the toolbar-height minimum from the saved trigger and inspector position
 
 - `bun test`: **820 passed**, **2 PostgreSQL-dependent skipped**; typecheck, lint, production build and strict UI audit passed.
 - Chrome verified immediate movement to `y: 0`, a clickable trigger beside the toolbar, panel positioning, no accidental open after dragging and persistence after reload. No runtime errors.
+
+## Readable arrow-label verification
+
+Arrow labels now use larger 16px/600 text, solid contrast plates, multiline wrapping and a shared measured box for painting, editing, hit detection and export bounds. Appearance and direct editing share the same draft. The bend handle sits outside the label and preserves its original drag behavior without a jump. Repeated measurements are cached and invalidated when fonts load.
+
+- `bun test`: **829 passed**, **2 PostgreSQL-dependent skipped**, across 58 files. Typecheck, lint, production build and strict UI audit passed.
+- Regressions cover long tokens/multiline layout, contrast plates, label-inclusive bounds, offset handles across zoom levels, bend/cancel/undo/redo, editing, no style leakage into plain text, independent labels, SVG and editable diagram export, and measurement reuse.
+- Chrome verified straight, curved and elbow labels in both modes; centered edit geometry; lower-line selection; synchronized Appearance edits; independent labels; offset bend dragging and undo; an actual SVG download retaining typography/content; and reload persistence. No runtime errors.
+
+Previously documented physical-device and external-service verification limits remain.

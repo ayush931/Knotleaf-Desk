@@ -12,7 +12,7 @@ const esc = (value: unknown) => String(value).replace(/[&<>"']/g, c => ({ "&": "
 interface Paint {
   fillStyle: string; strokeStyle: string; lineWidth: number; globalAlpha: number;
   lineCap: string; lineJoin: string; lineDashOffset: number;
-  clip?: string; font: string; textAlign: string; textBaseline: string; dash: number[]; transform: DOMMatrix;
+  clip?: string; font: string; fontKerning: CanvasFontKerning; textAlign: string; textBaseline: string; dash: number[]; transform: DOMMatrix;
 }
 /** Records the same drawing operations as the canvas renderer into portable SVG vectors. */
 class SvgContext {
@@ -21,7 +21,7 @@ class SvgContext {
   private cursor = { x: 0, y: 0 };
   private hasPoint = false;
   private stack: Paint[] = [];
-  private paint: Paint = { fillStyle: "#000", strokeStyle: "#000", lineWidth: 1, globalAlpha: 1, lineCap: "butt", lineJoin: "miter", lineDashOffset: 0, font: "12px sans-serif", textAlign: "left", textBaseline: "alphabetic", dash: [], transform: new DOMMatrix() };
+  private paint: Paint = { fillStyle: "#000", strokeStyle: "#000", lineWidth: 1, globalAlpha: 1, lineCap: "butt", lineJoin: "miter", lineDashOffset: 0, font: "12px sans-serif", fontKerning: "auto", textAlign: "left", textBaseline: "alphabetic", dash: [], transform: new DOMMatrix() };
   private metrics = document.createElement("canvas").getContext("2d")!;
   // Canvas renderers assign these properties. Proxy below forwards them to paint.
   get state() { return this.paint; }
@@ -75,12 +75,12 @@ class SvgContext {
   stroke() { const p = this.paint; this.output.push(`<path d="${this.path}" fill="none" stroke="${esc(p.strokeStyle)}" stroke-width="${p.lineWidth}" stroke-linecap="${p.lineCap}" stroke-linejoin="${p.lineJoin}" stroke-dasharray="${p.dash.join(" ")}" stroke-dashoffset="${p.lineDashOffset}" ${this.attributes()}/>`); }
   fillRect(x: number, y: number, w: number, h: number) { this.output.push(`<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${esc(this.paint.fillStyle)}" ${this.attributes()}/>`); }
   strokeRect(x: number, y: number, w: number, h: number) { const path = this.path; this.beginPath(); this.rect(x, y, w, h); this.stroke(); this.path = path; }
-  measureText(text: string) { this.metrics.font = this.paint.font; return this.metrics.measureText(text); }
+  measureText(text: string) { this.metrics.font = this.paint.font; this.metrics.fontKerning = this.paint.fontKerning; return this.metrics.measureText(text); }
   fillText(text: string, x: number, y: number) {
     const p = this.paint;
     const anchor = p.textAlign === "center" ? "middle" : p.textAlign === "right" ? "end" : "start";
     const baseline = p.textBaseline === "top" ? "text-before-edge" : p.textBaseline === "middle" ? "central" : p.textBaseline === "bottom" ? "text-after-edge" : "alphabetic";
-    this.output.push(`<text x="${x}" y="${y}" fill="${esc(p.fillStyle)}" text-anchor="${anchor}" dominant-baseline="${baseline}" style="font:${esc(p.font)};white-space:pre" ${this.attributes()}>${esc(text)}</text>`);
+    this.output.push(`<text x="${x}" y="${y}" fill="${esc(p.fillStyle)}" text-anchor="${anchor}" dominant-baseline="${baseline}" style="font:${esc(p.font)};white-space:pre;font-kerning:${esc(p.fontKerning)}" ${this.attributes()}>${esc(text)}</text>`);
   }
 }
 

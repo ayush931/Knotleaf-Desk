@@ -36,7 +36,7 @@ import {
   Bounds,
   ACCENT,
   uiAccent,
-  computeArrowPath,
+  computeArrowPath, getBendHandle, arrowLabelLayout, arrowLabelColors, ARROW_LABEL_FONT_SIZE, ARROW_LABEL_LINE_HEIGHT,
   computeLinePath,
   drawBoundsOutline,
   drawElement,
@@ -1161,12 +1161,14 @@ export class CanvasEngine {
       }
       case "arrow": {
         const label = computeArrowPath(el, this.elements).labelPt;
-        const p = this.canvasToScreen(label.x, label.y);
+        const layout = arrowLabelLayout(el.label || "Add a label…", label, this.ctx);
+        const p = this.canvasToScreen(layout.bounds.minX + 12, layout.bounds.minY + 6);
         state = {
           kind: "label", elementId: el.id, canvasX: label.x, canvasY: label.y,
-          screenX: p.x - 80, screenY: p.y - 12, screenWidth: 160,
-          text: el.label ?? "", fontSize: 12, fontFamily: "sans",
-          color: el.stroke, align: "center",
+          screenX: p.x, screenY: p.y, screenWidth: layout.contentWidth * this.zoom,
+          screenHeight: layout.lines.length * ARROW_LABEL_LINE_HEIGHT * this.zoom,
+          text: el.label ?? "", fontSize: ARROW_LABEL_FONT_SIZE, fontFamily: "sans",
+          color: arrowLabelColors(isLightBackground(canvasBackground(this.background, this.theme)) ? "light" : "dark").ink, align: "center",
         };
         break;
       }
@@ -1574,10 +1576,9 @@ export class CanvasEngine {
       case "arrow":
       case "line": {
         const info = el.type === "arrow" ? computeArrowPath(el, this.elements) : computeLinePath(el);
-        if (el.label) {
-          const lw = (el.label.length * 7 + 16) / this.zoom / 2;
-          const lh = 12 / this.zoom;
-          if (Math.abs(pt.x - info.labelPt.x) <= lw && Math.abs(pt.y - info.labelPt.y) <= lh) return true;
+        if (el.type === "arrow" && el.label) {
+          const {bounds} = arrowLabelLayout(el.label, info.labelPt, this.ctx);
+          if (pt.x >= bounds.minX - tol && pt.x <= bounds.maxX + tol && pt.y >= bounds.minY - tol && pt.y <= bounds.maxY + tol) return true;
         }
         if (info.routing === "curved" && info.cpx !== undefined && info.cpy !== undefined) {
           let prev: Point = { x: el.startX, y: el.startY };
@@ -1660,7 +1661,7 @@ export class CanvasEngine {
     if (el.type === "arrow" || el.type === "line") {
       if (near(el.startX, el.startY)) return "start";
       if (near(el.endX, el.endY)) return "end";
-      const mid = (el.type === "arrow" ? computeArrowPath(el, this.elements) : computeLinePath(el)).midPt;
+      const mid = getBendHandle(el, this.zoom, this.elements, this.ctx);
       if (near(mid.x, mid.y)) return "mid";
       return null;
     }
@@ -2479,6 +2480,10 @@ export class CanvasEngine {
     const id = el.id;
 
     if (g.handle === "mid") {
+      if (el.type === "arrow" && el.label) {
+        const mid = computeArrowPath(el, this.elements).midPt;
+        pt = {x:mid.x + pt.x - g.origin.x,y:mid.y + pt.y - g.origin.y};
+      }
       const routing = el.type === "arrow" ? el.routing || el.elbow || "straight" : (el.bendOffset === 0 ? "straight" : (el.routing || (el.bendOffset ? "curved" : "straight")));
       let bendOffset = el.bendOffset;
       if (routing === "curved" || routing === "straight") {

@@ -840,16 +840,17 @@ export function PropertiesPanel({
 
           {/* Arrow Label Input */}
           <div>
-            <label className="text-[9px] font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wider block mb-0.5">
-              Arrow Label
+            <label htmlFor="arrow-label" className="text-[11px] font-medium text-neutral-500 dark:text-neutral-400 block mb-1">
+              Arrow label
             </label>
-            <input
-              type="text"
+            <textarea
+              id="arrow-label"
+              rows={2}
               aria-label="Arrow label"
               value={arrowEl?.label || ""}
               onChange={(e) => handleArrowLabel(e.target.value)}
-              placeholder="e.g. HTTP, Events..."
-              className="w-full text-[11px] py-1 px-2 rounded-lg bg-neutral-100 dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 outline-none focus:border-neutral-500 transition"
+              placeholder="e.g. HTTP, Events…"
+              className="resize-none w-full text-xs leading-5 py-2 px-2 rounded-lg bg-neutral-100 dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 outline-none focus:border-neutral-500 transition"
             />
           </div>
         </div>
