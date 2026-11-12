@@ -79,3 +79,10 @@ Clay adds warm paper and terracotta in Light, and soft charcoal with muted terra
 - `bun test`: **819 passed**, **2 PostgreSQL-dependent skipped**. Typecheck, lint, production build and strict UI audit passed.
 - Contrast checks cover body/muted text, primary actions and selected controls in both modes.
 - Chrome verified Canvas/Notes in Light and Dark, reload persistence, Notes-only scope, preserved custom canvas backgrounds when replacement is unchecked, unchanged custom artwork/geometry and a 390px theme gallery. No runtime errors.
+
+## Appearance top-edge follow-up
+
+Removed the toolbar-height minimum from the saved trigger and inspector positions. The default/reset position remains below the toolbar, while dragging and keyboard movement can now reach the canvas's exact top edge (`y: 0`).
+
+- `bun test`: **820 passed**, **2 PostgreSQL-dependent skipped**; typecheck, lint, production build and strict UI audit passed.
+- Chrome verified immediate movement to `y: 0`, a clickable trigger beside the toolbar, panel positioning, no accidental open after dragging and persistence after reload. No runtime errors.
