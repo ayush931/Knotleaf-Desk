@@ -940,3 +940,12 @@ test('Appearance can reach the top edge beside the toolbar and open there',async
  await appearancePointer('pointerdown',40,110);await appearancePointer('pointermove',340,-100);await appearancePointer('pointerup',340,-100);expect(named('Open appearance settings').style.top).toBe('0px');expect(named('Open appearance settings').style.left).toBe('308px');
  expect(JSON.parse(localStorage.getItem('knotleaf.preferences.v1')).appearancePosition).toEqual({x:308,y:0});await clickNamed('Open appearance settings');expect(named('Appearance settings').style.top).toBe('0px');await clickNamed('Collapse appearance settings');expect(named('Open appearance settings').style.top).toBe('0px');
 });
+
+test('arrow labels use the same readable editing surface, save independently, and do not leak card styling to new text',async()=>{
+ localStorage.clear();const board=createBoard('Readable labels');board.viewMode='canvas';const base={...DEFAULT_STYLE,type:'arrow',x:600,y:300,width:400,height:0,startX:600,startY:300,endX:1000,endY:300,routing:'straight',zIndex:0};board.elements=[{...base,id:'label-one',label:'First\nSecond'},{...base,id:'label-two',y:500,startY:500,endY:500,label:'Keep this label'}];const {saveBoard}=await import('../lib/storage.ts');saveBoard(board);setActiveBoardId(board.id);
+ await act(async()=>root.render(React.createElement(AppRouterContext.Provider,{value:router},React.createElement(SearchParamsContext.Provider,{value:new URLSearchParams()},React.createElement(Canvas)))));
+ await boardPointer('dblclick',800,310);let editor=named('Edit text');expect(editor.style.fontSize).toBe('16px');expect(editor.style.fontWeight).toBe('600');expect(editor.style.padding).toBe('6px 12px');expect(editor.style.background).not.toBe('transparent');await typeText(editor,'Edited\nArrow');await clickNamed('Open appearance settings');expect(named('Arrow label').value).toBe('Edited\nArrow');await typeText(named('Arrow label'),'Saved from\nAppearance');expect(editor.value).toBe('Saved from\nAppearance');await clickNamed('Collapse appearance settings');
+ // Starting another text draft commits this label in the same pointer event.
+ editor=await startText();expect(editor.style.padding).toBe('0px');expect(editor.style.background).toBe('transparent');expect(editor.style.boxShadow).toBe('none');
+ expect(getBoard(board.id).elements.find(element=>element.id==='label-one').label).toBe('Saved from\nAppearance');expect(getBoard(board.id).elements.find(element=>element.id==='label-two')).toEqual(board.elements[1]);
+});

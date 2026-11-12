@@ -68,6 +68,7 @@ export function fontStack(family: FontFamily): string {
   return resolvedFonts[family] || resolvedFonts.sans;
 }
 
+let labelFontRevision = 0;
 const fontLoads = new WeakMap<FontFaceSet, Map<FontFamily, Promise<void>>>();
 export async function loadCanvasFonts(families: readonly FontFamily[] = FONT_OPTIONS.map(font=>font.id)): Promise<void> {
   if (typeof document === "undefined" || !document.fonts) return;
@@ -81,7 +82,7 @@ export async function loadCanvasFonts(families: readonly FontFamily[] = FONT_OPT
     if (!loading) {
       const primary=fontStack(id).split(",")[0].trim();
       loading=Promise.all(["400", "500", "700", "italic 400", "italic 500", "italic 700"].map(style=>fonts.load(`${style} 16px ${primary}`)))
-        .then(()=>{textBoundsContexts.get(document)?.cache.clear();})
+        .then(()=>{textBoundsContexts.get(document)?.cache.clear();labelFontRevision++;})
         .catch(()=>{cached.delete(id);throw new Error(`Could not load the ${font.label} font. Check your connection and retry the export.`);});
       cached.set(id,loading);
     }
@@ -159,7 +160,12 @@ export function getElementBounds(el: CanvasElement, scene: CanvasElement[] = [])
     } else {
       pts.push({ x: el.startX, y: el.startY }, { x: el.endX, y: el.endY });
     }
-    return pointsBounds(pts);
+    const bounds = pointsBounds(pts);
+    if (el.type === "arrow" && el.label) {
+      const label = arrowLabelLayout(el.label, computeArrowPath(el, scene).labelPt);
+      return unionBounds([bounds, label.bounds])!;
+    }
+    return bounds;
   }
   if (el.type === "pencil") {
     return pointsBounds(el.points.length ? el.points : [{ x: el.x, y: el.y }]);
@@ -593,7 +599,7 @@ export function drawElement(ctx: CanvasRenderingContext2D, el: CanvasElement, op
       drawCircle(ctx, el);
       break;
     case "arrow":
-      drawArrow(ctx, el, theme, flowOffset, opts.scene);
+      drawArrow(ctx, el, (opts.lightCanvas ?? theme === "light") ? "light" : "dark", flowOffset, opts.scene);
       break;
     case "line":
       drawLine(ctx, el);
@@ -1191,28 +1197,61 @@ function drawArrow(ctx: CanvasRenderingContext2D, el: CanvasElement, theme: Them
   }
 }
 
+export const ARROW_LABEL_FONT_SIZE = 16;
+export const ARROW_LABEL_LINE_HEIGHT = 20;
+const labelContexts = new WeakMap<Document, CanvasRenderingContext2D>();
+const labelMeasurements = new WeakMap<CanvasRenderingContext2D, {revision:number; values:Map<string,{lines:string[];width:number;height:number;contentWidth:number}>}>();
+const fallbackLabelContext = {save(){},restore(){},measureText:(value:string)=>({width:Array.from(value).length * ARROW_LABEL_FONT_SIZE * .6})} as CanvasRenderingContext2D;
+
+/** One measured label box shared by painting, editing, pointer targets and exports. */
+export function arrowLabelLayout(text: string, at: Point, supplied?: CanvasRenderingContext2D) {
+  let context = supplied;
+  if (!context && typeof document !== "undefined" && typeof document.createElement === "function") {
+    context = labelContexts.get(document);
+    if (!context) { const created = document.createElement("canvas").getContext("2d"); if (created) { context = created; labelContexts.set(document, created); } }
+  }
+  const measure = context || fallbackLabelContext;
+  let cache = labelMeasurements.get(measure);
+  if (!cache || cache.revision !== labelFontRevision) { cache = {revision:labelFontRevision,values:new Map()}; labelMeasurements.set(measure,cache); }
+  const cached = cache.values.get(text);
+  if (cached) return {...cached,bounds:{minX:at.x-cached.width/2,minY:at.y-cached.height/2,maxX:at.x+cached.width/2,maxY:at.y+cached.height/2}};
+  measure.save(); setFont(measure, ARROW_LABEL_FONT_SIZE, "sans", 600); measure.fontKerning = "none";
+  const lines: string[] = [];
+  // Break long tokens incrementally, so pasted URLs do not require quadratic scans.
+  for (const paragraph of text.split("\n")) {
+    let line = "";
+    for (const char of paragraph) {
+      if (line && measure.measureText(line + char).width > 240) {
+        const space = line.lastIndexOf(" ");
+        if (space > 0) { lines.push(line.slice(0, space).trimEnd()); line = line.slice(space + 1) + char; }
+        else { lines.push(line); line = char; }
+      } else line += char;
+    }
+    lines.push(line.trimEnd());
+  }
+  const contentWidth = lines.reduce((width, line) => Math.max(width, measure.measureText(line).width), 24);
+  measure.restore();
+  const width = contentWidth + 24, height = Math.max(1, lines.length) * ARROW_LABEL_LINE_HEIGHT + 12;
+  cache.values.set(text,{lines,width,height,contentWidth});
+  while(cache.values.size>256 || cache.values.size>1 && [...cache.values.keys()].reduce((total,key)=>total+key.length,0)>1_000_000)cache.values.delete(cache.values.keys().next().value!);
+  return { lines, width, height, contentWidth, bounds: { minX: at.x - width / 2, minY: at.y - height / 2, maxX: at.x + width / 2, maxY: at.y + height / 2 } };
+}
+
+export function arrowLabelColors(theme: Theme) {
+  return theme === "dark" ? { background: "#181818", border: "#79736b", ink: "#faf9f5" } : { background: "#ffffff", border: "#8c877e", ink: "#20201e" };
+}
+
 function drawPill(ctx: CanvasRenderingContext2D, text: string, at: Point, theme: Theme) {
+  const layout = arrowLabelLayout(text, at, ctx), colors = arrowLabelColors(theme);
   ctx.save();
-  setFont(ctx, 12, "sans", 500);
-  const textW = ctx.measureText(text).width;
-  const w = textW + 16;
-  const h = 22;
-  ctx.fillStyle = theme === "dark" ? "rgba(24, 24, 27, 0.95)" : "rgba(255, 255, 255, 0.96)";
-  ctx.strokeStyle = theme === "dark" ? "#27272A" : "#CBD5E1";
-  ctx.lineWidth = 1;
-  ctx.shadowColor = "rgba(0, 0, 0, 0.25)";
-  ctx.shadowBlur = 6;
-  ctx.shadowOffsetY = 1;
+  setFont(ctx, ARROW_LABEL_FONT_SIZE, "sans", 600); ctx.fontKerning = "none";
+  ctx.fillStyle = colors.background; ctx.strokeStyle = colors.border; ctx.lineWidth = 1.25;
   ctx.beginPath();
-  if (ctx.roundRect) ctx.roundRect(at.x - w / 2, at.y - h / 2, w, h, 6);
-  else ctx.rect(at.x - w / 2, at.y - h / 2, w, h);
-  ctx.fill();
-  ctx.shadowColor = "transparent";
-  ctx.stroke();
-  ctx.fillStyle = theme === "dark" ? "#F4F4F5" : "#0F172A";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText(text, at.x, at.y + 0.5);
+  if (ctx.roundRect) ctx.roundRect(layout.bounds.minX, layout.bounds.minY, layout.width, layout.height, 8);
+  else ctx.rect(layout.bounds.minX, layout.bounds.minY, layout.width, layout.height);
+  ctx.fill(); ctx.stroke();
+  ctx.fillStyle = colors.ink; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  layout.lines.forEach((line, index) => ctx.fillText(line, at.x, at.y - (layout.lines.length - 1) * ARROW_LABEL_LINE_HEIGHT / 2 + index * ARROW_LABEL_LINE_HEIGHT + .5));
   ctx.restore();
 }
 
@@ -1731,6 +1770,16 @@ function drawFrame(ctx: CanvasRenderingContext2D, el: CanvasElement) {
 
 // --- Selection & overlays --------------------------------------------------------
 
+/** Keep the draggable bend diamond clear of the label's text plate. */
+export function getBendHandle(el: ArrowElement | import("./types").LineElement, zoom = 1, scene: CanvasElement[] = [], context?: CanvasRenderingContext2D): Point & {labelTop?: number} {
+  const info = el.type === "arrow" ? computeArrowPath(el, scene) : computeLinePath(el);
+  if (el.type === "arrow" && el.label) {
+    const label = arrowLabelLayout(el.label, info.labelPt, context);
+    return { x: info.midPt.x, y: label.bounds.minY - 12 / Math.max(.01, zoom), labelTop: label.bounds.minY };
+  }
+  return info.midPt;
+}
+
 export function drawSelection(ctx: CanvasRenderingContext2D, el: CanvasElement, zoom: number, scene: CanvasElement[] = [], lightCanvas = false) {
   const z = zoom || 1;
   ctx.save();
@@ -1754,8 +1803,11 @@ export function drawSelection(ctx: CanvasRenderingContext2D, el: CanvasElement, 
     }
     {
       ctx.fillStyle = uiAccent(!lightCanvas);
-      const mid = (el.type === "arrow" ? computeArrowPath(el, scene) : computeLinePath(el)).midPt;
+      const mid = getBendHandle(el, z, scene, ctx);
       const d = 4.5 / z;
+      if (mid.labelTop !== undefined) {
+        ctx.beginPath(); ctx.moveTo(mid.x, mid.y + d); ctx.lineTo(mid.x, mid.labelTop - 1 / z); ctx.stroke();
+      }
       ctx.beginPath();
       ctx.moveTo(mid.x, mid.y - d);
       ctx.lineTo(mid.x + d, mid.y);

@@ -1,10 +1,12 @@
+import { isLightBackground } from "@/lib/background.mjs";
 import { canvasBackground } from "./canvasAppearance";
 import type { Board, CanvasElement } from "./types";
-import { computeArrowPath, computeLinePath, normalizeRect } from "./renderer";
+import { computeArrowPath, computeLinePath, normalizeRect, arrowLabelColors, ARROW_LABEL_FONT_SIZE } from "./renderer";
 const xml = (v: unknown) => String(v).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" }[c]!));
 /** Exports editable shapes and bound connectors for diagrams.net / draw.io. */
 export function boardToDrawio(board: Board, elements: CanvasElement[] = board.elements) {
   const ids = new Set(elements.map(e => e.id));
+  const labelColors = arrowLabelColors(isLightBackground(canvasBackground(board.background, board.theme === "light" ? "light" : "dark")) ? "light" : "dark");
   const cells = elements.map(el => {
     const r = normalizeRect(el);
     const style = `strokeColor=${el.stroke};strokeWidth=${el.strokeWidth};fillColor=${el.fillStyle === "none" || el.fill === "transparent" ? "none" : el.fill};opacity=${Math.round(el.opacity * 100)};fillOpacity=${Math.round((el.fillOpacity ?? 1) * 100)};fontColor=#f4f4f5;whiteSpace=wrap;html=0;${el.strokeStyle === "dashed" || el.strokeStyle === "dotted" ? "dashed=1;" : ""}`;
@@ -21,8 +23,9 @@ export function boardToDrawio(board: Board, elements: CanvasElement[] = board.el
       };
       const cap = (head: unknown, fallback: string) => head === false || head === "none" ? "none" : head === "dot" ? "oval" : head === "diamond" ? "diamond" : head === "bar" ? "ERone" : head === undefined ? fallback : "classic";
       const arrow = el.type === "arrow" ? el : null;
+      const labelStyle = arrow?.label ? `fontSize=${ARROW_LABEL_FONT_SIZE};fontStyle=1;fontColor=${labelColors.ink};labelBackgroundColor=${labelColors.background};labelBorderColor=${labelColors.border};spacing=6;` : "";
       const route = info?.routing === "curved" ? "curved=1;" : info?.routing === "elbow" ? "rounded=1;" : "";
-      return `<mxCell id="${xml(el.id)}" value="${xml(el.label || "")}" style="${xml(style + route + `startArrow=${cap(arrow?.arrowHeadStart, "none")};endArrow=${arrow ? cap(arrow.arrowHeadEnd, "classic") : "none"};` + portStyle(el.startBinding?.anchor, "exit") + portStyle(el.endBinding?.anchor, "entry"))}" edge="1" parent="1"${binding(el.startBinding, "source")}${binding(el.endBinding, "target")}><mxGeometry relative="1" as="geometry"><mxPoint x="${el.startX}" y="${el.startY}" as="sourcePoint"/><mxPoint x="${el.endX}" y="${el.endY}" as="targetPoint"/>${info && info.points.length > 2 ? `<Array as="points">${info.points.slice(1, -1).map(p => `<mxPoint x="${p.x}" y="${p.y}"/>`).join("")}</Array>` : info?.cpx !== undefined ? `<Array as="points"><mxPoint x="${info.cpx}" y="${info.cpy}"/></Array>` : ""}</mxGeometry></mxCell>`;
+      return `<mxCell id="${xml(el.id)}" value="${xml(el.label || "")}" style="${xml(style + route + labelStyle + `startArrow=${cap(arrow?.arrowHeadStart, "none")};endArrow=${arrow ? cap(arrow.arrowHeadEnd, "classic") : "none"};` + portStyle(el.startBinding?.anchor, "exit") + portStyle(el.endBinding?.anchor, "entry"))}" edge="1" parent="1"${binding(el.startBinding, "source")}${binding(el.endBinding, "target")}><mxGeometry relative="1" as="geometry"><mxPoint x="${el.startX}" y="${el.startY}" as="sourcePoint"/><mxPoint x="${el.endX}" y="${el.endY}" as="targetPoint"/>${info && info.points.length > 2 ? `<Array as="points">${info.points.slice(1, -1).map(p => `<mxPoint x="${p.x}" y="${p.y}"/>`).join("")}</Array>` : info?.cpx !== undefined ? `<Array as="points"><mxPoint x="${info.cpx}" y="${info.cpy}"/></Array>` : ""}</mxGeometry></mxCell>`;
     }
     if (el.type === "image") return `<mxCell id="${xml(el.id)}" value="" style="${xml(`shape=image;image=${el.source.replace(';base64,', ',')};opacity=${Math.round(el.opacity * 100)};`)}" vertex="1" parent="1"><mxGeometry x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" as="geometry"/></mxCell>`;
     const shape = el.type === "circle" ? "ellipse;" : el.type === "diamond" ? "rhombus;" : el.type === "text" ? "text;strokeColor=none;fillColor=none;align=left;" : el.type === "sticky" ? "shape=note;" : `rounded=${el.roundness === "rounded" ? 1 : 0};`;

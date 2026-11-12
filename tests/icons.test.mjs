@@ -206,3 +206,9 @@ test('SVG uses the same range colors fonts and styles as the canvas, without cha
 
  expect(el.textRanges).toHaveLength(1);
 });
+
+test('SVG keeps the larger multiline arrow label and includes its plate inside export bounds',()=>{
+ const arrow={...base,type:'arrow',id:'label-arrow',startX:10,startY:20,endX:30,endY:20,x:10,y:20,width:20,height:0,routing:'straight',label:'First readable label\nSecond line'};
+ const svg=boardToSvg([arrow],true, [arrow],undefined,'none','light');expect(svg).toContain('First readable label');expect(svg).toContain('Second line');expect(svg).toContain('font:600 16px');expect(svg).toContain('font-kerning:none');expect(svg).toContain('#ffffff');expect(svg).toContain('#20201e');
+ const width=Number(svg.match(/<svg[^>]*width="([\d.]+)"/)[1]);expect(width).toBeGreaterThan(200);
+});

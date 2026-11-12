@@ -7,7 +7,7 @@ import { TEMPLATES } from '../draw/templatesData.ts';
 import { isValidElement } from '../lib/elementValidation.mjs';
 import { unionBounds } from '../draw/renderer.ts';
 import { setFont } from '../draw/renderer.ts';
-import { computeArrowPath, computeLinePath, drawElement, layoutDocument, drawSelection, drawElementAnchors, getSelectionPadding, getElementAnchors, getConnectorHandles, getElementBounds, getResizeHandles, hasSideResizeHandles, textContentBounds, measureTextBlock } from '../draw/renderer.ts';
+import { getBendHandle, computeArrowPath, computeLinePath, drawElement, layoutDocument, drawSelection, drawElementAnchors, getSelectionPadding, getElementAnchors, getConnectorHandles, getElementBounds, getResizeHandles, hasSideResizeHandles, textContentBounds, measureTextBlock } from '../draw/renderer.ts';
 const savedGlobals = new Map();
 beforeAll(() => {
   for (const [key, value] of Object.entries({
@@ -126,13 +126,13 @@ describe('manual arrow bending', () => {
   test('dragging the center bends either way, follows the pointer and supports undo/redo', () => {
     const { engine, drag } = setup([straight]);
     engine.selectAll();
-    drag(300, 200, 300, 280);
+    let handle=getBendHandle(straight);drag(handle.x,handle.y,handle.x,handle.y+80);
     let bent = engine.getElements()[0];
     expect(bent).toMatchObject({ routing: 'curved', bendOffset: 160, label: 'Flow', arrowHeadEnd: 'diamond', animated: true });
     expect(computeArrowPath(bent).midPt).toEqual({ x: 300, y: 280 });
     engine.undo(); expect(engine.getElements()[0].routing).toBe('straight');
     engine.redo(); expect(computeArrowPath(engine.getElements()[0]).midPt.y).toBe(280);
-    drag(300, 280, 300, 140);
+    handle=getBendHandle(engine.getElements()[0]);drag(handle.x,handle.y,handle.x,handle.y-140);
     expect(computeArrowPath(engine.getElements()[0]).midPt).toEqual({ x: 300, y: 140 });
     engine.updateSelectedElement({ routing: 'straight', elbow: 'straight', bendOffset: undefined });
     expect(computeArrowPath(engine.getElements()[0]).midPt).toEqual({ x: 300, y: 200 });
@@ -140,8 +140,8 @@ describe('manual arrow bending', () => {
   });
   test('cancelling a bend restores the straight arrow', () => {
     const { engine, listeners, point } = setup([straight]);
-    engine.selectAll(); listeners.pointerdown(point(300, 200)); listeners.pointermove(point(300, 280));
-    listeners.pointercancel(point(300, 280));
+    const handle=getBendHandle(straight);engine.selectAll(); listeners.pointerdown(point(handle.x,handle.y)); listeners.pointermove(point(handle.x,handle.y+80));
+    listeners.pointercancel(point(handle.x,handle.y+80));
     expect(engine.getElements()[0]).toEqual(straight);
     engine.destroy();
   });
@@ -1882,4 +1882,16 @@ test('document-to-document arrows attach to painted borders and follow the next 
 test('shared selection colors recolor icon glyphs and remain undoable',()=>{
  const {engine}=setup([]);engine.addOnlineIcon('cloud','lucide:cloud','<path d="M0 0h24v24z"/>','0 0 24 24');
  const before=engine.getElements()[0].iconColor;engine.updateSelectedElement({stroke:'#22D3EE'});expect(engine.getElements()[0].iconColor).toBe('#22D3EE');engine.undo();expect(engine.getElements()[0].iconColor).toBe(before);engine.destroy();
+});
+
+test('multiline arrow labels remain selectable and edit in the larger shared typography',()=>{
+ const labelled={...arrow,startBinding:undefined,endBinding:undefined,startX:100,startY:100,endX:500,endY:100,routing:'straight',label:'First\nSecond\nThird'};
+ const {engine,listeners,point}=setup([labelled]);let editor;engine.onStartInlineText=state=>{editor=state;};
+ listeners.pointerdown(point(300,120));listeners.pointerup(point(300,120));expect(engine.getSelectedElements()[0]?.id).toBe(labelled.id);
+ listeners.dblclick(point(300,120));expect(editor).toMatchObject({kind:'label',elementId:labelled.id,text:labelled.label,fontSize:16,fontFamily:'sans',align:'center'});
+ engine.commitInlineText({...editor,text:'Edited\nLabel'});expect(engine.getElements()[0].label).toBe('Edited\nLabel');engine.undo();expect(engine.getElements()[0].label).toBe(labelled.label);engine.destroy();
+});
+
+test('editable diagram exports retain readable arrow-label typography and contrast plates',()=>{
+ const labelled={...arrow,label:'Readable label'};const xml=boardToDrawio({elements:[labelled],theme:'light'});expect(xml).toContain('fontSize=16;');expect(xml).toContain('fontStyle=1;');expect(xml).toContain('labelBackgroundColor=#ffffff;');expect(xml).toContain('fontColor=#20201e;');expect(labelled.label).toBe('Readable label');
 });

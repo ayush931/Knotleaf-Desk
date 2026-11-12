@@ -32,7 +32,7 @@ import { useCanvasFocus } from "@/lib/useCanvasFocus";
 import { Classroom } from "./Classroom";
 import { CollaborationPanel } from "./CollaborationPanel";
 import { CanvasEngine } from "@/draw/CanvasEngine";
-import { loadCanvasFonts, setFont, measureTextBlock, uiAccent } from "@/draw/renderer";
+import { loadCanvasFonts, setFont, measureTextBlock, uiAccent, arrowLabelLayout, arrowLabelColors, ARROW_LABEL_FONT_SIZE, ARROW_LABEL_LINE_HEIGHT } from "@/draw/renderer";
 import { fontCssStack } from "@/draw/fonts";
 import { isColorTool, colorToolForElement, rememberToolColors, type ColorTool } from "@/draw/toolColors";
 import type { CodeViewState } from "@/draw/codeLayout";
@@ -97,6 +97,11 @@ import { ShortcutsModal } from "./ShortcutsModal";
 
 const isEditableTarget = (t: EventTarget | null) =>
   t instanceof HTMLElement && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable);
+
+function arrowLabelEditorStyle(zoom: number, light: boolean): React.CSSProperties {
+  const colors = arrowLabelColors(light ? "light" : "dark");
+  return { boxSizing:"border-box", padding:`${6 * zoom}px ${12 * zoom}px`, borderRadius:`${8 * zoom}px`, background:colors.background, color:colors.ink, fontSize:`${ARROW_LABEL_FONT_SIZE * zoom}px`, fontWeight:600, lineHeight:`${ARROW_LABEL_LINE_HEIGHT * zoom}px`, boxShadow:`0 0 0 ${1.25 * zoom}px ${colors.border}` };
+}
 
 export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
   const router = useRouter();
@@ -891,6 +896,15 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
       const context = canvasRef.current?.getContext("2d");
       if (!context) return;
       context.save();
+      if (inlineText.kind === "label" && selectedElement?.type === "arrow") {
+        const layout = arrowLabelLayout(inlineText.text || inlinePlaceholder, {x:inlineText.canvasX,y:inlineText.canvasY}, context);
+        Object.assign(editor.style, {
+          left:`${layout.bounds.minX * viewport.zoom + viewport.pan.x}px`, top:`${layout.bounds.minY * viewport.zoom + viewport.pan.y}px`,
+          width:`${layout.width * viewport.zoom}px`, height:`${layout.height * viewport.zoom}px`, minHeight:`${layout.height * viewport.zoom}px`,
+          ...arrowLabelEditorStyle(viewport.zoom, lightCanvas), overflowY:"hidden",
+        });
+        context.restore(); editor.scrollLeft=0; editor.scrollTop=0; return;
+      }
       setFont(context, inlineText.fontSize, inlineText.fontFamily, inlineText.bold ? 700 : 500, inlineText.italic);
       const freeText = !inlineText.boxWidth && (inlineText.kind === "new-text" || inlineText.kind === "text" && selectedElement?.type === "text" && !selectedElement.isDocCard && !selectedElement.isCodeCard);
       const unchangedText = selectedElement?.type === "text" && inlineText.text === selectedElement.text && inlineText.fontSize === selectedElement.fontSize && inlineText.fontFamily === selectedElement.fontFamily && inlineText.align === (selectedElement.textAlign || "left") && !!inlineText.bold === !!selectedElement.bold && !!inlineText.italic === !!selectedElement.italic;
@@ -911,7 +925,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
     resizeEditor();
     document.fonts?.addEventListener("loadingdone", resizeEditor);
     return () => document.fonts?.removeEventListener("loadingdone", resizeEditor);
-  }, [inlineText, inlinePlaceholder, selectedElement, zoom, splitBounds.width, splitBounds.height, notesWidth, notesHeight, viewMode]);
+  }, [inlineText, inlinePlaceholder, selectedElement, zoom, splitBounds.width, splitBounds.height, notesWidth, notesHeight, viewMode, viewport, lightCanvas]);
 
   const inlineTextAlign = inlineText?.align ?? "left";
   const createSharedRoom = (openClassroom = false): Promise<void> => {
@@ -1304,6 +1318,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
                     resize: "none",
                     overflowX: "hidden",
                     boxShadow: "none",
+                    ...(inlineText.kind === "label" && selectedElement?.type === "arrow" ? arrowLabelEditorStyle(viewport.zoom, lightCanvas) : {}),
                   }}
                 />
               </>
@@ -1344,7 +1359,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
                 selectedTool={selectedTool}
                 isTextEditing={textOptionsVisible}
                 preserveTextFocus={isInlineTextual}
-                selectedElement={isInlineTextual && selectedElement && (selectedElement.type === "text" || selectedElement.type === "sticky") ? { ...selectedElement, fontSize: inlineText!.fontSize, fontFamily: inlineText!.fontFamily, textAlign: inlineText!.align, stroke: inlineText!.color, bold: inlineText!.bold, italic: inlineText!.italic, underline: inlineText!.underline, strikethrough: inlineText!.strikethrough, text: inlineText!.text, ...selectedTextStyle, ...(selectedTextStyle.color?{stroke:selectedTextStyle.color}:{}) } : selectedTool === "text" ? null : selectedElement}
+                selectedElement={inlineText?.kind === "label" && selectedElement?.type === "arrow" ? {...selectedElement,label:inlineText.text} : isInlineTextual && selectedElement && (selectedElement.type === "text" || selectedElement.type === "sticky") ? { ...selectedElement, fontSize: inlineText!.fontSize, fontFamily: inlineText!.fontFamily, textAlign: inlineText!.align, stroke: inlineText!.color, bold: inlineText!.bold, italic: inlineText!.italic, underline: inlineText!.underline, strikethrough: inlineText!.strikethrough, text: inlineText!.text, ...selectedTextStyle, ...(selectedTextStyle.color?{stroke:selectedTextStyle.color}:{}) } : selectedTool === "text" ? null : selectedElement}
                 selectionCount={selectedElements.length}
                 formattingState={formattingState}
                 currentStyle={isInlineTextual ? { ...currentStyle, fontSize: inlineText!.fontSize, fontFamily: inlineText!.fontFamily, textAlign: inlineText!.align, stroke: inlineText!.color, bold: inlineText!.bold, italic: inlineText!.italic, underline: inlineText!.underline, strikethrough: inlineText!.strikethrough, ...selectedTextStyle, ...(selectedTextStyle.color?{stroke:selectedTextStyle.color}:{}) } : currentStyle}
@@ -1373,6 +1388,12 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
                   if (engineRef.current) engineRef.current.currentStyle = nextStyle;
                 }}
                 onUpdateElement={(props) => {
+                  if (inlineText?.kind === "label" && selectedElement?.type === "arrow" && "label" in props) {
+                    setInlineText(previous => previous ? {...previous,text:props.label || ""} : null);
+                    const rest = Object.fromEntries(Object.entries(props).filter(([key]) => key !== "label"));
+                    if (Object.keys(rest).length) engineRef.current?.updateSelectedElement(rest);
+                    return;
+                  }
                   if (isInlineTextual && "text" in props && typeof props.text === "string") setInlineText(previous => previous ? { ...previous, text: props.text! } : null);
                   if (isInlineTextual) {
                     const rest=Object.fromEntries(Object.entries(props).filter(([key])=>!["fontSize","fontFamily","stroke","bold","italic","underline","strikethrough","text"].includes(key)));
