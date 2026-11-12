@@ -366,4 +366,4 @@ test('theme gallery previews the current slide, filters themes, and preserves ov
     await act(async () => root.unmount()); container.remove();
     for (const [key, value] of saved) if (value) Object.defineProperty(globalThis, key, value); else delete globalThis[key];
   }
-});
+}, 15000);

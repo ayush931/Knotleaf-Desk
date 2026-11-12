@@ -22,6 +22,7 @@ import {
   Play,
   Magnet,
   Trash2,
+  Command,
 } from "lucide-react";
 import { AccountButton } from "./AccountButton";
 import { InstallWebApp } from "./InstallWebApp";
@@ -67,6 +68,7 @@ interface BoardHeaderProps {
   onCopyClipboard: (selection: boolean) => Promise<boolean>;
   onTogglePresentation: () => void;
   onShowShortcuts: () => void;
+  onOpenCommandPalette?: () => void;
 }
 
 export function BoardHeader({
@@ -105,6 +107,7 @@ export function BoardHeader({
   onCopyClipboard,
   onTogglePresentation,
   onShowShortcuts,
+  onOpenCommandPalette,
 }: BoardHeaderProps) {
   const [actionsOpen, setActionsOpen] = useState(false);
   const actionsButton = useRef<HTMLButtonElement>(null);
@@ -186,7 +189,7 @@ export function BoardHeader({
           onClick={onToggleSidebar}
           title="Open Boards Workspace"
           aria-label="Open workspaces"
-          className="workspace-brand-button shrink-0 rounded-lg hover:bg-neutral-800 text-neutral-600 dark:text-neutral-200 hover:text-white transition cursor-pointer"
+          className="workspace-brand-button brand-orb shrink-0 rounded-lg text-neutral-600 transition hover:text-white dark:text-neutral-200"
         >
           <BrandMark size={30} />
         </button>
@@ -221,7 +224,7 @@ export function BoardHeader({
               </span>
             </button>
           )}
-        {saveError ? <button data-ui-tone="pending" role="status" onClick={onRetrySave} title="Storage is full or unavailable. Retry saving or export a JSON backup." className="rounded px-2 py-1 text-[11px] text-neutral-400 hover:bg-neutral-500/10">Not saved · retry</button> : <span className="flex shrink-0 items-center gap-1.5 whitespace-nowrap text-[11px] text-neutral-500 dark:text-neutral-300"><span className="h-1 w-1 rounded-full bg-neutral-400" />Saved locally</span>}
+        {saveError ? <button data-ui-tone="pending" role="status" onClick={onRetrySave} title="Storage is full or unavailable. Retry saving or export a JSON backup." className="rounded px-2 py-1 text-[11px] text-neutral-400 hover:bg-neutral-500/10">Not saved · retry</button> : <span className="save-status flex shrink-0 items-center gap-1.5 whitespace-nowrap text-[11px] text-neutral-500 dark:text-neutral-300"><span className="save-dot h-1.5 w-1.5 rounded-full" />Saved locally</span>}
         </div>
 
 
@@ -233,6 +236,7 @@ export function BoardHeader({
         {(["canvas", "split", "notes", "slides"] as ViewMode[]).map(mode => <button key={mode} aria-pressed={viewMode === mode} onClick={() => onChangeViewMode(mode)} className="workspace-view-button text-xs font-medium capitalize transition">{mode === "slides" ? "Presentation" : mode}</button>)}
       </nav>
       <div className="workspace-header-controls">
+      {onOpenCommandPalette && <button type="button" onClick={onOpenCommandPalette} aria-label="Quick actions" title="Quick actions · Cmd/Ctrl+K" aria-keyshortcuts="Meta+k Control+k" className="header-command hidden h-8 shrink-0 items-center gap-1.5 rounded-lg border px-2 text-[11px] font-medium min-[1180px]:inline-flex"><Command aria-hidden="true" className="h-3.5 w-3.5" /><span>Quick actions</span><kbd className="premium-kbd">⌘K</kbd></button>}
       <button type="button" onClick={onToggleTheme} aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} className="flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-neutral-700 px-2 text-xs font-medium text-neutral-200 hover:bg-neutral-800 hover:text-white">
         {theme === "dark" ? <Sun aria-hidden="true" className="h-4 w-4" /> : <Moon aria-hidden="true" className="h-4 w-4" />}
         <span className="sr-only">{theme === "dark" ? "Light mode" : "Dark mode"}</span>
@@ -246,7 +250,7 @@ export function BoardHeader({
           <button data-ui-tone="info"
             aria-label="Export board" aria-expanded={showExportMenu}
             onClick={() => setShowExportMenu(!showExportMenu)}
-            className="px-2.5 py-1 rounded-lg ui-primary hover:bg-neutral-500 text-white text-xs font-semibold flex items-center gap-1 transition shadow-xs cursor-pointer ml-1"
+            className="premium-cta px-2.5 py-1 rounded-lg ui-primary hover:bg-neutral-500 text-white text-xs font-semibold flex items-center gap-1 transition shadow-xs cursor-pointer ml-1"
           >
             <Download className="w-3 h-3" />
             <span>Export</span>

@@ -148,6 +148,7 @@ export interface LineElement extends BaseElement {
   startY: number;
   endX: number;
   endY: number;
+  routing?: ArrowRouting;
 }
 
 export interface PencilElement extends BaseElement {
@@ -269,6 +270,7 @@ export interface ElementStyleProps extends TextFormatting {
   fontFamily: FontFamily;
   textAlign: TextAlign;
   arrowRouting?: ArrowRouting;
+  lineRouting?: ArrowRouting;
   arrowHeadStart?: ArrowHead;
   arrowHeadEnd?: ArrowHead;
   arrowAnimated?: boolean;
@@ -288,6 +290,7 @@ export const DEFAULT_STYLE: ElementStyleProps = {
   fontFamily: "hand",
   textAlign: "left",
   arrowRouting: "straight",
+  lineRouting: "straight",
   arrowHeadStart: "none",
   arrowHeadEnd: "arrow",
   arrowAnimated: false,

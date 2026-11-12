@@ -730,6 +730,32 @@ test('line bend survives moving endpoints and cancellation restores it', () => {
   expect(engine.getElements()[0].bendOffset).toBe(100); engine.destroy();
 });
 
+test('line supports both straight and curved routing with bend controls', () => {
+  const { engine, drag } = setup([]);
+  engine.setStyle({ lineRouting: 'curved' });
+  engine.setTool('line');
+  drag(100, 100, 300, 100);
+  const created = engine.getElements()[0];
+  expect(created.type).toBe('line');
+  expect(created.routing).toBe('curved');
+  expect(created.bendOffset).toBeGreaterThan(0);
+  expect(computeLinePath(created).routing).toBe('curved');
+
+  engine.updateSelectedElement({ routing: 'straight', bendOffset: 0 });
+  const straight = engine.getElements()[0];
+  expect(straight.routing).toBe('straight');
+  expect(computeLinePath(straight).routing).toBe('straight');
+
+  // Dragging midpoint switches to curved
+  const mid = computeLinePath(straight).midPt;
+  drag(mid.x, mid.y, mid.x, mid.y + 50);
+  const bent = engine.getElements()[0];
+  expect(bent.routing).toBe('curved');
+  expect(bent.bendOffset).toBe(100);
+  expect(computeLinePath(bent).routing).toBe('curved');
+  engine.destroy();
+});
+
 
 test('creation and erase tools respond synchronously over existing content without a double-click wait', () => {
   for (const tool of ['doc', 'sticky', 'code', 'text', 'eraser']) {

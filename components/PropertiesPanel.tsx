@@ -10,6 +10,7 @@ import { DEFAULT_BACKGROUND } from "@/lib/background.mjs";
 import type { BackgroundSettings } from "@/draw/types";
 import { ColorControl } from "./ColorControl";
 import { FontSelect } from "./FontSelect";
+import { COLOR_MOODS, PREMIUM_BACKGROUND_MOODS } from "@/lib/premiumPalette";
 import { QUICK_FONTS, fontCssStack } from "@/draw/fonts";
 import {
   FontFamily,
@@ -103,11 +104,13 @@ export function PropertiesPanel({
   const context = selectionCount > 1 ? `${selectionCount} elements selected` : selectedElement ? `${selectedElement.type === "text" && selectedElement.attachment ? "Attachment" : selectedElement.type === "text" && selectedElement.isCodeCard ? "Code card" : selectedElement.type === "text" && selectedElement.isDocCard ? "Document card" : selectedElement.type.charAt(0).toUpperCase() + selectedElement.type.slice(1)} selected` : isTextEditing ? "Text formatting" : "Style for new elements";
 
   const isArrow = selectedElement?.type === "arrow" || (!selectedElement && selectedTool === "arrow");
+  const isLine = selectedElement?.type === "line" || (!selectedElement && selectedTool === "line");
   const isCode = selectedElement?.type === "text" && selectedElement.isCodeCard;
   const isIcon = selectedElement?.type === "icon";
   const isAttachment = selectedElement?.type === "text" && !!selectedElement.attachment;
   const isImage = selectedElement?.type === "image" || isAttachment;
   const arrowEl = selectedElement?.type === "arrow" ? selectedElement : null;
+  const lineEl = selectedElement?.type === "line" ? selectedElement : null;
 
   const activeStroke = selectedElement?.type === "icon" ? selectedElement.iconColor || "#E2E8F0" : selectedElement ? selectedElement.stroke : currentStyle.stroke;
   const activeFill = selectedElement?.type === "text" ? cardBackground(selectedElement).fill : selectedElement?.fill ?? currentStyle.fill;
@@ -124,6 +127,10 @@ export function PropertiesPanel({
 
   const activeRouting: ArrowRouting =
     arrowEl ? arrowEl.routing || arrowEl.elbow || "straight" : currentStyle.arrowRouting || "straight";
+  const activeLineRouting: ArrowRouting =
+    lineEl
+      ? (lineEl.bendOffset === 0 ? "straight" : (lineEl.routing || (lineEl.bendOffset ? "curved" : "straight")))
+      : (currentStyle.lineRouting || "straight");
   const activeHeadStart: ArrowHead =
     (arrowEl?.arrowHeadStart as ArrowHead) || currentStyle.arrowHeadStart || "none";
   const activeHeadEnd: ArrowHead =
@@ -172,6 +179,20 @@ export function PropertiesPanel({
     onUpdateStyle({ arrowRouting: routing });
   };
 
+  const handleLineRouting = (routing: ArrowRouting) => {
+    if (selectedElement && isLine) {
+      if (routing === "straight") {
+        onUpdateElement({ routing: "straight", bendOffset: 0 });
+      } else {
+        const defaultBend = lineEl && lineEl.bendOffset
+          ? lineEl.bendOffset
+          : Math.round(Math.max(22, Math.min(65, lineEl ? Math.hypot(lineEl.endX - lineEl.startX, lineEl.endY - lineEl.startY) * 0.22 : 40)));
+        onUpdateElement({ routing: "curved", bendOffset: defaultBend });
+      }
+    }
+    onUpdateStyle({ lineRouting: routing });
+  };
+
   const handleHeadStart = (cap: ArrowHead) => {
     if (selectedElement && isArrow) {
       onUpdateElement({ arrowHeadStart: cap });
@@ -199,7 +220,7 @@ export function PropertiesPanel({
   };
 
   const isTextual = !isAttachment && (isTextEditing || selectedElement?.type === "text" || selectedElement?.type === "sticky" || (!selectedElement && ["text", "doc", "sticky"].includes(selectedTool)));
-  const hasBackground = !isImage && !isIcon && !isArrow && selectedElement?.type !== "line" && selectedTool !== "line" && selectedTool !== "pencil" && (!isTextual || selectedElement?.type === "sticky" || selectedElement?.type === "text" && (selectedElement.isDocCard || selectedElement.isCodeCard) || selectedTool === "doc" || selectedTool === "sticky");
+  const hasBackground = !isImage && !isIcon && !isArrow && !isLine && selectedTool !== "pencil" && (!isTextual || selectedElement?.type === "sticky" || selectedElement?.type === "text" && (selectedElement.isDocCard || selectedElement.isCodeCard) || selectedTool === "doc" || selectedTool === "sticky");
   const textEl = selectedElement && (selectedElement.type === "text" || selectedElement.type === "sticky") ? selectedElement : null;
   const activeFontSize = textEl ? textEl.fontSize : currentStyle.fontSize;
   const activeFamily = textEl ? textEl.fontFamily || "sans" : currentStyle.fontFamily;
@@ -280,7 +301,7 @@ export function PropertiesPanel({
       className="absolute left-2 z-40 flex w-72 max-w-[calc(100%-1rem)] flex-col overflow-hidden rounded-md border drawing-panel text-neutral-800 dark:text-neutral-200 shadow-sm select-none"
     >
       <header className="flex shrink-0 items-center gap-3 border-b border-neutral-200 dark:border-neutral-800 px-4 py-3">
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-neutral-50 dark:bg-neutral-500/20 text-neutral-700 dark:text-neutral-200"><Palette className="h-4 w-4" /></span>
+        <span className="appearance-mark flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"><Palette className="h-4 w-4" /></span>
         <div className="min-w-0 flex-1"><h2 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Appearance</h2><p className="truncate text-[11px] text-neutral-500 dark:text-neutral-400">{context}</p></div>
         <button ref={closeButton} type="button" onClick={close} title="Hide appearance settings · Escape" aria-label="Collapse appearance settings"
           className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-neutral-500 dark:text-neutral-400 transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-900 dark:hover:text-white focus-visible:outline-2 focus-visible:outline-black dark:focus-visible:outline-white"><X className="h-4 w-4" /></button>
@@ -463,24 +484,90 @@ export function PropertiesPanel({
         </div>
       )}
 
-      {selectedElement?.type === "line" && (
-        <div className="space-y-1">
-          <p className="text-[10px] text-neutral-500 dark:text-neutral-400">Drag the center diamond to bend the line.</p>
-          <label className="flex items-center justify-between gap-2 text-[10px] text-neutral-600 dark:text-neutral-400">
-            Bend (px)
-            <input type="number" aria-label="Line bend in pixels" step="1"
-              value={Math.round((selectedElement.bendOffset ?? 0) / 2)}
-              onChange={event => {
-                const bend = event.currentTarget.valueAsNumber;
-                if (Number.isFinite(bend)) onUpdateElement({ bendOffset: bend * 2 });
-              }}
-              className="w-20 rounded border border-neutral-300 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-900 px-2 py-1 text-neutral-800 dark:text-neutral-200 focus-visible:outline-2 focus-visible:outline-black dark:focus-visible:outline-white" />
-          </label>
-          <p className="text-[10px] text-neutral-500 dark:text-neutral-400">Use positive or negative values to bend either way. Set 0 for a straight line.</p>
+      {isLine && (
+        <div className="space-y-2">
+          <div>
+            <label className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wider block mb-1">
+              Line Routing
+            </label>
+            <div role="group" aria-label="Line routing" className="grid grid-cols-2 gap-1 p-0.5 rounded-lg bg-neutral-100 dark:bg-neutral-800 text-[10px] text-center">
+              <button
+                type="button"
+                aria-pressed={activeLineRouting === "straight"}
+                onClick={() => handleLineRouting("straight")}
+                className={`py-1 rounded font-medium flex items-center justify-center gap-1 transition ${
+                  activeLineRouting === "straight"
+                    ? "bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white shadow-xs font-semibold"
+                    : "text-neutral-500 hover:text-neutral-800 dark:hover:text-white"
+                }`}
+              >
+                <Minus className="w-3 h-3" />
+                Straight
+              </button>
+              <button
+                type="button"
+                aria-pressed={activeLineRouting === "curved"}
+                onClick={() => handleLineRouting("curved")}
+                className={`py-1 rounded font-medium flex items-center justify-center gap-1 transition ${
+                  activeLineRouting === "curved"
+                    ? "bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white shadow-xs font-semibold"
+                    : "text-neutral-500 hover:text-neutral-800 dark:hover:text-white"
+                }`}
+              >
+                <Spline className="w-3 h-3 text-neutral-500" />
+                Curved
+              </button>
+            </div>
+            {lineEl && (
+              <div className="mt-2 space-y-1">
+                <p className="text-[10px] text-neutral-500 dark:text-neutral-400">Drag the center diamond to bend the line.</p>
+                <label className="flex items-center justify-between gap-2 text-[10px] text-neutral-600 dark:text-neutral-400">
+                  Bend (px)
+                  <input
+                    type="number"
+                    aria-label="Line bend in pixels"
+                    step="1"
+                    value={activeLineRouting === "curved" ? Math.round((lineEl.bendOffset ?? Math.max(22, Math.min(65, Math.hypot(lineEl.endX - lineEl.startX, lineEl.endY - lineEl.startY) * 0.22))) / 2) : 0}
+                    onChange={event => {
+                      const bend = event.currentTarget.valueAsNumber;
+                      if (!Number.isFinite(bend)) return;
+                      const routing = bend === 0 ? "straight" : "curved";
+                      onUpdateElement({ routing, bendOffset: bend * 2 });
+                    }}
+                    className="w-20 rounded border border-neutral-300 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-900 px-2 py-1 text-neutral-800 dark:text-neutral-200 focus-visible:outline-2 focus-visible:outline-black dark:focus-visible:outline-white"
+                  />
+                </label>
+                <p className="text-[10px] text-neutral-500 dark:text-neutral-400">Use positive or negative values to bend either way. Set 0 for a straight line.</p>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
       {selectedTool === "eyedropper" && <p className="text-xs text-neutral-500 dark:text-neutral-400">Click an object to use its color for drawing.</p>}
+      {!isImage && <section aria-label="Color moods" className="space-y-1.5">
+        <div className="flex items-center justify-between gap-2">
+          <label className="text-[11px] font-medium tracking-wide text-neutral-500 dark:text-neutral-400">Color mood</label>
+          <span className="text-[9px] uppercase tracking-[0.1em] text-neutral-400">Paired stroke + fill</span>
+        </div>
+        <div className="grid grid-cols-5 gap-1.5">
+          {COLOR_MOODS.map(mood => {
+            const active = activeStroke.toLowerCase() === mood.stroke.toLowerCase() && (!hasBackground || activeFill.toLowerCase() === mood.fill.toLowerCase());
+            return <button
+              key={mood.id}
+              type="button"
+              aria-label={`Color mood: ${mood.name}`}
+              aria-pressed={active}
+              title={`${mood.name} · ${mood.description}`}
+              onClick={() => { handleStrokeColor(mood.stroke); if (hasBackground) changeBackground(mood.fill); }}
+              className={`color-mood group flex h-9 items-center justify-center rounded-lg border transition ${active ? "is-active" : "border-neutral-200 hover:border-neutral-400 dark:border-neutral-700 dark:hover:border-neutral-500"}`}
+              style={{ background: `linear-gradient(135deg, ${mood.stroke}30 0 52%, ${mood.fill}aa 52% 100%)` }}
+            >
+              <span className="h-2.5 w-2.5 rounded-full shadow-sm transition group-hover:scale-125" style={{ backgroundColor: mood.stroke }} />
+            </button>;
+          })}
+        </div>
+      </section>}
       {!isImage && <ColorControl label="Custom stroke color" value={activeStroke} onChange={handleStrokeColor} />}
       {isImage && <p className="text-xs text-neutral-500 dark:text-neutral-400">{isAttachment ? "File attachment. Select its Download button to save the original file." : "Drag to move this image. Use the selection handles to resize it."}</p>}
       {/* Stroke Color */}
@@ -776,7 +863,7 @@ export function PropertiesPanel({
       </div>
 
       </>}
-      {onBackgroundChange && <details className="border-t border-neutral-200 dark:border-neutral-800 pt-2"><summary className="cursor-pointer py-1 text-xs text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-200 transition">Canvas background</summary><div className="mt-2 space-y-2"><ColorControl label="Canvas background color" value={background.fill} onChange={fill => onBackgroundChange({ ...background, fill, fillOpacity: 1 })} /><BackgroundStylePicker label="Canvas background style" value={background.fillStyle} onChange={fillStyle => onBackgroundChange({ ...background, fillStyle, fillOpacity: 1 })} /></div></details>}
+      {onBackgroundChange && <details className="border-t border-neutral-200 dark:border-neutral-800 pt-2"><summary className="cursor-pointer py-1 text-xs text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-200 transition">Canvas background</summary><div className="mt-2 space-y-2"><div role="group" aria-label="Canvas background presets" className="grid grid-cols-8 gap-1">{PREMIUM_BACKGROUND_MOODS.map(choice => <button key={choice.value} type="button" aria-label={`Canvas background ${choice.name}`} title={choice.name} onClick={() => onBackgroundChange({ ...background, fill: choice.value, fillOpacity: 1 })} className={`h-6 w-full rounded-md border transition hover:scale-105 ${background.fill.toLowerCase() === choice.value.toLowerCase() ? "border-neutral-900 ring-2 ring-neutral-900/30 dark:border-white dark:ring-white/30" : "border-neutral-300 dark:border-neutral-600"}`} style={{ backgroundColor: choice.value }} />)}</div><ColorControl label="Canvas background color" value={background.fill} onChange={fill => onBackgroundChange({ ...background, fill, fillOpacity: 1 })} /><BackgroundStylePicker label="Canvas background style" value={background.fillStyle} onChange={fillStyle => onBackgroundChange({ ...background, fillStyle, fillOpacity: 1 })} /></div></details>}
       </div>
       {selectionCount > 0 && <footer aria-label="Selection actions" className="grid shrink-0 grid-cols-2 gap-2 border-t border-neutral-200 dark:border-neutral-800 bg-neutral-50/95 dark:bg-neutral-900/80 p-3 text-xs">
         <button onClick={onDuplicate} aria-label="Duplicate selection" title="Duplicate (Ctrl/Cmd+D)" className="flex h-8 items-center justify-center gap-2 rounded-lg border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 focus-visible:outline-2 focus-visible:outline-black dark:focus-visible:outline-white transition cursor-pointer"><Copy className="h-3.5 w-3.5" />Duplicate</button>
