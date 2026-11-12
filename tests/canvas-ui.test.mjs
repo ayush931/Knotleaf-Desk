@@ -794,3 +794,36 @@ test('mobile beforeinput line breaks insert a newline and empty hyphen lists exi
  await act(async()=>editor.dispatchEvent(new browser.InputEvent('beforeinput',{bubbles:true,cancelable:true,inputType:'insertParagraph'})));expect(editor.value).toBe('First\n');
  await typeText(editor,'- item\n- ');await act(async()=>editor.dispatchEvent(new browser.KeyboardEvent('keydown',{bubbles:true,cancelable:true,key:'Enter'})));expect(editor.value).toBe('- item\n');
 });
+
+test('Mac undo and redo restore inline text and newlines without undoing the board',async()=>{
+ const id=await renderBoard(),editor=await startText();await typeText(editor,'First');
+ await act(async()=>editor.dispatchEvent(new browser.KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true})));await typeText(editor,'First\nSecond');
+ const key=async(shift=false)=>act(async()=>editor.dispatchEvent(new browser.KeyboardEvent('keydown',{key:'z',metaKey:true,shiftKey:shift,bubbles:true,cancelable:true})));
+ await key();expect(editor.value).toBe('First\n');await key();expect(editor.value).toBe('First');await key(true);expect(editor.value).toBe('First\n');await key(true);expect(editor.value).toBe('First\nSecond');
+ await act(async()=>editor.dispatchEvent(new browser.KeyboardEvent('keydown',{key:'Enter',metaKey:true,bubbles:true})));expect(getBoard(id).elements[0].text).toBe('First\nSecond');
+});
+test('undo and redo from Appearance restore selected formatting and preserve the active editor',async()=>{
+ await renderBoard();const editor=await startText();await typeText(editor,'hello world');editor.setSelectionRange(6,11);await clickNamed('Open appearance settings');await clickNamed('Bold');
+ const undo=async shift=>act(async()=>named('Bold').dispatchEvent(new browser.KeyboardEvent('keydown',{key:'z',metaKey:true,shiftKey:shift,bubbles:true,cancelable:true})));
+ await undo(false);expect(editor.querySelectorAll('span').length).toBe(1);await undo(true);expect(editor.querySelectorAll('span')[1].style.fontWeight).toBe('700');expect(editor.value).toBe('hello world');
+});
+
+test('toolbar and native input undo share editing history, and new typing clears redo',async()=>{
+ await renderBoard();const editor=await startText();await typeText(editor,'Alpha');await typeText(editor,'Alpha beta');
+ expect(named('Undo').disabled).toBe(false);await clickNamed('Undo');expect(editor.value).toBe('Alpha');await clickNamed('Redo');expect(editor.value).toBe('Alpha beta');
+ await act(async()=>editor.dispatchEvent(new browser.InputEvent('beforeinput',{inputType:'historyUndo',bubbles:true,cancelable:true})));expect(editor.value).toBe('Alpha');
+ await typeText(editor,'Alpha gamma');expect(named('Redo').disabled).toBe(true);await clickNamed('Undo');expect(editor.value).toBe('Alpha');
+});
+
+test('undo restores replaced formatted text and its previous character selection',async()=>{
+ await renderBoard();const editor=await startText();await typeText(editor,'hello world');editor.setSelectionRange(6,11);await clickNamed('Open appearance settings');await clickNamed('Bold');editor.focus();editor.setSelectionRange(6,11);
+ await act(async()=>editor.dispatchEvent(new browser.InputEvent('beforeinput',{inputType:'insertText',bubbles:true,cancelable:true,data:'team'})));await typeText(editor,'hello team');
+ await act(async()=>editor.dispatchEvent(new browser.KeyboardEvent('keydown',{key:'z',metaKey:true,bubbles:true,cancelable:true})));await act(async()=>new Promise(resolve=>window.requestAnimationFrame(resolve)));
+ expect(editor.value).toBe('hello world');expect([editor.selectionStart,editor.selectionEnd]).toEqual([6,11]);expect(editor.querySelectorAll('span')[1].style.fontWeight).toBe('700');
+});
+
+for(const eventName of ['beforeunload','pagehide'])test(`navigation flushes an active text draft once on ${eventName}`,async()=>{
+ const id=await renderBoard(),editor=await startText();await typeText(editor,'Draft that must survive refresh');
+ await act(async()=>window.dispatchEvent(new browser.Event(eventName)));expect(getBoard(id).elements[0].text).toBe('Draft that must survive refresh');
+ await act(async()=>window.dispatchEvent(new browser.Event('pagehide')));expect(getBoard(id).elements).toHaveLength(1);
+});

@@ -198,17 +198,45 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
   const [textSelection,setTextSelection]=useState(0);
   const [inlineText, renderInlineText] = useState<InlineTextState | null>(null);
   const inlineTextStateRef = useRef<InlineTextState | null>(null);
+  const inlineHistory = useRef<{past:{state:InlineTextState;start:number;end:number}[];future:{state:InlineTextState;start:number;end:number}[]}>({past:[],future:[]});
+  const [inlineHistoryAvailability,setInlineHistoryAvailability]=useState({undo:false,redo:false});
+  const restoringInlineHistory=useRef(false);
+  const inlineEditSelection=useRef<{start:number;end:number}|null>(null);
   const setInlineText = useCallback((update: React.SetStateAction<InlineTextState | null>) => {
     const previous=inlineTextStateRef.current;
     let next = typeof update === "function" ? update(previous) : update;
-    if(next && previous && next.text !== previous.text) next={...next,textRanges:editRanges(previous.text,next.text,previous.textRanges)};
+    if(next && previous && next.text !== previous.text && !restoringInlineHistory.current) next={...next,textRanges:editRanges(previous.text,next.text,previous.textRanges)};
+    if(!previous||!next)inlineHistory.current={past:[],future:[]};
+    else if(!restoringInlineHistory.current&&JSON.stringify(previous)!==JSON.stringify(next)){
+      const editor=inlineTextareaRef.current, history=inlineHistory.current;
+      history.past.push({state:structuredClone(previous),start:inlineEditSelection.current?.start??editor?.selectionStart??0,end:inlineEditSelection.current?.end??editor?.selectionEnd??0});history.future=[];
+      while(history.past.length>100 || history.past.length>1&&history.past.reduce((n,item)=>n+item.state.text.length,0)>1_000_000)history.past.shift();
+    }
+    inlineEditSelection.current=null;
     inlineTextStateRef.current = next;
     if (next && previous && next.text !== previous.text && sessionRef.current?.synced && engineRef.current) {
       next=engineRef.current.previewInlineText(next);
       inlineTextStateRef.current=next;
     }
+    setInlineHistoryAvailability({undo:inlineHistory.current.past.length>0,redo:inlineHistory.current.future.length>0});
     renderInlineText(next);
   }, []);
+  const changeInlineHistory=(redo:boolean)=>{
+    if(!inlineTextStateRef.current)return false;
+    if(sessionRef.current?.synced){if(redo)engineRef.current?.redo();else engineRef.current?.undo();return true;}
+    const history=inlineHistory.current,current=inlineTextStateRef.current,entry=(redo?history.future:history.past).pop();
+    if(!entry)return true;
+    const editor=inlineTextareaRef.current;(redo?history.past:history.future).push({state:structuredClone(current),start:editor?.selectionStart||0,end:editor?.selectionEnd||0});
+    const {text,textRanges,fontSize,fontFamily,color,align,bold,italic,underline,strikethrough}=entry.state;
+    restoringInlineHistory.current=true;
+    try{setInlineText({...current,text,textRanges,fontSize,fontFamily,color,align,bold,italic,underline,strikethrough});}finally{restoringInlineHistory.current=false;}
+    requestAnimationFrame(()=>{if(inlineTextStateRef.current?.text===text)editor?.setSelectionRange(Math.min(entry.start,text.length),Math.min(entry.end,text.length));});return true;
+  };
+  const handleInlineHistory=(event:React.KeyboardEvent)=>{
+    if(event.nativeEvent.isComposing||event.altKey||!(event.metaKey||event.ctrlKey)||!inlineTextStateRef.current)return false;
+    const key=event.key.toLowerCase();if(key!=="z"&&key!=="y")return false;
+    event.preventDefault();event.stopPropagation();changeInlineHistory(key==="y"||event.shiftKey);return true;
+  };
   const [currentStyle, setCurrentStyle] = useState<ElementStyleProps>(() => ({ ...preferences.style, ...preferences.toolColors.rectangle }));
 
   const toolColorsRef = useRef(preferences.toolColors);
@@ -330,7 +358,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
       if (current) engine.commitInlineText(current);
       setInlineText(null); engine.finishCode(); setCodeId(null);
     };
-    engine.onStartInlineText = state => { inlineTextStateRef.current = state; setInlineText(state); };
+    engine.onStartInlineText = state => { inlineHistory.current={past:[],future:[]}; inlineEditSelection.current=null; inlineTextStateRef.current = state; setInlineText(state); };
     engine.onZoomChange = (z) => setZoom(z);
     engine.onToolChange = (t) => {
       if (isColorTool(t)) {
@@ -579,6 +607,11 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
     if (current && engineRef.current) engineRef.current.commitInlineText(current);
     setInlineText(null);
   }, [setInlineText]);
+  useEffect(()=>{
+    window.addEventListener("beforeunload",commitInline);
+    window.addEventListener("pagehide",commitInline);
+    return()=>{window.removeEventListener("beforeunload",commitInline);window.removeEventListener("pagehide",commitInline);};
+  },[commitInline]);
 
   const uploadAssets = async (files: File[], point?: { x:number; y:number }) => {
     if (!files.length || assetPending.current) return;
@@ -944,7 +977,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
                   <button type="button" aria-label="Finish document editing" title="Finish · Ctrl/Cmd+Enter" className="note-tool text-neutral-400" onClick={commitInline}><Check className="h-4 w-4"/></button>
                 </div>}
 
-                <RangeTextEditor light={lightCanvas} textRanges={inlineText.textRanges} fontScale={zoom} onSelect={event=>setTextSelection(event.currentTarget.selectionStart)}
+                <RangeTextEditor onBeforeEdit={(start,end)=>{inlineEditSelection.current??={start,end};}} onHistory={changeInlineHistory} light={lightCanvas} textRanges={inlineText.textRanges} fontScale={zoom} onSelect={event=>setTextSelection(event.currentTarget.selectionStart)}
                   className="canvas-text-editor resize-none select-text"
                   data-surface={inlineText.kind === "sticky" ? "sticky" : "canvas"}
                   ref={inlineTextareaRef}
@@ -958,6 +991,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
                   }}
                   onKeyDown={(e) => {
                     if (e.nativeEvent.isComposing) return;
+                    if(handleInlineHistory(e))return;
                     const mod = e.ctrlKey || e.metaKey;
                     const key = e.key.toLowerCase();
                     const format = key === "b" ? "bold" : key === "i" ? "italic" : key === "u" ? "underline" : key === "x" && e.shiftKey ? "strikethrough" : null;
@@ -1111,10 +1145,10 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
                 onHeightChange={setToolbarHeight}
                 selectedTool={selectedTool}
                 setSelectedTool={tool => { engineRef.current?.setTool(tool); setSelectedTool(tool); }}
-                onUndo={() => engineRef.current?.undo()}
-                onRedo={() => engineRef.current?.redo()}
-                canUndo={canUndo}
-                canRedo={canRedo}
+                onUndo={() => {if(inlineTextStateRef.current)changeInlineHistory(false);else engineRef.current?.undo();}}
+                onRedo={() => {if(inlineTextStateRef.current)changeInlineHistory(true);else engineRef.current?.redo();}}
+                canUndo={inlineText&&!initialRoomId?inlineHistoryAvailability.undo:canUndo}
+                canRedo={inlineText&&!initialRoomId?inlineHistoryAvailability.redo:canRedo}
                 onOpenIconPicker={() => setIsIconPickerOpen(true)}
                 theme={theme}
               />
@@ -1123,7 +1157,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
             {!isPresentationOpen && !focusMode && selectedTool === "eraser" && <EraserControls size={eraserSize} mode={eraserMode} top={toolbarHeight+24} onChange={(size,mode)=>{setEraserSize(size);setEraserMode(mode);engineRef.current?.setEraserOptions(size,mode);}}/>}
 
             {!isPresentationOpen && !focusMode && (
-              <div data-text-controls onBlur={event => {
+              <div data-text-controls onKeyDown={handleInlineHistory} onBlur={event => {
                 if (event.relatedTarget === inlineTextareaRef.current || event.relatedTarget instanceof HTMLElement && event.relatedTarget.closest("[data-text-controls]")) return;
                 if (inlineTextStateRef.current) commitInline();
               }}><PropertiesPanel

@@ -4,7 +4,7 @@ import {rangeStyleAt, type TextRange} from '@/draw/textRanges';
 import {neutralInk} from "@/draw/canvasAppearance";
 import {fontCssStack} from '@/draw/fonts';
 // Keep the existing editing commands and selection API backed by a native DOM range.
-export function RangeTextEditor({textRanges, fontScale=1, light=false, ...props}:React.TextareaHTMLAttributes<HTMLTextAreaElement>&{ref:React.Ref<HTMLTextAreaElement>;textRanges?:TextRange[];fontScale?:number;light?:boolean}){
+export function RangeTextEditor({textRanges, fontScale=1, light=false, onHistory, onBeforeEdit, ...props}:React.TextareaHTMLAttributes<HTMLTextAreaElement>&{ref:React.Ref<HTMLTextAreaElement>;textRanges?:TextRange[];fontScale?:number;light?:boolean;onHistory?:(redo:boolean)=>void;onBeforeEdit?:(start:number,end:number)=>void}){
  const root=useRef<HTMLDivElement>(null), saved=useRef({start:0,end:0}), composing=useRef(false);
  const text=String(props.value||''),baseDecoration=String(props.style?.textDecoration||'');
  const selection=()=>{
@@ -20,7 +20,7 @@ export function RangeTextEditor({textRanges, fontScale=1, light=false, ...props}
  };
  const insertText=(insert:string)=>{
   const el=root.current;if(!el)return;
-  const {start,end}=selection(),value=el.textContent||'';
+  const {start,end}=selection(),value=el.textContent||'';onBeforeEdit?.(start,end);
   el.textContent=value.slice(0,start)+insert+value.slice(end);
   restore(start+insert.length,start+insert.length);
   props.onChange?.({target:el,currentTarget:el} as unknown as React.ChangeEvent<HTMLTextAreaElement>);
@@ -38,7 +38,7 @@ export function RangeTextEditor({textRanges, fontScale=1, light=false, ...props}
  useLayoutEffect(()=>{
   const el=root.current!;Object.defineProperties(el,{value:{configurable:true,get:()=>el.textContent||''},selectionStart:{configurable:true,get:()=>selection().start,set:v=>restore(v,selection().end)},selectionEnd:{configurable:true,get:()=>selection().end,set:v=>restore(selection().start,v)}});
   Object.assign(el,{setSelectionRange:restore,select:()=>restore(0,(el.textContent||'').length)});
-  const beforeInput=(event:InputEvent)=>{if(!event.isComposing&&['insertParagraph','insertLineBreak'].includes(event.inputType)){event.preventDefault();insertText('\n');}};
+  const beforeInput=(event:InputEvent)=>{if(onHistory&&['historyUndo','historyRedo'].includes(event.inputType)){event.preventDefault();onHistory(event.inputType==='historyRedo');return;}const {start,end}=selection();onBeforeEdit?.(start,end);if(!event.isComposing&&['insertParagraph','insertLineBreak'].includes(event.inputType)){event.preventDefault();insertText('\n');}};
   el.addEventListener('beforeinput',beforeInput);
   return()=>el.removeEventListener('beforeinput',beforeInput);
 
