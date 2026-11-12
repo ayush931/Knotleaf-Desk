@@ -34,9 +34,10 @@ export function minimapLayout(elements: CanvasElement[]): MinimapLayout | null {
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
   for (const element of elements) {
     let bounds: Bounds;
-    try { bounds = getElementBounds(element); }
+    try { bounds = getElementBounds(element, elements); }
     catch { continue; /* An element without geometry is simply not mapped. */ }
-    if (!Number.isFinite(bounds.minX) || !Number.isFinite(bounds.minY) || bounds.maxX <= bounds.minX || bounds.maxY <= bounds.minY) continue;
+    if (![bounds.minX, bounds.minY, bounds.maxX, bounds.maxY].every(Number.isFinite)) continue;
+    bounds = { ...bounds, maxX: Math.max(bounds.minX + 1, bounds.maxX), maxY: Math.max(bounds.minY + 1, bounds.maxY) };
     minX = Math.min(minX, bounds.minX); minY = Math.min(minY, bounds.minY);
     maxX = Math.max(maxX, bounds.maxX); maxY = Math.max(maxY, bounds.maxY);
     items.push({ element, bounds });
@@ -56,7 +57,7 @@ export function Minimap({ elements, viewport, width, height, open, onToggle, onN
   const light = theme === "light";
   const map = useMemo(() => (elements.length && width > 0 && height > 0 ? minimapLayout(elements) : null), [elements, width, height]);
 
-  if (!elements.length) return null;
+  if (!elements.length || width < 480 || height < 320) return null;
 
   if (!open) {
     return <button
@@ -84,7 +85,7 @@ export function Minimap({ elements, viewport, width, height, open, onToggle, onN
       role="button"
       tabIndex={0}
       aria-label="Navigate board map"
-      title="Click or press Enter to centre the canvas"
+      title="Click to navigate · arrow keys to pan · Enter to centre artwork"
       className="minimap-surface relative overflow-hidden"
       style={{ height: MAP_HEIGHT }}
       onClick={event => {
@@ -93,9 +94,14 @@ export function Minimap({ elements, viewport, width, height, open, onToggle, onN
         onNavigate({ x: (event.clientX - rect.left - map.originX) / map.scale, y: (event.clientY - rect.top - map.originY) / map.scale });
       }}
       onKeyDown={event => {
-        if (event.key !== "Enter" && event.key !== " ") return;
-        event.preventDefault();
-        onNavigate({ x: (viewWorldX + viewWorldWidth / 2), y: (viewWorldY + viewWorldHeight / 2) });
+        if (!map) return;
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onNavigate({ x: (MAP_WIDTH / 2 - map.originX) / map.scale, y: (MAP_HEIGHT / 2 - map.originY) / map.scale });
+        } else if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) {
+          event.preventDefault(); event.stopPropagation();
+          onNavigate({ x: viewWorldX + viewWorldWidth / 2 + (event.key === "ArrowLeft" ? -1 : event.key === "ArrowRight" ? 1 : 0) * viewWorldWidth / 4, y: viewWorldY + viewWorldHeight / 2 + (event.key === "ArrowUp" ? -1 : event.key === "ArrowDown" ? 1 : 0) * viewWorldHeight / 4 });
+        }
       }}
     >
       {map && <>

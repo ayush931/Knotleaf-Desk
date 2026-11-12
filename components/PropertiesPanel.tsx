@@ -559,7 +559,11 @@ export function PropertiesPanel({
               aria-label={`Color mood: ${mood.name}`}
               aria-pressed={active}
               title={`${mood.name} · ${mood.description}`}
-              onClick={() => { handleStrokeColor(mood.stroke); if (hasBackground) changeBackground(mood.fill); }}
+              onClick={() => {
+                const style = { stroke: mood.stroke, ...(hasBackground ? { fill: mood.fill, fillStyle: activeFillStyle === "none" || activeFillStyle === "semi" ? "solid" as const : activeFillStyle, fillOpacity: 1 } : {}) };
+                if (selectedElement) onUpdateElement({ ...style, ...(isIcon ? { iconColor: mood.stroke } : {}), ...(hasBackground && selectedElement.type === "sticky" ? { color: mood.fill } : {}), ...(hasBackground && selectedElement.type === "text" ? { cardFillCustom: true } : {}) });
+                onUpdateStyle(style);
+              }}
               className={`color-mood group flex h-9 items-center justify-center rounded-lg border transition ${active ? "is-active" : "border-neutral-200 hover:border-neutral-400 dark:border-neutral-700 dark:hover:border-neutral-500"}`}
               style={{ background: `linear-gradient(135deg, ${mood.stroke}30 0 52%, ${mood.fill}aa 52% 100%)` }}
             >

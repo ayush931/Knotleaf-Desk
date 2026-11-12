@@ -106,7 +106,6 @@ export const TopToolbar = memo(function TopToolbar({
         aria-label="Drawing tools"
         className="premium-toolbar flex items-center gap-0.5 p-1.5 rounded-xl border flex-nowrap justify-start overflow-x-auto overscroll-x-contain drawing-toolbar workspace-surface drawing-panel shadow-sm"
       >
-        <span aria-hidden="true" className="premium-toolbar-orb mx-1 hidden h-6 w-6 shrink-0 items-center justify-center rounded-lg sm:flex"><Shapes className="h-3.5 w-3.5" /></span>
         <TooltipButton data-ui-tone="pending" onMouseDown={event=>event.preventDefault()} onClick={onUndo} disabled={!canUndo} title="Undo (Ctrl/Cmd+Z)" aria-label="Undo" className={iconBtn}>
           <Undo2 className="w-4 h-4" />
         </TooltipButton>
@@ -157,6 +156,7 @@ export const TopToolbar = memo(function TopToolbar({
             {quickColors.slice(0, 5).map((color, index) => <button
               key={`${color}-${index}`}
               type="button"
+              onMouseDown={event => event.preventDefault()}
               onClick={() => onQuickColor(color)}
               aria-label={`Drawing color ${color}`}
               title={`Draw with ${color}`}
@@ -176,7 +176,6 @@ export const TopToolbar = memo(function TopToolbar({
             className="tool-button ml-0.5 flex h-9 shrink-0 items-center gap-1.5 rounded-lg px-2 text-[11px] font-medium text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-500/20 dark:hover:text-white"
           >
             <Search aria-hidden="true" className="h-3.5 w-3.5" />
-            <kbd className="premium-kbd hidden items-center lg:inline-flex">⌘K</kbd>
           </TooltipButton>
         </>}
       </div>

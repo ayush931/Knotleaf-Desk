@@ -304,3 +304,9 @@ Reminder completion acknowledges only the current occurrence. A recurring task w
 Header and canvas share the 56px --workspace-header-height. Centered view modes remain desktop tabs and become a native select below 900px. Export stays outside the utility disclosure at every width. Board actions remains available at every width; its commands retain their original callbacks, close the disclosure when opening dialogs, and preserve trigger focus. The floating dock measures its rendered height for inspector/eraser placement. Raised surfaces and typography styles affect UI chrome only; code/text overlay metrics and stored board content remain unchanged.
 
 The reminder manager presents upcoming/completed tasks beside its composer, stacking on mobile. New reminder focuses the task input without clearing the draft. Sound/notifications use a native details disclosure with existing permission-denial and browser-limit copy. Completed date ranges stay completed; reminders with remaining occurrences move immediately to Scheduled with the next local date/time.
+
+
+## Quick actions and board navigation
+CommandPalette reuses the native modal contract: background inertness, Escape/backdrop dismissal, search focus and trigger restoration. Search is local and transient, has an explicit Clear action, exposes its active result through a combobox, and ignores composing Enter. Arrow keys move through results; Enter executes. Cmd/Ctrl+K respects text editing and other open modals.
+
+Minimap is a nonmodal canvas control using renderer bounds. Click navigates, arrows pan by a quarter viewport, and Enter/Space center the artwork. Its expansion preference persists. Selection quick actions reuse CanvasEngine history and existing Appearance behavior; active character selections retain priority for color. Line Straight/Curved choices persist with creation preferences, while saved geometry and prior bend offsets remain compatible.

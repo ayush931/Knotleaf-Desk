@@ -92,7 +92,7 @@ import { PresentationMode } from "./PresentationMode";
 import { NotesThemeContext } from "@/lib/notesThemeContext";
 import { Reminders } from "./Reminders";
 import { WorkspaceThemes } from "./WorkspaceThemes";
-import { applyWorkspaceTheme, workspacePalette, workspaceThemeStyle } from "@/lib/workspaceThemes";
+import { WORKSPACE_THEMES, applyWorkspaceTheme, workspacePalette, workspaceThemeStyle } from "@/lib/workspaceThemes";
 import { SelectionTools } from "./SelectionTools";
 import { ShortcutsModal } from "./ShortcutsModal";
 
@@ -277,24 +277,6 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
     setRecentColors(next);
     savePreferences({ recentColors: next });
   }, [recentColors]);
-
-  const applyQuickColor = useCallback((color: string) => {
-    rememberColor(color);
-    const engine = engineRef.current;
-    if (selectedElements.length) engine?.updateSelectedElement({ stroke: color });
-    if (engine) {
-      engine.currentStyle = { ...engine.currentStyle, stroke: color };
-      setCurrentStyle(previous => ({ ...previous, stroke: color }));
-    }
-  }, [rememberColor, selectedElements.length, setCurrentStyle]);
-
-  const applySelectionStrokeWidth = useCallback((width: number) => {
-    const engine = engineRef.current;
-    if (!engine) return;
-    if (selectedElements.length) engine.updateSelectedElement({ strokeWidth: width });
-    engine.currentStyle = { ...engine.currentStyle, strokeWidth: width };
-    setCurrentStyle(previous => ({ ...previous, strokeWidth: width }));
-  }, [selectedElements.length, setCurrentStyle]);
 
   const runEngine = useCallback((action: (engine: CanvasEngine) => void) => {
     const engine = engineRef.current;
@@ -714,8 +696,8 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
   const startWelcomeTool = (tool: Tool, style: Partial<ElementStyleProps>) => {
     const engine = engineRef.current;
     if (!engine) return;
-    engine.setStyle(style);
     engine.setTool(tool);
+    engine.setStyle(style);
     setSelectedTool(tool);
   };
 
@@ -728,8 +710,11 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
   const chooseWelcomeMood = (mood: typeof COLOR_MOODS[number]) => {
     const engine = engineRef.current;
     if (!engine) return;
-    engine.setStyle({ stroke: mood.stroke, fill: mood.fill, fillStyle: "solid", fillOpacity: 1 });
-    savePreferences({ style: engine.currentStyle });
+    const style = { stroke: mood.stroke, fill: mood.fill, fillStyle: "solid" as const, fillOpacity: 1 };
+    toolColorsRef.current = rememberToolColors(toolColorsRef.current, [colorToolRef.current], style);
+    engine.setStyle(style);
+    rememberColor(mood.stroke);
+    savePreferences({ style: engine.currentStyle, toolColors: toolColorsRef.current });
   };
 
   const handleChangeGridType = (g: GridType) => {
@@ -875,6 +860,27 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
       ...Object.fromEntries((["bold", "italic", "underline", "strikethrough"] as const).filter(key => style[key] !== undefined).map(key => [key, style[key]])),
     } : null);
   };
+  const applyQuickColor = (color: string) => {
+    rememberColor(color);
+    const engine = engineRef.current;
+    if (!engine) return;
+    const current = inlineTextStateRef.current;
+    if (current && ["new-text", "text", "sticky"].includes(current.kind)) updateInlineStyle({ stroke: color });
+    else if (selectedElements.length) engine.updateSelectedElement({ stroke: color, ...(selectedElement?.type === "icon" ? { iconColor: color } : {}) });
+    const edited = current?.elementId ? engine.getElements().find(element => element.id === current.elementId) : undefined;
+    const tools = current ? [edited ? colorToolForElement(edited) : current.kind === "sticky" ? "sticky" : "text"] : selectedElements.length ? selectedElements.map(colorToolForElement) : [colorToolRef.current];
+    toolColorsRef.current = rememberToolColors(toolColorsRef.current, tools.filter((tool): tool is ColorTool => !!tool), { stroke: color });
+    savePreferences({ toolColors: toolColorsRef.current });
+    engine.setStyle({ stroke: color });
+  };
+
+  const applySelectionStrokeWidth = (width: number) => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.updateSelectedElement({ strokeWidth: width });
+    engine.setStyle({ strokeWidth: width });
+  };
+
   const selectedTextStyle=rangeStyleAt(inlineText?.textRanges,textSelection);
   const isInlineTextual = !!inlineText && ["new-text", "text", "sticky"].includes(inlineText.kind);
   const textOptionsVisible = selectedTool === "text" || isInlineTextual || selectedElements.length > 0 && selectedElements.every(el=>el.type === "text" || el.type === "sticky");
@@ -964,7 +970,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
   useEffect(() => { engineRef.current?.setKeyboardEnabled(viewMode === "canvas" || viewMode === "split" || focusMode || isPresentationOpen); }, [viewMode, focusMode, isPresentationOpen]);
 
   const selectionScreen = useMemo(() => {
-    if (!selectedElements.length || inlineText || isPresentationOpen || focusMode || stageSize.width < 480 || stageSize.height < 320) return null;
+    if (!selectedElements.length || inlineText || appearanceOpen || isPresentationOpen || focusMode || stageSize.width < 480 || stageSize.height < 320) return null;
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     for (const element of selectedElements) {
       try {
@@ -980,12 +986,12 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
     const above = top > 108;
     return {
       left: Math.max(176, Math.min(stageSize.width - 176, (left + right) / 2)),
-      top: above ? top - 14 : bottom + 14,
+      top: above ? Math.min(stageSize.height - 16, top - 14) : Math.min(stageSize.height - 58, bottom + 14),
       placement: above ? "above" as const : "below" as const,
     };
-  }, [selectedElements, board.elements, viewport, stageSize, inlineText, isPresentationOpen, focusMode]);
+  }, [selectedElements, board.elements, viewport, stageSize, inlineText, appearanceOpen, isPresentationOpen, focusMode]);
 
-  const showWelcome = welcomeDismissedFor !== board.id
+  const showWelcome = !initialRoomId && welcomeDismissedFor !== board.id
     && board.elements.length === 0
     && selectedTool === "select"
     && !isPresentationOpen && !focusMode && !inlineText && !codeElement
@@ -999,7 +1005,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
     persist({ ...boardRef.current, viewMode: mode });
   }, [commitInline, persist]);
 
-  const commands = useMemo<PaletteCommand[]>(() => {
+  const commands = (() => {
     const toolTones: Record<string, CommandTone> = { navigate: "blue", shape: "iris", write: "aqua", finish: "coral" };
     const list: PaletteCommand[] = TOOL_DEFINITIONS.map(tool => ({
       id: `tool-${tool.id}`,
@@ -1013,7 +1019,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
       run: () => { runEngine(engine => engine.setTool(tool.id)); setSelectedTool(tool.id); },
     }));
 
-    list.push(
+    const actions: PaletteCommand[] = [
       { id: "undo", label: "Undo", group: "Actions", icon: Undo2, tone: "iris", shortcut: "⌘Z", run: () => runEngine(engine => engine.undo()) },
       { id: "redo", label: "Redo", group: "Actions", icon: Redo2, tone: "aqua", shortcut: "⇧⌘Z", run: () => runEngine(engine => engine.redo()) },
       { id: "duplicate", label: "Duplicate selection", group: "Actions", icon: Square, tone: "jade", shortcut: "⌘D", run: () => runEngine(engine => engine.duplicateSelected()) },
@@ -1039,25 +1045,24 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
       { id: "present", label: "Present frames", group: "Canvas", icon: Play, tone: "coral", run: beginPresentation },
       { id: "theme-mode", label: theme === "dark" ? "Switch to light mode" : "Switch to dark mode", group: "Theme", icon: theme === "dark" ? Sun : Moon, tone: "amber", run: () => setTheme(value => value === "dark" ? "light" : "dark") },
       { id: "workspaces", label: "Open workspaces", group: "Go", icon: LayoutTemplate, tone: "blue", run: () => setIsSidebarOpen(true) },
-    );
+    ];
 
-    for (const choice of PREMIUM_STROKES) {
-      list.push({ id: `color-${choice.name}`, label: `Draw with ${choice.name}`, group: "Color", description: `Stroke ${choice.value}`, icon: Palette, tone: "iris", keywords: choice.value, run: () => applyQuickColor(choice.value) });
-    }
-    for (const preset of ["black", "mono", "paper", "slate", "forest", "aurora", "citrus"] as const) {
-      const label = preset === "black" ? "Studio" : preset === "mono" ? "Tide" : preset === "paper" ? "Parchment" : preset === "slate" ? "Iris" : preset === "forest" ? "Meadow" : preset === "aurora" ? "Aurora" : "Citrus";
-      list.push({ id: `theme-${preset}`, label: `Theme: ${label}`, group: "Theme", description: "Apply to canvas chrome and notes", icon: Sparkles, tone: preset === "aurora" ? "iris" : preset === "citrus" ? "amber" : preset === "forest" ? "jade" : preset === "paper" ? "coral" : "blue", run: () => {
-        const next = applyWorkspaceTheme(workspaceThemes, preset, "both");
+    const colors: PaletteCommand[] = PREMIUM_STROKES.map(choice => ({ id: `color-${choice.name}`, label: `Draw with ${choice.name}`, group: "Color", description: `Stroke ${choice.value}`, icon: Palette, tone: "iris", keywords: choice.value, run: () => applyQuickColor(choice.value) }));
+    const themes: PaletteCommand[] = WORKSPACE_THEMES.map(preset => ({
+      id: `theme-${preset.id}`, label: `Theme: ${preset.name}`, group: "Theme", description: "Apply to canvas chrome and notes", icon: Palette, tone: "neutral",
+      run: () => {
+        const next = applyWorkspaceTheme(workspaceThemes, preset.id, "both");
         setWorkspaceThemes(next);
         savePreferences({ workspaceThemes: next });
-      } });
-    }
-    return list;
-  }, [applyQuickColor, beginPresentation, changeBoardView, focusMode, gridType, handleChangeGridType, handleToggleSnap, minimapOpen, runEngine, selectedTool, snapToGrid, theme, toggleFocus, workspaceThemes]);
+      },
+    }));
+    return [...list, ...actions, ...colors, ...themes];
+  })();
 
   useEffect(() => {
     const onCommandKey = (event: KeyboardEvent) => {
-      if (event.isComposing) return;
+      if (event.isComposing || event.altKey || isEditableTarget(event.target) && !(event.target instanceof HTMLElement && event.target.closest("[data-command-palette]"))) return;
+      if (document.querySelector("dialog[open]:not([data-command-palette])")) return;
       if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "k") return;
       event.preventDefault();
       event.stopPropagation();
@@ -1140,7 +1145,6 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
         >
             {dragFiles&&<div aria-hidden="true" className="pointer-events-none absolute inset-2 z-40 flex items-center justify-center rounded-xl border-2 border-dashed border-neutral-400 bg-neutral-500/10 text-sm text-neutral-200">Drop images or files onto this board</div>}
             <canvas ref={canvasRef} tabIndex={0} aria-label="Drawing canvas" data-theme={theme} data-background={displayBackground.fill} className="block touch-none select-none" style={{ backgroundColor: displayBackground.fill, backgroundImage: lightCanvas ? "conic-gradient(#e4e4e7 25%, transparent 0 50%, #e4e4e7 0 75%, transparent 0)" : "conic-gradient(#27272a 25%, transparent 0 50%, #27272a 0 75%, transparent 0)", backgroundSize: "16px 16px" }} />
-            <div aria-hidden="true" data-theme={theme} className="canvas-ambient pointer-events-none absolute inset-0 z-10" />
 
             {showWelcome && <CanvasWelcome
               theme={theme}
@@ -1365,6 +1369,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
                 selectionCount={selectedElements.length}
                 currentStyle={isInlineTextual ? { ...currentStyle, fontSize: inlineText!.fontSize, fontFamily: inlineText!.fontFamily, textAlign: inlineText!.align, stroke: inlineText!.color, bold: inlineText!.bold, italic: inlineText!.italic, underline: inlineText!.underline, strikethrough: inlineText!.strikethrough, ...selectedTextStyle, ...(selectedTextStyle.color?{stroke:selectedTextStyle.color}:{}) } : currentStyle}
                 onUpdateStyle={(st) => {
+                  if (st.stroke) rememberColor(st.stroke);
                   if (isInlineTextual) updateInlineStyle(st);
                   const { stroke, fill, fillStyle, fillOpacity, ...otherStyle } = st;
                   const editingExisting = selectedElements.length > 0 || isInlineTextual && inlineText?.kind !== "new-text";
@@ -1478,7 +1483,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
 
       <Reminders open={remindersOpen} onClose={()=>setRemindersOpen(false)}/>
       <WorkspaceThemes open={themesOpen} onClose={()=>setThemesOpen(false)} mode={theme} notesMode={notesMode} current={workspaceThemes} logoStyle={logoStyle} onLogoStyleChange={value=>{setLogoStyle(value);return savePreferences({logoStyle:value});}} onApply={(preset,scope,useThemeBackground)=>{const next=applyWorkspaceTheme(workspaceThemes,preset,scope);setWorkspaceThemes(next);if(scope!=="notes"&&useThemeBackground)persist({...boardRef.current,background:{fill:"#121212",fillStyle:"solid",fillOpacity:1}});return savePreferences({workspaceThemes:next});}} />
-      <CommandPalette open={commandOpen} onClose={() => setCommandOpen(false)} commands={commands} />
+      {commandOpen && <CommandPalette onClose={() => setCommandOpen(false)} commands={commands} />}
       <ShortcutsModal isOpen={isShortcutsOpen} onClose={() => setIsShortcutsOpen(false)} theme={theme} />
 
       <BoardsSidebar

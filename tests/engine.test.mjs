@@ -1878,3 +1878,8 @@ test('document-to-document arrows attach to painted borders and follow the next 
  engine.selectedIds=new Set([b.id]);engine.updateSelectedElement({x:650});
  expect(engine.getElements().find(el=>el.id===link.id).endX).toBe(634);engine.undo();expect(engine.getElements().find(el=>el.id===link.id).endX).toBe(584);engine.destroy();
 });
+
+test('shared selection colors recolor icon glyphs and remain undoable',()=>{
+ const {engine}=setup([]);engine.addOnlineIcon('cloud','lucide:cloud','<path d="M0 0h24v24z"/>','0 0 24 24');
+ const before=engine.getElements()[0].iconColor;engine.updateSelectedElement({stroke:'#22D3EE'});expect(engine.getElements()[0].iconColor).toBe('#22D3EE');engine.undo();expect(engine.getElements()[0].iconColor).toBe(before);engine.destroy();
+});

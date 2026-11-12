@@ -623,7 +623,7 @@ export class CanvasEngine {
     if (ids.size === 0) return;
     this.elements = this.elements.map((el) => {
       if (!ids.has(el.id)) return el;
-      const next = { ...el, ...props } as CanvasElement;
+      const next = { ...el, ...props, ...(el.type === "icon" && props.stroke && !("iconColor" in props) ? { iconColor: props.stroke } : {}) } as CanvasElement;
       if((next.type==="text"||next.type==="sticky")&&!("textRanges" in props)){
         if("text" in el && next.text!==el.text)next.textRanges=editRanges(el.text,next.text,next.textRanges);
         const patch=Object.fromEntries(Object.entries(props).filter(([key])=>["fontSize","fontFamily","stroke","bold","italic","underline","strikethrough"].includes(key)).map(([key,value])=>[key==="stroke"?"color":key,value]));

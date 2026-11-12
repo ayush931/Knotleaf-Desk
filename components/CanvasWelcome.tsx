@@ -32,7 +32,7 @@ export function CanvasWelcome({
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-500">New board</p>
-            <span className="welcome-chip rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.1em]">Premium canvas</span>
+
           </div>
           <h2 className="mt-1 text-xl font-semibold tracking-[-0.03em] text-neutral-900 dark:text-white sm:text-[22px]">A blank canvas, ready when you are.</h2>
           <p className="mt-1 max-w-[56ch] text-xs leading-relaxed text-neutral-500">Capture a thought, shape a flow or start from a template. Everything stays on this device.</p>

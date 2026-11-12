@@ -20,7 +20,7 @@ rounded:
   DEFAULT: '0.5rem'
   panel: '0.75rem'
 spacing:
-  header: '3.5rem'
+  header: '3rem'
   toolbar-inset: '0'
 components:
   button: {}
@@ -326,3 +326,11 @@ Geist, Sora, Bricolage Grotesque, Newsreader, Handlee and IBM Plex Sans join the
 Card painting uses the same stored bounds as selection and resize handles. Document, code and sticky card outlines sit on the visible edge with zero selection padding; plain-text selection retains its small usability gap.
 
 Card selections reuse the painted corner radius (document 12px, code 10px, sticky 8px) in canvas coordinates, including individual outlines in multi-selection. Resizing handles retain the same geometry.
+
+
+## Quick workspace navigation
+CommandPalette is a native dialog with a combobox and keyboard-addressable results. It shares the workspace surface, border and accent tokens, supports clear/no-results/IME-safe execution, and restores trigger focus. Cmd/Ctrl+K opens it outside text inputs and other modal workflows; header and toolbar buttons provide pointer access. Command search is local and transient.
+
+Minimap uses the shared element bounds, including thin lines, and supports pointer navigation plus arrow-key panning and Enter to center the artwork. It collapses explicitly and stays hidden in narrow or short canvas panes. SelectionToolbar offers color, stroke width, duplication, deletion and Appearance next to the selected objects, hides during text editing or an open inspector, and stays within canvas bounds. Existing canvas selection, undo and connector owners remain canonical.
+
+Quick colors remember the latest five choices and use the existing per-tool color preferences. Character selection takes priority while typing. Explicit color moods pair artwork stroke/fill without recoloring existing boards; the inspector owns these choices and canvas background presets. Aurora and Citrus extend the shared Canvas/Notes theme registry. Decorative chrome uses each theme's own tokens; the canvas itself keeps its exact background and artwork colors without an overlay. The dismissible empty-canvas starter is local-board guidance, with sticky, sketch, mind map, template and theme actions.

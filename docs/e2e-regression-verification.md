@@ -35,3 +35,15 @@ A second production-build pass reproduced two additional failures: Command+Z did
 - Document connections, selected and whole-object font changes, theme application, Notes formatting, presentation entry/exit, responsive layout and SVG export were rechecked.
 
 The same physical Safari/touch, external Google sign-in, OS notification and PostgreSQL limits listed above apply to this follow-up.
+
+
+## Workspace UI handoff verification
+
+The unfinished local UI draft was reconciled with the merged text-editing and Appearance fixes. The completed revision adds native-modal quick actions, a keyboard-operable minimap, selection quick actions, recent drawing colors, explicit color/background presets, two additional Canvas/Notes themes, an empty-canvas starter and saved Straight/Curved line choices. Review fixes address modal focus/clear/IME handling, keyboard scope, selected-character color priority, per-tool color persistence, thin-stroke map bounds, viewport-constrained controls and light-mode contrast. Canvas colors remain consistent with exports without decorative overlays.
+
+- `bun test`: **800 passed**, **2 PostgreSQL-dependent skipped**, across 57 files.
+- Typecheck, lint, production build and `test:server`: passed.
+- Strict UI audit: no findings. DESIGN.md lint: zero errors; three orphan-token warnings remain in the existing documentation schema.
+- Chrome production-build checks at 1440px and 390px: quick-action modal focus/Escape/restore, Tab containment, empty search and Clear, keyboard execution, selection color/duplicate/undo, keyboard minimap pan/center, selected-word quick color, curved-line creation, saved route/geometry after reload, Aurora Dark/Light, Citrus Light, compact swatches and responsive dialog/close controls. No browser runtime errors or horizontal document overflow.
+
+The existing external authentication, OS notification, physical Safari/touch and PostgreSQL verification limits still apply.
