@@ -1,7 +1,6 @@
 import { brandAsset } from "@/lib/brandAssets";
 import type { Metadata, Viewport } from "next";
 import {
-  Geist, Sora, Bricolage_Grotesque, Newsreader, Handlee, IBM_Plex_Sans,
   Inter,
   Caveat,
   Fira_Code,
@@ -237,13 +236,6 @@ const fontJetBrainsMono = JetBrains_Mono({
 });
 
 
-const geist = Geist({variable:"--font-geist",subsets:["latin"],display:"swap",preload:false});
-const sora = Sora({variable:"--font-sora",subsets:["latin"],display:"swap",preload:false});
-const bricolage = Bricolage_Grotesque({variable:"--font-bricolage",subsets:["latin"],display:"swap",preload:false});
-const newsreader = Newsreader({variable:"--font-newsreader",subsets:["latin"],display:"swap",preload:false,style:["normal","italic"]});
-const handlee = Handlee({variable:"--font-handlee",subsets:["latin"],display:"swap",preload:false,weight:"400"});
-const ibmPlex = IBM_Plex_Sans({variable:"--font-ibm-plex",subsets:["latin"],display:"swap",preload:false,weight:["400","500","700"],style:["normal","italic"]});
-
 export const metadata: Metadata = {
   title: {
     default: "Knotleaf Desk",
@@ -284,7 +276,7 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={`dark ${geist.variable} ${sora.variable} ${bricolage.variable} ${newsreader.variable} ${handlee.variable} ${ibmPlex.variable} ${inter.variable} ${caveat.variable} ${firaCode.variable} ${lora.variable} ${nunito.variable} ${condensed.variable} ${patrick.variable} ${fontManrope.variable} ${fontDMSans.variable} ${fontSpaceGrotesk.variable} ${fontOutfit.variable} ${fontQuicksand.variable} ${fontComfortaa.variable} ${fontPlayfairDisplay.variable} ${fontCormorantGaramond.variable} ${fontLibreBaskerville.variable} ${fontDMSerifDisplay.variable} ${fontKalam.variable} ${fontShadowsIntoLight.variable} ${fontIndieFlower.variable} ${fontPermanentMarker.variable} ${fontArchitectsDaughter.variable} ${fontFredoka.variable} ${fontBaloo2.variable} ${fontRighteous.variable} ${fontLobster.variable} ${fontBangers.variable} ${fontAbrilFatface.variable} ${fontSpecialElite.variable} ${fontSpaceMono.variable} ${fontJetBrainsMono.variable}`}
+      className={`dark ${inter.variable} ${caveat.variable} ${firaCode.variable} ${lora.variable} ${nunito.variable} ${condensed.variable} ${patrick.variable} ${fontManrope.variable} ${fontDMSans.variable} ${fontSpaceGrotesk.variable} ${fontOutfit.variable} ${fontQuicksand.variable} ${fontComfortaa.variable} ${fontPlayfairDisplay.variable} ${fontCormorantGaramond.variable} ${fontLibreBaskerville.variable} ${fontDMSerifDisplay.variable} ${fontKalam.variable} ${fontShadowsIntoLight.variable} ${fontIndieFlower.variable} ${fontPermanentMarker.variable} ${fontArchitectsDaughter.variable} ${fontFredoka.variable} ${fontBaloo2.variable} ${fontRighteous.variable} ${fontLobster.variable} ${fontBangers.variable} ${fontAbrilFatface.variable} ${fontSpecialElite.variable} ${fontSpaceMono.variable} ${fontJetBrainsMono.variable}`}
     >
       <head><script dangerouslySetInnerHTML={{ __html: `(function(){try{var p=JSON.parse(localStorage.getItem('knotleaf.preferences.v1')||'null');var light=p&&p.version===1&&p.theme==='light';document.documentElement.classList.toggle('dark',!light);document.documentElement.classList.toggle('light',!!light);document.documentElement.style.colorScheme=light?'light':'dark';}catch(e){}})();` }} /></head>
       {/* Browser extensions can add body attributes before React hydrates. */}

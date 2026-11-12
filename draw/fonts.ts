@@ -15,12 +15,6 @@ const family = (
 ) => ({ label, variable, fallback, group, quick });
 /** Stable identities shared by canvas, notes, storage and exports. */
 export const FONT_FAMILIES = {
-  geist: family("Geist", "--font-geist", 'Geist, sans-serif', "Everyday"),
-  sora: family("Sora", "--font-sora", 'Sora, sans-serif', "Everyday"),
-  bricolage: family("Bricolage Grotesque", "--font-bricolage", '"Bricolage Grotesque", sans-serif', "Playful & display"),
-  newsreader: family("Newsreader", "--font-newsreader", 'Newsreader, Georgia, serif', "Serif"),
-  handlee: family("Handlee", "--font-handlee", 'Handlee, cursive', "Handwriting"),
-  "ibm-plex": family("IBM Plex Sans", "--font-ibm-plex", '"IBM Plex Sans", sans-serif', "Everyday"),
   sans: family(
     "Inter",
     "--font-inter",

@@ -200,11 +200,11 @@ export function themeTypography(theme: string): {
     string,
     { heading: FontFamily; body: FontFamily; size: number }
   > = {
-    midnight: { heading: "geist", body: "sans", size: 30 },
+    midnight: { heading: "sans", body: "sans", size: 30 },
     grove: { heading: "manrope", body: "sans", size: 30 },
-    studio: { heading: "bricolage", body: "geist", size: 30 },
-    paper: { heading: "newsreader", body: "serif", size: 29 },
-    slate: { heading: "sora", body: "sans", size: 30 },
+    studio: { heading: "space-grotesk", body: "sans", size: 30 },
+    paper: { heading: "serif", body: "serif", size: 29 },
+    slate: { heading: "manrope", body: "sans", size: 30 },
     blueprint: { heading: "space-grotesk", body: "sans", size: 29 },
     linen: { heading: "serif", body: "sans", size: 30 },
     gallery: { heading: "condensed", body: "sans", size: 29 },

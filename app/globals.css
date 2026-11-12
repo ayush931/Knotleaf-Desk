@@ -794,23 +794,6 @@ html[data-workspace-ui]:is(.dark,.light) .workspace-minimap-toggle { background-
 .minimap-viewport { border: 1px solid var(--ui-accent); background-color: rgb(255 255 255 / .045); box-shadow: 0 0 0 1px rgb(0 0 0 / .18), inset 0 0 12px rgb(255 255 255 / .05); transition: none; }
 html.light .minimap-viewport { background-color: rgb(15 23 42 / .035); box-shadow: 0 0 0 1px rgb(255 255 255 / .7); }
 
-/* Selection quick actions */
-.selection-toolbar {
-  background-color: var(--ui-surface);
-  border-color: var(--drawing-border);
-  box-shadow: 0 20px 42px -18px rgb(0 0 0 / .62), 0 3px 10px rgb(0 0 0 / .16), inset 0 1px 0 rgb(255 255 255 / .07);
-  backdrop-filter: blur(18px) saturate(1.2);
-  animation: selectionPop .14s cubic-bezier(.16,1,.3,1) both;
-}
-html.light .selection-toolbar { box-shadow: 0 18px 38px -20px rgb(15 23 42 / .36), 0 2px 8px rgb(15 23 42 / .08), inset 0 1px 0 #fff; }
-html[data-workspace-ui]:is(.dark,.light) .selection-toolbar button:not(.selection-swatch) { background-color: transparent; }
-html[data-workspace-ui]:is(.dark,.light) .selection-toolbar button:not(.selection-swatch):hover { background-color: var(--ui-hover); }
-.selection-swatch { box-shadow: inset 0 0 0 1px rgb(255 255 255 / .2); }
-.selection-swatch.is-selected { box-shadow: 0 0 0 2px var(--ui-surface), 0 0 0 3.5px var(--ui-accent); }
-.selection-count { background-color: var(--ui-inset); }
-html[data-workspace-ui]:is(.dark,.light) .selection-toolbar button.is-active { background-color: var(--ui-active); color: var(--ui-active-ink); }
-@keyframes selectionPop { from { opacity: 0; transform: translate(-50%, calc(-100% + 4px)) scale(.97); } }
-
 /* First-run canvas welcome */
 .welcome-overlay {
   background-image: radial-gradient(58% 52% at 50% 46%, rgb(0 0 0 / .24), transparent 76%);
@@ -850,7 +833,7 @@ html.light .welcome-action:hover { box-shadow: 0 12px 22px -18px rgb(15 23 42 / 
 .theme-preview-card:hover { transform: translateY(-1px); box-shadow: 0 12px 26px -18px rgb(0 0 0 / .55); }
 
 @media (prefers-reduced-motion: reduce) {
-  .command-overlay,.command-frame,.selection-toolbar,.welcome-overlay,.welcome-card,.welcome-action,.theme-preview-card { animation: none; transition: none; }
+  .command-overlay,.command-frame,.welcome-overlay,.welcome-card,.welcome-action,.theme-preview-card { animation: none; transition: none; }
 }
 @media (max-width: 520px) {
   .welcome-overlay { padding-top: 76px; padding-bottom: 96px; }
@@ -862,5 +845,13 @@ html.light .welcome-action:hover { box-shadow: 0 12px 22px -18px rgb(15 23 42 / 
 
 /* Drawing swatches opt out of the shared square tool-button geometry. */
 .drawing-toolbar .quick-color { width:16px; height:16px; min-width:16px; min-height:16px; padding:0; border-radius:9999px; }
-.selection-toolbar { max-width:calc(100% - 16px); overflow-x:auto; }
-.selection-toolbar > * { flex-shrink:0; }
+
+/* Appearance remains an explicit, easily found control above the drawing layer. */
+html[data-workspace-ui]:is(.dark,.light) .appearance-trigger { background:var(--ui-active); color:var(--ui-ink); border-color:var(--ui-outline); box-shadow:0 3px 10px rgb(0 0 0 / .14); }
+html[data-workspace-ui]:is(.dark,.light) .appearance-trigger:hover { background:var(--ui-hover); border-color:var(--ui-accent); }
+.appearance-panel { border-color:color-mix(in srgb, var(--ui-ink) 30%, var(--ui-surface)); box-shadow:0 8px 28px rgb(0 0 0 / .2); }
+.appearance-panel > header { background:var(--ui-inset); }
+html[data-workspace-ui]:is(.dark,.light) .appearance-format { background:var(--ui-inset); color:var(--ui-ink); border-color:var(--drawing-border); }
+html[data-workspace-ui]:is(.dark,.light) .appearance-format:hover { background:var(--ui-hover); border-color:var(--ui-outline); }
+html[data-workspace-ui]:is(.dark,.light) .appearance-format[aria-pressed="true"] { background:var(--ui-active); color:var(--ui-active-ink); border-color:var(--ui-accent); box-shadow:inset 0 0 0 1px var(--ui-outline); }
+html[data-workspace-ui]:is(.dark,.light) .appearance-format[aria-pressed="mixed"] { border-color:var(--ui-accent); border-style:dashed; }

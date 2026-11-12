@@ -753,7 +753,7 @@ test('font picker keeps the selected range through repeated changes while focuse
  const id=await renderBoard(),editor=await startText();await typeText(editor,'hello world');
  await act(async()=>{editor.setSelectionRange(6,11);editor.dispatchEvent(new browser.MouseEvent('mouseup',{bubbles:true}));});
  await clickNamed('Open appearance settings');const picker=named('Canvas font library');
- for(const font of ['serif','sora']){
+ for(const font of ['serif','manrope']){
   await act(async()=>{picker.focus();picker.value=font;picker.dispatchEvent(new browser.Event('change',{bubbles:true}));});
   // Browsers collapse a DOM range when formatted spans are replaced while the picker owns focus.
   const collapsed=document.createRange();collapsed.selectNodeContents(editor);collapsed.collapse(true);window.getSelection().removeAllRanges();window.getSelection().addRange(collapsed);
@@ -761,7 +761,7 @@ test('font picker keeps the selected range through repeated changes while focuse
  }
  await clickNamed('Bold');
  await act(async()=>editor.dispatchEvent(new browser.KeyboardEvent('keydown',{bubbles:true,key:'Enter',metaKey:true})));
- const saved=getBoard(id).elements[0];expect(saved.fontFamily).toBe('hand');expect(saved.bold).toBe(false);expect(saved.textRanges).toEqual([{start:6,end:11,style:{fontFamily:'sora',bold:true}}]);
+ const saved=getBoard(id).elements[0];expect(saved.fontFamily).toBe('hand');expect(saved.bold).toBe(false);expect(saved.textRanges).toEqual([{start:6,end:11,style:{fontFamily:'manrope',bold:true}}]);
 });
 
 test('a group of selected text objects exposes fonts and changes every selected object',async()=>{
@@ -775,10 +775,10 @@ test('a group of selected text objects exposes fonts and changes every selected 
 test('selecting all characters gives the font picker priority over whole-card defaults',async()=>{
  const id=await renderBoard(),editor=await startText();await typeText(editor,'hello world');
  await act(async()=>{editor.select();editor.dispatchEvent(new browser.MouseEvent('mouseup',{bubbles:true}));});await clickNamed('Open appearance settings');
- const picker=named('Canvas font library');await act(async()=>{picker.focus();picker.value='newsreader';picker.dispatchEvent(new browser.Event('change',{bubbles:true}));});
+ const picker=named('Canvas font library');await act(async()=>{picker.focus();picker.value='playfair';picker.dispatchEvent(new browser.Event('change',{bubbles:true}));});
  expect([editor.selectionStart,editor.selectionEnd]).toEqual([0,11]);
  await act(async()=>editor.dispatchEvent(new browser.KeyboardEvent('keydown',{bubbles:true,key:'Enter',metaKey:true})));
- const saved=getBoard(id).elements[0];expect(saved.fontFamily).toBe('hand');expect(saved.textRanges).toEqual([{start:0,end:11,style:{fontFamily:'newsreader'}}]);
+ const saved=getBoard(id).elements[0];expect(saved.fontFamily).toBe('hand');expect(saved.textRanges).toEqual([{start:0,end:11,style:{fontFamily:'playfair'}}]);
 });
 
 for(const tool of ['Text & Bullets (T)','Doc Card (N)','Sticky note (S)'])test(`Enter and Shift Enter insert actual newlines in ${tool}`,async()=>{
@@ -866,4 +866,27 @@ test('minimap maps thin strokes and supports keyboard navigation without a drag'
  let point;await act(async()=>root.render(React.createElement(Minimap,{elements:[element],viewport:{zoom:1,pan:{x:0,y:0}},width:800,height:600,open:true,theme:'dark',onToggle:()=>{},onNavigate:next=>{point=next;}})));
  const map=named('Navigate board map');await act(async()=>map.dispatchEvent(new browser.KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true,cancelable:true})));expect(point).toEqual({x:600,y:300});
  await act(async()=>map.dispatchEvent(new browser.KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true})));expect(point.x).toBeCloseTo(200);expect(point.y).toBeCloseTo(100.5);
+});
+
+test('Appearance reports mixed formatting and a single toggle applies to the full selected passage',async()=>{
+ await renderBoard();const editor=await startText();await typeText(editor,'hello world');editor.setSelectionRange(6,11);await act(async()=>editor.dispatchEvent(new browser.MouseEvent('mouseup',{bubbles:true})));await clickNamed('Open appearance settings');await clickNamed('Bold');
+ editor.setSelectionRange(0,11);await act(async()=>editor.dispatchEvent(new browser.MouseEvent('mouseup',{bubbles:true})));
+ expect(named('Bold').getAttribute('aria-pressed')).toBe('mixed');await clickNamed('Bold');expect(named('Bold').getAttribute('aria-pressed')).toBe('true');await clickNamed('Bold');expect(named('Bold').getAttribute('aria-pressed')).toBe('false');
+});
+
+
+for(const [key,label] of [['bold','Bold'],['italic','Italic'],['underline','Underline'],['strikethrough','Strikethrough']])test(`Appearance ${label} toggles selected text, then the whole object, without changing other marks`,async()=>{
+ const id=await renderBoard(),editor=await startText();await typeText(editor,'hello world');editor.setSelectionRange(6,11);await act(async()=>editor.dispatchEvent(new browser.MouseEvent('mouseup',{bubbles:true})));await clickNamed('Open appearance settings');
+ await clickNamed(label);expect(named(label).getAttribute('aria-pressed')).toBe('true');expect([editor.selectionStart,editor.selectionEnd]).toEqual([6,11]);
+ await clickNamed(label);expect(named(label).getAttribute('aria-pressed')).toBe('false');
+ editor.setSelectionRange(11,11);await act(async()=>editor.dispatchEvent(new browser.MouseEvent('mouseup',{bubbles:true})));await clickNamed(label);
+ await act(async()=>editor.dispatchEvent(new browser.KeyboardEvent('keydown',{key:'Enter',metaKey:true,bubbles:true})));
+ const saved=getBoard(id).elements[0];expect(saved[key]).toBe(true);expect(saved.textRanges?.some(range=>key in range.style)||false).toBe(false);expect(saved.text).toBe('hello world');
+});
+
+test('group formatting reflects every selected object and one Undo restores the original mixture',async()=>{
+ const id=await renderBoard();let editor=await startText();await typeText(editor,'First');editor.select();await act(async()=>editor.dispatchEvent(new browser.KeyboardEvent('keydown',{key:'b',metaKey:true,bubbles:true,cancelable:true})));await act(async()=>editor.dispatchEvent(new browser.KeyboardEvent('keydown',{key:'Enter',metaKey:true,bubbles:true})));
+ editor=await startText();await typeText(editor,'Second');await act(async()=>editor.dispatchEvent(new browser.KeyboardEvent('keydown',{key:'Enter',metaKey:true,bubbles:true})));
+ const before=structuredClone(getBoard(id).elements);await clickNamed('Select (V)');await act(async()=>{document.querySelector('main canvas').focus();window.dispatchEvent(new browser.KeyboardEvent('keydown',{key:'a',metaKey:true,bubbles:true}));});await clickNamed('Open appearance settings');expect(named('Bold').getAttribute('aria-pressed')).toBe('mixed');await clickNamed('Bold');expect(getBoard(id).elements.every(element=>element.bold)).toBe(true);
+ await clickNamed('Undo');expect(getBoard(id).elements).toEqual(before);expect(named('Bold').getAttribute('aria-pressed')).toBe('mixed');
 });
