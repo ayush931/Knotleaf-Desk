@@ -1913,3 +1913,10 @@ test('editable diagram exports retain readable arrow-label typography and contra
 test('double-clicking an unlabeled arrow starts typing a label without requiring Appearance first',()=>{
  const unlabeled={...arrow,startBinding:undefined,endBinding:undefined,startX:100,startY:200,endX:500,endY:200,routing:'straight',label:undefined};const {engine,listeners,point}=setup([unlabeled]);let editor;engine.onStartInlineText=next=>{editor=next;};listeners.dblclick(point(300,200));expect(editor).toMatchObject({kind:'label',text:'',elementId:unlabeled.id,fontSize:16});engine.commitInlineText({...editor,text:'First\nSecond'});expect(engine.getElements()[0].label).toBe('First\nSecond');engine.undo();expect(engine.getElements()[0].label).toBeUndefined();engine.destroy();
 });
+
+test('code creation respects every chosen font without forcing monospace',()=>{
+ for(const font of FONT_OPTIONS){
+  const {engine,listeners,point}=setup([]);engine.currentStyle.fontFamily=font.id;engine.setTool('code');listeners.pointerdown(point(120,180));
+  expect(engine.getElements()[0].fontFamily).toBe(font.id);engine.destroy();
+ }
+});

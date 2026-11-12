@@ -143,3 +143,11 @@ Code source now supports selected-first font, size, color, bold, italic, underli
 - 849 tests passed, 2 PostgreSQL-dependent skipped across 60 files. Added component selection/sibling/persistence coverage and code syntax/style/color/layout regressions. Existing code scrolling tests now check the single surface. Production webpack build, lint, typecheck, strict UI audit and DESIGN.md lint passed (three existing orphan-token warnings).
 - Chrome on macOS verified selected-only bold/italic/underline/strike/font/size, a Mac Command+Shift+Period change on the selected source, whole-card fallback with no selection, Enter, code undo/redo, reopening and reload with no runtime errors. Inspected the saved styled card visually.
 - Existing SVG source-retention and clipping coverage passed after preserving all source runs in exports. Safari, physical touch and live collaborative editing were not exercised in this pass.
+
+## Unrestricted code font choice
+
+Removed the monospace override during code-card creation and code editor/layout fallbacks. Code cards follow the current font choice; changing the whole card's font remembers that choice for new cards and future browser sessions. Partial selections retain their own font without replacing the device preference.
+
+327 targeted canvas/engine tests passed, including every font at code creation and remembering a whole-card font for the next card. Typecheck, lint, webpack build and strict UI audit passed. Chrome on macOS selected and saved all 32 catalogue families on a real code card, then verified the final choice on a new card and after reload, with no runtime errors. Safari/physical touch were not exercised in this pass.
+
+Code selection state resets to the opened card's saved caret/range. A regression verifies that a new card cannot inherit another card's selected source and accidentally treat a whole-card font change as partial formatting.

@@ -1,6 +1,7 @@
 import { highlightCode } from '@/lib/code';
 import { lightSyntaxColor as lightCodeInk } from '@/lib/codePalette';
 import { rangeStyleAt, type TextRange } from './textRanges';
+import { DEFAULT_STYLE } from './types';
 import type { TextElement } from './types';
 import { neutralInk } from './canvasAppearance';
 import { codeLineMetrics } from './codeLayout';
@@ -29,7 +30,7 @@ export function layoutCodeText(ctx:CanvasRenderingContext2D,el:TextElement,setFo
    while(index<ranges.length-1&&ranges[index].end<=offset)index++;
    const range=ranges[index],style=range?.start<=offset&&offset<range.end?range.style:{};
    const next=Math.min(end,range?.end>offset?range.end:end);
-   const size=style.fontSize||el.fontSize,family=style.fontFamily||el.fontFamily||'mono';
+   const size=style.fontSize||el.fontSize,family=style.fontFamily||el.fontFamily||DEFAULT_STYLE.fontFamily;
    const weight=(style.bold??el.bold)?700:400,italic=style.italic??el.italic;
    setFont(ctx,size,family,weight,italic);const metrics=codeLineMetrics(ctx,size);height=Math.max(height,metrics.lineHeight);baseline=Math.max(baseline,metrics.baseline);
    for(const part of el.text.slice(offset,next).split(/(\t)/)){

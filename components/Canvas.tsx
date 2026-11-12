@@ -395,7 +395,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
     };
     engine.onSelectionChange = (selected) => setSelectedElements(selected);
     engine.onOpenIconPicker = () => setIsIconPickerOpen(true);
-    engine.onEditCode = id => { setCodeInitialView(codeViews.current.get(id)); setCodeId(id); };
+    engine.onEditCode = id => { const view=codeViews.current.get(id);setCodeInitialView(view);setCodeSelection({start:view?.selectionStart||0,end:view?.selectionEnd||0});setCodeId(id); };
     engine.onViewportChange = view => {
       setCodeViewport(previous => previous.zoom === view.zoom && previous.pan.x === view.pan.x && previous.pan.y === view.pan.y ? previous : view);
       setViewport(previous => previous.zoom === view.zoom && previous.pan.x === view.pan.x && previous.pan.y === view.pan.y ? previous : view);
@@ -1301,7 +1301,13 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
                 formattingState={codeElement?.type==='text'?rangeFormattingState(codeElement.text,codeElement.textRanges,codeElement,...(codeSelection.end>codeSelection.start?[codeSelection.start,codeSelection.end] as const:[0,codeElement.text.length] as const)):formattingState}
                 currentStyle={isInlineTextual ? { ...currentStyle, fontSize: inlineText!.fontSize, fontFamily: inlineText!.fontFamily, textAlign: inlineText!.align, stroke: inlineText!.color, bold: inlineText!.bold, italic: inlineText!.italic, underline: inlineText!.underline, strikethrough: inlineText!.strikethrough, ...selectedTextStyle, ...(selectedTextStyle.color?{stroke:selectedTextStyle.color}:{}) } : currentStyle}
                 onUpdateStyle={(st) => {
-                  if(codeElement)return;
+                  if(codeElement){
+                    if(st.fontFamily&&codeSelection.start===codeSelection.end){
+                      const next={...(engineRef.current?.currentStyle||currentStyle),fontFamily:st.fontFamily};
+                      setCurrentStyle(next);if(engineRef.current)engineRef.current.currentStyle=next;
+                    }
+                    return;
+                  }
                   if (st.stroke) rememberColor(st.stroke);
                   if (isInlineTextual) updateInlineStyle(st);
                   const { stroke, fill, fillStyle, fillOpacity, ...otherStyle } = st;
