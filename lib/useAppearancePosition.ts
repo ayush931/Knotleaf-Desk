@@ -8,22 +8,24 @@ export interface AppearancePosition { x: number; y: number }
 interface Size { width: number; height: number }
 const BUTTON_WIDTH = 132, BUTTON_HEIGHT = 36, EDGE = 8;
 
-function fit(point: AppearancePosition, size: Size, top: number, width = BUTTON_WIDTH, height = BUTTON_HEIGHT, bottom = EDGE): AppearancePosition {
+function fit(point: AppearancePosition, size: Size, width = BUTTON_WIDTH, height = BUTTON_HEIGHT, bottom = EDGE): AppearancePosition {
  const maxX = size.width > 0 ? Math.max(EDGE, size.width - width - EDGE) : Infinity;
- const maxY = size.height > 0 ? Math.max(EDGE, size.height - height - bottom) : Infinity;
- return { x: Math.max(EDGE, Math.min(maxX, point.x)), y: Math.max(Math.min(top, maxY), Math.min(maxY, point.y)) };
+ const maxY = size.height > 0 ? Math.max(0, size.height - height - bottom) : Infinity;
+ return { x: Math.max(EDGE, Math.min(maxX, point.x)), y: Math.max(0, Math.min(maxY, point.y)) };
 }
 
 /** A click opens Appearance; moving at least four pixels repositions its saved trigger. */
 export function useAppearancePosition(size: Size, top: number, preserveTextFocus: boolean) {
+ const {width,height} = size;
  const [position, setPosition] = useState<AppearancePosition | null>(() => loadPreferences().appearancePosition);
  const [dragging, setDragging] = useState(false);
  const active = useRef<{ id: number; target: HTMLElement; x: number; y: number; origin: AppearancePosition; previous: AppearancePosition | null; moved: boolean } | null>(null);
  const suppressClick = useRef(false);
- const point = fit(position ?? { x: EDGE, y: top }, size, top);
- const panel = fit(point, size, top, 288, 200, 64);
+ const point = fit(position ?? { x: EDGE, y: top }, size);
+ const panel = fit(point, size, 288, 200, 64);
 
  useEffect(() => {
+  const bounds = {width,height};
   const stop = (cancel: boolean, event?: PointerEvent) => {
    const drag = active.current;
    if (!drag || event && event.pointerId !== drag.id) return;
@@ -32,7 +34,7 @@ export function useAppearancePosition(size: Size, top: number, preserveTextFocus
    setDragging(false);
    if (cancel) { setPosition(drag.previous); suppressClick.current = drag.moved; }
    else if (drag.moved && event) {
-    const next = fit({ x: drag.origin.x + event.clientX - drag.x, y: drag.origin.y + event.clientY - drag.y }, size, top);
+    const next = fit({ x: drag.origin.x + event.clientX - drag.x, y: drag.origin.y + event.clientY - drag.y }, bounds);
     setPosition(next); savePreferences({ appearancePosition: next }); suppressClick.current = true;
    }
   };
@@ -44,7 +46,7 @@ export function useAppearancePosition(size: Size, top: number, preserveTextFocus
    if (!drag.moved && Math.hypot(dx, dy) < 4) return;
    drag.moved = true; setDragging(true);
    event.preventDefault(); event.stopPropagation();
-   setPosition(fit({ x: drag.origin.x + dx, y: drag.origin.y + dy }, size, top));
+   setPosition(fit({ x: drag.origin.x + dx, y: drag.origin.y + dy }, bounds));
   };
   const finish = (event: PointerEvent) => stop(false, event);
   const cancel = (event: PointerEvent) => stop(true, event);
@@ -67,7 +69,7 @@ export function useAppearancePosition(size: Size, top: number, preserveTextFocus
    window.removeEventListener("blur", blur);
    window.removeEventListener("keydown", escape, true);
   };
- }, [size.width, size.height, top]); // eslint-disable-line react-hooks/exhaustive-deps
+ }, [width, height]);
 
  return {
   point, panel, dragging,
@@ -89,7 +91,7 @@ export function useAppearancePosition(size: Size, top: number, preserveTextFocus
    if (!direction) return;
    event.preventDefault(); event.stopPropagation();
    const step = event.shiftKey ? 1 : 10;
-   const next = fit({ x: point.x + direction[0] * step, y: point.y + direction[1] * step }, size, top);
+   const next = fit({ x: point.x + direction[0] * step, y: point.y + direction[1] * step }, size);
    setPosition(next); savePreferences({ appearancePosition: next });
   },
  };

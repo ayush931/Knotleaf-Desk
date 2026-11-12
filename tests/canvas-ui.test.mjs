@@ -933,3 +933,10 @@ test('Appearance drag and single-shape styling leave unselected artwork unchange
  await act(async()=>[...document.querySelectorAll('#appearance-settings button')].find(button=>button.textContent==='sharp').click());expect(getBoard(id).elements[0].roundness).toBe('sharp');expect(getBoard(id).elements.slice(1)).toEqual(original.slice(1));
  await act(async()=>{const input=named('Opacity');Object.getOwnPropertyDescriptor(browser.HTMLInputElement.prototype,'value').set.call(input,'0.5');input.dispatchEvent(new browser.Event('change',{bubbles:true}));input.dispatchEvent(new browser.Event('input',{bubbles:true}));});expect(getBoard(id).elements[0].opacity).toBe(0.5);expect(getBoard(id).elements.slice(1)).toEqual(original.slice(1));
 });
+
+
+test('Appearance can reach the top edge beside the toolbar and open there',async()=>{
+ await act(async()=>root.render(React.createElement(Inspector,{props:{canvasSize:{width:800,height:600},topOffset:96}})));
+ await appearancePointer('pointerdown',40,110);await appearancePointer('pointermove',340,-100);await appearancePointer('pointerup',340,-100);expect(named('Open appearance settings').style.top).toBe('0px');expect(named('Open appearance settings').style.left).toBe('308px');
+ expect(JSON.parse(localStorage.getItem('knotleaf.preferences.v1')).appearancePosition).toEqual({x:308,y:0});await clickNamed('Open appearance settings');expect(named('Appearance settings').style.top).toBe('0px');await clickNamed('Collapse appearance settings');expect(named('Open appearance settings').style.top).toBe('0px');
+});
