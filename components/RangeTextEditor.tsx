@@ -5,7 +5,7 @@ import {neutralInk} from "@/draw/canvasAppearance";
 import {fontCssStack} from '@/draw/fonts';
 import {editableText,textEdit,type TextEdit,type TextChange} from '@/lib/editableText';
 // Keep the existing editing commands and selection API backed by a native DOM range.
-export function RangeTextEditor({textRanges, fontScale=1, light=false, onHistory, onBeforeEdit, ...props}:React.TextareaHTMLAttributes<HTMLTextAreaElement>&{ref:React.Ref<HTMLTextAreaElement>;textRanges?:TextRange[];fontScale?:number;light?:boolean;onHistory?:(redo:boolean)=>void;onBeforeEdit?:(start:number,end:number,changes?:TextChange[])=>void}){
+export function RangeTextEditor({textRanges, fontScale=1, light=false, normalWeight=500, onHistory, onBeforeEdit, ...props}:React.TextareaHTMLAttributes<HTMLTextAreaElement>&{ref:React.Ref<HTMLTextAreaElement>;textRanges?:TextRange[];fontScale?:number;light?:boolean;normalWeight?:number;onHistory?:(redo:boolean)=>void;onBeforeEdit?:(start:number,end:number,changes?:TextChange[])=>void}){
  const root=useRef<HTMLDivElement>(null), saved=useRef({start:0,end:0}), composing=useRef(false);
  const [compositionVersion,setCompositionVersion]=useState(0);
  const text=String(props.value||''),baseDecoration=String(props.style?.textDecoration||'');
@@ -39,11 +39,11 @@ export function RangeTextEditor({textRanges, fontScale=1, light=false, onHistory
   const cuts=[...new Set([0,text.length,...(textRanges||[]).flatMap(r=>[r.start,r.end])])].filter(n=>n>=0&&n<=text.length).sort((a,b)=>a-b);
   for(let i=0;i<cuts.length-1;i++){
    const span=document.createElement('span'),s=rangeStyleAt(textRanges,cuts[i]);span.textContent=text.slice(cuts[i],cuts[i+1]);
-   Object.assign(span.style,{fontSize:s.fontSize?`${s.fontSize*fontScale}px`:'',fontFamily:s.fontFamily?fontCssStack(s.fontFamily):'',color:s.color?neutralInk(s.color,light):'',fontWeight:s.bold===undefined?'':s.bold?'700':'500',fontStyle:s.italic===undefined?'':s.italic?'italic':'normal',textDecoration:[(s.underline??baseDecoration.includes('underline'))&&'underline',(s.strikethrough??baseDecoration.includes('line-through'))&&'line-through'].filter(Boolean).join(' ')});el.appendChild(span);
+   Object.assign(span.style,{fontSize:s.fontSize?`${s.fontSize*fontScale}px`:'',fontFamily:s.fontFamily?fontCssStack(s.fontFamily):'',color:s.color?neutralInk(s.color,light):'',fontWeight:s.bold===undefined?'':s.bold?'700':String(normalWeight),fontStyle:s.italic===undefined?'':s.italic?'italic':'normal',textDecoration:[(s.underline??baseDecoration.includes('underline'))&&'underline',(s.strikethrough??baseDecoration.includes('line-through'))&&'line-through'].filter(Boolean).join(' ')});el.appendChild(span);
   }
   if(!text || text.endsWith("\n")){const caret=document.createElement("br");caret.setAttribute("data-editor-caret","true");el.appendChild(caret);}
   if(active)restore(old.start,old.end);
- },[text,textRanges,fontScale,baseDecoration,light,compositionVersion]);
+ },[text,textRanges,fontScale,baseDecoration,light,normalWeight,compositionVersion]);
  useLayoutEffect(()=>{
   const el=root.current!;Object.defineProperties(el,{value:{configurable:true,get:()=>editableText(el)},selectionStart:{configurable:true,get:()=>selection().start,set:v=>restore(v,selection().end)},selectionEnd:{configurable:true,get:()=>selection().end,set:v=>restore(selection().start,v)}});
   Object.assign(el,{setSelectionRange:restore,select:()=>restore(0,editableText(el).length)});

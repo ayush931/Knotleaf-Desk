@@ -1,7 +1,7 @@
+import { layoutCodeText } from './codeText';
 import { cardCornerRadius } from "./renderer";
 import { clearRangeOverrides, editRanges } from "./textRanges";
 import { arrangementDeltas, type Arrangement } from "./arrangement";
-import { CODE_FONT_WEIGHT, CODE_LINE_HEIGHT } from "./codeLayout";
 import { canvasBackground } from "./canvasAppearance";
 import { stepCanvasFontSize, textSizeShortcut } from "@/lib/textShortcuts";
 import { capturePointer, isContextPointer, releasePointer } from "@/lib/pointerInput";
@@ -14,7 +14,6 @@ import { drawCanvasBackground, drawBackgroundFill } from "./backgroundFill";
 import { isValidAttachment } from "@/lib/attachments.mjs";
 import type { PreparedAsset } from "@/lib/assetUpload";
 import { isEmbeddedImage } from "./imageResource";
-import { expandCodeTabs } from "@/lib/code";
 import {
   CanvasElement,
   ArrowElement,
@@ -696,11 +695,8 @@ export class CanvasEngine {
     if (el.attachment) return el;
     if (el.isCodeCard) {
       if (el.codeAutoSize === false) return { ...el, width: Math.max(MIN_CODE_WIDTH, el.width), height: Math.max(MIN_CODE_HEIGHT, el.height) };
-      this.ctx.save(); setFont(this.ctx, el.fontSize, "mono", CODE_FONT_WEIGHT);
-      this.ctx.fontKerning = "none";
-      const width = Math.max(120, ...expandCodeTabs(el.text).split("\n").map(line => this.ctx.measureText(line).width)) + 8;
-      this.ctx.restore();
-      return { ...el, width, height: Math.max(40, el.text.split("\n").length * el.fontSize * CODE_LINE_HEIGHT + 8) };
+      this.ctx.save();const layout=layoutCodeText(this.ctx,el,setFont);this.ctx.restore();
+      return {...el,width:Math.max(120,layout.width)+8,height:Math.max(40,layout.height+8)};
     }
     if (el.textBox || el.isDocCard) { const width=Math.max(32,el.width); const layout=layoutDocument(this.ctx,el.text,el.fontSize,el.fontFamily||"sans",{...el,width}); return {...el,width,height:Math.max(el.height,layout.totalHeight)}; }
     const size = measureTextBlock(this.ctx, el.text, el.fontSize, el.fontFamily, el);
@@ -721,7 +717,7 @@ export class CanvasEngine {
 
   public updateCode(id: string, text: string, language = "auto") {
     if (this.readOnly) return;
-    this.elements = this.elements.map(el => el.id === id && el.type === "text" && el.isCodeCard ? this.remeasureText({ ...el, text: text.slice(0, 100_000), codeLanguage: language }) : el);
+    this.elements = this.elements.map(el => el.id === id && el.type === "text" && el.isCodeCard ? this.remeasureText({ ...el, text: text.slice(0, 100_000), textRanges:editRanges(el.text,text.slice(0,100_000),el.textRanges), codeLanguage: language }) : el);
     this.elements = resolveBindings(this.elements, new Set([id]));
     this.commit();
   }
