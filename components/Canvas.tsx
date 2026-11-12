@@ -395,7 +395,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
     };
     engine.onSelectionChange = (selected) => setSelectedElements(selected);
     engine.onOpenIconPicker = () => setIsIconPickerOpen(true);
-    engine.onEditCode = id => { setCodeInitialView(codeViews.current.get(id)); setCodeId(id); };
+    engine.onEditCode = id => { const view=codeViews.current.get(id);setCodeInitialView(view);setCodeSelection({start:view?.selectionStart||0,end:view?.selectionEnd||0});setCodeId(id); };
     engine.onViewportChange = view => {
       setCodeViewport(previous => previous.zoom === view.zoom && previous.pan.x === view.pan.x && previous.pan.y === view.pan.y ? previous : view);
       setViewport(previous => previous.zoom === view.zoom && previous.pan.x === view.pan.x && previous.pan.y === view.pan.y ? previous : view);
