@@ -313,8 +313,9 @@ export function layoutDocument(
   text: string,
   baseFontSize: number,
   family: FontFamily,
-  formatting: TextFormatting & { textBox?: boolean; width?: number } = {}
+  formatting: TextFormatting & { textBox?: boolean; isDocCard?: boolean; width?: number } = {}
 ): DocumentLayout {
+  const wraps = formatting.textBox || formatting.isDocCard;
   const rawLines = text.split("\n");
   const lines: DocLine[] = [];
   let currentY = 0;
@@ -422,8 +423,8 @@ export function layoutDocument(
       type.startsWith("bullet-") || type === "number" || type.startsWith("todo-") ? 24 : type === "quote" ? 18 : 0;
     const available = Math.max(16,(formatting.width||240)-indentPx-gutterPx);
     const measureContext=ctx||{measureText:(value:string)=>({width:value.length*fontSize*0.6})} as CanvasRenderingContext2D;
-    let pieces=formatting.textBox?wrapText(measureContext,content,available):[content];
-    if(formatting.textBox && ctx && formatting.textRanges?.length){
+    let pieces=wraps?wrapText(measureContext,content,available):[content];
+    if(wraps && ctx && formatting.textRanges?.length){
       pieces=[];let piece="", width=0, offset=rawLines.slice(0,i).reduce((n,l)=>n+l.length+1,0)+raw.indexOf(content);
       ctx.save();
       for(const char of content){const st=rangeStyleAt(formatting.textRanges,offset);setFont(ctx,st.fontSize||fontSize,st.fontFamily||family,(st.bold??formatting.bold)?700:500,st.italic??formatting.italic);const w=ctx.measureText(char).width;
@@ -435,7 +436,7 @@ export function layoutDocument(
       const rangeStart=rawLines.slice(0,i).reduce((n,l)=>n+l.length+1,0);
       const rangeSize=Math.max(fontSize,...(formatting.textRanges||[]).filter(r=>r.start<rangeStart+raw.length&&r.end>rangeStart).map(r=>r.style.fontSize||fontSize));
       lineHeight=Math.max(lineHeight,rangeSize*LINE_HEIGHT);
-      const lineWidth=indentPx+gutterPx+(formatting.textBox?measureContext.measureText(pieces[piece]).width:measuredContentWidth);
+      const lineWidth=indentPx+gutterPx+(wraps?measureContext.measureText(pieces[piece]).width:measuredContentWidth);
       let richWidth=lineWidth;
       if(ctx&&formatting.textRanges?.length){let offset=rangeStart+raw.indexOf(content)+pieces.slice(0,piece).reduce((n,p)=>n+p.length,0);richWidth=indentPx+gutterPx;ctx.save();for(const char of pieces[piece]){const st=rangeStyleAt(formatting.textRanges,offset);setFont(ctx,st.fontSize||fontSize,st.fontFamily||family,(st.bold??formatting.bold)?700:500,st.italic??formatting.italic);richWidth+=ctx.measureText(char).width;offset+=char.length;}ctx.restore();}
       maxLineWidth=Math.max(maxLineWidth,richWidth);

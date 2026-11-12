@@ -683,6 +683,20 @@ test('document tool creates an empty note at the pointer without demo content',(
  const doc=engine.getElements()[0];expect(doc.isDocCard).toBe(true);expect(doc.text).toBe('');expect(doc.x).toBe(350);expect(doc.y).toBe(250);expect(doc.width).toBeGreaterThanOrEqual(240);expect(doc.height).toBeGreaterThanOrEqual(100);
  engine.commitInlineText({kind:'text',elementId:doc.id,text:'',fontSize:15,fontFamily:'sans',color:'#fff',align:'left',canvasX:350,canvasY:250});expect(engine.getElements()).toHaveLength(1);engine.destroy();
 });
+test('document cards preserve bounded wrapping through editing, saving and reopening, including older cards',()=>{
+ const text='A longer sentence with several words and additional content '.repeat(3);
+ for(const legacy of [false,true]){
+  const doc={...base,id:'wrapped-doc',type:'text',isDocCard:true,textBox:!legacy,x:100,y:100,width:240,height:100,text:'',fontSize:15,fontFamily:'sans',textAlign:'left',fill:'#18181b'};
+  const {engine,listeners,point}=setup([doc]);let editor;engine.onStartInlineText=state=>{editor=state;};
+  listeners.dblclick(point(110,110));expect(editor.boxWidth).toBe(240);expect(editor.screenWidth).toBe(240);
+  engine.commitInlineText({...editor,text});const saved=engine.getElements()[0];
+  expect(saved.width).toBe(240);expect(saved.height).toBeGreaterThanOrEqual(100);
+  const ctx=new Proxy({measureText:t=>({width:t.length*7})},{get:(o,k)=>k in o?o[k]:()=>{}});
+  const layout=layoutDocument(ctx,saved.text,saved.fontSize,saved.fontFamily,saved);
+  expect(layout.lines.length).toBeGreaterThan(1);expect(layout.lines.every(line=>line.width<=saved.width)).toBe(true);
+  listeners.dblclick(point(110,110));expect(editor.boxWidth).toBe(saved.width);expect(editor.text).toBe(text);engine.destroy();
+ }
+});
 test('document title cannot overlap the first line and list text resets inherited center alignment',()=>{
  const calls=[];const ctx=new Proxy({textAlign:'center',measureText:t=>({width:t.length*7}),fillText(text,x,y){calls.push({text,x,y,align:this.textAlign});}}, {get:(o,k)=>k in o?o[k]:()=>{}});
  const doc={...base,id:'doc',type:'text',isDocCard:true,title:'Document Note',fill:'#18181B',x:100,y:100,width:240,height:100,fontSize:15,fontFamily:'sans',textAlign:'center',text:'Heading\n- list\n> quote'};
