@@ -316,3 +316,6 @@ Appearance position is a validated local preference, independent of board conten
 Clay is a normal saved workspace-theme choice in both Light and Dark. It reuses WorkspaceThemes scope, explicit Apply, optional canvas-background replacement and storage feedback. Notes-only application preserves the Canvas theme, and Both links their modes. Custom artwork colors and geometry are never rewritten by a palette change.
 
 Arrow-label bounds include the complete padded plate for selection, fitting and exports. Clicking any wrapped line targets the same connector, and double-clicking edits at the same center point. Direct canvas editing and Appearance edit one draft; committing never restores stale field content. Label editing does not leak its surface/padding into subsequent plain text drafts. All label changes remain local to the selected arrow and participate in Undo.
+
+
+Canvas text, document cards, sticky notes and arrow labels share RangeTextEditor input transactions. Native multiline insertion must preserve newlines; Enter/Shift+Enter and software line-break events share semantics. Tab/outdent preserve all selected lines and character marks. Input composition is not replaced by React updates, composing Enter does not submit a draft, and blur flushes current composition text. The full font dropdown replaces quick font buttons without reducing its options.

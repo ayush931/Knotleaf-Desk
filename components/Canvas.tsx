@@ -1,5 +1,6 @@
 "use client";
 import { RangeTextEditor } from "./RangeTextEditor";
+import type { TextChange } from "@/lib/editableText";
 import { clearRangeOverrides, editRanges, formatRange, rangeStyleAt, rangeFormattingState, FORMAT_KEYS, type FormattingState } from "@/draw/textRanges";
 import { canvasBackground, canvasElementAppearance, neutralInk } from "@/draw/canvasAppearance";
 import { stepCanvasFontSize, textSizeShortcut } from "@/lib/textShortcuts";
@@ -222,18 +223,27 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
   const inlineHistory = useRef<{past:{state:InlineTextState;start:number;end:number}[];future:{state:InlineTextState;start:number;end:number}[]}>({past:[],future:[]});
   const [inlineHistoryAvailability,setInlineHistoryAvailability]=useState({undo:false,redo:false});
   const restoringInlineHistory=useRef(false);
+  const inlineEditChanges=useRef<TextChange[]|undefined>(undefined);
   const inlineEditSelection=useRef<{start:number;end:number}|null>(null);
   const setInlineText = useCallback((update: React.SetStateAction<InlineTextState | null>) => {
     const previous=inlineTextStateRef.current;
     let next = typeof update === "function" ? update(previous) : update;
-    if(next && previous && next.text !== previous.text && !restoringInlineHistory.current) next={...next,textRanges:editRanges(previous.text,next.text,previous.textRanges)};
+    if(next && previous && next.text !== previous.text && !restoringInlineHistory.current) {
+      let value=previous.text,ranges=previous.textRanges;
+      if(inlineEditChanges.current?.length){
+        for(const change of [...inlineEditChanges.current].sort((a,b)=>b.start-a.start)){
+          const changed=value.slice(0,change.start)+change.text+value.slice(change.end);ranges=editRanges(value,changed,ranges);value=changed;
+        }
+      }
+      next={...next,textRanges:value===next.text?ranges:editRanges(previous.text,next.text,previous.textRanges)};
+    }
     if(!previous||!next)inlineHistory.current={past:[],future:[]};
     else if(!restoringInlineHistory.current&&JSON.stringify(previous)!==JSON.stringify(next)){
       const editor=inlineTextareaRef.current, history=inlineHistory.current;
       history.past.push({state:structuredClone(previous),start:inlineEditSelection.current?.start??editor?.selectionStart??0,end:inlineEditSelection.current?.end??editor?.selectionEnd??0});history.future=[];
       while(history.past.length>100 || history.past.length>1&&history.past.reduce((n,item)=>n+item.state.text.length,0)>1_000_000)history.past.shift();
     }
-    inlineEditSelection.current=null;
+    inlineEditSelection.current=null;inlineEditChanges.current=undefined;
     inlineTextStateRef.current = next;
     if (next && previous && next.text !== previous.text && sessionRef.current?.synced && engineRef.current) {
       next=engineRef.current.previewInlineText(next);
@@ -1161,7 +1171,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
                   <button type="button" aria-label="Finish document editing" title="Finish · Ctrl/Cmd+Enter" className="note-tool text-neutral-400" onClick={commitInline}><Check className="h-4 w-4"/></button>
                 </div>}
 
-                <RangeTextEditor onBeforeEdit={(start,end)=>{inlineEditSelection.current??={start,end};}} onHistory={changeInlineHistory} light={lightCanvas} textRanges={inlineText.textRanges} fontScale={zoom} onSelect={event=>setTextSelection({start:event.currentTarget.selectionStart,end:event.currentTarget.selectionEnd})}
+                <RangeTextEditor onBeforeEdit={(start,end,changes)=>{inlineEditSelection.current??={start,end};inlineEditChanges.current=changes;}} onHistory={changeInlineHistory} light={lightCanvas} textRanges={inlineText.textRanges} fontScale={zoom} onSelect={event=>setTextSelection({start:event.currentTarget.selectionStart,end:event.currentTarget.selectionEnd})}
                   className="canvas-text-editor resize-none select-text"
                   data-surface={inlineText.kind === "sticky" ? "sticky" : "canvas"}
                   ref={inlineTextareaRef}
@@ -1198,97 +1208,6 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
                       e.preventDefault();
                       commitInline();
                       return;
-                    }
-
-                    const textarea = e.currentTarget;
-                    const start = textarea.selectionStart;
-                    const end = textarea.selectionEnd;
-                    const val = textarea.value;
-
-                    // Handle Tab and Shift+Tab for list indentation
-                    if (e.key === "Tab") {
-                      e.preventDefault();
-                      const lineStart = start === 0 ? 0 : val.lastIndexOf("\n", start - 1) + 1;
-                      const currentLine = val.slice(lineStart, end);
-                      if (e.shiftKey) {
-                        // Outdent (remove up to 2 leading spaces)
-                        if (currentLine.startsWith("  ")) {
-                          const nextVal = val.slice(0, lineStart) + currentLine.slice(2) + val.slice(end);
-                          setInlineText((prev) => (prev ? { ...prev, text: nextVal } : null));
-                          setTimeout(() => {
-                            textarea.selectionStart = textarea.selectionEnd = Math.max(lineStart, start - 2);
-                          }, 0);
-                        }
-                      } else {
-                        // Indent (add 2 spaces)
-                        const nextVal = val.slice(0, lineStart) + "  " + val.slice(lineStart);
-                        setInlineText((prev) => (prev ? { ...prev, text: nextVal } : null));
-                        setTimeout(() => {
-                          textarea.selectionStart = textarea.selectionEnd = start + 2;
-                        }, 0);
-                      }
-                      return;
-                    }
-
-                    // Handle Enter on bullet / list / checklist lines
-                    if (e.key === "Enter" && !e.shiftKey && !mod) {
-                      const lineStart = start === 0 ? 0 : val.lastIndexOf("\n", start - 1) + 1;
-                      const currentLine = val.slice(lineStart, start);
-
-                      // 1. Check for empty bullet item: clear bullet on Enter
-                      const emptyBulletMatch = currentLine.match(/^(\s*)([•○▪◆–→*\-]|\d+\.|\[[ xX]\])\s*$/);
-                      if (emptyBulletMatch) {
-                        e.preventDefault();
-                        const nextVal = val.slice(0, lineStart) + emptyBulletMatch[1] + val.slice(start);
-                        setInlineText((prev) => (prev ? { ...prev, text: nextVal } : null));
-                        setTimeout(() => {
-                          textarea.selectionStart = textarea.selectionEnd = lineStart + emptyBulletMatch[1].length;
-                        }, 0);
-                        return;
-                      }
-
-                      // 2. Check for bullet list item: •, ○, ▪, ◆, –, →, -, *
-                      const bulletMatch = currentLine.match(/^(\s*)([•○▪◆–→]|\-|\*)\s+(.+)$/);
-                      if (bulletMatch) {
-                        e.preventDefault();
-                        const indent = bulletMatch[1];
-                        const symbol = bulletMatch[2];
-                        const nextVal = val.slice(0, start) + "\n" + indent + symbol + " " + val.slice(end);
-                        setInlineText((prev) => (prev ? { ...prev, text: nextVal } : null));
-                        setTimeout(() => {
-                          textarea.selectionStart = textarea.selectionEnd = start + 1 + indent.length + symbol.length + 1;
-                        }, 0);
-                        return;
-                      }
-
-                      // 3. Check for numbered list item: 1. 2. ...
-                      const numMatch = currentLine.match(/^(\s*)(\d+)\.\s+(.+)$/);
-                      if (numMatch) {
-                        e.preventDefault();
-                        const indent = numMatch[1];
-                        const nextNum = parseInt(numMatch[2], 10) + 1;
-                        const prefix = `${indent}${nextNum}. `;
-                        const nextVal = val.slice(0, start) + "\n" + prefix + val.slice(end);
-                        setInlineText((prev) => (prev ? { ...prev, text: nextVal } : null));
-                        setTimeout(() => {
-                          textarea.selectionStart = textarea.selectionEnd = start + 1 + prefix.length;
-                        }, 0);
-                        return;
-                      }
-
-                      // 4. Check for checklist item: [ ] or [x]
-                      const checkMatch = currentLine.match(/^(\s*)\[[ xX]\]\s+(.+)$/);
-                      if (checkMatch) {
-                        e.preventDefault();
-                        const indent = checkMatch[1];
-                        const prefix = `${indent}[ ] `;
-                        const nextVal = val.slice(0, start) + "\n" + prefix + val.slice(end);
-                        setInlineText((prev) => (prev ? { ...prev, text: nextVal } : null));
-                        setTimeout(() => {
-                          textarea.selectionStart = textarea.selectionEnd = start + 1 + prefix.length;
-                        }, 0);
-                        return;
-                      }
                     }
                   }}
                   placeholder={inlinePlaceholder}

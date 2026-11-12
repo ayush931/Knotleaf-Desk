@@ -50,7 +50,7 @@ function readable(element,surface){
 test('compiled light Appearance uses light option surfaces and readable selected text',()=>{
  const doc=render(React.createElement(PropertiesPanel,{...props,selectedTool:'text',selectedElement:{...DEFAULT_STYLE,id:'text',type:'text',text:'Example',fontSize:24,fontFamily:'sans',textAlign:'left'}}));
  const panel=doc.querySelector('[aria-label="Appearance settings"]');
- const font=doc.querySelector('[aria-label="Font family"] button[aria-pressed="true"]');
+ const font=doc.querySelector('[aria-label="Canvas font library"]');
  expect(neutralLightness(style(font).backgroundColor)).toBeGreaterThan(.8);readable(font,font);
  const size=doc.querySelector('[aria-label="Increase font size"]');
  expect(neutralLightness(style(size).backgroundColor)).toBeGreaterThan(.8);readable(size,size);

@@ -1895,3 +1895,7 @@ test('multiline arrow labels remain selectable and edit in the larger shared typ
 test('editable diagram exports retain readable arrow-label typography and contrast plates',()=>{
  const labelled={...arrow,label:'Readable label'};const xml=boardToDrawio({elements:[labelled],theme:'light'});expect(xml).toContain('fontSize=16;');expect(xml).toContain('fontStyle=1;');expect(xml).toContain('labelBackgroundColor=#ffffff;');expect(xml).toContain('fontColor=#20201e;');expect(labelled.label).toBe('Readable label');
 });
+
+test('double-clicking an unlabeled arrow starts typing a label without requiring Appearance first',()=>{
+ const unlabeled={...arrow,startBinding:undefined,endBinding:undefined,startX:100,startY:200,endX:500,endY:200,routing:'straight',label:undefined};const {engine,listeners,point}=setup([unlabeled]);let editor;engine.onStartInlineText=next=>{editor=next;};listeners.dblclick(point(300,200));expect(editor).toMatchObject({kind:'label',text:'',elementId:unlabeled.id,fontSize:16});engine.commitInlineText({...editor,text:'First\nSecond'});expect(engine.getElements()[0].label).toBe('First\nSecond');engine.undo();expect(engine.getElements()[0].label).toBeUndefined();engine.destroy();
+});

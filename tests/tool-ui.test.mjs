@@ -4,7 +4,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { PropertiesPanel } from '../components/PropertiesPanel.tsx';
 import { TopToolbar } from '../components/TopToolbar.tsx';
 import { DEFAULT_STYLE } from '../draw/types.ts';
-import { FONT_OPTIONS, QUICK_FONTS } from '../draw/fonts.ts';
+import { FONT_OPTIONS } from '../draw/fonts.ts';
 const noop = () => {};
 const props = { isOpen: true, onOpenChange: noop, selectedElement: null, selectedTool: 'select', selectionCount: 1, currentStyle: DEFAULT_STYLE, onSwapArrow: noop, onChangeFontSize: noop, onUpdateStyle: noop, onUpdateElement: noop, onDuplicate: noop, onDelete: noop, onBringToFront: noop, onSendToBack: noop, theme: 'dark' };
 test('manually opened Arrow inspector exposes all routing modes', () => {
@@ -36,13 +36,12 @@ test('text inspector keeps formatting visible and secondary document controls co
   expect(html).toContain('Document card</summary>'); expect(html).toContain('Lists</summary>');
   expect(html).not.toMatch(/<details[^>]*\bopen/); expect(html).not.toContain('Background Fill');
 });
-test('canvas font picker keeps quick previews without a More fonts dropdown', () => {
+test('canvas typography keeps one full font dropdown without quick font buttons', () => {
   const html = renderToStaticMarkup(React.createElement(PropertiesPanel, { ...props, isTextEditing: true, currentStyle: { ...DEFAULT_STYLE, fontFamily: 'serif' } }));
-  expect(html).toContain('aria-label="Font family"'); expect(QUICK_FONTS).toHaveLength(8);expect(FONT_OPTIONS).toHaveLength(31);
-  for (const font of QUICK_FONTS) expect(html).toContain(`aria-label="Font: ${font.label}"`);
-  expect(html).not.toContain('aria-label="More fonts"');expect(html).not.toContain('More fonts');
-  expect(html).toContain('aria-label="Font: Lora" aria-pressed="true"');
-  expect(html).toContain('var(--font-lora)');
+  expect(html).toContain('aria-label="Canvas font library"');expect(FONT_OPTIONS).toHaveLength(31);
+  for (const font of FONT_OPTIONS) expect(html).toContain(`value="${font.id}"`);
+  expect(html).not.toContain('aria-label="Font family"');expect(html).not.toContain('aria-label="Font:');
+  expect(html).toMatch(/<option[^>]*value="serif"[^>]*selected=""/);expect(html).toContain('var(--font-lora)');
 });
 test('compact drawing tools retain shortcuts in accessible metadata and tooltips', () => {
   const html = renderToStaticMarkup(React.createElement(TopToolbar, { selectedTool: 'select', setSelectedTool: noop, onUndo: noop, onRedo: noop, canUndo: true, canRedo: true, onOpenIconPicker: noop, theme: 'dark' }));
