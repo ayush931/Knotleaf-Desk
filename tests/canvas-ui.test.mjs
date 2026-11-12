@@ -890,3 +890,46 @@ test('group formatting reflects every selected object and one Undo restores the 
  const before=structuredClone(getBoard(id).elements);await clickNamed('Select (V)');await act(async()=>{document.querySelector('main canvas').focus();window.dispatchEvent(new browser.KeyboardEvent('keydown',{key:'a',metaKey:true,bubbles:true}));});await clickNamed('Open appearance settings');expect(named('Bold').getAttribute('aria-pressed')).toBe('mixed');await clickNamed('Bold');expect(getBoard(id).elements.every(element=>element.bold)).toBe(true);
  await clickNamed('Undo');expect(getBoard(id).elements).toEqual(before);expect(named('Bold').getAttribute('aria-pressed')).toBe('mixed');
 });
+
+const appearancePointer=async(type,x,y,id=51)=>act(async()=>{
+ const target=type==='pointerdown'?named('Open appearance settings'):window;
+ target.dispatchEvent(new browser.PointerEvent(type,{pointerId:id,button:0,buttons:type==='pointerup'?0:1,pointerType:'mouse',isPrimary:true,clientX:x,clientY:y,bubbles:true,cancelable:true}));
+});
+test('Appearance dragging follows the pointer, saves its position, and does not open on release',async()=>{
+ const props={canvasSize:{width:800,height:600},topOffset:64};await act(async()=>root.render(React.createElement(Inspector,{props})));
+ await appearancePointer('pointerdown',40,80);await appearancePointer('pointermove',240,230);expect(named('Open appearance settings').style.left).toBe('208px');expect(named('Open appearance settings').style.top).toBe('214px');
+ await appearancePointer('pointerup',240,230);await act(async()=>named('Open appearance settings').dispatchEvent(new browser.MouseEvent('click',{bubbles:true,detail:1})));expect(named('Appearance settings')).toBeNull();
+ expect(JSON.parse(localStorage.getItem('knotleaf.preferences.v1')).appearancePosition).toEqual({x:208,y:214});await act(async()=>root.render(null));await act(async()=>root.render(React.createElement(Inspector,{props})));
+ expect(named('Open appearance settings').style.left).toBe('208px');await clickNamed('Open appearance settings');expect(named('Appearance settings').style.left).toBe('208px');await clickNamed('Collapse appearance settings');expect(named('Open appearance settings').style.top).toBe('214px');
+});
+test('Appearance keeps clicks distinct from drags and cancellation restores its original location',async()=>{
+ await act(async()=>root.render(React.createElement(Inspector,{props:{canvasSize:{width:800,height:600},topOffset:64}})));
+ await appearancePointer('pointerdown',40,80);await appearancePointer('pointermove',42,81);await appearancePointer('pointerup',42,81);await act(async()=>named('Open appearance settings').dispatchEvent(new browser.MouseEvent('click',{bubbles:true,detail:1})));expect(named('Appearance settings')).toBeTruthy();await clickNamed('Collapse appearance settings');
+ for(const cancel of ['pointercancel','Escape','blur']){
+  await appearancePointer('pointerdown',40,80);await appearancePointer('pointermove',240,230);
+  await act(async()=>{if(cancel==='Escape')window.dispatchEvent(new browser.KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}));else if(cancel==='blur')window.dispatchEvent(new browser.Event('blur'));else window.dispatchEvent(new browser.PointerEvent('pointercancel',{pointerId:51,bubbles:true}));});
+  expect(named('Open appearance settings').style.left).toBe('8px');expect(named('Open appearance settings').style.top).toBe('64px');
+ }
+ expect(localStorage.getItem('knotleaf.preferences.v1')).toBeNull();
+});
+test('Appearance clamps to a resized canvas, opens within it, and supports keyboard movement and reset',async()=>{
+ const props={canvasSize:{width:800,height:600},topOffset:64};await act(async()=>root.render(React.createElement(Inspector,{props})));
+ await appearancePointer('pointerdown',40,80);await appearancePointer('pointermove',5000,5000);await appearancePointer('pointerup',5000,5000);expect(named('Open appearance settings').style.left).toBe('660px');expect(named('Open appearance settings').style.top).toBe('556px');
+ await act(async()=>root.render(React.createElement(Inspector,{props:{...props,canvasSize:{width:390,height:500}}})));expect(named('Open appearance settings').style.left).toBe('250px');expect(named('Open appearance settings').style.top).toBe('456px');
+ await clickNamed('Open appearance settings');expect(named('Appearance settings').style.left).toBe('94px');expect(named('Appearance settings').style.top).toBe('236px');await clickNamed('Collapse appearance settings');
+ await act(async()=>named('Open appearance settings').dispatchEvent(new browser.KeyboardEvent('keydown',{key:'ArrowLeft',altKey:true,bubbles:true,cancelable:true})));expect(named('Open appearance settings').style.left).toBe('240px');
+ await act(async()=>named('Open appearance settings').dispatchEvent(new browser.KeyboardEvent('keydown',{key:'Home',altKey:true,bubbles:true,cancelable:true})));expect(named('Open appearance settings').style.left).toBe('8px');expect(named('Open appearance settings').style.top).toBe('64px');expect(JSON.parse(localStorage.getItem('knotleaf.preferences.v1')).appearancePosition).toBeNull();
+});
+
+test('Appearance drag and single-shape styling leave unselected artwork unchanged',async()=>{
+ const id=await renderBoard();
+ for(const x of [100,350,600]){await clickNamed('Rectangle (R)');await boardPointer('pointerdown',x,200);await boardPointer('pointermove',x+100,300);await boardPointer('pointerup',x+100,300);}
+ const original=structuredClone(getBoard(id).elements);
+ await appearancePointer('pointerdown',40,80);await appearancePointer('pointermove',440,180);await appearancePointer('pointerup',440,180);expect(getBoard(id).elements).toEqual(original);
+ await clickNamed('Select (V)');await boardPointer('pointerdown',100,240);await boardPointer('pointerup',100,240);await clickNamed('Open appearance settings');
+ await clickNamed('Color #EF4444');expect(getBoard(id).elements[0].stroke).toBe('#EF4444');expect(getBoard(id).elements.slice(1)).toEqual(original.slice(1));
+ await clickNamed('Background #48596b');expect(getBoard(id).elements[0].fill).toBe('#48596b');expect(getBoard(id).elements.slice(1)).toEqual(original.slice(1));
+ await act(async()=>[...document.querySelectorAll('#appearance-settings button')].find(button=>button.textContent==='4px').click());expect(getBoard(id).elements[0].strokeWidth).toBe(4);expect(getBoard(id).elements.slice(1)).toEqual(original.slice(1));
+ await act(async()=>[...document.querySelectorAll('#appearance-settings button')].find(button=>button.textContent==='sharp').click());expect(getBoard(id).elements[0].roundness).toBe('sharp');expect(getBoard(id).elements.slice(1)).toEqual(original.slice(1));
+ await act(async()=>{const input=named('Opacity');Object.getOwnPropertyDescriptor(browser.HTMLInputElement.prototype,'value').set.call(input,'0.5');input.dispatchEvent(new browser.Event('change',{bubbles:true}));input.dispatchEvent(new browser.Event('input',{bubbles:true}));});expect(getBoard(id).elements[0].opacity).toBe(0.5);expect(getBoard(id).elements.slice(1)).toEqual(original.slice(1));
+});

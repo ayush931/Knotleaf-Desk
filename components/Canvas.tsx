@@ -1340,6 +1340,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
                 isOpen={appearanceOpen}
                 onOpenChange={setAppearanceOpen}
                 topOffset={toolbarHeight + 24}
+                canvasSize={stageSize}
                 selectedTool={selectedTool}
                 isTextEditing={textOptionsVisible}
                 preserveTextFocus={isInlineTextual}

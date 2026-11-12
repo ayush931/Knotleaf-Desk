@@ -20,6 +20,7 @@ export interface Preferences {
   /** Latest five drawing colors, newest first. */
   recentColors: string[];
   minimapOpen: boolean;
+  appearancePosition: { x: number; y: number } | null;
   markdownRetentionDays: 0 | 7;
   markdownWorkspace: MarkdownWorkspaceSettings;
   callNoiseSuppression: boolean;
@@ -37,7 +38,7 @@ export interface Preferences {
   exportScale: number;
   exportTransparent: boolean;
 }
-const defaults = (): Preferences => ({ version:1, workspaceColorVersion:1, canvasTypographyVersion:1, canvasDrawingVersion:1, boardLibrary:normalizeBoardLibrary(undefined), theme:"dark", workspaceThemes:normalizeWorkspaceThemes(undefined), logoStyle:'theme', recentColors:normalizeRecentColors(undefined), minimapOpen:true, markdownRetentionDays:7, markdownWorkspace:normalizeMarkdownWorkspace(undefined), callNoiseSuppression:true, style:{...DEFAULT_STYLE}, toolColors:normalizeToolColors(undefined), eraserSize:24, eraserMode:'all', notesWidth:360, notesHeight:300, noteAppearance:{...DEFAULT_NOTE_APPEARANCE}, noteTypingSize:null, exportFormat:'project', exportScope:'project', exportScale:2, exportTransparent:false });
+const defaults = (): Preferences => ({ version:1, workspaceColorVersion:1, canvasTypographyVersion:1, canvasDrawingVersion:1, boardLibrary:normalizeBoardLibrary(undefined), theme:"dark", workspaceThemes:normalizeWorkspaceThemes(undefined), logoStyle:'theme', recentColors:normalizeRecentColors(undefined), minimapOpen:true, appearancePosition:null, markdownRetentionDays:7, markdownWorkspace:normalizeMarkdownWorkspace(undefined), callNoiseSuppression:true, style:{...DEFAULT_STYLE}, toolColors:normalizeToolColors(undefined), eraserSize:24, eraserMode:'all', notesWidth:360, notesHeight:300, noteAppearance:{...DEFAULT_NOTE_APPEARANCE}, noteTypingSize:null, exportFormat:'project', exportScope:'project', exportScale:2, exportTransparent:false });
 const finite = (n: unknown, min: number, max=Number.MAX_VALUE): n is number => typeof n==='number' && Number.isFinite(n) && n>=min && n<=max;
 const color = (value: unknown): value is string => typeof value==='string' && (value==='transparent' || /^#[\da-f]{6}$/i.test(value));
 export function normalizePreferences(value: unknown): Preferences {
@@ -50,6 +51,8 @@ export function normalizePreferences(value: unknown): Preferences {
   if(data.logoStyle==='black'||data.logoStyle==='theme')result.logoStyle=data.logoStyle;
   result.recentColors=normalizeRecentColors(data.recentColors);
   if(typeof data.minimapOpen==='boolean')result.minimapOpen=data.minimapOpen;
+  const position=data.appearancePosition as {x?:unknown;y?:unknown}|null;
+  if(position && finite(position.x,0,100000) && finite(position.y,0,100000))result.appearancePosition={x:position.x,y:position.y};
   // Adopt the requested neutral default once; future explicit Lagoon choices stay saved.
   if(data.workspaceColorVersion!==1){
     if(result.workspaceThemes.canvas==='mono')result.workspaceThemes.canvas='black';

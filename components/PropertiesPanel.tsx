@@ -1,4 +1,5 @@
 "use client";
+import { useAppearancePosition } from "@/lib/useAppearancePosition";
 import { textSizeShortcut } from "@/lib/textShortcuts";
 import { cardBackground, MIN_CODE_WIDTH, MIN_CODE_HEIGHT } from "@/draw/cardAppearance";
 
@@ -49,6 +50,7 @@ interface PropertiesPanelProps {
   onBackgroundChange?: (background: BackgroundSettings) => void;
   selectedTool?: Tool;
   topOffset?: number;
+  canvasSize?: {width:number;height:number};
   isTextEditing?: boolean;
   preserveTextFocus?: boolean;
   selectionCount: number;
@@ -86,6 +88,7 @@ export function PropertiesPanel({
   onBackgroundChange,
   selectedTool = "select",
   topOffset = 56,
+  canvasSize = {width:0,height:0},
   isTextEditing = false,
   preserveTextFocus = false,
   selectionCount,
@@ -100,6 +103,7 @@ export function PropertiesPanel({
   onBringToFront,
   onSendToBack,
 }: PropertiesPanelProps) {
+  const floating = useAppearancePosition(canvasSize, topOffset, preserveTextFocus);
   const openButton = useRef<HTMLButtonElement>(null);
   const closeButton = useRef<HTMLButtonElement>(null);
   useLayoutEffect(() => { if (isOpen && !preserveTextFocus) closeButton.current?.focus({ preventScroll: true }); }, [isOpen, preserveTextFocus]);
@@ -283,16 +287,16 @@ export function PropertiesPanel({
 
   if (!isOpen) {
     return (
-      <button ref={openButton} type="button" onMouseDown={event => { if (preserveTextFocus) event.preventDefault(); }} onClick={() => onOpenChange(true)}
-        style={{ top: topOffset }} aria-expanded={false}
-        title="Style · stroke, background and text" aria-label="Open appearance settings" aria-controls="appearance-settings"
+      <button ref={openButton} type="button" onMouseDown={event => { if (preserveTextFocus) event.preventDefault(); }} onPointerDown={floating.onPointerDown} onKeyDown={floating.onKeyDown} onClick={event => floating.onClick(event, () => onOpenChange(true))}
+        style={{ top: floating.point.y, left: floating.point.x, width:132, touchAction:"none", cursor:floating.dragging ? "grabbing" : "grab" }} aria-expanded={false}
+        title="Appearance · click to open, drag to move · Alt+Arrow keys to move, Alt+Home to reset" aria-describedby="appearance-move-hint" aria-label="Open appearance settings" aria-controls="appearance-settings"
         className="appearance-trigger absolute left-2 z-40 flex h-9 items-center justify-center gap-2 rounded-lg border drawing-panel px-3 text-xs font-semibold text-neutral-700 dark:text-neutral-200 shadow-sm transition-colors hover:border-neutral-400 dark:hover:border-neutral-500 hover:text-neutral-900 dark:hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black dark:focus-visible:outline-white"
-      ><Palette aria-hidden="true" strokeWidth={1.75} className="h-[18px] w-[18px] shrink-0" /><span>Appearance</span></button>
+      ><Palette aria-hidden="true" strokeWidth={1.75} className="h-[18px] w-[18px] shrink-0" /><span>Appearance</span><span id="appearance-move-hint" className="sr-only">Drag to move. Use Alt and arrow keys to move with the keyboard; Alt and Home resets the position.</span></button>
     );
   }
 
   return (
-    <div style={{ top: topOffset, maxHeight: `calc(100% - ${topOffset + 64}px)` }}
+    <div style={{ top: floating.panel.y, left: floating.panel.x, maxHeight: `calc(100% - ${floating.panel.y + 64}px)` }}
       id="appearance-settings" role="region" aria-label="Appearance settings"
       onKeyDown={event => {
         const sizeDelta = textSizeShortcut(event.nativeEvent);

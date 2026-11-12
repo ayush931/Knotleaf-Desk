@@ -112,3 +112,9 @@ test('new line routing, minimap and recent colors survive independent saves with
  expect(loadPreferences().style.lineRouting).toBe('curved');expect(loadPreferences().minimapOpen).toBe(false);expect(loadPreferences().recentColors).toEqual(['#ABCDEF','#123456']);
  expect(normalizePreferences({style:{lineRouting:'broken'},recentColors:[null,'bad'],minimapOpen:'yes'}).style.lineRouting).toBe('straight');
 });
+
+test('Appearance position persists independently and rejects malformed coordinates',()=>{
+ savePreferences({appearancePosition:{x:240,y:360}});savePreferences({notesWidth:480});expect(loadPreferences().appearancePosition).toEqual({x:240,y:360});
+ for(const appearancePosition of [null,{x:-1,y:10},{x:Infinity,y:0},{x:'12',y:30},{x:200000,y:10}])expect(normalizePreferences({appearancePosition}).appearancePosition).toBeNull();
+ savePreferences({appearancePosition:null});expect(loadPreferences().appearancePosition).toBeNull();
+});
