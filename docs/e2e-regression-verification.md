@@ -135,3 +135,11 @@ Reproduced real DOM text widths exceeding the canvas-sized editing box: `Testing
 - 845 automated tests passed; 2 PostgreSQL-dependent tests skipped. Lint, typecheck, webpack production build and strict UI audit passed.
 - Chrome on macOS verified the reproduced sentences, all 32 font choices, three zoom levels, rapid typing, explicit multiline input, Enter/Shift+Enter, deletion, Option+Backspace, undo/redo, lists, software Enter, IME composition, selected-range fonts, independent objects, document/sticky/text-box wrapping, arrow labels and save/reload. No runtime errors.
 - Updated the anchored-editor regression to require visible overflow on both axes, retaining zero scroll offsets and unchanged alignment coordinates. Safari/physical touch were not tested in this pass.
+
+## Code-card Appearance formatting
+
+Code source now supports selected-first font, size, color, bold, italic, underline and strike. No selection applies styles to the card, clearing only the matching range overrides. Syntax colors remain derived presentation, while explicit user styles persist independently. A shared code-run layout measures and paints styled source for canvas/SVG/auto sizing, including mixed sizes and tabs; the editor uses one native contenteditable scrolling surface with the same styled runs. Copy preserves plain code. Appearance retains the editing session and selection. Mac size/format shortcuts and code undo/redo are supported.
+
+- 849 tests passed, 2 PostgreSQL-dependent skipped across 60 files. Added component selection/sibling/persistence coverage and code syntax/style/color/layout regressions. Existing code scrolling tests now check the single surface. Production webpack build, lint, typecheck, strict UI audit and DESIGN.md lint passed (three existing orphan-token warnings).
+- Chrome on macOS verified selected-only bold/italic/underline/strike/font/size, a Mac Command+Shift+Period change on the selected source, whole-card fallback with no selection, Enter, code undo/redo, reopening and reload with no runtime errors. Inspected the saved styled card visually.
+- Existing SVG source-retention and clipping coverage passed after preserving all source runs in exports. Safari, physical touch and live collaborative editing were not exercised in this pass.

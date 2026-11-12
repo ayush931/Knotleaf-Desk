@@ -1,11 +1,11 @@
+import { layoutCodeText } from './codeText';
 import { rangeStyleAt } from "./textRanges";
-import { CODE_FONT_WEIGHT, codeLineMetrics, lineBoxMetrics } from "./codeLayout";
-import { canvasElementAppearance, lightCodeInk } from "./canvasAppearance";
+import { lineBoxMetrics } from "./codeLayout";
+import { canvasElementAppearance } from "./canvasAppearance";
 import { isLightBackground } from "@/lib/background.mjs";
 import { cardBackground } from "./cardAppearance";
 import { attachmentSize } from "@/lib/attachments.mjs";
 import { drawBackgroundFill } from "./backgroundFill";
-import { expandCodeTabs, highlightCode } from "@/lib/code";
 import { routeConnector } from "./connectorRouting";
 import {
   CanvasElement,
@@ -1314,7 +1314,7 @@ function drawText(ctx: CanvasRenderingContext2D, el: CanvasElement, codeScroll?:
   }
   el = cardBackground(el);
   if (el.isCodeCard) {
-    const result = highlightCode(expandCodeTabs(el.text), el.codeLanguage);
+    const layout = layoutCodeText(ctx,el,setFont,isLight);
     const cardLight = isLightBackground({ fill: el.fill, fillStyle: "solid", fillOpacity: 1 });
     ctx.save(); ctx.fillStyle = cardLight ? "#ffffff" : "#10151e"; ctx.strokeStyle = cardLight ? "#d4d4d8" : "#334155"; ctx.lineWidth = 1;
     const build = () => ctx.roundRect(el.x - 16, el.y - 16, el.width + 32, el.height + 32, cardCornerRadius(el));
@@ -1322,9 +1322,16 @@ function drawText(ctx: CanvasRenderingContext2D, el: CanvasElement, codeScroll?:
     ctx.beginPath(); build(); ctx.stroke();
     ctx.beginPath(); ctx.rect(el.x, el.y, el.width, el.height); ctx.clip();
     ctx.textBaseline = "alphabetic"; ctx.textAlign = "left"; ctx.fontKerning = "none";
-    setFont(ctx, el.fontSize, "mono", CODE_FONT_WEIGHT);
-    const metrics = codeLineMetrics(ctx, el.fontSize);
-    result.lines.forEach((line, row) => { let x = el.x - (codeScroll?.x || 0); for (const token of line) { ctx.fillStyle = cardLight ? lightCodeInk(token.color) : token.color; ctx.fillText(token.text, x, el.y + metrics.baseline + row * metrics.lineHeight - (codeScroll?.y || 0)); x += ctx.measureText(token.text).width; } });
+    for(const line of layout.lines){
+      const left=el.x-(codeScroll?.x||0)+(el.textAlign==='center'?(el.width-line.width)/2:el.textAlign==='right'?el.width-line.width:0);
+      for(const glyph of line.glyphs){
+        setFont(ctx,glyph.size,glyph.family,glyph.weight,glyph.italic);ctx.fillStyle=glyph.color||el.stroke;
+        const y=el.y+line.y+line.baseline-(codeScroll?.y||0),x=left+glyph.x;
+        ctx.fillText(glyph.text,x,y);
+        ctx.strokeStyle=ctx.fillStyle;ctx.lineWidth=Math.max(1,glyph.size/16);
+        for(const offset of [glyph.underline?glyph.size*.1:null,glyph.strikethrough?-glyph.size*.3:null])if(offset!==null){ctx.beginPath();ctx.moveTo(x,y+offset);ctx.lineTo(x+glyph.width,y+offset);ctx.stroke();}
+      }
+    }
     ctx.restore(); return;
   }
   const { x, y, text, fontSize, fontFamily, textAlign, stroke, fill } = el;

@@ -175,6 +175,7 @@ export interface TextElement extends BaseElement, TextFormatting {
   /** False keeps the user-sized code viewport when its source changes. */
   codeAutoSize?: boolean;
   codeLanguage?: string;
+  codeColorCustom?: boolean;
   title?: string;
 }
 

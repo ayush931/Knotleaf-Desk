@@ -212,6 +212,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
 
   const [saveError, setSaveError] = useState(false);
   const [codeInitialView, setCodeInitialView] = useState<CodeViewState>();
+  const [codeSelection,setCodeSelection]=useState({start:0,end:0});
   const codeViews = useRef(new Map<string,CodeViewState>());
   const [codeViewport, setCodeViewport] = useState({ zoom: 1, pan: { x: 0, y: 0 } });
   const [codeId, setCodeId] = useState<string | null>(null);
@@ -854,6 +855,19 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
     return () => cancelAnimationFrame(frame);
   }, [inlineText?.elementId, inlineText?.kind, inlineText?.canvasX, inlineText?.canvasY]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const applyCodeAppearance=(props:Partial<ElementStyleProps>)=>{
+    if(!codeElement||codeElement.type!=="text")return;
+    const {fontSize,fontFamily,stroke,bold,italic,underline,strikethrough,...rest}=props;
+    const patch=Object.fromEntries(Object.entries({fontSize,fontFamily,color:stroke,bold,italic,underline,strikethrough}).filter(([,v])=>v!==undefined));
+    if(codeSelection.end>codeSelection.start&&Object.keys(patch).length){
+      engineRef.current?.updateSelectedElement({...rest,textRanges:formatRange(codeElement.text,codeElement.textRanges,codeSelection.start,codeSelection.end,patch)});
+    }else engineRef.current?.updateSelectedElement({...props,...(stroke!==undefined?{codeColorCustom:true}:{})});
+  };
+  const resizeCodeText=(delta:number)=>{
+    if(codeElement?.type!=="text")return;
+    const style=codeSelection.end>codeSelection.start?rangeStyleAt(codeElement.textRanges,codeSelection.start):{};
+    applyCodeAppearance({fontSize:Math.max(8,Math.min(512,(style.fontSize||codeElement.fontSize)+delta))});
+  };
   const updateInlineStyle = (style: Partial<ElementStyleProps>) => {
     const editor=inlineTextareaRef.current, current=inlineTextStateRef.current;
     if(editor && current && editor.selectionEnd>editor.selectionStart){
@@ -1161,7 +1175,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
               onDismiss={() => setWelcomeDismissedFor(board.id)}
             />}
 
-            {codeElement?.type === "text" && <CodeEditor initialView={codeInitialView} onViewChange={view=>{codeViews.current.set(codeElement.id,view);if(codeViews.current.size>256)codeViews.current.delete(codeViews.current.keys().next().value!);engineRef.current?.setCodeScroll(codeElement.id,{x:view.scrollLeft,y:view.scrollTop});}} background={canvasElementAppearance(codeElement, lightCanvas, board.elements)} key={codeElement.id} value={codeElement.text} language={codeElement.codeLanguage || "auto"} fontSize={codeElement.fontSize} zoom={codeViewport.zoom} x={(codeElement.x - 16) * codeViewport.zoom + codeViewport.pan.x} y={(codeElement.y - 16) * codeViewport.zoom + codeViewport.pan.y} width={codeElement.width} height={codeElement.height} onChange={(text, language) => engineRef.current?.updateCode(codeElement.id, text, language)} onClose={() => { engineRef.current?.finishCode(); setCodeId(null); }} />}
+            {codeElement?.type === "text" && <CodeEditor initialView={codeInitialView} onViewChange={view=>{setCodeSelection(previous=>previous.start===view.selectionStart&&previous.end===view.selectionEnd?previous:{start:view.selectionStart,end:view.selectionEnd});codeViews.current.set(codeElement.id,view);if(codeViews.current.size>256)codeViews.current.delete(codeViews.current.keys().next().value!);engineRef.current?.setCodeScroll(codeElement.id,{x:view.scrollLeft,y:view.scrollTop});}} background={canvasElementAppearance(codeElement, lightCanvas, board.elements)} key={codeElement.id} formatting={codeElement} onResizeText={resizeCodeText} onHistory={redo=>{if(redo)engineRef.current?.redo();else engineRef.current?.undo();}} onFormat={patch=>{const key=Object.keys(patch)[0] as 'bold'|'italic'|'underline'|'strikethrough';const state=rangeFormattingState(codeElement.text,codeElement.textRanges,codeElement,codeSelection.start,codeSelection.end);applyCodeAppearance({[key]:state[key]!==true});}} value={codeElement.text} language={codeElement.codeLanguage || "auto"} fontSize={codeElement.fontSize} zoom={codeViewport.zoom} x={(codeElement.x - 16) * codeViewport.zoom + codeViewport.pan.x} y={(codeElement.y - 16) * codeViewport.zoom + codeViewport.pan.y} width={codeElement.width} height={codeElement.height} onChange={(text, language) => engineRef.current?.updateCode(codeElement.id, text, language)} onClose={() => { engineRef.current?.finishCode(); setCodeId(null); }} />}
             {inlineText && (
               <>
                 {/* Document-specific list tools; ordinary canvas text stays unobstructed. */}
@@ -1281,12 +1295,13 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
                 canvasSize={stageSize}
                 selectedTool={selectedTool}
                 isTextEditing={textOptionsVisible}
-                preserveTextFocus={isInlineTextual}
-                selectedElement={inlineText?.kind === "label" && selectedElement?.type === "arrow" ? {...selectedElement,label:inlineText.text} : isInlineTextual && selectedElement && (selectedElement.type === "text" || selectedElement.type === "sticky") ? { ...selectedElement, fontSize: inlineText!.fontSize, fontFamily: inlineText!.fontFamily, textAlign: inlineText!.align, stroke: inlineText!.color, bold: inlineText!.bold, italic: inlineText!.italic, underline: inlineText!.underline, strikethrough: inlineText!.strikethrough, text: inlineText!.text, ...selectedTextStyle, ...(selectedTextStyle.color?{stroke:selectedTextStyle.color}:{}) } : selectedTool === "text" ? null : selectedElement}
+                preserveTextFocus={isInlineTextual || !!codeElement}
+                selectedElement={codeElement?.type==='text'?{...codeElement,...(codeSelection.end>codeSelection.start?rangeStyleAt(codeElement.textRanges,codeSelection.start):{})}:inlineText?.kind === "label" && selectedElement?.type === "arrow" ? {...selectedElement,label:inlineText.text} : isInlineTextual && selectedElement && (selectedElement.type === "text" || selectedElement.type === "sticky") ? { ...selectedElement, fontSize: inlineText!.fontSize, fontFamily: inlineText!.fontFamily, textAlign: inlineText!.align, stroke: inlineText!.color, bold: inlineText!.bold, italic: inlineText!.italic, underline: inlineText!.underline, strikethrough: inlineText!.strikethrough, text: inlineText!.text, ...selectedTextStyle, ...(selectedTextStyle.color?{stroke:selectedTextStyle.color}:{}) } : selectedTool === "text" ? null : selectedElement}
                 selectionCount={selectedElements.length}
-                formattingState={formattingState}
+                formattingState={codeElement?.type==='text'?rangeFormattingState(codeElement.text,codeElement.textRanges,codeElement,...(codeSelection.end>codeSelection.start?[codeSelection.start,codeSelection.end] as const:[0,codeElement.text.length] as const)):formattingState}
                 currentStyle={isInlineTextual ? { ...currentStyle, fontSize: inlineText!.fontSize, fontFamily: inlineText!.fontFamily, textAlign: inlineText!.align, stroke: inlineText!.color, bold: inlineText!.bold, italic: inlineText!.italic, underline: inlineText!.underline, strikethrough: inlineText!.strikethrough, ...selectedTextStyle, ...(selectedTextStyle.color?{stroke:selectedTextStyle.color}:{}) } : currentStyle}
                 onUpdateStyle={(st) => {
+                  if(codeElement)return;
                   if (st.stroke) rememberColor(st.stroke);
                   if (isInlineTextual) updateInlineStyle(st);
                   const { stroke, fill, fillStyle, fillOpacity, ...otherStyle } = st;
@@ -1311,6 +1326,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
                   if (engineRef.current) engineRef.current.currentStyle = nextStyle;
                 }}
                 onUpdateElement={(props) => {
+                  if(codeElement){applyCodeAppearance(props as Partial<ElementStyleProps>);return;}
                   if (inlineText?.kind === "label" && selectedElement?.type === "arrow" && "label" in props) {
                     setInlineText(previous => previous ? {...previous,text:props.label || ""} : null);
                     const rest = Object.fromEntries(Object.entries(props).filter(([key]) => key !== "label"));
@@ -1329,7 +1345,8 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
                 onSendToBack={() => { commitInline(); engineRef.current?.sendToBack(); }}
                 onSwapArrow={() => engineRef.current?.swapSelectedArrows()}
                 onChangeFontSize={delta => {
-                  if (isInlineTextual) adjustInlineFontSize(delta);
+                  if(codeElement?.type==='text')resizeCodeText(delta);
+                  else if (isInlineTextual) adjustInlineFontSize(delta);
                   else {
                     engineRef.current?.changeFontSize(delta);
                   }

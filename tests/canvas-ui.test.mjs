@@ -564,7 +564,7 @@ test('canvas code editor has no language UI and shares its syntax colors with th
  for(const light of [false,true]){
   await act(async()=>root.render(React.createElement(CodeEditor,{...props,background:{fill:light?'#ffffff':'#111d2d',fillStyle:'solid'}})));
   expect(!!named('Code language')).toBe(false);expect(!!named('Copy code')).toBe(true);expect(!!named('Finish editing code')).toBe(true);
-  const code=document.querySelector('.code-source code'),colors=CODE_COLORS[light?'light':'dark'];
+  const code=named('Code source'),colors=CODE_COLORS[light?'light':'dark'];
   expect(code.textContent).toBe(props.value);expect(code.innerHTML).toContain(colors.keyword);expect(code.innerHTML).toContain(colors.number);
   expect(document.querySelector('.code-source').style.height).toBe('100px');expect(named('Code source').value).toBe(props.value);
  }
@@ -596,7 +596,7 @@ test('code focus restores caret and scroll without shifting its content box or c
   expect(closed).toBe(previousClosed+1);expect(view).toEqual({scrollLeft:28,scrollTop:21,selectionStart:24,selectionEnd:29});
   await act(async()=>root.render(React.createElement(CodeEditor,{...props,initialView:view,key:`restored-${zoom}`})));
   editor=named('Code source');expect(editor.scrollLeft).toBe(28);expect(editor.scrollTop).toBe(21);expect(editor.selectionStart).toBe(24);expect(editor.selectionEnd).toBe(29);
-  const preview=document.querySelector('.code-source pre');expect([preview.scrollLeft,preview.scrollTop]).toEqual([28,21]);const reopened=named('Inline code editor');expect([reopened.style.left,reopened.style.top,reopened.style.width,reopened.style.transform]).toEqual(geometry);
+  const reopened=named('Inline code editor');expect([reopened.style.left,reopened.style.top,reopened.style.width,reopened.style.transform]).toEqual(geometry);
  }
 });
 
@@ -613,15 +613,11 @@ test('reopening existing text near the canvas boundary retains its exact stored 
  }
 });
 
-test('code highlight viewport excludes scrollbar gutters so scrolling cannot shift glyphs on blur',async()=>{
- const {CodeEditor}=await import('../components/CodeEditor.tsx');const prototype=browser.HTMLTextAreaElement.prototype;
- const descriptors=new Map(['clientWidth','clientHeight'].map(key=>[key,Object.getOwnPropertyDescriptor(prototype,key)]));
- Object.defineProperty(prototype,'clientWidth',{configurable:true,get:()=>116});Object.defineProperty(prototype,'clientHeight',{configurable:true,get:()=>28});
- try{
-  await act(async()=>root.render(React.createElement(CodeEditor,{value:'const name = "a long code line";\n'.repeat(10),language:'javascript',onChange(){},onClose(){},x:100,y:100,width:128,height:40,zoom:1,fontSize:16})));
-  const input=named('Code source'),preview=document.querySelector('.code-source pre');expect([preview.style.width,preview.style.height]).toEqual(['116px','28px']);
-  await act(async()=>{input.scrollLeft=45;input.scrollTop=24;input.dispatchEvent(new browser.Event('scroll',{bubbles:true}));});expect([preview.scrollLeft,preview.scrollTop]).toEqual([45,24]);
- }finally{for(const [key,descriptor]of descriptors)if(descriptor)Object.defineProperty(prototype,key,descriptor);else delete prototype[key];}
+test('code syntax and caret share one scrolling surface',async()=>{
+ const {CodeEditor}=await import('../components/CodeEditor.tsx');
+ await act(async()=>root.render(React.createElement(CodeEditor,{value:'const name = "a long code line";\n'.repeat(10),language:'javascript',onChange(){},onClose(){},x:100,y:100,width:128,height:40,zoom:1,fontSize:16})));
+ const input=named('Code source');expect(input.getAttribute('contenteditable')).toBe('true');expect(document.querySelector('.code-source pre')).toBeNull();
+ await act(async()=>{input.scrollLeft=45;input.scrollTop=24;input.dispatchEvent(new browser.Event('scroll',{bubbles:true}));});expect([input.scrollLeft,input.scrollTop]).toEqual([45,24]);
 });
 
 
@@ -1021,4 +1017,20 @@ test('an empty editor keeps the caret before its placeholder break and clamps te
 test('non-cancelable native insertion is normalized after input rather than inserted twice',async()=>{
  await renderBoard();const editor=await startText();await typeText(editor,'Original');editor.select();const before=new browser.InputEvent('beforeinput',{inputType:'insertText',data:'First\nSecond',bubbles:true,cancelable:false});await act(async()=>editor.dispatchEvent(before));expect(editor.value).toBe('Original');
  await act(async()=>{editor.innerHTML='First<div>Second</div>';editor.dispatchEvent(new browser.InputEvent('input',{inputType:'insertText',data:'Second',bubbles:true}));});expect(editor.value).toBe('First\nSecond');
+});
+
+
+test('code Appearance prioritizes selected source, preserves syntax and siblings, then styles the whole card',async()=>{
+ localStorage.clear();const board=createBoard('Code appearance');board.viewMode='canvas';
+ const card={...DEFAULT_STYLE,id:'styled-code',type:'text',isCodeCard:true,isDocCard:true,text:'const count = 42;',codeLanguage:'javascript',fontSize:16,fontFamily:'mono',textAlign:'left',x:400,y:250,width:300,height:100,codeAutoSize:false,bold:false,italic:false,fill:'#10151e',fillStyle:'solid'};
+ const sibling={...card,id:'other-code',y:500,text:'Keep this unchanged'};board.elements=[card,sibling];const {saveBoard}=await import('../lib/storage.ts');saveBoard(board);setActiveBoardId(board.id);
+ await act(async()=>root.render(React.createElement(AppRouterContext.Provider,{value:router},React.createElement(SearchParamsContext.Provider,{value:new URLSearchParams()},React.createElement(Canvas)))));
+ await boardPointer('dblclick',420,260);let editor=named('Code source');expect(editor).toBeTruthy();
+ await act(async()=>{editor.focus();editor.setSelectionRange(6,11);editor.dispatchEvent(new browser.MouseEvent('mouseup',{bubbles:true}));});
+ await clickNamed('Open appearance settings');await clickNamed('Bold');await clickNamed('Italic');await clickNamed('Underline');await clickNamed('Strikethrough');await chooseCanvasFont('sketch');await clickNamed('Increase font size');
+ let saved=getBoard(board.id).elements[0];expect(saved.bold).toBe(false);expect(saved.fontFamily).toBe('mono');expect(saved.textRanges).toEqual([{start:6,end:11,style:{bold:true,italic:true,underline:true,strikethrough:true,fontFamily:'sketch',fontSize:18}}]);
+ expect(named('Code source')).toBe(editor);expect(editor.innerHTML).toContain('700');expect(editor.innerHTML).toContain('line-through');expect(getBoard(board.id).elements[1]).toEqual(sibling);
+ await act(async()=>{editor.focus();editor.setSelectionRange(0,0);editor.dispatchEvent(new browser.MouseEvent('mouseup',{bubbles:true}));});
+ await clickNamed('Bold');saved=getBoard(board.id).elements[0];expect(saved.bold).toBe(true);expect(saved.textRanges[0].style.bold).toBeUndefined();expect(saved.textRanges[0].style.italic).toBe(true);
+ await clickNamed('Finish editing code');await boardPointer('dblclick',420,260);expect(named('Code source').innerHTML).toContain('line-through');expect(getBoard(board.id).elements[1]).toEqual(sibling);
 });
