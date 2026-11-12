@@ -347,3 +347,5 @@ When an arrow has a label, its bend diamond sits 12 screen pixels above the plat
 
 
 RangeTextEditor reads native block and BR boundaries as real newlines, while excluding its marked caret placeholder. Hardware Enter, software-keyboard line breaks and Tab share the same immediate text transaction; list continuation/exit and selected-line indentation preserve the caret and independent formatting ranges. Composition text stays under the browser's control until completion, even during styling rerenders; blur flushes that text before the draft commits. Empty-editor selection restoration stays before its caret break. Font selection remains in the single grouped dropdown.
+
+Free canvas text keeps explicit line breaks and never soft-wraps while editing. RangeTextEditor honors the caller's wrap mode from the empty draft through reopening; cards, sticky notes, arrow labels and deliberately sized text boxes retain soft wrapping. Canvas geometry remains the alignment anchor, independent of browser word-break rounding.

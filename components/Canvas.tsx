@@ -1211,7 +1211,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
                     }
                   }}
                   placeholder={inlinePlaceholder}
-                  wrap={inlineText.boxWidth || !inlineText.text || inlineText.kind === "sticky" || selectedElement?.type === "text" && selectedElement.isDocCard ? "soft" : "off"}
+                  wrap={!inlineText.boxWidth && (inlineText.kind === "new-text" || inlineText.kind === "text" && selectedElement?.type === "text" && !selectedElement.isDocCard && !selectedElement.isCodeCard) ? "off" : "soft"}
                   spellCheck={false}
                   style={{
                     position: "absolute",

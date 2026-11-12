@@ -119,6 +119,29 @@ test('canvas text focuses, keeps editing through Appearance formatting, saves mu
   await boardPointer('dblclick', saved.x + 2, saved.y + 2);
   expect(named('Edit text').value).toBe('Hello\nworld');
 });
+test('free canvas typing never soft-wraps, preserves Enter, and retains that policy when reopened', async () => {
+  const id = await renderBoard(); const editor = await startText();
+  expect(editor.style.whiteSpace).toBe('pre');
+  const sentence = 'A longer sentence with several words and additional content';
+  await typeText(editor, sentence);
+  expect(editor.style.whiteSpace).toBe('pre'); expect(editor.style.overflowWrap).toBe('normal');
+  await act(async () => editor.dispatchEvent(new browser.KeyboardEvent('keydown', { bubbles: true, key: 'Enter' })));
+  await typeText(editor, sentence + '\nSecond line');
+  await act(async () => editor.dispatchEvent(new browser.KeyboardEvent('keydown', { bubbles: true, key: 'Enter', metaKey: true })));
+  const saved = getBoard(id).elements[0]; expect(saved.text).toBe(sentence + '\nSecond line');
+  await boardPointer('dblclick', saved.x + 2, saved.y + 2);
+  expect(named('Edit text').style.whiteSpace).toBe('pre'); expect(named('Edit text').value).toBe(saved.text);
+});
+test('explicit text boxes and sticky notes keep soft wrapping', async () => {
+  await renderBoard(); await clickNamed('Text & Bullets (T)');
+  await boardPointer('pointerdown',100,100); await boardPointer('pointermove',240,180); await boardPointer('pointerup',240,180);
+  await act(async () => new Promise(resolve => window.requestAnimationFrame(resolve)));
+  let editor = named('Edit text'); expect(editor.style.whiteSpace).toBe('pre-wrap');
+  await typeText(editor,'A long sentence inside a fixed width text box'); expect(editor.style.whiteSpace).toBe('pre-wrap');
+  await act(async () => editor.dispatchEvent(new browser.KeyboardEvent('keydown', { bubbles: true, key: 'Enter', metaKey: true })));
+  editor = await startText('Sticky note (S)'); expect(editor.style.whiteSpace).toBe('pre-wrap');
+  await typeText(editor,'A long sentence inside a sticky note'); expect(editor.style.whiteSpace).toBe('pre-wrap');
+});
 test('document editing wraps and blank text finishes without adding a shape or opening Appearance', async () => {
   await renderBoard(); let editor = await startText();
   await act(async () => editor.dispatchEvent(new browser.KeyboardEvent('keydown', { bubbles: true, key: 'Escape' })));

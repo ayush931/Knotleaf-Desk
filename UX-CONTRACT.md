@@ -319,3 +319,5 @@ Arrow-label bounds include the complete padded plate for selection, fitting and 
 
 
 Canvas text, document cards, sticky notes and arrow labels share RangeTextEditor input transactions. Native multiline insertion must preserve newlines; Enter/Shift+Enter and software line-break events share semantics. Tab/outdent preserve all selected lines and character marks. Input composition is not replaced by React updates, composing Enter does not submit a draft, and blur flushes current composition text. The full font dropdown replaces quick font buttons without reducing its options.
+
+Free text has no automatic line breaks: typing, pasting and refocusing preserve the same explicit lines as the saved canvas. Enter still creates a newline. Only bounded text surfaces use soft wrapping; an empty free-text draft must not switch wrapping policy on its first keystroke.

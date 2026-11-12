@@ -108,3 +108,11 @@ Removed the quick font-button grid; the single grouped font dropdown retains all
 - Chrome on macOS verified native multiline insertion, Enter/Delete/undo/redo in plain text/document/sticky editors, unchanged sibling objects, Option+Backspace, rapid lists, software Enter, composition commit/undo/redo, the dropdown-only font UI with selected-text priority, initial arrow-label typing and reload persistence. No runtime errors.
 
 Safari/physical touch and the previously documented external-service cases were not exercised in this pass.
+
+## Free-text wrapping consistency
+
+Reproduced in Chrome on macOS: `A longer sentence with several words and additional content` displayed on two visual lines despite containing no newline; `First\nSecond`-style two-line content could gain a third visual line. The contenteditable wrapper discarded its caller's `wrap="off"` and always used `pre-wrap`. It now honors explicit-line-only editing for free canvas text, including empty drafts and reopening. Bounded text boxes, document cards, sticky notes and arrow labels continue soft wrapping.
+
+- `bun test`: **844 passed**, **2 PostgreSQL-dependent skipped**, across 59 files. Lint, typecheck, webpack production build and strict UI audit passed.
+- Real Chrome on macOS verified the original sentence stays on one visual line, explicit Enter produces exactly two lines, reduced/normal/enlarged zoom, rapid word input, five font families, mid-line replacement, undo/redo, wrapping in every bounded surface, and exact saved element data after reload. No browser runtime errors.
+- Component regressions cover the empty/free/reopened editor wrapping policy, explicit newline persistence, text-box wrapping and sticky-note wrapping. Safari and physical mobile devices were not exercised in this pass.
