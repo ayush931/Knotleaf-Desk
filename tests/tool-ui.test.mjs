@@ -38,7 +38,7 @@ test('text inspector keeps formatting visible and secondary document controls co
 });
 test('canvas typography keeps one full font dropdown without quick font buttons', () => {
   const html = renderToStaticMarkup(React.createElement(PropertiesPanel, { ...props, isTextEditing: true, currentStyle: { ...DEFAULT_STYLE, fontFamily: 'serif' } }));
-  expect(html).toContain('aria-label="Canvas font library"');expect(FONT_OPTIONS).toHaveLength(31);
+  expect(html).toContain('aria-label="Canvas font library"');expect(FONT_OPTIONS).toHaveLength(32);
   for (const font of FONT_OPTIONS) expect(html).toContain(`value="${font.id}"`);
   expect(html).not.toContain('aria-label="Font family"');expect(html).not.toContain('aria-label="Font:');
   expect(html).toMatch(/<option[^>]*value="serif"[^>]*selected=""/);expect(html).toContain('var(--font-lora)');

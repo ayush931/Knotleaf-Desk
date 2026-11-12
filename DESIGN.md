@@ -15,7 +15,7 @@ typography:
   mono:
     fontFamily: 'Fira Code, monospace'
   hand:
-    fontFamily: 'Caveat, cursive'
+    fontFamily: 'Knotleaf Sketch, cursive'
 rounded:
   DEFAULT: '0.5rem'
   panel: '0.75rem'
@@ -34,7 +34,7 @@ components:
 ## Overview
 
 ### Creative North Star
-An Eraser-inspired drawing board: black/white surfaces with one restrained theme accent, a centered grouped tool strip, a spacious dotted canvas and Caveat handwriting for new artwork. Contrasting attachment ports make diagram structure visible.
+An Eraser-inspired drawing board: black/white surfaces with one restrained theme accent, a centered grouped tool strip, a spacious dotted canvas and Knotleaf Sketch marker lettering for new artwork. Contrasting attachment ports make diagram structure visible.
 
 ### Product context and register
 Personal diagrams and project notes, primarily used on desktop with keyboard and pointer. English interface; no market-specific business rules. This is a product tool, not a marketing page. Repository README and current user instructions supply the product context. Keep Dark and Light as equal drawing-board surfaces. The branch-veined leaf mark is the expressive signature; controls remain familiar. Avoid decorative gradients, giant toolbars, and ornamental cards.
@@ -45,7 +45,7 @@ Runtime sources are canonical: `app/globals.css` owns global styles and scrollba
 Default Midnight uses #000000 canvas/panels in Dark and #ffffff in Light. Buttons and structural borders stay neutral. Only selected tools, primary actions and keyboard focus use the current theme accent. The legacy black ID identifies Midnight; mono remains Lagoon. lib/workspaceThemes.ts owns optional Paper, Slate and Forest palettes for independently scoped Canvas and Notes. Red alignment guides retain their measurement role; artwork and syntax colors remain explicit content choices.
 
 ## Typography
-Inter for controls, Fira Code for Markdown source and coordinates, Caveat as the default for new canvas writing, sticky notes and built-in template lettering. Canvas text also offers Lora (serif), Nunito (rounded sans), Roboto Condensed and Patrick Hand (printed handwriting). Appearance uses one full FontSelect dropdown; the quick font-button grid is removed. FontSelect owns grouped options for Canvas, selected Notes text and document appearance, deliberately retaining platform popup geometry. The shared catalogue has 31 families across Everyday, Serif, Handwriting, Playful & display, and Monospace; catalogue labels keep the interface font for legibility, while the canvas and note content show the chosen face. New choices include Fredoka, Baloo 2, Permanent Marker, Bangers, Lobster, Special Elite and elegant reading faces. `draw/fonts.ts` owns family IDs, labels, CSS-variable names and fallback stacks; `app/layout.tsx` bundles the corresponding Next fonts. Renderer, inline editor and picker use that shared mapping. Fonts are bundled by Next at build time. Notes use 16px Inter prose by default, with shared font choices and saved reading preferences; optional source uses 13px source with 24px line height. Controls remain compact without compromising focus indicators.
+Inter for controls, Fira Code for Markdown source and coordinates, Knotleaf Sketch as the default for new canvas writing and sticky notes. Caveat remains available and retains existing/template lettering. Canvas text also offers Lora (serif), Nunito (rounded sans), Roboto Condensed and Patrick Hand (printed handwriting). Appearance uses one full FontSelect dropdown; the quick font-button grid is removed. FontSelect owns grouped options for Canvas, selected Notes text and document appearance, deliberately retaining platform popup geometry. The shared catalogue has 32 families across Everyday, Serif, Handwriting, Playful & display, and Monospace; catalogue labels keep the interface font for legibility, while the canvas and note content show the chosen face. New choices include Fredoka, Baloo 2, Permanent Marker, Bangers, Lobster, Special Elite and elegant reading faces. `draw/fonts.ts` owns family IDs, labels, CSS-variable names and fallback stacks; `app/layout.tsx` bundles the corresponding Next fonts. Renderer, inline editor and picker use that shared mapping. Fonts are bundled by Next at build time. Notes use 16px Inter prose by default, with shared font choices and saved reading preferences; optional source uses 13px source with 24px line height. Controls remain compact without compromising focus indicators.
 
 ## Layout
 
@@ -321,7 +321,7 @@ The canvas is the primary surface. A 48px identity header and top-centered drawi
 
 The visible workspace collection is replaced with Studio (cobalt/mint/coral), Tide (teal/sky/apricot), Parchment (terracotta/olive), Iris (violet/periwinkle/rose), and Meadow (evergreen/ochre/cornflower). Legacy internal IDs are retained for saved preference compatibility. Each preset owns its palette in lib/workspaceThemes.ts; supporting hues are restrained and primary selections retain the strongest emphasis. Studio preserves a white Light canvas and black Dark canvas. Decorative patterns remain subdued.
 
-The shared bundled font library contains 31 families across canvas, notes and presentations. Canvas keeps the full grouped library selector without quick preview buttons. Geist, Sora, Bricolage Grotesque, Newsreader, Handlee and IBM Plex Sans are removed from the catalogue and font bundles. Fonts load on demand and exports wait for the used families.
+The shared bundled font library contains 32 families across canvas, notes and presentations. Canvas keeps the full grouped library selector without quick preview buttons. Geist, Sora, Bricolage Grotesque, Newsreader, Handlee and IBM Plex Sans are removed from the catalogue and font bundles. Fonts load on demand and exports wait for the used families.
 
 Card painting uses the same stored bounds as selection and resize handles. Document, code and sticky card outlines sit on the visible edge with zero selection padding; plain-text selection retains its small usability gap.
 
@@ -350,3 +350,5 @@ RangeTextEditor reads native block and BR boundaries as real newlines, while exc
 
 Free canvas text keeps explicit line breaks and never soft-wraps while editing. RangeTextEditor honors the caller's wrap mode from the empty draft through reopening; cards, sticky notes, arrow labels and deliberately sized text boxes retain soft wrapping. Canvas geometry remains the alignment anchor, independent of browser word-break rounding.
 Document cards keep a bounded content width when typed, saved, resized or reopened; their shared renderer layout wraps within that width and grows height. Existing cards without the text-box flag use the same bounded layout, while attachment and code cards retain their specialized renderers.
+
+Knotleaf Sketch (`sketch`, `--font-knotleaf-sketch`) is a self-hosted derivative of Shantell Sans, tuned at INFM 30 / BNCE 8 / SPAC 6 with fixed letter alternates and no contextual randomization. It uses real 400–700 variable weights and true italic outlines, retaining Latin/Greek/Cyrillic coverage. `scripts/fonts/build_sketch.py` pins and verifies upstream sources; public/fonts/knotleaf-sketch contains the binaries and original OFL attribution. app/layout.tsx bundles both faces through next/font/local. Saved family IDs, existing artwork and explicit device font choices retain their prior meaning. The shared catalogue exposes Sketch in Canvas, Notes and Presentation without adding another font toolbar.
