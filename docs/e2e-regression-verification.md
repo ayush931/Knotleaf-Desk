@@ -23,3 +23,15 @@ The new automated regressions cover plain text, document cards, sticky notes, Sh
 ## Verification limits
 
 Live checks ran in Chrome on macOS. Physical Safari/touch hardware, external Google sign-in, OS notification delivery, and the two PostgreSQL cases were not exercised. The recorded results establish the tested workflows, not the absence of every possible defect.
+
+## Follow-up verification: inline history and navigation
+
+A second production-build pass reproduced two additional failures: Command+Z did not undo while editing canvas text, and refreshing the page discarded the active text draft. Inline text editing now keeps a bounded undo/redo history (including formatting and the prior character selection), routes toolbar and native undo commands through that history, and commits active drafts on `beforeunload`/`pagehide`.
+
+- `bun test`: **779 passed**, **2 skipped** (PostgreSQL integration cases require a configured test database).
+- Typecheck, lint, production build, local server checks and strict UI audit passed again.
+- Chrome verified Command+Z/Command+Shift+Z, toolbar undo/redo, selected-format restoration, redo invalidation after new typing, and draft preservation after an actual reload.
+- Editable `.knotleaf` export/import retained all six board elements and notes; the browser reported no runtime errors.
+- Document connections, selected and whole-object font changes, theme application, Notes formatting, presentation entry/exit, responsive layout and SVG export were rechecked.
+
+The same physical Safari/touch, external Google sign-in, OS notification and PostgreSQL limits listed above apply to this follow-up.

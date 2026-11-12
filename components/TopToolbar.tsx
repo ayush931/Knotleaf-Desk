@@ -89,10 +89,10 @@ export const TopToolbar = memo(function TopToolbar({
         aria-label="Drawing tools"
         className="flex items-center gap-0.5 p-1.5 rounded-xl border flex-nowrap justify-start overflow-x-auto overscroll-x-contain drawing-toolbar workspace-surface drawing-panel shadow-sm"
       >
-        <TooltipButton data-ui-tone="pending" onClick={onUndo} disabled={!canUndo} title="Undo (Ctrl/Cmd+Z)" aria-label="Undo" className={iconBtn}>
+        <TooltipButton data-ui-tone="pending" onMouseDown={event=>event.preventDefault()} onClick={onUndo} disabled={!canUndo} title="Undo (Ctrl/Cmd+Z)" aria-label="Undo" className={iconBtn}>
           <Undo2 className="w-4 h-4" />
         </TooltipButton>
-        <TooltipButton data-ui-tone="info" onClick={onRedo} disabled={!canRedo} title="Redo (Ctrl/Cmd+Shift+Z)" aria-label="Redo" className={iconBtn}>
+        <TooltipButton data-ui-tone="info" onMouseDown={event=>event.preventDefault()} onClick={onRedo} disabled={!canRedo} title="Redo (Ctrl/Cmd+Shift+Z)" aria-label="Redo" className={iconBtn}>
           <Redo2 className="w-4 h-4" />
         </TooltipButton>
         <span aria-hidden="true" data-ui-divider="true" className="h-5 w-px mx-1 bg-neutral-200 dark:bg-neutral-600" />
