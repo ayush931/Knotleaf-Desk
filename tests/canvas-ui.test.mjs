@@ -749,9 +749,9 @@ test('theme picker independently applies Canvas, Notes and Both, saves settings 
  const apply=async()=>act(async()=>[...document.querySelectorAll('button')].find(b=>b.textContent==='Apply theme').click());
  await changeScope('notes');await clickNamed('Theme: Meadow');await apply();
  expect(named('Drawing canvas').dataset.background).toBe('#123456');expect(named('Board notes').dataset.notesTheme).toBe('forest');
- await changeScope('canvas');await clickNamed('Theme: Parchment');
+ await changeScope('canvas');await clickNamed('Theme: Blossom');
  const checkbox=[...document.querySelectorAll('input[type="checkbox"]')].find(input=>input.parentElement.textContent.includes('Use theme background'));await act(async()=>checkbox.click());await apply();expect(named('Drawing canvas').dataset.background).toBe('#123456');
- await act(async()=>checkbox.click());await apply();expect(named('Drawing canvas').dataset.background).toBe('#211e19');expect(named('Board notes').dataset.notesTheme).toBe('forest');
+ await act(async()=>checkbox.click());await apply();expect(named('Drawing canvas').dataset.background).toBe('#1f0f18');expect(named('Board notes').dataset.notesTheme).toBe('forest');
  await changeScope('both');await clickNamed('Theme: Iris');await apply();await clickNamed('Close themes');
  expect(named('Drawing canvas').dataset.background).toBe('#1b1928');expect(named('Board notes').dataset.notesTheme).toBe('slate');
  await clickNamed('Switch to light mode');expect(named('Drawing canvas').dataset.background).toBe('#f7f5ff');expect(named('Board notes').dataset.notesMode).toBe('light');

@@ -58,3 +58,16 @@ test('Claude keeps primary and selected controls readable in both modes and save
 test('Saved Clay choices move to the Claude theme',()=>{
  expect(normalizeWorkspaceThemes({canvas:'clay',notes:'clay'})).toEqual({canvas:'claude',notes:'claude'});
 });
+
+test('Blossom and Neon replace Parchment and Citrus with their own accents, distinct from Claude',()=>{
+ const names=WORKSPACE_THEMES.map(theme=>theme.name);
+ expect(names).toEqual(expect.arrayContaining(['Blossom','Neon','Claude']));
+ expect(names).not.toEqual(expect.arrayContaining(['Parchment']));expect(names).not.toContain('Citrus');
+ for(const mode of ['light','dark']){
+  const accents=['paper','citrus','claude'].map(id=>workspacePalette(id,mode).accent);
+  expect(new Set(accents).size).toBe(3);
+  for(const id of ['paper','citrus']){const p=workspacePalette(id,mode),ui=workspaceControlPalette(mode,id);
+   expect(contrast(p.accentInk,p.accent)).toBeGreaterThanOrEqual(4.5);expect(contrast(p.muted,p.background)).toBeGreaterThanOrEqual(4.5);
+   expect(contrast(ui['active-ink'],ui.active)).toBeGreaterThanOrEqual(4.5);expect(contrast(ui['info-ink'],ui.info)).toBeGreaterThanOrEqual(4.5);}
+ }
+});
