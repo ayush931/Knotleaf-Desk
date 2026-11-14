@@ -3,13 +3,16 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { X, Search, LayoutTemplate, LoaderCircle } from "lucide-react";
 import { TEMPLATES, type TemplateDefinition } from "@/draw/templatesData";
+import { drawCanvasBackground } from "@/draw/backgroundFill";
 import {
   drawElement,
   getElementBounds,
   loadCanvasFonts,
   unionBounds,
 } from "@/draw/renderer";
-import type { Theme } from "@/draw/types";
+import { isLightBackground } from "@/lib/background.mjs";
+import { workspacePalette } from "@/lib/workspaceThemes";
+import type { BackgroundSettings, Theme } from "@/draw/types";
 
 interface TemplatesModalProps {
   isOpen: boolean;
@@ -19,6 +22,8 @@ interface TemplatesModalProps {
     replace: boolean,
   ) => void | Promise<void>;
   theme: Theme;
+  /** The live board surface, so previews match the active theme and custom fill. */
+  background?: BackgroundSettings;
 }
 const categories = [
   ["all", "All"],
@@ -29,8 +34,19 @@ const categories = [
   ["strategy", "Strategy"],
 ] as const;
 
-function TemplatePreview({ template, theme = "dark" }: { template: TemplateDefinition; theme?: Theme }) {
+function TemplatePreview({
+  template,
+  theme = "dark",
+  background,
+}: {
+  template: TemplateDefinition;
+  theme?: Theme;
+  background?: BackgroundSettings;
+}) {
   const canvas = useRef<HTMLCanvasElement>(null);
+  const fill = background?.fill ?? workspacePalette("black", theme).background;
+  const fillStyle = background?.fillStyle ?? "solid";
+  const fillOpacity = background?.fillOpacity ?? 1;
   useEffect(() => {
     let disposed = false;
     const paint = () => {
@@ -45,9 +61,14 @@ function TemplatePreview({ template, theme = "dark" }: { template: TemplateDefin
         (surface.width - 48) / Math.max(1, bounds.maxX - bounds.minX),
         (surface.height - 40) / Math.max(1, bounds.maxY - bounds.minY),
       );
+      const board = { fill, fillStyle, fillOpacity };
       ctx.clearRect(0, 0, surface.width, surface.height);
-      ctx.fillStyle = theme === "light" ? "#ffffff" : "#121212";
-      ctx.fillRect(0, 0, surface.width, surface.height);
+      drawCanvasBackground(
+        ctx,
+        board,
+        () => ctx.rect(0, 0, surface.width, surface.height),
+        { x: 0, y: 0, width: surface.width, height: surface.height },
+      );
       ctx.save();
       ctx.translate(surface.width / 2, surface.height / 2);
       ctx.scale(scale, scale);
@@ -56,7 +77,11 @@ function TemplatePreview({ template, theme = "dark" }: { template: TemplateDefin
         -(bounds.minY + bounds.maxY) / 2,
       );
       for (const element of template.elements)
-        drawElement(ctx, element, { theme, lightCanvas: theme === "light", scene: template.elements });
+        drawElement(ctx, element, {
+          theme,
+          lightCanvas: isLightBackground(board),
+          scene: template.elements,
+        });
       ctx.restore();
     };
     paint();
@@ -66,14 +91,15 @@ function TemplatePreview({ template, theme = "dark" }: { template: TemplateDefin
     return () => {
       disposed = true;
     };
-  }, [template, theme]);
+  }, [template, theme, fill, fillStyle, fillOpacity]);
   return (
     <canvas
       ref={canvas}
       width={600}
       height={260}
       aria-hidden="true"
-      className={`block aspect-[30/13] h-auto w-full rounded-lg border ${theme === "light" ? "border-neutral-200 bg-white" : "border-neutral-800 bg-white dark:bg-black"}`}
+      style={{ backgroundColor: fill }}
+      className="block aspect-[30/13] h-auto w-full rounded-lg border"
     />
   );
 }
@@ -82,6 +108,7 @@ function TemplateDialog({
   onClose,
   onSelectTemplate,
   theme = "dark",
+  background,
 }: Omit<TemplatesModalProps, "isOpen">) {
   const dialog = useRef<HTMLDialogElement>(null),
     search = useRef<HTMLInputElement>(null),
@@ -243,7 +270,7 @@ function TemplateDialog({
                 key={template.id}
                 className="template-card flex min-w-0 flex-col rounded-xl border border-neutral-800 p-3"
               >
-                <TemplatePreview template={template} theme={theme} />
+                <TemplatePreview template={template} theme={theme} background={background} />
                 <h3 className="mt-3 text-sm font-semibold">{template.name}</h3>
                 <p className="mb-3 mt-1 flex-1 text-xs leading-relaxed text-neutral-400">
                   {template.description}
@@ -282,7 +309,7 @@ function TemplateDialog({
               checked={replace}
               disabled={!!busy}
               onChange={(event) => setReplace(event.target.checked)}
-              className="accent-black dark:accent-white"
+              className="accent-[var(--ui-accent)]"
             />
             Replace current canvas
           </label>
