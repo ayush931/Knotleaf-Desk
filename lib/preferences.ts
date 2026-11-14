@@ -13,6 +13,8 @@ export interface Preferences {
   workspaceColorVersion: 1;
   canvasTypographyVersion: 1;
   canvasDrawingVersion: 1;
+  /** Set once the Whiteboard look has been adopted; later theme choices stay saved. */
+  whiteboardVersion: 1;
   boardLibrary: BoardLibrarySettings;
   theme: "dark" | "light";
   workspaceThemes: WorkspaceThemes;
@@ -38,7 +40,7 @@ export interface Preferences {
   exportScale: number;
   exportTransparent: boolean;
 }
-const defaults = (): Preferences => ({ version:1, workspaceColorVersion:1, canvasTypographyVersion:1, canvasDrawingVersion:1, boardLibrary:normalizeBoardLibrary(undefined), theme:"dark", workspaceThemes:normalizeWorkspaceThemes(undefined), logoStyle:'theme', recentColors:normalizeRecentColors(undefined), minimapOpen:true, appearancePosition:null, markdownRetentionDays:7, markdownWorkspace:normalizeMarkdownWorkspace(undefined), callNoiseSuppression:true, style:{...DEFAULT_STYLE}, toolColors:normalizeToolColors(undefined), eraserSize:24, eraserMode:'all', notesWidth:360, notesHeight:300, noteAppearance:{...DEFAULT_NOTE_APPEARANCE}, noteTypingSize:null, exportFormat:'project', exportScope:'project', exportScale:2, exportTransparent:false });
+const defaults = (): Preferences => ({ version:1, workspaceColorVersion:1, canvasTypographyVersion:1, canvasDrawingVersion:1, whiteboardVersion:1, boardLibrary:normalizeBoardLibrary(undefined), theme:"light", workspaceThemes:{...normalizeWorkspaceThemes(undefined),canvas:'board'}, logoStyle:'theme', recentColors:normalizeRecentColors(undefined), minimapOpen:true, appearancePosition:null, markdownRetentionDays:7, markdownWorkspace:normalizeMarkdownWorkspace(undefined), callNoiseSuppression:true, style:{...DEFAULT_STYLE}, toolColors:normalizeToolColors(undefined), eraserSize:24, eraserMode:'all', notesWidth:360, notesHeight:300, noteAppearance:{...DEFAULT_NOTE_APPEARANCE}, noteTypingSize:null, exportFormat:'project', exportScope:'project', exportScale:2, exportTransparent:false });
 const finite = (n: unknown, min: number, max=Number.MAX_VALUE): n is number => typeof n==='number' && Number.isFinite(n) && n>=min && n<=max;
 const color = (value: unknown): value is string => typeof value==='string' && (value==='transparent' || /^#[\da-f]{6}$/i.test(value));
 export function normalizePreferences(value: unknown): Preferences {
@@ -58,6 +60,8 @@ export function normalizePreferences(value: unknown): Preferences {
     if(result.workspaceThemes.canvas==='mono')result.workspaceThemes.canvas='black';
     if(result.workspaceThemes.notes==='mono')result.workspaceThemes.notes='black';
   }
+  // Adopt the Whiteboard canvas once; explicit later theme or mode choices stay saved.
+  if(data.whiteboardVersion!==1){result.workspaceThemes.canvas='board';result.theme='light';}
   result.boardLibrary=normalizeBoardLibrary(data.boardLibrary);
   result.markdownWorkspace=normalizeMarkdownWorkspace(data.markdownWorkspace);
   if(!data.workspaceThemes&&result.markdownWorkspace.theme==='paper')result.workspaceThemes.notesMode='light';

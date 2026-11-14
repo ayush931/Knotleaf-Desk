@@ -320,6 +320,7 @@ export class CanvasEngine {
   private tool: Tool = "select";
   private theme: Theme = "dark";
   private gridType: GridType = "dot";
+  private gridTint: { dotColor: string; lineColor: string } | null = null;
   private snapToGrid = false;
   private editingId: string | null = null;
 
@@ -439,6 +440,9 @@ export class CanvasEngine {
     this.theme = theme;
     this.requestRender();
   }
+
+  /** Theme-specific grid colors (e.g. the Whiteboard's printed blue grid); null uses neutral defaults. */
+  public setGridTint(tint: { dotColor: string; lineColor: string } | null) { this.gridTint = tint; this.requestRender(); }
 
   public setGridType(grid: GridType) {
     this.gridType = grid;
@@ -1273,7 +1277,7 @@ export class CanvasEngine {
     const lightUi = isLightBackground(background);
     drawCanvasBackground(ctx, background, () => ctx.rect(0, 0, w, h), { x: 0, y: 0, width: w, height: h });
     const slide = this.elements.find(el => el.id === this.presentationFrameId && el.type === "frame");
-    if (!slide) drawGrid(ctx, w, h, this.pan, this.zoom, this.gridType, isLightBackground(background));
+    if (!slide) drawGrid(ctx, w, h, this.pan, this.zoom, this.gridType, isLightBackground(background), this.gridTint);
 
     ctx.save();
     ctx.translate(this.pan.x, this.pan.y);

@@ -62,11 +62,11 @@ test('selected-object color edits remember only changed fields for the matching 
  savePreferences({toolColors:next});savePreferences({notesWidth:500});expect(loadPreferences().toolColors.rectangle).toEqual(next.rectangle);expect(loadPreferences().toolColors.text.fill).toBe('#674c4b');
 });
 
-test('workspace theme persists independently and invalid themes recover to dark', () => {
- expect(loadPreferences().theme).toBe('dark');
+test('workspace theme persists independently and invalid themes recover to the light whiteboard', () => {
+ expect(loadPreferences().theme).toBe('light');
  savePreferences({theme:'light'}); savePreferences({notesWidth:460});
  expect(loadPreferences().theme).toBe('light');
- expect(normalizePreferences({theme:'system'}).theme).toBe('dark');
+ expect(normalizePreferences({theme:'system'}).theme).toBe('light');
  savePreferences({theme:'dark'}); expect(loadPreferences().theme).toBe('dark');
 });
 
@@ -93,13 +93,13 @@ test('hand-drawn canvas defaults migrate once while explicit Clean, dash and dot
 test('canvas and notes themes persist independently with optional reader mode',()=>{
  savePreferences({workspaceThemes:{canvas:'paper',notes:'forest',notesMode:'light'}});savePreferences({notesWidth:450});
  expect(loadPreferences().workspaceThemes).toEqual({canvas:'paper',notes:'forest',notesMode:'light'});
- expect(normalizePreferences({workspaceThemes:{canvas:'invalid',notes:'slate',notesMode:'invalid'}}).workspaceThemes).toEqual({canvas:'black',notes:'slate'});
+ expect(normalizePreferences({whiteboardVersion:1,workspaceThemes:{canvas:'invalid',notes:'slate',notesMode:'invalid'}}).workspaceThemes).toEqual({canvas:'black',notes:'slate'});
  expect(normalizePreferences({markdownWorkspace:{theme:'paper'}}).workspaceThemes.notesMode).toBe('light');
 });
 
 test('Midnight becomes the neutral default once while later explicit palette choices remain saved',()=>{
- expect(normalizePreferences(null).workspaceThemes).toEqual({canvas:'black',notes:'black'});
- const migrated=normalizePreferences({workspaceThemes:{canvas:'mono',notes:'forest'}});expect(migrated.workspaceThemes).toEqual({canvas:'black',notes:'forest'});expect(migrated.workspaceColorVersion).toBe(1);
+ expect(normalizePreferences(null).workspaceThemes).toEqual({canvas:'board',notes:'black'});
+ const migrated=normalizePreferences({whiteboardVersion:1,workspaceThemes:{canvas:'mono',notes:'forest'}});expect(migrated.workspaceThemes).toEqual({canvas:'black',notes:'forest'});expect(migrated.workspaceColorVersion).toBe(1);
  expect(normalizePreferences({...migrated,workspaceThemes:{canvas:'mono',notes:'paper'}}).workspaceThemes).toEqual({canvas:'mono',notes:'paper'});
 });
 
@@ -117,4 +117,13 @@ test('Appearance position persists independently and rejects malformed coordinat
  savePreferences({appearancePosition:{x:240,y:360}});savePreferences({notesWidth:480});expect(loadPreferences().appearancePosition).toEqual({x:240,y:360});
  for(const appearancePosition of [null,{x:-1,y:10},{x:Infinity,y:0},{x:'12',y:30},{x:200000,y:10}])expect(normalizePreferences({appearancePosition}).appearancePosition).toBeNull();
  savePreferences({appearancePosition:null});expect(loadPreferences().appearancePosition).toBeNull();
+});
+
+test('Whiteboard becomes the light canvas once while later explicit theme and mode choices stay saved',()=>{
+ expect(normalizePreferences(null)).toMatchObject({theme:'light',whiteboardVersion:1,workspaceThemes:{canvas:'board'}});
+ const migrated=normalizePreferences({theme:'dark',workspaceThemes:{canvas:'paper',notes:'forest'}});
+ expect(migrated).toMatchObject({theme:'light',whiteboardVersion:1,workspaceThemes:{canvas:'board',notes:'forest'}});
+ expect(normalizePreferences({...migrated,theme:'dark',workspaceThemes:{canvas:'paper',notes:'forest'}})).toMatchObject({theme:'dark',workspaceThemes:{canvas:'paper',notes:'forest'}});
+ savePreferences({workspaceThemes:{canvas:'clay',notes:'black'},theme:'dark'});
+ expect(loadPreferences()).toMatchObject({theme:'dark',workspaceThemes:{canvas:'clay'}});
 });
