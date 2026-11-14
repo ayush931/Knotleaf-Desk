@@ -31,14 +31,16 @@ test('theme adaptation keeps text readable inside explicitly dark shapes on ligh
 });
 
 
-test('selection and connector UI use contrasting monochrome ink on both canvas modes',async()=>{
- const {drawSelection,drawConnectorHandles,drawElementAnchors,getElementAnchors}=await import('../draw/renderer.ts');
+test('selection and connector UI use the active theme accent and panel on both canvas modes',async()=>{
+ const {drawSelection,drawConnectorHandles,drawElementAnchors,getElementAnchors,setCanvasUiPalette}=await import('../draw/renderer.ts');
+ const palette={accent:'#0e7490',panel:'#ffffff',accentInk:'#ffffff'};setCanvasUiPalette(palette);
  const shape={id:'shape',type:'rectangle',x:20,y:30,width:100,height:80,stroke:'#FFFFFF',strokeWidth:2,fill:'transparent',fillStyle:'none'};
  for(const light of [false,true]){
   const colors=[];const state={save(){},restore(){},stroke(){colors.push(this.strokeStyle);},strokeRect(){colors.push(this.strokeStyle);},fill(){colors.push(this.fillStyle);}};const ctx=new Proxy(state,{get:(o,k)=>k in o?o[k]:()=>{}});
   drawSelection(ctx,shape,1,[],light);drawConnectorHandles(ctx,shape,1,'right',light);drawElementAnchors(ctx,getElementAnchors(shape),'left',1,light);
-  expect(colors).toContain(light?'#000000':'#FFFFFF');expect(colors.some(c=>/3b82f6|59, ?130|96, ?165/i.test(c))).toBe(false);
+  expect(colors).toContain(palette.accent);expect(colors).not.toContain(light?'#000000':'#FFFFFF');expect(colors.some(c=>/3b82f6|59, ?130|96, ?165/i.test(c))).toBe(false);
  }
+ setCanvasUiPalette(null);
 });
 
 
@@ -69,5 +71,44 @@ test('Blossom and Neon replace Parchment and Citrus with their own accents, dist
   for(const id of ['paper','citrus']){const p=workspacePalette(id,mode),ui=workspaceControlPalette(mode,id);
    expect(contrast(p.accentInk,p.accent)).toBeGreaterThanOrEqual(4.5);expect(contrast(p.muted,p.background)).toBeGreaterThanOrEqual(4.5);
    expect(contrast(ui['active-ink'],ui.active)).toBeGreaterThanOrEqual(4.5);expect(contrast(ui['info-ink'],ui.info)).toBeGreaterThanOrEqual(4.5);}
+ }
+});
+
+// Hue of an accent in degrees, so two themes that share a colour family are caught even when their hex values differ.
+function accentHue(hex){const [r,g,b]=[1,3,5].map(o=>parseInt(hex.slice(o,o+2),16)/255);const max=Math.max(r,g,b),min=Math.min(r,g,b),d=max-min;if(d<.04)return -1;const x=max===r?((g-b)/d)%6:max===g?(b-r)/d+2:(r-g)/d+4;return (x*60+360)%360;}
+test('every workspace theme has its own accent hue in both modes',()=>{
+ for(const mode of ['light','dark']){
+  const ids=WORKSPACE_THEMES.map(theme=>theme.id);
+  for(let i=0;i<ids.length;i++)for(let j=i+1;j<ids.length;j++){
+   // Whiteboard and Studio both use cobalt on purpose (DESIGN.md); every other pair must differ.
+   if(['board','black'].includes(ids[i])&&['board','black'].includes(ids[j]))continue;
+   const a=accentHue(workspacePalette(ids[i],mode).accent),b=accentHue(workspacePalette(ids[j],mode).accent);
+   const gap=a<0||b<0?180:Math.min(Math.abs(a-b),360-Math.abs(a-b));
+   expect({pair:`${ids[i]}/${ids[j]} ${mode}`,gap:gap>=15}).toEqual({pair:`${ids[i]}/${ids[j]} ${mode}`,gap:true});
+  }
+ }
+});
+
+test('a stale or unknown theme id falls back to a valid palette instead of throwing',()=>{
+ for(const mode of ['light','dark']){
+  expect(()=>workspaceControlPalette(mode,'clay')).not.toThrow();
+  expect(workspaceControlPalette(mode,'clay')).toEqual(workspaceControlPalette(mode,'claude'));
+  expect(()=>workspaceThemeStyle('nope',mode,true)).not.toThrow();
+ }
+});
+
+test('canvas chrome falls back to plain black or white only when no theme palette is set',async()=>{
+ const {uiAccent,uiFill,uiOnAccent,setCanvasUiPalette}=await import('../draw/renderer.ts');
+ setCanvasUiPalette(null);
+ expect([uiAccent(true),uiAccent(false),uiFill(true),uiFill(false),uiOnAccent(true),uiOnAccent(false)]).toEqual(['#000000','#FFFFFF','#FFFFFF','#000000','#FFFFFF','#000000']);
+ setCanvasUiPalette({accent:'#a9502d',panel:'#ffffff',accentInk:'#ffffff'});
+ expect([uiAccent(true),uiAccent(false),uiFill(true),uiFill(false)]).toEqual(['#a9502d','#a9502d','#ffffff','#ffffff']);
+ setCanvasUiPalette(null);
+});
+
+test('every theme accent stays visible against its own canvas background in both modes',()=>{
+ for(const {id} of WORKSPACE_THEMES)for(const mode of ['light','dark']){
+  const p=workspacePalette(id,mode);
+  expect({id,mode,ratio:contrast(p.accent,p.background)>=3}).toEqual({id,mode,ratio:true});
  }
 });

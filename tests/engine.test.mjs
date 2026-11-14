@@ -827,17 +827,18 @@ for (const [type, extra, x, y] of [
 }
 
 
-test('a completed shape still paints its monochrome outline after the pointer moves away', () => {
+test('a completed shape still paints its theme outline after the pointer moves away', () => {
   const { engine, drag, listeners, point } = setup([]);
+  engine.setUiPalette({ accent: '#0e7490', panel: '#ffffff', accentInk: '#ffffff' });
   const outlines = [];
   engine.ctx.strokeRect = (...rect) => outlines.push({ rect, color: engine.ctx.strokeStyle });
   engine.setTool('rectangle'); drag(100, 100, 180, 160);
   listeners.pointermove(point(900, 650)); engine.draw();
-  expect(outlines).toContainEqual({ rect: [97, 97, 86, 66], color: '#FFFFFF' });
+  expect(outlines).toContainEqual({ rect: [97, 97, 86, 66], color: '#0e7490' });
   expect(engine.getTool()).toBe('select');
   drag(500, 500, 500, 500); expect(engine.getSelectedElements()).toEqual([]);
   outlines.length = 0; engine.draw();
-  expect(outlines).not.toContainEqual({ rect: [97, 97, 86, 66], color: '#FFFFFF' });
+  expect(outlines).not.toContainEqual({ rect: [97, 97, 86, 66], color: '#0e7490' });
   engine.destroy();
 });
 

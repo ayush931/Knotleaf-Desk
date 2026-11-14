@@ -93,6 +93,7 @@ import { NotesThemeContext } from "@/lib/notesThemeContext";
 import { Reminders } from "./Reminders";
 import { WorkspaceThemes } from "./WorkspaceThemes";
 import { WORKSPACE_THEMES, applyWorkspaceTheme, workspacePalette, workspaceThemeStyle } from "@/lib/workspaceThemes";
+import { setCanvasUiPalette } from "@/draw/canvasAppearance";
 import { SelectionTools } from "./SelectionTools";
 import { SelectionActionBar } from "./SelectionActionBar";
 import { ShortcutsModal } from "./ShortcutsModal";
@@ -537,6 +538,14 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
   useEffect(() => {
     engineRef.current?.setTheme(theme);
   }, [theme]);
+
+  useEffect(() => {
+    const palette = workspacePalette(workspaceThemes.canvas, theme);
+    const uiPalette = { accent: palette.accent, panel: palette.panel, accentInk: palette.accentInk, ink: palette.ink };
+    setCanvasUiPalette(uiPalette);
+    engineRef.current?.setUiPalette(uiPalette);
+    return () => setCanvasUiPalette(null);
+  }, [workspaceThemes.canvas, theme]);
 
   useEffect(() => {
     engineRef.current?.setGridType(gridType);
