@@ -329,6 +329,10 @@ export class CanvasEngine {
   private pinchScale: number | null = null;
   private lastPointerClient: Point | null = null;
   private lastPointerPt: Point | null = null;
+  private pointerDownClient: Point | null = null;
+  /** Last completed primary tap, used for pen/touch double-tap editing. */
+  private lastTap: { time: number; clientX: number; clientY: number; pointerType: string } | null = null;
+  private lastDoubleActivation = 0;
   private draft: CanvasElement | null = null;
   private marqueeRect: Bounds | null = null;
   private hoveredAnchors: Anchor[] = [];
@@ -1695,7 +1699,39 @@ export class CanvasEngine {
     return { x: e.clientX - rect.left, y: e.clientY - rect.top };
   }
 
+  private isDoubleTap(e: PointerEvent): boolean {
+    const previous = this.lastTap;
+    if (!previous || previous.pointerType !== e.pointerType) return false;
+    const window = e.pointerType === "pen" ? 500 : 350;
+    const reach = e.pointerType === "pen" ? 12 : 8;
+    return Date.now() - previous.time <= window && Math.hypot(e.clientX - previous.clientX, e.clientY - previous.clientY) <= reach;
+  }
+
+  /** Whether a double tap has an element or blank-canvas action to perform. */
+  private shouldActivateDoubleTap(pt: Point): boolean {
+    if (this.hitTest(pt)) return true;
+    return this.tool === "select";
+  }
+
   private onPointerDown = (e: PointerEvent) => {
+    if (![0, 1].includes(e.button) || isContextPointer(e) || e.isPrimary === false) return;
+    // Touch and pen taps do not reliably produce a native dblclick after the
+    // canvas prevents the compatibility mouse events on pointerdown.
+    if (!this.readOnly && !this.spaceDown && e.button === 0 && this.tool !== "eraser" && this.tool !== "highlighter" && this.isDoubleTap(e)) {
+      const sp = this.screenPoint(e);
+      const pt = this.screenToCanvas(sp.x, sp.y);
+      if (this.shouldActivateDoubleTap(pt)) {
+        e.preventDefault();
+        this.cancelGesture();
+        this.handleDoubleActivation(sp, e.altKey);
+        this.lastDoubleActivation = Date.now();
+        this.lastTap = null;
+        this.pointerDownClient = null;
+        this.updateCursor();
+        this.requestRender();
+        return;
+      }
+    }
     if (this.gesture?.kind === "draft" && this.gesture.clickMode && e.button === 0 && !isContextPointer(e) && e.isPrimary !== false) {
       e.preventDefault();
       this.shiftDown = e.shiftKey; this.altDown = !!e.altKey;
@@ -1708,6 +1744,7 @@ export class CanvasEngine {
     // Own the gesture immediately, including Safari compatibility mouse events.
     e.preventDefault();
     this.activePointerId = e.pointerId;
+    this.pointerDownClient = { x: e.clientX, y: e.clientY };
     if (!this.readOnly && e.button === 0 && !this.spaceDown && !["select", "hand", "eraser", "fill", "eyedropper", "highlighter"].includes(this.tool)) this.onBeforeCreate?.();
     const opensEditor = e.button === 0 && !this.spaceDown && ["doc", "sticky", "code"].includes(this.tool);
     if (opensEditor) {
@@ -1797,7 +1834,7 @@ export class CanvasEngine {
       const hit = this.hitTest(pt);
       if (hit) {
         if (hit.type === "text") {
-          const cb = getCheckboxAtPoint(hit, pt);
+          const cb = getCheckboxAtPoint(hit, pt, this.ctx);
           if (cb && !e.altKey) {
             this.elements = this.elements.map((el) => (el.id === hit.id ? { ...el, text: cb.newText } : el));
             this.selectedIds = new Set([hit.id]);
@@ -1836,27 +1873,51 @@ export class CanvasEngine {
 
     if (this.tool === "text") {
       e.preventDefault();
+      const hit = this.hitTest(pt);
+      if (hit && (hit.type === "text" || hit.type === "sticky") && !hit.attachment) {
+        this.selectedIds = new Set([hit.id]); this.emitSelection();
+        this.openEditorFor(hit, pt);
+        return;
+      }
       this.selectedIds.clear(); this.emitSelection();
       this.gesture = { kind: "text-box", origin: this.snapPoint(pt), current: this.snapPoint(pt) };
       this.requestRender(); return;
     }
 
     if (this.tool === "code") {
+      const hit = this.hitTest(pt);
+      if (hit?.type === "text" && !hit.attachment) {
+        this.selectedIds = new Set([hit.id]); this.emitSelection();
+        this.openEditorFor(hit, pt);
+        return;
+      }
       const el = this.remeasureText({ ...this.makeTextElement("", pt.x, pt.y, 14, this.currentStyle.fontFamily, "#eeffff", "left", true), isCodeCard: true, fill:this.currentStyle.fill === "transparent" ? CODE_CARD_FILL : this.currentStyle.fill, codeLanguage: "auto", title: "Code" });
-      this.elements = [...this.elements, el]; this.selectCreatedElement(el.id);
+      this.elements = [...this.elements, el]; this.keepToolWithElement(el.id);
       this.commit(); this.editingId = el.id; this.onEditCode?.(el.id); return;
     }
     if (this.tool === "doc") {
+      const hit = this.hitTest(pt);
+      if (hit?.type === "text" && !hit.attachment) {
+        this.selectedIds = new Set([hit.id]); this.emitSelection();
+        this.openEditorFor(hit, pt);
+        return;
+      }
       this.updateCursor();
       const docEl = this.remeasureText({...this.makeTextElement("", pt.x, pt.y, 15, this.currentStyle.fontFamily, "#FFFFFF", "left", true), textBox:true, width:240, height:100});
       this.elements = [...this.elements, docEl];
-      this.selectCreatedElement(docEl.id);
+      this.keepToolWithElement(docEl.id);
       this.commit();
       this.openEditorFor(docEl);
       return;
     }
 
     if (this.tool === "sticky") {
+      const hit = this.hitTest(pt);
+      if (hit && (hit.type === "text" || hit.type === "sticky") && !hit.attachment) {
+        this.selectedIds = new Set([hit.id]); this.emitSelection();
+        this.openEditorFor(hit, pt);
+        return;
+      }
       const start = this.snapPoint(pt);
       const sticky: StickyElement = {
         id: newId(),
@@ -1880,7 +1941,7 @@ export class CanvasEngine {
         zIndex: this.elements.length,
       };
       this.elements = [...this.elements, sticky];
-      this.selectCreatedElement(sticky.id);
+      this.keepToolWithElement(sticky.id);
       this.commit();
       this.openEditorFor(sticky);
       return;
@@ -2040,7 +2101,7 @@ export class CanvasEngine {
         const width=Math.abs(g.current.x-g.origin.x),height=Math.abs(g.current.y-g.origin.y);
         const sized=width*this.zoom>6&&height*this.zoom>6;
         const x=sized?Math.min(g.origin.x,g.current.x):g.origin.x,y=sized?Math.min(g.origin.y,g.current.y):g.origin.y;
-        const screen=this.canvasToScreen(x,y);this.setTool("select");
+        const screen=this.canvasToScreen(x,y);
         this.onStartInlineText?.({kind:"new-text",canvasX:x,canvasY:y,screenX:screen.x,screenY:screen.y,text:"",fontSize:this.currentStyle.fontSize,fontFamily:this.currentStyle.fontFamily,color:this.currentStyle.stroke||"#FFFFFF",align:this.currentStyle.textAlign,bold:this.currentStyle.bold,italic:this.currentStyle.italic,underline:this.currentStyle.underline,strikethrough:this.currentStyle.strikethrough,...(sized?{boxWidth:Math.max(32,width),boxHeight:Math.max(height,this.currentStyle.fontSize*1.35),screenWidth:Math.max(32,width)*this.zoom,screenHeight:Math.max(height,this.currentStyle.fontSize*1.35)*this.zoom}:{})});
         break;
       }
@@ -2089,6 +2150,12 @@ export class CanvasEngine {
     }
     this.updateCursor();
     this.requestRender();
+    if (e && this.pointerDownClient && Math.hypot(e.clientX - this.pointerDownClient.x, e.clientY - this.pointerDownClient.y) < 4) {
+      this.lastTap = { time: Date.now(), clientX: e.clientX, clientY: e.clientY, pointerType: e.pointerType || "mouse" };
+    } else if (e) {
+      this.lastTap = null;
+    }
+    this.pointerDownClient = null;
   };
 
   /** A screen-sized border band keeps selection/resize separate from writing. */
@@ -2106,29 +2173,24 @@ export class CanvasEngine {
     return pt.x > r.x + inset && pt.x < r.x + r.w - inset && pt.y > r.y + inset && pt.y < r.y + r.h - inset;
   }
 
-  private onDoubleClick = (e: MouseEvent) => {
-    if (this.tool === "highlighter") return;
-    if (this.readOnly || this.spaceDown || e.button !== 0 || isContextPointer(e)) return;
-    e.preventDefault();
-    this.cancelGesture();
-    const sp = this.screenPoint(e), pt = this.screenToCanvas(sp.x, sp.y);
+  private handleDoubleActivation(sp: Point, altKey: boolean) {
+    const pt = this.screenToCanvas(sp.x, sp.y);
     const hit = this.hitTest(pt);
     const wasSelect = this.tool === "select";
     const shapeInterior = !!hit && this.isShapeInterior(hit, pt);
     const attachedText = hit?.type === "text" && !!hit.containerId;
-    if (hit && !e.altKey) {
+    const opensText = !!hit && ["text", "sticky", "arrow", "frame"].includes(hit.type);
+    if (hit && !altKey) {
       this.onBeforeCreate?.();
-      this.setTool("select");
       this.selectedIds = new Set([hit.id]);
       this.emitSelection();
       this.requestRender();
-      if (!shapeInterior && !attachedText && (!wasSelect || !["text", "sticky", "arrow", "frame"].includes(hit.type))) return;
+      if (!shapeInterior && !attachedText && !opensText) return;
     } else if (!wasSelect) return;
     if (hit?.type === "arrow") { this.openEditorFor(hit); return; }
     if (hit?.type === "frame" && pt.y < hit.y + 8 / this.zoom) { this.openEditorFor(hit); return; }
     if (hit?.type === "text" || hit?.type === "sticky") { this.openEditorFor(hit, pt); return; }
-    if (hit && !e.altKey && !shapeInterior) return;
-    this.tool = "select"; this.emitTool();
+    if (hit && !altKey && !shapeInterior) return;
     const frame = !hit ? [...this.elements].reverse().find(el => el.type === "frame" && pt.x >= el.x && pt.x <= el.x + el.width && pt.y >= el.y && pt.y <= el.y + el.height) : null;
     const container = hit && ["rectangle", "diamond", "circle", "frame"].includes(hit.type) ? hit : frame;
     const box = container ? normalizeRect(container) : null;
@@ -2142,6 +2204,16 @@ export class CanvasEngine {
       ...(container && box ? { containerId: container.id, containerOffset: { x: (pt.x - box.x) / Math.max(1, box.w), y: (pt.y - box.y) / Math.max(1, box.h) } } : {}),
     });
     this.requestRender();
+  }
+
+  private onDoubleClick = (e: MouseEvent) => {
+    if (this.tool === "highlighter") return;
+    if (this.readOnly || this.spaceDown || e.button !== 0 || isContextPointer(e)) return;
+    // A pen/touch double tap already activated on the second pointerdown.
+    if (Date.now() - this.lastDoubleActivation < 450) return;
+    e.preventDefault();
+    this.cancelGesture();
+    this.handleDoubleActivation(this.screenPoint(e), e.altKey);
   };
 
   // Safari emits GestureEvents for trackpad pinch instead of Chromium's ctrl+wheel.
@@ -2323,6 +2395,13 @@ export class CanvasEngine {
     this.emitTool();
   }
 
+  /** Keep the active creation tool while giving the new element normal selection state. */
+  private keepToolWithElement(id: string) {
+    this.selectedIds = new Set([id]);
+    this.updateCursor();
+    this.emitSelection();
+  }
+
   private finishClickDraft() {
     this.gesture = null;
     this.guides = [];
@@ -2362,9 +2441,11 @@ export class CanvasEngine {
 
     if (keep) {
       this.elements = [...this.elements, finalEl];
-      // Freehand remains ready for the next stroke, without selection chrome.
+      // Pencil and the other creation tools stay ready for the next stroke or
+      // shape. Only Select consumes the completion by switching tools.
       if (finalEl.type === "pencil" && this.tool === "pencil") this.selectedIds.clear();
-      else this.selectCreatedElement(finalEl.id);
+      else if (this.tool === "select") this.selectCreatedElement(finalEl.id);
+      else this.keepToolWithElement(finalEl.id);
     }
     this.commit();
   }
