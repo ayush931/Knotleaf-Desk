@@ -6,7 +6,7 @@ import dynamic from "next/dynamic";
 const Canvas = dynamic(() => import("./Canvas").then((m) => m.Canvas), {
   ssr: false,
   loading: () => (
-    <div className="w-screen h-[100dvh] flex items-center justify-center bg-white dark:bg-black text-neutral-400 text-sm">
+    <div className="w-screen h-dvh flex items-center justify-center bg-white dark:bg-black text-neutral-400 text-sm">
       Loading Knotleaf Desk…
     </div>
   ),
