@@ -1732,7 +1732,7 @@ export class CanvasEngine {
         return;
       }
     }
-    if (this.gesture?.kind === "draft" && this.gesture.clickMode && e.button === 0 && !isContextPointer(e) && e.isPrimary !== false) {
+    if (this.gesture?.kind === "draft" && this.gesture.clickMode && e.button === 0 && !isContextPointer(e)) {
       e.preventDefault();
       this.shiftDown = e.shiftKey; this.altDown = !!e.altKey;
       const sp = this.screenPoint(e);
@@ -1740,7 +1740,7 @@ export class CanvasEngine {
       this.finishClickDraft();
       return;
     }
-    if (![0, 1].includes(e.button) || isContextPointer(e) || e.isPrimary === false || this.gesture) return;
+    if (![0, 1].includes(e.button) || isContextPointer(e) || this.gesture) return;
     // Own the gesture immediately, including Safari compatibility mouse events.
     e.preventDefault();
     this.activePointerId = e.pointerId;
@@ -1874,7 +1874,7 @@ export class CanvasEngine {
     if (this.tool === "text") {
       e.preventDefault();
       const hit = this.hitTest(pt);
-      if (hit && (hit.type === "text" || hit.type === "sticky") && !hit.attachment) {
+      if (hit && ((hit.type === "text" && !hit.attachment) || hit.type === "sticky")) {
         this.selectedIds = new Set([hit.id]); this.emitSelection();
         this.openEditorFor(hit, pt);
         return;
@@ -1913,7 +1913,7 @@ export class CanvasEngine {
 
     if (this.tool === "sticky") {
       const hit = this.hitTest(pt);
-      if (hit && (hit.type === "text" || hit.type === "sticky") && !hit.attachment) {
+      if (hit && ((hit.type === "text" && !hit.attachment) || hit.type === "sticky")) {
         this.selectedIds = new Set([hit.id]); this.emitSelection();
         this.openEditorFor(hit, pt);
         return;
