@@ -72,9 +72,9 @@ The Appearance trigger now supports immediate pointer dragging, saved canvas-rel
 
 Physical touch hardware and Safari remain outside the browser coverage recorded here.
 
-## Clay theme verification
+## Claude theme verification
 
-Clay adds warm paper and terracotta in Light, and soft charcoal with muted terracotta in Dark. It uses the shared theme registry, scope controls, persisted preferences, gallery, quick actions, Canvas and Notes tokens.
+Claude (formerly Clay) uses Claude ivory with terracotta in Light, and warm charcoal with soft terracotta in Dark. Saved Clay choices load as Claude. It uses the shared theme registry, scope controls, persisted preferences, gallery, quick actions, Canvas and Notes tokens.
 
 - `bun test`: **819 passed**, **2 PostgreSQL-dependent skipped**. Typecheck, lint, production build and strict UI audit passed.
 - Contrast checks cover body/muted text, primary actions and selected controls in both modes.

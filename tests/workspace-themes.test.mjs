@@ -42,11 +42,19 @@ test('selection and connector UI use contrasting monochrome ink on both canvas m
 });
 
 
-test('Clay keeps primary and selected controls readable in both modes and saves by its own name',()=>{
- expect(WORKSPACE_THEMES.find(theme=>theme.id==='clay').name).toBe('Clay');
+test('Claude keeps primary and selected controls readable in both modes and saves by its own name',()=>{
+ expect(WORKSPACE_THEMES.find(theme=>theme.id==='claude').name).toBe('Claude');
+ expect(WORKSPACE_THEMES.some(theme=>theme.id==='clay')).toBe(false);
+ expect(workspacePalette('claude','light')).toMatchObject({background:'#faf9f5',ink:'#141413'});
+ expect(workspacePalette('claude','dark')).toMatchObject({panel:'#262624',ink:'#faf9f5'});
  for(const mode of ['light','dark']){
-  const ui=workspaceControlPalette(mode,'clay');expect(contrast(ui['active-ink'],ui.active)).toBeGreaterThanOrEqual(4.5);expect(contrast(ui['info-ink'],ui.info)).toBeGreaterThanOrEqual(4.5);
-  const p=workspacePalette('clay',mode);expect(workspaceThemeStyle('clay',mode,true)['--notes-bg']).toBe(p.background);
+  const ui=workspaceControlPalette(mode,'claude');expect(contrast(ui['active-ink'],ui.active)).toBeGreaterThanOrEqual(4.5);expect(contrast(ui['info-ink'],ui.info)).toBeGreaterThanOrEqual(4.5);
+  const p=workspacePalette('claude',mode);expect(contrast(p.accentInk,p.accent)).toBeGreaterThanOrEqual(4.5);expect(contrast(p.muted,p.background)).toBeGreaterThanOrEqual(4.5);
+  expect(workspaceThemeStyle('claude',mode,true)['--notes-bg']).toBe(p.background);
  }
- expect(normalizeWorkspaceThemes({canvas:'clay',notes:'clay'})).toEqual({canvas:'clay',notes:'clay'});
+ expect(normalizeWorkspaceThemes({canvas:'claude',notes:'claude'})).toEqual({canvas:'claude',notes:'claude'});
+});
+
+test('Saved Clay choices move to the Claude theme',()=>{
+ expect(normalizeWorkspaceThemes({canvas:'clay',notes:'clay'})).toEqual({canvas:'claude',notes:'claude'});
 });

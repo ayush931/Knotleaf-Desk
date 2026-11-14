@@ -9,7 +9,7 @@ export const WORKSPACE_THEMES = [
  {id:'forest',name:'Meadow',description:'Fresh sage with evergreen, ochre and cornflower.'},
  {id:'aurora',name:'Aurora',description:'Deep violet with lilac, aqua and rose light.'},
  {id:'citrus',name:'Citrus',description:'Golden ink with amber, lime and burnt orange.'},
- {id:'clay',name:'Clay',description:'Warm paper or soft charcoal with restrained terracotta accents.'},
+ {id:'claude',name:'Claude',description:'Claude ivory or warm charcoal with Claude terracotta, olive and sky accents.'},
 ] as const;
 export type WorkspaceTheme = typeof WORKSPACE_THEMES[number]['id'];
 export type LogoStyle = 'theme' | 'black';
@@ -26,9 +26,10 @@ const palettes:Record<WorkspaceTheme,Record<Theme,WorkspacePalette>>={
  forest:{dark:palette('#14211b','#1d2e25','#4d6f5b','#effaf2','#b0cdb8','#b0e0bd','#102619','#0d1711'),light:palette('#f3f8f2','#fcfff9','#bfd1bd','#233326','#52694f','#32613d','#ffffff','#e3efe1')},
  aurora:{dark:palette('#0d0b18','#151126','#4b3d75','#f8f5ff','#c9bce8','#c4b5fd','#1b1236','#0a0813'),light:palette('#faf7ff','#ffffff','#d8c9f2','#241637','#65527e','#6d28d9','#ffffff','#f2ecff')},
  citrus:{dark:palette('#171205','#201a0b','#5f5328','#fff9e8','#d8c89e','#fcd34d','#2a1e04','#100d03'),light:palette('#fffbeb','#ffffff','#e8d9a8','#2a210b','#6f5d2e','#a84b08','#ffffff','#fdf6df')},
- clay:{dark:palette('#262624','#30302e','#59574f','#f2f0e8','#b9b6ad','#e8b39a','#241c18','#1f1f1d'),light:palette('#faf9f5','#fffefa','#d9d6cd','#292824','#6f6b62','#a55335','#ffffff','#f0eee6')}
+ claude:{dark:palette('#1f1e1d','#262624','#4a4945','#faf9f5','#c2c0b6','#eba085','#1f1e1d','#191918'),light:palette('#faf9f5','#ffffff','#dedcd1','#141413','#6a6964','#a9502d','#ffffff','#f0eee6')}
 };
-export function normalizeWorkspaceTheme(value:unknown):WorkspaceTheme{return WORKSPACE_THEMES.some(t=>t.id===value)?value as WorkspaceTheme:'black';}
+/** Clay was renamed to Claude; saved Clay choices keep working. */
+export function normalizeWorkspaceTheme(value:unknown):WorkspaceTheme{if(value==='clay')return 'claude';return WORKSPACE_THEMES.some(t=>t.id===value)?value as WorkspaceTheme:'black';}
 export function normalizeWorkspaceThemes(value:unknown):WorkspaceThemes{const v=value&&typeof value==='object'?value as Partial<WorkspaceThemes>:{};return {canvas:normalizeWorkspaceTheme(v.canvas),notes:normalizeWorkspaceTheme(v.notes),...(v.notesMode==='dark'||v.notesMode==='light'?{notesMode:v.notesMode}:{})};}
 export function workspacePalette(preset:WorkspaceTheme,mode:Theme){return palettes[normalizeWorkspaceTheme(preset)][mode];}
 export function applyWorkspaceTheme(current:WorkspaceThemes,preset:WorkspaceTheme,scope:ThemeScope):WorkspaceThemes{return {...current,...(scope!=='notes'?{canvas:preset}:{}),...(scope!=='canvas'?{notes:preset}:{}),...(scope==='both'?{notesMode:undefined}:{})};}
@@ -42,7 +43,7 @@ export function workspaceThemeStyle(preset:WorkspaceTheme,mode:Theme,notes=false
 /** Blend one theme accent into the neutral surface; roles differ by emphasis, not hue. */
 function mixHex(base:string,accent:string,weight:number){const channel=(offset:number)=>Math.round(parseInt(base.slice(offset,offset+2),16)*(1-weight)+parseInt(accent.slice(offset,offset+2),16)*weight).toString(16).padStart(2,'0');return '#'+[1,3,5].map(channel).join('');}
 export function workspaceControlPalette(mode:Theme,preset:WorkspaceTheme='black'){
- const p=workspacePalette(preset,mode),support=({board:['#2f9e5b','#e5484d'],black:['#62cdb3','#edaa80'],mono:['#82baf0','#e8b58e'],paper:['#a8ba77','#cd9582'],slate:['#8ebed9','#d7a0bb'],forest:['#c5b36c','#90b5df'],aurora:['#5eead4','#fda4af'],citrus:['#a3e635','#fb923c'],clay:['#9f9b80','#b8a083']} as const)[preset],hover=mixHex(p.panel,p.ink,mode==='dark'?.065:.035),active=mixHex(p.panel,p.accent,mode==='dark'?.14:.065),primary=mixHex(p.panel,p.accent,mode==='dark'?.19:.09);
+ const p=workspacePalette(preset,mode),support=({board:['#2f9e5b','#e5484d'],black:['#62cdb3','#edaa80'],mono:['#82baf0','#e8b58e'],paper:['#a8ba77','#cd9582'],slate:['#8ebed9','#d7a0bb'],forest:['#c5b36c','#90b5df'],aurora:['#5eead4','#fda4af'],citrus:['#a3e635','#fb923c'],claude:['#788c5d','#6a9bcc']} as const)[preset],hover=mixHex(p.panel,p.ink,mode==='dark'?.065:.035),active=mixHex(p.panel,p.accent,mode==='dark'?.14:.065),primary=mixHex(p.panel,p.accent,mode==='dark'?.19:.09);
  return {secondary:support[0],tertiary:support[1],surface:mixHex(p.panel,p.ink,mode==='dark'?.035:0),control:p.panel,'control-ink':p.ink,hover,'hover-ink':p.ink,active,'active-ink':p.accent,
   success:mixHex(p.panel,support[0],.12),'success-ink':p.ink,pending:mixHex(p.panel,support[1],.12),'pending-ink':p.ink,
   danger:p.panel,'danger-ink':p.ink,info:primary,'info-ink':p.accent,

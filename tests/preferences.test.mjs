@@ -125,5 +125,5 @@ test('Whiteboard becomes the light canvas once while later explicit theme and mo
  expect(migrated).toMatchObject({theme:'light',whiteboardVersion:1,workspaceThemes:{canvas:'board',notes:'forest'}});
  expect(normalizePreferences({...migrated,theme:'dark',workspaceThemes:{canvas:'paper',notes:'forest'}})).toMatchObject({theme:'dark',workspaceThemes:{canvas:'paper',notes:'forest'}});
  savePreferences({workspaceThemes:{canvas:'clay',notes:'black'},theme:'dark'});
- expect(loadPreferences()).toMatchObject({theme:'dark',workspaceThemes:{canvas:'clay'}});
+ expect(loadPreferences()).toMatchObject({theme:'dark',workspaceThemes:{canvas:'claude'}});
 });
