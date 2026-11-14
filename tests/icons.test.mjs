@@ -1,7 +1,10 @@
-import { beforeAll, afterAll, test, expect } from 'bun:test';
+import { beforeAll, afterAll, beforeEach, test, expect } from 'bun:test';
+import { setCanvasUiPalette } from '../draw/canvasAppearance.ts';
 import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
 import { normalizeIconSvg, getIconImage, iconAlphaBounds } from '../draw/iconSvg.ts';
 import { drawElement } from '../draw/renderer.ts';
+// Canvas tests leave the live theme palette set; SVG export checks plain artwork colours.
+beforeEach(() => setCanvasUiPalette(null));
 import { boardToSvg } from '../draw/svgExport.ts';
 import { exportToPng, exportToRaster } from '../draw/export.ts';
 import { iconUrl, searchOnlineIcons, fetchOnlineIcon } from '../lib/onlineIcons.ts';
