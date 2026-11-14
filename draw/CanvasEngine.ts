@@ -246,6 +246,9 @@ function pruneBindings(list: CanvasElement[]): CanvasElement[] {
   });
 }
 
+
+/** Freehand tools where double taps are ink, not commands. */
+const WRITING_TOOLS: ReadonlySet<string> = new Set(["pencil", "highlighter", "eraser"]);
 export class CanvasEngine {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
@@ -1721,7 +1724,7 @@ export class CanvasEngine {
     if (![0, 1].includes(e.button) || isContextPointer(e) || e.isPrimary === false) return;
     // Touch and pen taps do not reliably produce a native dblclick after the
     // canvas prevents the compatibility mouse events on pointerdown.
-    if (!this.readOnly && !this.spaceDown && e.button === 0 && this.tool !== "eraser" && this.tool !== "highlighter" && this.isDoubleTap(e)) {
+    if (!this.readOnly && !this.spaceDown && e.button === 0 && !WRITING_TOOLS.has(this.tool) && this.isDoubleTap(e)) {
       const sp = this.screenPoint(e);
       const pt = this.screenToCanvas(sp.x, sp.y);
       if (this.shouldActivateDoubleTap(pt)) {
@@ -2242,7 +2245,9 @@ export class CanvasEngine {
   }
 
   private onDoubleClick = (e: MouseEvent) => {
-    if (this.tool === "highlighter") return;
+    // Writing tools stay in writing mode: a quick pen double tap (dotting an
+    // "i", a colon, a period) must never select content or switch tools.
+    if (WRITING_TOOLS.has(this.tool)) return;
     if (this.readOnly || this.spaceDown || e.button !== 0 || isContextPointer(e)) return;
     // A pen/touch double tap already activated on the second pointerdown.
     if (Date.now() - this.lastDoubleActivation < 450) return;
