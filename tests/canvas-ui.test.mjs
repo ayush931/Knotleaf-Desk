@@ -95,8 +95,8 @@ const named = label => document.querySelector(`[aria-label="${label}"]`);
 async function clickNamed(label) { await act(async () => named(label).click()); }
 async function chooseCanvasFont(font) { await act(async()=>{const picker=named('Canvas font library');picker.focus();picker.value=font;picker.dispatchEvent(new browser.Event('change',{bubbles:true}));}); }
 async function boardPointer(type, x, y) { await act(async () => document.querySelector('main canvas').dispatchEvent(new browser.PointerEvent(type, { bubbles: true, clientX: x, clientY: y, button: 0, pointerId: 1, isPrimary: true }))); }
-async function startText(tool = 'Text & Bullets (T)') {
-  await clickNamed(tool); await boardPointer('pointerdown', 100, 100); await boardPointer('pointerup', 100, 100);
+async function startText(tool = 'Text & Bullets (T)', x = 100, y = 100) {
+  await clickNamed(tool); await boardPointer('pointerdown', x, y); await boardPointer('pointerup', x, y);
   await act(async () => new Promise(resolve => window.requestAnimationFrame(resolve)));
   return named('Edit text');
 }
@@ -516,7 +516,7 @@ test('changing selected text from green to white survives reopening and stays se
  expect(JSON.parse(localStorage.getItem('knotleaf.preferences.v1')).toolColors.text.stroke).toBe('#FFFFFF');
  await act(async()=>root.render(null));
  await act(async()=>root.render(React.createElement(AppRouterContext.Provider,{value:router},React.createElement(SearchParamsContext.Provider,{value:new URLSearchParams()},React.createElement(Canvas)))));
- editor=await startText();expect(editor.style.color.toLowerCase()).toBe('#ffffff');await typeText(editor,'After reopening');
+ editor=await startText('Text & Bullets (T)',300,300);expect(editor.style.color.toLowerCase()).toBe('#ffffff');await typeText(editor,'After reopening');
  await act(async()=>editor.dispatchEvent(new browser.KeyboardEvent('keydown',{key:'Escape',bubbles:true})));
  expect(getBoard(id).elements[2].stroke).toBe('#FFFFFF');
  await clickNamed('Rectangle (R)');await boardPointer('pointerdown',550,100);await boardPointer('pointermove',670,200);await boardPointer('pointerup',670,200);
@@ -633,6 +633,10 @@ test('first text creation stays anchored through typing, native caret scrolling,
   }
   const text=editor.value;
   await boardPointer('pointerdown',20,20);await boardPointer('pointerup',20,20);
+  // The Text tool stays active, so clicking blank canvas starts another text.
+  // Escape dismisses it without altering the first, anchored text.
+  const next=named('Edit text');
+  if(next)await act(async()=>next.dispatchEvent(new browser.KeyboardEvent('keydown',{key:'Escape',bubbles:true})));
   expect(!named('Edit text')).toBe(true);expect(getBoard(id).elements[0]).toMatchObject({x,y,text});
   await boardPointer('dblclick',x+2,y+2);editor=named('Edit text');
   expect([editor.style.left,editor.style.top]).toEqual([`${x}px`,`${y}px`]);
@@ -786,7 +790,7 @@ test('font picker keeps the selected range through repeated changes while focuse
 
 test('a group of selected text objects exposes fonts and changes every selected object',async()=>{
  const id=await renderBoard();
- for(const text of ['First','Second']){const editor=await startText();await typeText(editor,text);await act(async()=>editor.dispatchEvent(new browser.KeyboardEvent('keydown',{bubbles:true,key:'Enter',metaKey:true})));}
+ for(const [text,x] of [['First',100],['Second',300]]){const editor=await startText('Text & Bullets (T)',x,100);await typeText(editor,text);await act(async()=>editor.dispatchEvent(new browser.KeyboardEvent('keydown',{bubbles:true,key:'Enter',metaKey:true})));}
  await clickNamed('Select (V)');document.querySelector('main canvas').focus();await act(async()=>window.dispatchEvent(new browser.KeyboardEvent('keydown',{key:'a',metaKey:true,bubbles:true})));
  await clickNamed('Open appearance settings');expect(named('Canvas font library')).toBeTruthy();await chooseCanvasFont('serif');
  const saved=getBoard(id).elements;expect(saved).toHaveLength(2);expect(saved.every(el=>el.fontFamily==='serif')).toBe(true);
@@ -906,7 +910,7 @@ for(const [key,label] of [['bold','Bold'],['italic','Italic'],['underline','Unde
 
 test('group formatting reflects every selected object and one Undo restores the original mixture',async()=>{
  const id=await renderBoard();let editor=await startText();await typeText(editor,'First');editor.select();await act(async()=>editor.dispatchEvent(new browser.KeyboardEvent('keydown',{key:'b',metaKey:true,bubbles:true,cancelable:true})));await act(async()=>editor.dispatchEvent(new browser.KeyboardEvent('keydown',{key:'Enter',metaKey:true,bubbles:true})));
- editor=await startText();await typeText(editor,'Second');await act(async()=>editor.dispatchEvent(new browser.KeyboardEvent('keydown',{key:'Enter',metaKey:true,bubbles:true})));
+ editor=await startText('Text & Bullets (T)',300,100);await typeText(editor,'Second');await act(async()=>editor.dispatchEvent(new browser.KeyboardEvent('keydown',{key:'Enter',metaKey:true,bubbles:true})));
  const before=structuredClone(getBoard(id).elements);await clickNamed('Select (V)');await act(async()=>{document.querySelector('main canvas').focus();window.dispatchEvent(new browser.KeyboardEvent('keydown',{key:'a',metaKey:true,bubbles:true}));});await clickNamed('Open appearance settings');expect(named('Bold').getAttribute('aria-pressed')).toBe('mixed');await clickNamed('Bold');expect(getBoard(id).elements.every(element=>element.bold)).toBe(true);
  await clickNamed('Undo');expect(getBoard(id).elements).toEqual(before);expect(named('Bold').getAttribute('aria-pressed')).toBe('mixed');
 });
