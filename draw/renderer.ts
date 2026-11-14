@@ -1,7 +1,7 @@
 import { layoutCodeText } from './codeText';
 import { rangeStyleAt } from "./textRanges";
 import { lineBoxMetrics } from "./codeLayout";
-import { canvasElementAppearance } from "./canvasAppearance";
+import { canvasElementAppearance, getCanvasUiPalette } from "./canvasAppearance";
 import { isLightBackground } from "@/lib/background.mjs";
 import { cardBackground } from "./cardAppearance";
 import { attachmentSize } from "@/lib/attachments.mjs";
@@ -27,7 +27,14 @@ import { FONT_OPTIONS } from "./fonts";
 import { inkWidths, smoothInkWidths } from "./ink";
 
 export const ACCENT = "#3B82F6";
-export const uiAccent = (light = false) => light ? "#000000" : "#FFFFFF";
+export { setCanvasUiPalette } from "./canvasAppearance";
+const canvasUi = () => getCanvasUiPalette();
+/** Outline and stroke colour for canvas chrome: the theme accent, so it follows the theme in both modes. */
+export const uiAccent = (light = false) => canvasUi()?.accent ?? (light ? "#000000" : "#FFFFFF");
+/** Fill for handle interiors: the theme panel, so knobs read as filled controls. */
+export const uiFill = (light = false) => canvasUi()?.panel ?? (light ? "#FFFFFF" : "#000000");
+/** Ink drawn on top of an accent-filled control. */
+export const uiOnAccent = (light = false) => canvasUi()?.accentInk ?? (light ? "#FFFFFF" : "#000000");
 export const LINE_HEIGHT = 1.35;
 
 export interface Bounds {
@@ -1829,7 +1836,7 @@ export function drawSelection(ctx: CanvasRenderingContext2D, el: CanvasElement, 
   ctx.save();
   ctx.setLineDash([]);
   ctx.strokeStyle = uiAccent(lightCanvas);
-  ctx.fillStyle = uiAccent(!lightCanvas);
+  ctx.fillStyle = uiFill(lightCanvas);
   ctx.lineWidth = 1.5 / z;
 
   if (el.type === "arrow" || el.type === "line") {
@@ -1839,14 +1846,14 @@ export function drawSelection(ctx: CanvasRenderingContext2D, el: CanvasElement, 
       { x: el.endX, y: el.endY, bound: !!el.endBinding },
     ];
     for (const p of endpoints) {
-      ctx.fillStyle = p.bound ? uiAccent(lightCanvas) : uiAccent(!lightCanvas);
+      ctx.fillStyle = p.bound ? uiAccent(lightCanvas) : uiFill(lightCanvas);
       ctx.beginPath();
       ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
     }
     {
-      ctx.fillStyle = uiAccent(!lightCanvas);
+      ctx.fillStyle = uiFill(lightCanvas);
       const mid = getBendHandle(el, z, scene, ctx);
       const d = 4.5 / z;
       if (mid.labelTop !== undefined) {
@@ -1909,7 +1916,7 @@ export function drawResizeHandles(ctx: CanvasRenderingContext2D, b: Bounds, zoom
   const pts = getResizeHandles(b, zoom, includeSides, pad);
   ctx.save();
   ctx.setLineDash([]);
-  ctx.fillStyle = uiAccent(!lightCanvas);
+  ctx.fillStyle = uiFill(lightCanvas);
   ctx.strokeStyle = uiAccent(lightCanvas);
   ctx.lineWidth = 1.5 / zoom;
   for (const p of pts) {
@@ -1964,7 +1971,7 @@ export function drawConnectorHandles(
     ctx.stroke();
 
     // Plus (+) sign inside circle
-    const plusColor = isHovered ? uiAccent(!lightCanvas) : (lightCanvas ? "rgba(0, 0, 0, 0.65)" : "rgba(255, 255, 255, 0.7)");
+    const plusColor = isHovered ? uiOnAccent(lightCanvas) : (lightCanvas ? "rgba(0, 0, 0, 0.65)" : "rgba(255, 255, 255, 0.7)");
     ctx.strokeStyle = plusColor;
     ctx.lineWidth = 1.5 / zoom;
     ctx.beginPath();
@@ -1990,7 +1997,7 @@ export function drawElementAnchors(
     const r = (snapped ? 6 : 4.5) / zoom;
     ctx.beginPath();
     ctx.arc(a.x, a.y, r, 0, Math.PI * 2);
-    ctx.fillStyle = snapped ? uiAccent(lightCanvas) : uiAccent(!lightCanvas);
+    ctx.fillStyle = snapped ? uiAccent(lightCanvas) : uiFill(lightCanvas);
     ctx.fill();
     ctx.strokeStyle = uiAccent(lightCanvas);
     ctx.lineWidth = (snapped ? 2 : 1.5) / zoom;

@@ -1,9 +1,12 @@
-import { test, expect } from 'bun:test';
+import { test, expect, beforeEach } from 'bun:test';
+import { setCanvasUiPalette } from '../draw/canvasAppearance.ts';
 import { parseFillColor } from '../lib/fillColor.ts';
 import { drawBackgroundFill, drawCanvasBackground } from '../draw/backgroundFill.ts';
 import { drawElement } from '../draw/renderer.ts';
 import { normalizeBackground, DEFAULT_BACKGROUND, isLightBackground } from '../lib/background.mjs';
 import { serializeProject, readProjectPayload } from '../lib/projectFile.ts';
+// Other suites render the canvas and leave its theme palette set; these tests check plain artwork colours.
+beforeEach(() => setCanvasUiPalette(null));
 function context() {
   const stack = [], fills = [], strokes = [], clips = [], lines = [], dots = [];
   const target = { globalAlpha: 1, fillStyle: '', strokeStyle: '', lineWidth: 1,
@@ -108,7 +111,8 @@ test('canvas elements on light surfaces render legible borders, checkboxes, and 
 });
 
 test('plus connection handles render in dim colors when idle and brighten on hover', async () => {
- const { drawConnectorHandles } = await import('../draw/renderer.ts');
+ const { drawConnectorHandles, setCanvasUiPalette } = await import('../draw/renderer.ts');
+ setCanvasUiPalette({ accent: '#0e7490', panel: '#ffffff', accentInk: '#ffffff' });
  const { ctx, strokes, fills } = context();
  drawConnectorHandles(ctx, rect, 1, 'right', true);
  // Idle handles have dim translucent stroke / plus
@@ -116,7 +120,8 @@ test('plus connection handles render in dim colors when idle and brighten on hov
  expect(strokes.some(s => s.color === 'rgba(0, 0, 0, 0.65)')).toBe(true);
  expect(fills.some(f => f.color === 'rgba(255, 255, 255, 0.9)')).toBe(true);
  // Active handle (right) has bright accent fill and stroke
- expect(fills.some(f => f.color === '#000000')).toBe(true);
+ expect(fills.some(f => f.color === '#0e7490')).toBe(true);
+ setCanvasUiPalette(null);
 });
 
 test('default text layout and font styling uses bolder font weight 500', async () => {
@@ -156,4 +161,19 @@ test('black-board dots, grid and background patterns remain visible across zoom 
   expect(grid==='dot'?dots.length:lines.length).toBeGreaterThan(0);expect(gridAppearance(zoom).radius).toBeGreaterThanOrEqual(1);
  }
  for(const fillStyle of ['hachure','crosshatch','dots']){const {ctx,fills,strokes}=context();drawCanvasBackground(ctx,{...background,fillStyle},()=>{}, {x:0,y:0,width:100,height:60});const pattern=fillStyle==='dots'?fills[1]:strokes[0];expect(contrastOnBlack(pattern.alpha)).toBeGreaterThanOrEqual(1.25);expect(fills[0]).toEqual({color:'#000000',alpha:1});}
+});
+
+test('white and near-black artwork ink follows the active theme ink on both canvas modes', async () => {
+ const { canvasElementAppearance } = await import('../draw/canvasAppearance.ts');
+ const ink = { accent: '#a9502d', panel: '#ffffff', accentInk: '#ffffff', ink: '#141413' };
+ const darkInk = { ...ink, ink: '#faf9f5' };
+ const outline = { ...rect, fill: 'transparent', fillStyle: 'none' };
+ setCanvasUiPalette(ink);
+ expect(canvasElementAppearance({ ...outline, stroke: '#ffffff' }, true).stroke).toBe('#141413');
+ expect(canvasElementAppearance({ ...outline, stroke: '#ef4444' }, true).stroke).toBe('#ef4444');
+ setCanvasUiPalette(darkInk);
+ expect(canvasElementAppearance(outline, false).stroke).toBe('#faf9f5');
+ expect(canvasElementAppearance({ ...outline, stroke: '#3b82f6' }, false).stroke).toBe('#3b82f6');
+ setCanvasUiPalette(null);
+ expect(canvasElementAppearance(outline, false)).toBe(outline);
 });

@@ -2,7 +2,7 @@ import { layoutCodeText } from './codeText';
 import { cardCornerRadius } from "./renderer";
 import { clearRangeOverrides, editRanges } from "./textRanges";
 import { arrangementDeltas, type Arrangement } from "./arrangement";
-import { canvasBackground } from "./canvasAppearance";
+import { canvasBackground, setCanvasUiPalette, type CanvasUiPalette } from "./canvasAppearance";
 import { stepCanvasFontSize, textSizeShortcut } from "@/lib/textShortcuts";
 import { capturePointer, isContextPointer, releasePointer } from "@/lib/pointerInput";
 import { CODE_CARD_FILL, DOCUMENT_CARD_FILL, MIN_CODE_WIDTH, MIN_CODE_HEIGHT } from "./cardAppearance";
@@ -433,6 +433,12 @@ export class CanvasEngine {
 
   public setTheme(theme: Theme) {
     this.theme = theme;
+    this.requestRender();
+  }
+
+  /** Outline and handle colours follow the active workspace theme, not plain black or white. */
+  public setUiPalette(palette: CanvasUiPalette) {
+    setCanvasUiPalette(palette);
     this.requestRender();
   }
 
