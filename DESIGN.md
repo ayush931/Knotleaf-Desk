@@ -41,6 +41,9 @@ Personal diagrams and project notes, primarily used on desktop with keyboard and
 
 Runtime sources are canonical: `app/globals.css` owns global styles and scrollbar tokens; `app/layout.tsx` owns font variables; shared components own utility-class geometry; `draw/renderer.ts` owns canvas visuals and contrasting ports. This document records these implemented values, rather than generating a separate theme.
 
+## Whiteboard skin
+Whiteboard (`board`) is the default canvas preset, opening in Light mode once per device. Later theme and mode choices stay saved. It is a physical marker board. The surface is glossy #fbfcfd, with a gloss sweep and a printed blue dot/line grid drawn only on its own surface, never on custom fills. A brushed-aluminium frame has corner caps. The tool strip hangs from the frame as a tray. The active tool lifts out with a marker-cap stripe: green for shapes, blue for writing, red for finishing tools, ink for navigation. Quick colours sit in the tray as marker caps. The welcome card and Appearance panel are pinned with a red magnet. Board titles and the welcome heading use Knotleaf Sketch. Dark mode is a smoked glass board, #1b2026, with a chalky grid. The skin is CSS-only (`html[data-board-skin="whiteboard"]` plus the `.whiteboard-glass` overlay), never affects exports, and is hidden in forced-colours mode.
+
 ## Colors
 Default Midnight uses #000000 canvas/panels in Dark and #ffffff in Light. Buttons and structural borders stay neutral. Only selected tools, primary actions and keyboard focus use the current theme accent. The legacy black ID identifies Midnight; mono remains Lagoon. lib/workspaceThemes.ts owns optional Paper, Slate and Forest palettes for independently scoped Canvas and Notes. Red alignment guides retain their measurement role; artwork and syntax colors remain explicit content choices.
 

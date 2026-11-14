@@ -37,7 +37,9 @@ beforeAll(async () => {
   browser.HTMLDialogElement.prototype.showModal = function () { this.open = true; }; browser.HTMLDialogElement.prototype.close = function () { this.open = false; };
   ({ createRoot } = await import('react-dom/client'));
 });
-beforeEach(() => { browser.localStorage.removeItem('knotleaf.preferences.v1'); document.body.innerHTML = '<div id="root"></div>'; root = createRoot(document.getElementById('root')); exports.length = 0; });
+// Most UI regressions were written against the dark Studio desk; whiteboard tests opt out of this seed.
+const LEGACY_DESK = JSON.stringify({ version: 1, whiteboardVersion: 1, theme: 'dark', workspaceThemes: { canvas: 'black', notes: 'black' } });
+beforeEach(() => { browser.localStorage.setItem('knotleaf.preferences.v1', LEGACY_DESK); document.body.innerHTML = '<div id="root"></div>'; root = createRoot(document.getElementById('root')); exports.length = 0; });
 afterEach(async () => { await act(async () => root.unmount()); await browser.happyDOM.abort(); });
 afterAll(() => { browser.close(); for (const [key, old] of saved) if (old) Object.defineProperty(globalThis, key, old); else delete globalThis[key]; });
 test('custom color validation preserves input and allows correcting hex colors', async () => {
@@ -85,8 +87,8 @@ test('Appearance visibility uses no browser storage and Escape hides the panel',
 });
 
 const router = { push() {}, replace() {}, refresh() {}, prefetch() {}, back() {}, forward() {} };
-async function renderBoard(mode = 'canvas') {
-  localStorage.clear(); const board = createBoard('Test canvas'); board.viewMode = mode;
+async function renderBoard(mode = 'canvas', { preferences = LEGACY_DESK } = {}) {
+  localStorage.clear(); if (preferences) localStorage.setItem('knotleaf.preferences.v1', preferences); const board = createBoard('Test canvas'); board.viewMode = mode;
   const { saveBoard } = await import('../lib/storage.ts'); saveBoard(board); setActiveBoardId(board.id);
   await act(async () => root.render(React.createElement(AppRouterContext.Provider, { value: router }, React.createElement(SearchParamsContext.Provider, { value: new URLSearchParams() }, React.createElement(Canvas)))));
   return board.id;
@@ -739,7 +741,7 @@ test('new board writing uses Knotleaf Sketch and retains the saved size through 
 
 
 test('theme picker independently applies Canvas, Notes and Both, saves settings and preserves artwork',async()=>{
- localStorage.clear();const board=createBoard('Theme scopes');board.viewMode='split';board.background={fill:'#123456',fillStyle:'solid',fillOpacity:1};board.elements=[inspectorShape];board.markdownNotes='# Keep this note\n\n';const original=structuredClone(board);
+ localStorage.clear();localStorage.setItem('knotleaf.preferences.v1',LEGACY_DESK);const board=createBoard('Theme scopes');board.viewMode='split';board.background={fill:'#123456',fillStyle:'solid',fillOpacity:1};board.elements=[inspectorShape];board.markdownNotes='# Keep this note\n\n';const original=structuredClone(board);
  const {saveBoard}=await import('../lib/storage.ts');saveBoard(board);setActiveBoardId(board.id);
  const show=()=>root.render(React.createElement(AppRouterContext.Provider,{value:router},React.createElement(SearchParamsContext.Provider,{value:new URLSearchParams()},React.createElement(Canvas))));
  await act(async()=>show());await clickNamed('Canvas and notes themes');
@@ -981,7 +983,7 @@ test('Appearance keeps clicks distinct from drags and cancellation restores its 
   await act(async()=>{if(cancel==='Escape')window.dispatchEvent(new browser.KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}));else if(cancel==='blur')window.dispatchEvent(new browser.Event('blur'));else window.dispatchEvent(new browser.PointerEvent('pointercancel',{pointerId:51,bubbles:true}));});
   expect(named('Open appearance settings').style.left).toBe('8px');expect(named('Open appearance settings').style.top).toBe('64px');
  }
- expect(localStorage.getItem('knotleaf.preferences.v1')).toBeNull();
+ expect(localStorage.getItem('knotleaf.preferences.v1')).toBe(LEGACY_DESK);
 });
 test('Appearance clamps to a resized canvas, opens within it, and supports keyboard movement and reset',async()=>{
  const props={canvasSize:{width:800,height:600},topOffset:64};await act(async()=>root.render(React.createElement(Inspector,{props})));
@@ -1102,4 +1104,19 @@ test('a new code card clears the prior source selection before applying a whole-
  await clickNamed('Code card (C)');await boardPointer('pointerdown',700,500);await boardPointer('pointerup',700,500);await typeText(named('Code source'),'const second = 2;');
  await clickNamed('Open appearance settings');await chooseCanvasFont('serif');
  expect(getBoard(id).elements[1].fontFamily).toBe('serif');expect(getBoard(id).elements[1].textRanges?.length||0).toBe(0);expect(getBoard(id).elements[0].fontFamily).toBe(DEFAULT_STYLE.fontFamily);
+});
+
+test('first launch opens a light Whiteboard with its frame, printed grid and skin, and other themes drop the skin', async () => {
+  await renderBoard('canvas', { preferences: null });
+  const html = document.documentElement, canvas = document.querySelector('canvas[aria-label="Drawing canvas"]');
+  expect(html.classList.contains('light')).toBe(true);
+  expect(html.dataset.boardSkin).toBe('whiteboard');
+  expect(canvas.dataset.background).toBe('#fbfcfd');
+  expect(document.querySelector('[data-testid="whiteboard-glass"]')).not.toBeNull();
+  await clickNamed('Canvas and notes themes'); await clickNamed('Theme: Studio');
+  await act(async () => [...document.querySelectorAll('button')].find(b => b.textContent === 'Apply theme').click());
+  expect(html.dataset.boardSkin).toBeUndefined();
+  expect(document.querySelector('[data-testid="whiteboard-glass"]')).toBeNull();
+  await act(async () => root.unmount()); root = createRoot(document.getElementById('root'));
+  expect(html.dataset.boardSkin).toBeUndefined();
 });
