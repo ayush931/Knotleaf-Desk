@@ -13,13 +13,15 @@ import {BrandMark} from '../components/BrandMark.tsx';
 import {Reminders} from '../components/Reminders.tsx';
 import {TopToolbar} from '../components/TopToolbar.tsx';
 import {PropertiesPanel} from '../components/PropertiesPanel.tsx';
+import {SelectionActionBar} from '../components/SelectionActionBar.tsx';
+import {TemplatesModal} from '../components/TemplatesModal.tsx';
 import {DEFAULT_STYLE} from '../draw/types.ts';
 let css, browser;
 const noop=()=>{};
 const props={isOpen:true,onOpenChange:noop,selectedElement:null,selectionCount:1,currentStyle:DEFAULT_STYLE,onSwapArrow:noop,onChangeFontSize:noop,onUpdateStyle:noop,onUpdateElement:noop,onDuplicate:noop,onDelete:noop,onBringToFront:noop,onSendToBack:noop,onBackgroundChange:noop,theme:'light'};
 beforeAll(async()=>{
  const source=readFileSync(new URL('../app/globals.css',import.meta.url),'utf8');
- const components=['PropertiesPanel','ColorControl','ColorPalette','BackgroundStylePicker','FontSelect','BoardHeader','BoardsSidebar','Reminders','TopToolbar','BrandMark','WorkspaceThemes'];
+ const components=['PropertiesPanel','ColorControl','ColorPalette','BackgroundStylePicker','FontSelect','BoardHeader','BoardsSidebar','Reminders','TopToolbar','BrandMark','WorkspaceThemes','SelectionActionBar','TemplatesModal'];
  const candidates=new Set(components.flatMap(name=>readFileSync(new URL(`../components/${name}.tsx`,import.meta.url),'utf8').match(/[\w:.[\]#%/-]+/g)||[]));
  const compiler=await compile(source,{base:new URL('../app',import.meta.url).pathname,onDependency(){}});
  const ast=postcss.parse(transform({code:Buffer.from(compiler.build([...candidates])),targets:{chrome:80<<16}}).code.toString());
@@ -122,7 +124,7 @@ for(const {id}of WORKSPACE_THEMES)for(const mode of ['light','dark'])test(`${id}
    React.createElement('button',{id:'swatch',style:{backgroundColor:'#ef4444'}},'Artwork color')),
   React.createElement('dialog',{open:true,id:'portalled-dialog',className:'bg-neutral-900 text-neutral-200'},'Dialog'),
   React.createElement('section',{className:'notes-theme','data-notes-theme':'forest',style:workspaceThemeStyle('forest',other,true)},React.createElement('button',{'aria-pressed':true,id:'notes-selected',className:'text-neutral-200 bg-neutral-800'},'Bold'))),mode);
- doc.documentElement.setAttribute('data-workspace-ui','true');for(const [key,value]of Object.entries(workspaceThemeStyle(id,mode)))if(key.startsWith('--'))doc.documentElement.style.setProperty(key,value);
+ themeDocument(doc,id,mode);
  for(const selector of ['#chrome-panel','#portalled-dialog','#chrome-select','#chrome-option']){const node=doc.querySelector(selector);expect(convert.colorToHex(style(node).backgroundColor),selector).toBe(selector==='#portalled-dialog'?control.surface:p.panel);readable(node,node);}
  for(const selector of ['#chrome-selected','#chrome-primary']){const node=doc.querySelector(selector);expect(convert.colorToHex(style(node).backgroundColor)).toBe(selector==='#chrome-selected'?control.active:control.info);expect(convert.colorToHex(style(node).color)).toBe(selector==='#chrome-selected'?control['active-ink']:control['info-ink']);readable(node,node);}
  const selected=doc.querySelector('#notes-selected');expect(convert.colorToHex(style(selected).backgroundColor)).toBe(noteControl.active);expect(convert.colorToHex(style(selected).color)).toBe(noteControl['active-ink']);readable(selected,selected);
@@ -135,8 +137,60 @@ for(const {id}of WORKSPACE_THEMES)for(const mode of ['light','dark'])test(`${id}
   React.createElement('button',{id:'selected','aria-pressed':true},'Selected'),
   ...['info','success','pending','danger'].map(tone=>React.createElement('button',{'data-ui-tone':tone,key:tone,id:tone,className:'border'},tone)),
   React.createElement('span',{className:'reminder-status','data-ui-tone':'success',id:'complete'},'Completed')),mode);
- doc.documentElement.setAttribute('data-workspace-ui','true');for(const [key,value]of Object.entries(workspaceThemeStyle(id,mode)))if(key.startsWith('--'))doc.documentElement.style.setProperty(key,value);
+ themeDocument(doc,id,mode);
  for(const tone of ['info','success','pending','danger']){const node=doc.getElementById(tone);expect(convert.colorToHex(style(node).backgroundColor)).toBe(p.panel);expect(convert.colorToHex(style(node).borderColor)).toBe(control.border);readable(node,node);}
  for(const [name,background,ink]of [['main',control.info,control['info-ink']],['selected',control.active,control['active-ink']]]){const node=doc.getElementById(name);expect(convert.colorToHex(style(node).backgroundColor)).toBe(background);expect(convert.colorToHex(style(node).color)).toBe(ink);readable(node,node);}
  expect(['transparent','#0000','rgba(0, 0, 0, 0)']).toContain(style(doc.getElementById('complete')).backgroundColor);expect(convert.colorToHex(style(doc.getElementById('complete')).color)).toBe(p.muted);
+});
+
+// Happy DOM drops inline custom properties below elements that declare their own,
+// so publish the palette as a root stylesheet rule (as browsers inherit it from inline).
+function themeDocument(doc,id,mode){
+ doc.documentElement.setAttribute('data-workspace-ui','true');
+ const tokens=Object.entries(workspaceThemeStyle(id,mode)).filter(([key])=>key.startsWith('--')).map(([key,value])=>`${key}:${value}`).join(';');
+ const sheet=doc.createElement('style');sheet.textContent=`html:root:root.${mode}{${tokens}}`;doc.head.appendChild(sheet);
+}
+
+const inkPencil={...DEFAULT_STYLE,id:'ink-preview',type:'pencil',x:0,y:0,width:120,height:32,points:[{x:0,y:4},{x:18,y:14},{x:40,y:5},{x:64,y:18}],inkStyle:'fountain'};
+const selectionProps={selection:[inkPencil],onColor:noop,onDuplicate:noop,onDelete:noop,onBringToFront:noop,onSendToBack:noop,onOpenAppearance:noop};
+for(const {id}of WORKSPACE_THEMES)for(const mode of ['light','dark'])test(`${id} ${mode} selection and Ink Studio chrome follow the palette`,()=>{
+ const p=workspacePalette(id,mode),control=workspaceControlPalette(mode,id);
+ const doc=render(React.createElement('div',{id:'premium-workbench',style:workspaceThemeStyle(id,mode)},
+  React.createElement(SelectionActionBar,selectionProps),
+  React.createElement(PropertiesPanel,{...props,selectedTool:'pencil',selectedElement:inkPencil,theme:mode})),mode);
+ themeDocument(doc,id,mode);
+ const bar=doc.querySelector('[aria-label="Selection action bar"]'),count=doc.querySelector('.selection-count');
+ expect(convert.colorToHex(style(bar).backgroundColor)).toBe(p.panel);
+ expect(convert.colorToHex(style(count).backgroundColor)).toBe(control.active);
+ expect(convert.colorToHex(style(count).color)).toBe(control['active-ink']);readable(count,count);
+ for(const label of ['Duplicate selected objects','Bring selection to front','Send selection to back','Customize selection','Delete selected objects'])readable(doc.querySelector(`[aria-label="${label}"]`),bar);
+ const active=doc.querySelector('.ink-card.is-active');
+ expect(active.getAttribute('aria-label')).toBe('Fountain');
+ expect(convert.colorToHex(style(active).backgroundColor)).toBe(control.active);
+ expect(convert.colorToHex(style(active).color)).toBe(control['active-ink']);readable(active,active);
+ const idle=doc.querySelector('[aria-label="Brush"]');
+ expect(convert.colorToHex(style(idle).backgroundColor)).toBe(p.code);
+ expect(convert.colorToHex(style(idle).color)).toBe(p.muted);readable(idle,idle);
+ expect(convert.colorToHex(style(doc.querySelector('.ink-studio-hint')).color)).toBe(p.muted);
+});
+
+for(const {id}of WORKSPACE_THEMES)for(const mode of ['light','dark'])test(`${id} ${mode} template previews paint the live board surface and themed gallery controls`,()=>{
+ const p=workspacePalette(id,mode),control=workspaceControlPalette(mode,id);
+ const doc=render(React.createElement('div',{style:workspaceThemeStyle(id,mode)},React.createElement(TemplatesModal,{isOpen:true,theme:mode,background:{fill:p.background,fillStyle:'solid',fillOpacity:1},onClose:noop,onSelectTemplate:noop})),mode);
+ themeDocument(doc,id,mode);
+ const preview=doc.querySelector('.template-card canvas');
+ expect(convert.colorToHex(preview.style.backgroundColor)).toBe(p.background);
+ expect(convert.colorToHex(style(preview).borderColor)).toBe(control.border);
+ const category=doc.querySelector('.template-category.is-active');
+ expect(convert.colorToHex(style(category).backgroundColor)).toBe(control.active);
+ expect(convert.colorToHex(style(category).color)).toBe(control['active-ink']);readable(category,category);
+ const add=doc.querySelector('.template-add');
+ expect(convert.colorToHex(style(add).backgroundColor)).toBe(control.active);
+ expect(convert.colorToHex(style(add).color)).toBe(control['active-ink']);readable(add,add);
+});
+
+test('premium destructive and whiteboard chrome stay token-driven',()=>{
+ expect(css).toMatch(/\.selection-delete[^{]*:hover\s*\{[^}]*var\(--ui-tertiary\)/);
+ expect(css).not.toMatch(/\.selection-delete[^{]*:hover\s*\{[^}]*(?:#fb7185|#be123c)/i);
+ expect(css).toMatch(/data-board-skin="whiteboard"[^{]*\.selection-action-bar\s*\{/);
 });

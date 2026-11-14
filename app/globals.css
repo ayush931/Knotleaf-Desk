@@ -868,7 +868,7 @@ html[data-workspace-ui]:is(.dark,.light) .workspace-header { background-color: v
 
 /* Floating selection command bar */
 .selection-action-bar {
-  background: color-mix(in srgb, var(--ui-surface) 92%, transparent);
+  background-color: color-mix(in srgb, var(--ui-surface) 92%, transparent);
   border-color: var(--drawing-border);
   box-shadow: 0 20px 42px -20px rgb(0 0 0 / .6), 0 3px 10px rgb(0 0 0 / .12), inset 0 1px 0 rgb(255 255 255 / .07);
   backdrop-filter: blur(18px) saturate(1.12);
@@ -877,10 +877,11 @@ html[data-workspace-ui]:is(.dark,.light) .workspace-header { background-color: v
 html.light .selection-action-bar { box-shadow: 0 20px 42px -22px rgb(15 23 42 / .28), 0 3px 10px rgb(15 23 42 / .07), inset 0 1px 0 #fff; }
 .selection-count { display: inline-flex; align-items: center; height: 24px; padding: 0 8px; border-radius: 7px; background: var(--ui-active); color: var(--ui-active-ink); font-size: 10px; font-weight: 650; letter-spacing: .015em; white-space: nowrap; }
 .selection-divider { width: 1px; height: 20px; margin-inline: 3px; background: var(--drawing-border); }
-.selection-action { color: var(--ui-muted); background: transparent; }
-.selection-action:hover { background: var(--ui-hover); color: var(--ui-ink); }
-.selection-delete:hover { background: color-mix(in srgb, #fb7185 15%, transparent); color: #fb7185; }
-html.light .selection-delete:hover { color: #be123c; }
+html[data-workspace-ui]:is(.dark,.light) button.selection-action:not(.ui-primary) { color: var(--ui-muted); background-color: transparent; }
+html[data-workspace-ui]:is(.dark,.light) button.selection-action:not(.ui-primary):hover { background-color: var(--ui-hover); color: var(--ui-ink); }
+/* Scoped like the global workspace button rule so these themed controls win the cascade. */
+/* Destructive intent comes from the theme's warm support accent, never a fixed rose. */
+html[data-workspace-ui]:is(.dark,.light) button.selection-delete:not(.ui-primary):hover { background-color: color-mix(in srgb, var(--ui-tertiary) 14%, transparent); color: color-mix(in srgb, var(--ui-tertiary) 62%, var(--ui-ink)); }
 .selection-swatch { position: relative; display: grid; place-items: center; width: 17px; height: 17px; flex: none; border-radius: 9999px; box-shadow: inset 0 0 0 1px rgb(255 255 255 / .32), 0 1px 3px rgb(0 0 0 / .18); transition: transform .13s ease, box-shadow .13s ease; cursor: pointer; }
 .selection-swatch:hover { transform: scale(1.16); }
 .selection-swatch:focus-visible { outline: 2px solid var(--ui-focus); outline-offset: 2px; }
@@ -891,10 +892,10 @@ html.light .selection-delete:hover { color: #be123c; }
 
 /* Ink Studio picker */
 .ink-studio-badge { display: inline-flex; align-items: center; height: 18px; padding: 0 7px; border-radius: 9999px; border: 1px solid color-mix(in srgb, var(--ui-accent) 34%, transparent); background: color-mix(in srgb, var(--ui-accent) 9%, transparent); color: var(--ui-accent); font-size: 8.5px; font-weight: 700; letter-spacing: .095em; text-transform: uppercase; white-space: nowrap; }
-.ink-card { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 8px 9px 7px; border: 1px solid var(--drawing-border); border-radius: 10px; background: var(--ui-inset); color: var(--ui-muted); text-align: left; cursor: pointer; transition: background-color .14s ease, border-color .14s ease, color .14s ease, transform .14s ease, box-shadow .14s ease; }
-.ink-card:hover { background: var(--ui-hover); border-color: var(--ui-outline); color: var(--ui-ink); transform: translateY(-1px); }
-.ink-card:focus-visible { outline: 2px solid var(--ui-focus); outline-offset: 2px; }
-.ink-card.is-active { background: var(--ui-active); border-color: var(--ui-accent); color: var(--ui-active-ink); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-accent) 30%, transparent), 0 6px 16px -12px rgb(0 0 0 / .5); }
+html[data-workspace-ui]:is(.dark,.light) button.ink-card:not(.ui-primary) { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 8px 9px 7px; border: 1px solid var(--drawing-border); border-radius: 10px; background-color: var(--ui-inset); color: var(--ui-muted); text-align: left; cursor: pointer; transition: background-color .14s ease, border-color .14s ease, color .14s ease, transform .14s ease, box-shadow .14s ease; }
+html[data-workspace-ui]:is(.dark,.light) button.ink-card:not(.ui-primary):hover { background-color: var(--ui-hover); border-color: var(--ui-outline); color: var(--ui-ink); transform: translateY(-1px); }
+html[data-workspace-ui]:is(.dark,.light) button.ink-card:not(.ui-primary):focus-visible { outline: 2px solid var(--ui-focus); outline-offset: 2px; }
+html[data-workspace-ui]:is(.dark,.light) button.ink-card:not(.ui-primary).is-active { background-color: var(--ui-active); border-color: var(--ui-accent); color: var(--ui-active-ink); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-accent) 30%, transparent), 0 6px 16px -12px rgb(0 0 0 / .5); }
 .ink-card-label { font-size: 10.5px; font-weight: 650; letter-spacing: -.01em; line-height: 1.2; }
 .ink-card-check { position: absolute; top: 7px; right: 7px; width: 6px; height: 6px; border-radius: 9999px; background: var(--ui-accent); opacity: 0; transform: scale(.45); transition: opacity .14s ease, transform .14s ease; }
 .ink-card.is-active .ink-card-check { opacity: 1; transform: scale(1); }
@@ -908,15 +909,15 @@ html.light .template-dialog::backdrop { background: rgb(15 23 42 / .28); }
 .template-dialog header { border-color: var(--drawing-border); background-image: linear-gradient(120deg, color-mix(in srgb, var(--ui-accent) 7%, transparent), transparent 46%), linear-gradient(300deg, color-mix(in srgb, var(--ui-secondary) 5%, transparent), transparent 38%); }
 .template-dialog footer { border-color: var(--drawing-border); background: var(--ui-inset); }
 .template-dialog input[type="search"], .template-dialog input:not([type]) { background-color: var(--ui-inset); border-color: var(--drawing-border); }
-.template-category { transition: background-color .14s ease, border-color .14s ease, color .14s ease; }
-.template-category:hover:not(:disabled) { background: var(--ui-hover); border-color: var(--ui-outline); color: var(--ui-ink); }
-.template-category.is-active { background: var(--ui-active); border-color: var(--ui-accent); color: var(--ui-active-ink); box-shadow: inset 0 0 0 1px var(--ui-outline); }
-.template-card { background: color-mix(in srgb, var(--ui-surface) 94%, var(--ui-inset)); border-color: var(--drawing-border); transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease, background-color .18s ease; }
-.template-card:hover { transform: translateY(-2px); border-color: var(--ui-outline); background: var(--ui-surface); box-shadow: 0 18px 36px -24px rgb(0 0 0 / .55); }
+html[data-workspace-ui]:is(.dark,.light) button.template-category:not(.ui-primary) { transition: background-color .14s ease, border-color .14s ease, color .14s ease; }
+html[data-workspace-ui]:is(.dark,.light) button.template-category:not(.ui-primary):not(:disabled):hover { background-color: var(--ui-hover); border-color: var(--ui-outline); color: var(--ui-ink); }
+html[data-workspace-ui]:is(.dark,.light) button.template-category:not(.ui-primary).is-active { background-color: var(--ui-active); border-color: var(--ui-accent); color: var(--ui-active-ink); box-shadow: inset 0 0 0 1px var(--ui-outline); }
+.template-card { background-color: color-mix(in srgb, var(--ui-surface) 94%, var(--ui-inset)); border-color: var(--drawing-border); transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease, background-color .18s ease; }
+.template-card:hover { transform: translateY(-2px); border-color: var(--ui-outline); background-color: var(--ui-surface); box-shadow: 0 18px 36px -24px rgb(0 0 0 / .55); }
 html.light .template-card:hover { box-shadow: 0 18px 34px -24px rgb(15 23 42 / .3); }
 .template-card canvas { border-color: var(--drawing-border); }
-.template-add { background: var(--ui-active); border-color: var(--ui-outline); color: var(--ui-active-ink); transition: background-color .14s ease, border-color .14s ease, color .14s ease; }
-.template-add:hover:not(:disabled) { background: var(--ui-hover); border-color: var(--ui-accent); color: var(--ui-ink); }
+html[data-workspace-ui]:is(.dark,.light) button.template-add:not(.ui-primary) { background-color: var(--ui-active); border-color: var(--ui-outline); color: var(--ui-active-ink); transition: background-color .14s ease, border-color .14s ease, color .14s ease; }
+html[data-workspace-ui]:is(.dark,.light) button.template-add:not(.ui-primary):not(:disabled):hover { background-color: var(--ui-hover); border-color: var(--ui-accent); color: var(--ui-ink); }
 
 @media (prefers-reduced-motion: reduce) {
   .selection-action-bar, .ink-card, .template-card, .template-category, .template-add, .selection-swatch { animation: none; transition: none; }
@@ -1034,6 +1035,15 @@ html[data-board-skin="whiteboard"] :is(.welcome-card, #appearance-settings)::bef
 html[data-board-skin="whiteboard"] .welcome-card { transform: rotate(-.35deg); box-shadow: 0 30px 60px -30px var(--wb-shadow), 0 6px 14px -8px var(--wb-shadow); }
 html[data-board-skin="whiteboard"] .welcome-card h2 { font-family: var(--font-knotleaf-sketch), "Knotleaf Sketch", cursive; font-size: 30px; letter-spacing: .005em; }
 html[data-board-skin="whiteboard"] .workspace-zoom { bottom: 18px; right: 18px; background: linear-gradient(180deg, var(--wb-tray-top), var(--wb-tray-bottom)); border-color: var(--wb-tray-lip); box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--wb-tray-lip) 55%, transparent), 0 8px 18px -10px var(--wb-shadow); }
+/* Selection commands rest in the same aluminium tray as the zoom keys. */
+html[data-board-skin="whiteboard"][data-workspace-ui]:is(.dark,.light) .selection-action-bar {
+  background-color: var(--wb-tray-bottom);
+  background-image: linear-gradient(180deg, var(--wb-tray-top), var(--wb-tray-bottom));
+  border-color: var(--wb-tray-lip);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / .55), inset 0 -2px 0 color-mix(in srgb, var(--wb-tray-lip) 55%, transparent), 0 16px 30px -18px var(--wb-shadow), 0 2px 4px -2px var(--wb-shadow);
+}
+html.dark[data-board-skin="whiteboard"][data-workspace-ui] .selection-action-bar { box-shadow: inset 0 1px 0 rgb(255 255 255 / .06), inset 0 -2px 0 rgb(0 0 0 / .35), 0 16px 30px -18px var(--wb-shadow); }
+html[data-board-skin="whiteboard"][data-workspace-ui]:is(.dark,.light) .selection-action-bar button.selection-action:not(.selection-delete):not(.ui-primary):hover { background-color: color-mix(in srgb, var(--ui-surface) 70%, transparent); }
 
 @media (prefers-reduced-motion: reduce) {
   html[data-board-skin="whiteboard"] .drawing-toolbar button, html[data-board-skin="whiteboard"] .quick-color { transition: none; transform: none !important; }

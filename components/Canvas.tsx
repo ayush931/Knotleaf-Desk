@@ -1431,7 +1431,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
         theme={theme}
       />
 
-      <TemplatesModal isOpen={isTemplatesOpen} onClose={() => setIsTemplatesOpen(false)} onSelectTemplate={handleSelectTemplate} theme={theme} />
+      <TemplatesModal isOpen={isTemplatesOpen} onClose={() => setIsTemplatesOpen(false)} onSelectTemplate={handleSelectTemplate} theme={theme} background={displayBackground} />
 
       <Reminders open={remindersOpen} onClose={()=>setRemindersOpen(false)}/>
       <WorkspaceThemes open={themesOpen} onClose={()=>setThemesOpen(false)} mode={theme} notesMode={notesMode} current={workspaceThemes} logoStyle={logoStyle} onLogoStyleChange={value=>{setLogoStyle(value);return savePreferences({logoStyle:value});}} onApply={(preset,scope,useThemeBackground)=>{const next=applyWorkspaceTheme(workspaceThemes,preset,scope);setWorkspaceThemes(next);if(scope!=="notes"&&useThemeBackground)persist({...boardRef.current,background:{fill:"#121212",fillStyle:"solid",fillOpacity:1}});return savePreferences({workspaceThemes:next});}} />
