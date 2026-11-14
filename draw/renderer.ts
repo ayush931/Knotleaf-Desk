@@ -295,6 +295,10 @@ export interface DocLine {
   content: string;
   prefix?: string;
   indentLevel: number;
+  /** Width of the line's leading whitespace, measured in the editor font. */
+  indentPx: number;
+  /** Distance from the element's left edge to the visible content, matching the raw Markdown prefix. */
+  contentX: number;
   fontSize: number;
   fontWeight: number | string;
   isItalic?: boolean;
@@ -369,13 +373,13 @@ export function layoutDocument(
       type = "todo-unchecked";
       content = trimmed.replace(/^(\-\s*|\*\s*)?\[\s*\]\s+/, "");
       prefix = "[ ]";
-      lineHeight = baseFontSize * LINE_HEIGHT + 3;
+      lineHeight = baseFontSize * LINE_HEIGHT;
     } else if (/^(\-\s*|\*\s*)?\[[xX]\]\s+/.test(trimmed)) {
       type = "todo-checked";
       content = trimmed.replace(/^(\-\s*|\*\s*)?\[[xX]\]\s+/, "");
       prefix = "[x]";
       isStrikethrough = true;
-      lineHeight = baseFontSize * LINE_HEIGHT + 3;
+      lineHeight = baseFontSize * LINE_HEIGHT;
     } else if (/^(\u2022|\-|\*)\s+/.test(trimmed)) {
       type = "bullet-disc";
       content = trimmed.replace(/^(\u2022|\-|\*)\s+/, "");
@@ -420,10 +424,21 @@ export function layoutDocument(
       measuredContentWidth = ctx.measureText(content).width;
     }
 
-    const indentPx = indentLevel * 18;
-    const gutterPx =
-      type.startsWith("bullet-") || type === "number" || type.startsWith("todo-") ? 24 : type === "quote" ? 18 : 0;
-    const available = Math.max(16,(formatting.width||240)-indentPx-gutterPx);
+    // The inline editor shows the raw Markdown prefix. Measuring that prefix in
+    // the editor's base font keeps committed list content on the same x origin
+    // instead of jumping to a fixed bullet gutter.
+    const leading = raw.slice(0, leadingSpaces);
+    const contentStart = content ? raw.indexOf(content) : raw.length;
+    const rawPrefix = contentStart > 0 ? raw.slice(0, contentStart) : "";
+    const measurePrefix = (value: string) => {
+      if (!value) return 0;
+      if (!ctx) return value.length * baseFontSize * 0.6;
+      setFont(ctx, baseFontSize, family, formatting.bold ? 700 : 500, formatting.italic);
+      return ctx.measureText(value).width;
+    };
+    const indentPx = measurePrefix(leading);
+    const contentX = Math.max(indentPx, measurePrefix(rawPrefix));
+    const available = Math.max(16,(formatting.width||240)-contentX);
     const measureContext=ctx||{measureText:(value:string)=>({width:value.length*fontSize*0.6})} as CanvasRenderingContext2D;
     let pieces=wraps?wrapText(measureContext,content,available):[content];
     if(wraps && ctx && formatting.textRanges?.length){
@@ -438,11 +453,11 @@ export function layoutDocument(
       const rangeStart=rawLines.slice(0,i).reduce((n,l)=>n+l.length+1,0);
       const rangeSize=Math.max(fontSize,...(formatting.textRanges||[]).filter(r=>r.start<rangeStart+raw.length&&r.end>rangeStart).map(r=>r.style.fontSize||fontSize));
       lineHeight=Math.max(lineHeight,rangeSize*LINE_HEIGHT);
-      const lineWidth=indentPx+gutterPx+(wraps?measureContext.measureText(pieces[piece]).width:measuredContentWidth);
+      const lineWidth=contentX+(wraps?measureContext.measureText(pieces[piece]).width:measuredContentWidth);
       let richWidth=lineWidth;
-      if(ctx&&formatting.textRanges?.length){let offset=rangeStart+raw.indexOf(content)+pieces.slice(0,piece).reduce((n,p)=>n+p.length,0);richWidth=indentPx+gutterPx;ctx.save();for(const char of pieces[piece]){const st=rangeStyleAt(formatting.textRanges,offset);setFont(ctx,st.fontSize||fontSize,st.fontFamily||family,(st.bold??formatting.bold)?700:500,st.italic??formatting.italic);richWidth+=ctx.measureText(char).width;offset+=char.length;}ctx.restore();}
+      if(ctx&&formatting.textRanges?.length){let offset=rangeStart+raw.indexOf(content)+pieces.slice(0,piece).reduce((n,p)=>n+p.length,0);richWidth=contentX;ctx.save();for(const char of pieces[piece]){const st=rangeStyleAt(formatting.textRanges,offset);setFont(ctx,st.fontSize||fontSize,st.fontFamily||family,(st.bold??formatting.bold)?700:500,st.italic??formatting.italic);richWidth+=ctx.measureText(char).width;offset+=char.length;}ctx.restore();}
       maxLineWidth=Math.max(maxLineWidth,richWidth);
-      lines.push({sourceOffset:rawLines.slice(0,i).reduce((n,l)=>n+l.length+1,0)+raw.indexOf(content)+pieces.slice(0,piece).reduce((n,p)=>n+p.length,0),raw,sourceLine:i,type:piece===0?type:"normal",content:pieces[piece],prefix:piece===0?prefix:undefined,indentLevel,fontSize,fontWeight,isItalic,isStrikethrough,lineHeight,yOffset:currentY,width:richWidth});
+      lines.push({sourceOffset:rawLines.slice(0,i).reduce((n,l)=>n+l.length+1,0)+raw.indexOf(content)+pieces.slice(0,piece).reduce((n,p)=>n+p.length,0),raw,sourceLine:i,type:piece===0?type:"normal",content:pieces[piece],prefix:piece===0?prefix:undefined,indentLevel,indentPx,contentX,fontSize,fontWeight,isItalic,isStrikethrough,lineHeight,yOffset:currentY,width:richWidth});
       currentY+=lineHeight;
     }
   }
@@ -472,20 +487,21 @@ export function textContentBounds(ctx: CanvasRenderingContext2D, el: TextElement
   const boxes: Bounds[] = [];
   ctx.save(); ctx.textBaseline = "top";
   for (const line of layout.lines) {
-    const ly = line.yOffset, indent = line.indentLevel * 18;
+    const ly = line.yOffset, indent = line.indentPx, contentX = line.contentX;
     if (line.type === "divider") {
       boxes.push({ minX: el.x, maxX: el.x + Math.max(el.width, layout.totalWidth, 120), minY: el.y + ly + 7.5, maxY: el.y + ly + 8.5 });
       continue;
     }
     const list = line.type.startsWith("bullet-") || line.type === "number" || line.type.startsWith("todo-");
-    if (line.type === "quote") boxes.push({ minX: el.x, maxX: el.x + 3, minY: el.y + ly, maxY: el.y + ly + line.lineHeight - 2 });
+    if (line.type === "quote") boxes.push({ minX: el.x + indent, maxX: el.x + indent + 3, minY: el.y + ly, maxY: el.y + ly + line.lineHeight - 2 });
     if (line.type.startsWith("todo-")) { const top = el.y + ly + (line.lineHeight - 14) / 2; boxes.push({ minX: el.x + indent, maxX: el.x + indent + 14, minY: top, maxY: top + 14 }); }
     else if (line.type === "number") {
       ctx.textBaseline = "top";
       setFont(ctx, Math.max(10, line.fontSize - 1), el.fontFamily, 600); ctx.textAlign = "right";
       const prefix = ctx.measureText(line.prefix || "1.");
       if (![prefix.actualBoundingBoxLeft, prefix.actualBoundingBoxRight, prefix.actualBoundingBoxAscent, prefix.actualBoundingBoxDescent].every(Number.isFinite)) { ctx.restore(); return null; }
-      boxes.push({ minX: el.x + indent + 16 - prefix.actualBoundingBoxLeft, maxX: el.x + indent + 16 + prefix.actualBoundingBoxRight, minY: el.y + ly + 1 - prefix.actualBoundingBoxAscent, maxY: el.y + ly + 1 + prefix.actualBoundingBoxDescent });
+      const right = el.x + contentX - 4;
+      boxes.push({ minX: right - prefix.actualBoundingBoxLeft, maxX: right + prefix.actualBoundingBoxRight, minY: el.y + ly + 1 - prefix.actualBoundingBoxAscent, maxY: el.y + ly + 1 + prefix.actualBoundingBoxDescent });
     }
     else if (list) boxes.push({ minX: el.x + indent, maxX: el.x + indent + 18, minY: el.y + ly + line.lineHeight / 2 - 5, maxY: el.y + ly + line.lineHeight / 2 + 5 });
     if (!line.content.trim()) continue;
@@ -496,7 +512,7 @@ export function textContentBounds(ctx: CanvasRenderingContext2D, el: TextElement
     const baseline = lineBoxMetrics(ctx, line.fontSize, LINE_HEIGHT).baseline;
     const metrics = ctx.measureText(line.content);
     if (![metrics.actualBoundingBoxLeft, metrics.actualBoundingBoxRight, metrics.actualBoundingBoxAscent, metrics.actualBoundingBoxDescent].every(Number.isFinite)) { ctx.restore(); return null; }
-    const anchor = list ? indent + 22 : line.type === "quote" ? 14 : align === "center" ? el.width / 2 : align === "right" ? el.width : indent;
+    const anchor = list || line.type === "quote" ? contentX : align === "center" ? el.width / 2 : align === "right" ? el.width : contentX;
     const textY = ly + (line.type === "quote" ? 1 : 0);
     let bottom = textY + baseline + metrics.actualBoundingBoxDescent;
     let left = anchor - metrics.actualBoundingBoxLeft, right = anchor + metrics.actualBoundingBoxRight;
@@ -1389,15 +1405,16 @@ function drawText(ctx: CanvasRenderingContext2D, el: CanvasElement, codeScroll?:
     if (line.type === "quote") {
       ctx.save();
       ctx.fillStyle = color;
-      ctx.fillRect(x, ly, 3, line.lineHeight - 2);
+      ctx.fillRect(x + line.indentPx, ly, 3, line.lineHeight - 2);
       ctx.fillStyle = color;
       setFont(ctx, line.fontSize, fontFamily, line.fontWeight, true);
-      drawStyledText(ctx, line.content, x + 14, ly + 1, line.fontSize, el, line.sourceOffset);
+      drawStyledText(ctx, line.content, x + line.contentX, ly + 1, line.fontSize, el, line.sourceOffset);
       ctx.restore();
       continue;
     }
 
-    const indentX = x + line.indentLevel * 18;
+    const indentX = x + line.indentPx;
+    const textX = x + line.contentX;
 
     if (line.type === "todo-unchecked" || line.type === "todo-checked") {
       const boxSize = 14;
@@ -1430,7 +1447,6 @@ function drawText(ctx: CanvasRenderingContext2D, el: CanvasElement, codeScroll?:
       ctx.restore();
 
       // Text with optional strikethrough
-      const textX = indentX + 22;
       if (line.type === "todo-checked") {
         ctx.save();
         ctx.fillStyle = color;
@@ -1499,18 +1515,17 @@ function drawText(ctx: CanvasRenderingContext2D, el: CanvasElement, codeScroll?:
           setFont(ctx, Math.max(10, line.fontSize - 1), fontFamily, 600);
           ctx.fillStyle = "#A1A1AA";
           ctx.textAlign = "right";
-          ctx.fillText(line.prefix || "1.", indentX + 16, ly + 1);
+          ctx.fillText(line.prefix || "1.", textX - 4, ly + 1);
           break;
       }
       ctx.restore();
 
-      const textX = indentX + 22;
       drawStyledText(ctx, line.content, textX, ly, line.fontSize, el, line.sourceOffset);
       continue;
     }
 
     // Normal line or Heading
-    const anchorX = textAlign === "center" ? x + el.width / 2 : textAlign === "right" ? x + el.width : x + line.indentLevel * 18;
+    const anchorX = textAlign === "center" ? x + el.width / 2 : textAlign === "right" ? x + el.width : x + line.contentX;
     ctx.textAlign = textAlign || "left";
     drawStyledText(ctx, line.content, anchorX, ly, line.fontSize, el, line.sourceOffset);
   }
@@ -1520,10 +1535,11 @@ function drawText(ctx: CanvasRenderingContext2D, el: CanvasElement, codeScroll?:
 
 export function getCheckboxAtPoint(
   el: CanvasElement,
-  pt: Point
+  pt: Point,
+  ctx: CanvasRenderingContext2D | null = null
 ): { lineIndex: number; newChecked: boolean; newText: string } | null {
   if (el.type !== "text") return null;
-  const layout = layoutDocument(null, el.text, el.fontSize, el.fontFamily, el);
+  const layout = layoutDocument(ctx, el.text, el.fontSize, el.fontFamily, el);
   const tol = 6;
   const rawLines = el.text.split("\n");
 
@@ -1531,7 +1547,7 @@ export function getCheckboxAtPoint(
     const line = layout.lines[i];
     if (line.type === "todo-unchecked" || line.type === "todo-checked") {
       const boxSize = 16;
-      const boxX = el.x + line.indentLevel * 18;
+      const boxX = el.x + line.indentPx;
       const boxY = el.y + line.yOffset + (line.lineHeight - boxSize) / 2;
 
       if (
@@ -1580,7 +1596,7 @@ function drawSticky(ctx: CanvasRenderingContext2D, el: CanvasElement) {
   ctx.fillStyle = el.stroke || "#1E293B";
   ctx.textBaseline = "top";
   ctx.textAlign = el.textAlign || "left";
-  if(el.textRanges?.length){const layout=layoutDocument(ctx,text,size,el.fontFamily||"sans",{...el,textBox:true,width:width-24});for(const line of layout.lines)drawStyledText(ctx,line.content,el.textAlign==="center"?x+width/2:el.textAlign==="right"?x+width-12:x+12,y+12+line.yOffset,line.fontSize,el,line.sourceOffset);ctx.restore();return;}
+  if(el.textRanges?.length){const layout=layoutDocument(ctx,text,size,el.fontFamily||"sans",{...el,textBox:true,width:width-24});for(const line of layout.lines)drawStyledText(ctx,line.content,el.textAlign==="center"?x+width/2:el.textAlign==="right"?x+width-12:x+12+line.contentX,y+12+line.yOffset,line.fontSize,el,line.sourceOffset);ctx.restore();return;}
   const lines = wrapText(ctx, text || "", Math.max(20, width - 24));
   const lineHeight = size * LINE_HEIGHT;
   let sourceOffset=0;
