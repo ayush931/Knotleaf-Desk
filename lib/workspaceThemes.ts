@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react';
 import type { Theme } from '@/draw/types';
 export const WORKSPACE_THEMES = [
+ {id:'board',name:'Whiteboard',description:'Glossy marker board in an aluminium frame, with blue, red and green marker caps.'},
  {id:'black',name:'Studio',description:'Clear white or ink black, cobalt tools, mint and coral details.'},
  {id:'mono',name:'Tide',description:'Sea-glass surfaces with teal, sky and soft apricot.'},
  {id:'paper',name:'Parchment',description:'Ivory paper, terracotta, olive and warm graphite.'},
@@ -17,6 +18,7 @@ export interface WorkspaceThemes {canvas:WorkspaceTheme;notes:WorkspaceTheme;not
 export interface WorkspacePalette {background:string;panel:string;border:string;ink:string;muted:string;accent:string;accentInk:string;code:string}
 const palette=(background:string,panel:string,border:string,ink:string,muted:string,accent:string,accentInk:string,code:string):WorkspacePalette=>({background,panel,border,ink,muted,accent,accentInk,code});
 const palettes:Record<WorkspaceTheme,Record<Theme,WorkspacePalette>>={
+ board:{dark:palette('#1b2026','#232a31','#3e4853','#eef3f7','#a9b5c1','#7fb2ff','#0b1420','#151a1f'),light:palette('#fbfcfd','#ffffff','#cdd5dd','#18212c','#566170','#1d5bd6','#ffffff','#eef2f6')},
  mono:{dark:palette('#10232c','#17313b','#416573','#f0fbff','#b5d0da','#5ee0c1','#082c28','#0b1b23'),light:palette('#f0f9fc','#ffffff','#a8cbd6','#12313e','#476571','#096956','#ffffff','#e0eff4')},
  black:{dark:palette('#000000','#000000','#2e3a4d','#ffffff','#b8b8b8','#8eb4ff','#000000','#090b0f'),light:palette('#ffffff','#ffffff','#c5cfdd','#000000','#525252','#305db5','#ffffff','#f7f8fa')},
  paper:{dark:palette('#211e19','#2c2720','#62584a','#faf4e9','#c9bfae','#f0b397','#241c10','#171510'),light:palette('#fbf7f0','#fffdf9','#d8cabb','#302821','#706052','#a5482c','#ffffff','#eee6d6')},
@@ -40,10 +42,15 @@ export function workspaceThemeStyle(preset:WorkspaceTheme,mode:Theme,notes=false
 /** Blend one theme accent into the neutral surface; roles differ by emphasis, not hue. */
 function mixHex(base:string,accent:string,weight:number){const channel=(offset:number)=>Math.round(parseInt(base.slice(offset,offset+2),16)*(1-weight)+parseInt(accent.slice(offset,offset+2),16)*weight).toString(16).padStart(2,'0');return '#'+[1,3,5].map(channel).join('');}
 export function workspaceControlPalette(mode:Theme,preset:WorkspaceTheme='black'){
- const p=workspacePalette(preset,mode),support=({black:['#62cdb3','#edaa80'],mono:['#82baf0','#e8b58e'],paper:['#a8ba77','#cd9582'],slate:['#8ebed9','#d7a0bb'],forest:['#c5b36c','#90b5df'],aurora:['#5eead4','#fda4af'],citrus:['#a3e635','#fb923c'],clay:['#9f9b80','#b8a083']} as const)[preset],hover=mixHex(p.panel,p.ink,mode==='dark'?.065:.035),active=mixHex(p.panel,p.accent,mode==='dark'?.14:.065),primary=mixHex(p.panel,p.accent,mode==='dark'?.19:.09);
+ const p=workspacePalette(preset,mode),support=({board:['#2f9e5b','#e5484d'],black:['#62cdb3','#edaa80'],mono:['#82baf0','#e8b58e'],paper:['#a8ba77','#cd9582'],slate:['#8ebed9','#d7a0bb'],forest:['#c5b36c','#90b5df'],aurora:['#5eead4','#fda4af'],citrus:['#a3e635','#fb923c'],clay:['#9f9b80','#b8a083']} as const)[preset],hover=mixHex(p.panel,p.ink,mode==='dark'?.065:.035),active=mixHex(p.panel,p.accent,mode==='dark'?.14:.065),primary=mixHex(p.panel,p.accent,mode==='dark'?.19:.09);
  return {secondary:support[0],tertiary:support[1],surface:mixHex(p.panel,p.ink,mode==='dark'?.035:0),control:p.panel,'control-ink':p.ink,hover,'hover-ink':p.ink,active,'active-ink':p.accent,
   success:mixHex(p.panel,support[0],.12),'success-ink':p.ink,pending:mixHex(p.panel,support[1],.12),'pending-ink':p.ink,
   danger:p.panel,'danger-ink':p.ink,info:primary,'info-ink':p.accent,
-  brand:preset==='black'||preset==='slate'?(mode==='dark'?'#3b82f6':'#2563eb'):p.accent,
+  brand:preset==='black'||preset==='slate'||preset==='board'?(mode==='dark'?'#3b82f6':'#2563eb'):p.accent,
   border:mixHex(p.panel,p.ink,mode==='dark'?.19:.16),outline:mixHex(p.panel,p.accent,mode==='dark'?.45:.35),focus:p.accent};
 }
+
+/** The Whiteboard preset renders a physical-board skin (frame, tray, marker caps). */
+export const isWhiteboardSkin=(preset:WorkspaceTheme)=>preset==='board';
+/** Printed board grid: faint blue on white, chalky on the dark glass board. */
+export function whiteboardGridTint(mode:Theme){return mode==='light'?{dotColor:'rgba(36, 92, 176, 0.24)',lineColor:'rgba(36, 92, 176, 0.09)'}:{dotColor:'rgba(196, 222, 255, 0.20)',lineColor:'rgba(196, 222, 255, 0.075)'};}
