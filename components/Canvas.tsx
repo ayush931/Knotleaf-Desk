@@ -94,6 +94,7 @@ import { Reminders } from "./Reminders";
 import { WorkspaceThemes } from "./WorkspaceThemes";
 import { WORKSPACE_THEMES, applyWorkspaceTheme, workspacePalette, workspaceThemeStyle } from "@/lib/workspaceThemes";
 import { SelectionTools } from "./SelectionTools";
+import { SelectionActionBar } from "./SelectionActionBar";
 import { ShortcutsModal } from "./ShortcutsModal";
 
 const isEditableTarget = (t: EventTarget | null) =>
@@ -1093,7 +1094,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
   return (
     <div
       style={workspaceThemeStyle(workspaceThemes.canvas,theme,false,logoStyle)}
-      className="relative w-screen h-[100dvh] overflow-hidden flex flex-col font-sans select-none bg-white dark:bg-black text-white"
+      className="relative w-screen h-dvh overflow-hidden flex flex-col font-sans select-none bg-white dark:bg-black text-white"
     >
       {!isPresentationOpen && (
         <div hidden={focusMode}><BoardHeader
@@ -1359,6 +1360,18 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
                 }}
                 theme={theme}
               /></div>
+            )}
+
+            {!isPresentationOpen && !focusMode && (viewMode === "canvas" || viewMode === "split") && selectedElements.length > 0 && !inlineText && !codeElement && (
+              <SelectionActionBar
+                selection={selectedElements}
+                onColor={applyQuickColor}
+                onDuplicate={() => { commitInline(); engineRef.current?.duplicateSelected(); }}
+                onDelete={() => { commitInline(); engineRef.current?.deleteSelected(); }}
+                onBringToFront={() => { commitInline(); engineRef.current?.bringToFront(); }}
+                onSendToBack={() => { commitInline(); engineRef.current?.sendToBack(); }}
+                onOpenAppearance={() => setAppearanceOpen(true)}
+              />
             )}
 
             {!isPresentationOpen && !focusMode && selectedElements.length > 1 && <SelectionTools selection={selectedElements} onUndo={() => engineRef.current?.undo()} onRedo={() => engineRef.current?.redo()} onConnect={() => engineRef.current?.connectSelected()} onArrange={mode => engineRef.current?.arrangeSelected(mode)} />}

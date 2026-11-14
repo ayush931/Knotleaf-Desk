@@ -26,6 +26,7 @@ const categories = [
   ["flowchart", "Flowcharts"],
   ["system-design", "System design"],
   ["agile", "Planning"],
+  ["strategy", "Strategy"],
 ] as const;
 
 function TemplatePreview({ template, theme = "dark" }: { template: TemplateDefinition; theme?: Theme }) {
@@ -142,7 +143,7 @@ function TemplateDialog({
         event.preventDefault();
         if (!pending.current) onClose();
       }}
-      className="m-auto w-[min(880px,calc(100vw-24px))] max-w-none max-h-[min(880px,92dvh)] overflow-hidden rounded-xl border border-neutral-700 bg-white dark:bg-black p-0 text-neutral-200 shadow-xl"
+      className="template-dialog m-auto w-[min(880px,calc(100vw-24px))] max-w-none max-h-[min(880px,92dvh)] overflow-hidden rounded-xl border border-neutral-700 bg-white dark:bg-black p-0 text-neutral-200 shadow-xl"
     >
       <div className="flex max-h-[min(880px,92dvh)] flex-col">
         <header className="shrink-0 space-y-3 border-b border-neutral-800 p-4">
@@ -159,8 +160,8 @@ function TemplateDialog({
                 id="template-description"
                 className="mt-1 text-xs text-neutral-400"
               >
-                Editable diagrams, centered and fitted to your canvas. Starter
-                documentation goes in Notes.
+                Editable diagrams and planning canvases, centered and fitted to your
+                board. Starter documentation goes in Notes.
               </p>
             </div>
             <button data-ui-tone="neutral"
@@ -182,7 +183,7 @@ function TemplateDialog({
             <input
               ref={search}
               aria-label="Search templates"
-              placeholder="Search diagrams and planning boards…"
+              placeholder="Search diagrams, plans and strategy boards…"
               value={query}
               disabled={!!busy}
               onChange={(event) => setQuery(event.target.value)}
@@ -215,7 +216,7 @@ function TemplateDialog({
                 aria-pressed={category === id}
                 disabled={!!busy}
                 onClick={() => setCategory(id)}
-                className={`rounded-md border px-2 py-1 text-xs ${category === id ? "border-neutral-500/50 bg-neutral-500/10 text-neutral-300" : "border-neutral-700 text-neutral-400 hover:bg-neutral-800"}`}
+                className={`template-category rounded-md border px-2 py-1 text-xs ${category === id ? "is-active border-neutral-500/50 bg-neutral-500/10 text-neutral-300" : "border-neutral-700 text-neutral-400 hover:bg-neutral-800"}`}
               >
                 {label}
               </button>
@@ -240,7 +241,7 @@ function TemplateDialog({
             {matches.map((template) => (
               <article
                 key={template.id}
-                className="flex min-w-0 flex-col rounded-xl border border-neutral-800 p-3"
+                className="template-card flex min-w-0 flex-col rounded-xl border border-neutral-800 p-3"
               >
                 <TemplatePreview template={template} theme={theme} />
                 <h3 className="mt-3 text-sm font-semibold">{template.name}</h3>
@@ -252,7 +253,7 @@ function TemplateDialog({
                   aria-label={`Add template: ${template.name}`}
                   disabled={!!busy}
                   onClick={() => void choose(template)}
-                  className="flex min-h-8 items-center justify-center gap-2 rounded-lg border border-neutral-500/40 bg-neutral-500/10 px-3 py-2 text-xs font-medium text-neutral-300 hover:bg-neutral-500/20 disabled:cursor-default disabled:opacity-40"
+                  className="template-add flex min-h-8 items-center justify-center gap-2 rounded-lg border border-neutral-500/40 bg-neutral-500/10 px-3 py-2 text-xs font-medium text-neutral-300 hover:bg-neutral-500/20 disabled:cursor-default disabled:opacity-40"
                 >
                   {busy === template.id ? (
                     <LoaderCircle className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />

@@ -68,7 +68,7 @@ export function normalizePreferences(value: unknown): Preferences {
   for(const key of ['opacity','fillOpacity'] as const)if(finite(style[key],0,1))result.style[key]=style[key];
   if(finite(style.strokeWidth,.1,100))result.style.strokeWidth=style.strokeWidth;
   if(finite(style.fontSize,8,512))result.style.fontSize=style.fontSize;
-  const choices: Record<string,string[]>={strokeStyle:['solid','dashed','dotted','rough'],fillStyle:['none','solid','semi','hachure','crosshatch','dots'],roundness:['sharp','rounded'],fontFamily:FONT_OPTIONS.map(f=>f.id),textAlign:['left','center','right'],arrowRouting:['straight','elbow','curved'],lineRouting:['straight','curved'],arrowHeadStart:['none','arrow','diamond','dot','bar'],arrowHeadEnd:['none','arrow','diamond','dot','bar']};
+  const choices: Record<string,string[]>={strokeStyle:['solid','dashed','dotted','rough'],fillStyle:['none','solid','semi','hachure','crosshatch','dots'],roundness:['sharp','rounded'],fontFamily:FONT_OPTIONS.map(f=>f.id),textAlign:['left','center','right'],arrowRouting:['straight','elbow','curved'],lineRouting:['straight','curved'],arrowHeadStart:['none','arrow','diamond','dot','bar'],arrowHeadEnd:['none','arrow','diamond','dot','bar'],inkStyle:['fountain','brush','marker','technical']};
   for(const[key,allowed]of Object.entries(choices)){const value=style[key];if(typeof value==='string'&&allowed.includes(value))Object.assign(result.style,{[key]:value});}
   if (data.canvasDrawingVersion !== 1 && result.style.strokeStyle === 'solid') result.style.strokeStyle = 'rough';
   // Adopt handwriting for the former default once; explicit future Inter choices stay saved.

@@ -12,6 +12,7 @@ import type { BackgroundSettings } from "@/draw/types";
 import { ColorControl } from "./ColorControl";
 import { FontSelect } from "./FontSelect";
 import { COLOR_MOODS, PREMIUM_BACKGROUND_MOODS } from "@/lib/premiumPalette";
+import { INK_STYLES, inkWidths, smoothInkWidths } from "@/draw/ink";
 import type { FormattingState } from "@/draw/textRanges";
 import {
   FontFamily,
@@ -23,6 +24,8 @@ import {
   ArrowRouting,
   ArrowHead,
   BulletVariant,
+  InkStyle,
+  PencilElement,
   Tool,
 } from "@/draw/types";
 import {
@@ -64,6 +67,38 @@ interface PropertiesPanelProps {
   onBringToFront: () => void;
   onSendToBack: () => void;
   theme: Theme;
+}
+
+/** A live, variable-width stroke preview rendered from the same ink math as the canvas. */
+function InkPreview({ style, width }: { style: InkStyle; width: number }) {
+  const points = Array.from({ length: 25 }, (_, index) => {
+    const t = index / 24;
+    return {
+      x: 3 + t * 42,
+      y: 12 + Math.sin(t * Math.PI * 2.1) * 5.2,
+      pressure: 0.18 + 0.82 * Math.pow(Math.sin(Math.PI * t), 0.7),
+    };
+  });
+  const widths = smoothInkWidths(inkWidths(points, width, style));
+  return (
+    <svg viewBox="0 0 48 24" className="h-6 w-12" aria-hidden="true">
+      {points.slice(1).map((point, index) => {
+        const previous = points[index];
+        return (
+          <line
+            key={index}
+            x1={previous.x}
+            y1={previous.y}
+            x2={point.x}
+            y2={point.y}
+            stroke="currentColor"
+            strokeWidth={Math.max(widths[index], widths[index + 1])}
+            strokeLinecap="round"
+          />
+        );
+      })}
+    </svg>
+  );
 }
 
 const STROKE_COLORS = [
@@ -115,6 +150,9 @@ export function PropertiesPanel({
   const isIcon = selectedElement?.type === "icon";
   const isAttachment = selectedElement?.type === "text" && !!selectedElement.attachment;
   const isImage = selectedElement?.type === "image" || isAttachment;
+  const pencil = selectedElement?.type === "pencil" ? selectedElement as PencilElement : null;
+  const isPencil = selectedElement ? !!pencil : selectedTool === "pencil";
+  const activeInkStyle: InkStyle = pencil ? pencil.inkStyle ?? "marker" : currentStyle.inkStyle ?? "fountain";
   const arrowEl = selectedElement?.type === "arrow" ? selectedElement : null;
   const lineEl = selectedElement?.type === "line" ? selectedElement : null;
 
@@ -162,6 +200,13 @@ export function PropertiesPanel({
       onUpdateElement({ strokeStyle: s });
     }
     onUpdateStyle({ strokeStyle: s });
+  };
+
+  const handleInkStyle = (style: InkStyle) => {
+    if (pencil) {
+      onUpdateElement({ inkStyle: style });
+    }
+    onUpdateStyle({ inkStyle: style });
   };
 
   const handleRoundness = (r: Roundness) => {
@@ -571,6 +616,57 @@ export function PropertiesPanel({
         <ColorPalette kind="stroke" presets={STROKE_COLORS} value={activeStroke} onChange={handleStrokeColor} />
       </div>}
 
+      {isPencil && <section aria-label="Ink styles" className="space-y-2">
+        <div className="flex items-center justify-between gap-2">
+          <label className="text-[11px] font-medium tracking-wide text-neutral-500 dark:text-neutral-400">Ink style</label>
+          <span className="ink-studio-badge">Pressure aware</span>
+        </div>
+        <div role="group" aria-label="Ink styles" className="grid grid-cols-2 gap-1.5">
+          {INK_STYLES.map((style) => {
+            const active = activeInkStyle === style.id;
+            return (
+              <button
+                key={style.id}
+                type="button"
+                aria-label={style.name}
+                aria-pressed={active}
+                title={style.description}
+                onClick={() => handleInkStyle(style.id)}
+                className={`ink-card group ${active ? "is-active" : ""}`}
+              >
+                <InkPreview style={style.id} width={style.previewWidth} />
+                <span className="ink-card-label">{style.name}</span>
+                <span className="ink-card-check" aria-hidden="true" />
+              </button>
+            );
+          })}
+        </div>
+        <p className="ink-studio-hint">
+          {INK_STYLES.find((style) => style.id === activeInkStyle)?.description}
+        </p>
+        <div>
+          <label className="mb-1 block text-[11px] font-medium tracking-wide text-neutral-500 dark:text-neutral-400">Stroke weight</label>
+          <div className="flex rounded-lg bg-neutral-100 p-0.5 text-[11px] dark:bg-neutral-800">
+            {[1, 2, 4].map((weight) => (
+              <button
+                key={weight}
+                type="button"
+                aria-label={`Ink weight ${weight}`}
+                aria-pressed={activeStrokeWidth === weight}
+                onClick={() => handleStrokeWidth(weight)}
+                className={`flex-1 rounded-md py-1 transition ${
+                  activeStrokeWidth === weight
+                    ? "bg-white font-semibold text-neutral-900 shadow-xs dark:bg-neutral-700 dark:text-white"
+                    : "text-neutral-500 hover:text-neutral-800 dark:hover:text-white"
+                }`}
+              >
+                {weight === 1 ? "Fine" : weight === 2 ? "Balanced" : "Bold"}
+              </button>
+            ))}
+          </div>
+        </div>
+      </section>}
+
       {hasBackground && <div className="space-y-2">
         <ColorControl label="Background color" value={activeFill === "transparent" ? "transparent" : parseFillColor(activeFill).color} onChange={fill => changeBackground(fill)} />
         <ColorPalette kind="background" presets={isCode ? ["#000000", "#09090b", "#121212", "#18181b", "#242428", "#111d2d", "#ffffff"] : ["#303236", "#454b53", "#48596b", "#4a5b4c", "#6a6048", "#674c4b", "#5c5268", "#c7ba91"]} value={activeFill} onChange={fill => changeBackground(fill)} />
@@ -578,7 +674,7 @@ export function PropertiesPanel({
         <button type="button" aria-pressed={activeFill === "transparent"} onClick={() => changeBackground("transparent")} className="rounded-md border border-neutral-300 dark:border-neutral-700 px-2 py-1 text-xs text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-900 dark:hover:text-white">No background</button>
       </div>}
 
-      {!isIcon && !isImage && !isTextual && <details className="border-t border-neutral-200 dark:border-neutral-800 pt-2 text-xs"><summary className="cursor-pointer py-1 text-neutral-500 dark:text-neutral-400">Line & corners</summary><div className="mt-3 space-y-3">
+      {!isIcon && !isImage && !isTextual && !isPencil && <details className="border-t border-neutral-200 dark:border-neutral-800 pt-2 text-xs"><summary className="cursor-pointer py-1 text-neutral-500 dark:text-neutral-400">Line & corners</summary><div className="mt-3 space-y-3">
       {/* Stroke Style: Clean (Eraser) vs Sketchy (Excalidraw) vs Dashed */}
       <div>
         <label className="text-[11px] font-medium text-neutral-500 dark:text-neutral-400 tracking-wide block mb-1">

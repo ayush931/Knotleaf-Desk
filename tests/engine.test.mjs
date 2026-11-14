@@ -1514,7 +1514,7 @@ test('a press-and-hold starts a draft immediately and the first move updates it 
     listeners.pointerdown(point(100, 100));
     expect(engine.gesture.kind).toBe('draft'); expect(engine.draft.type).toBe(tool);
     listeners.pointermove(point(180, 160));
-    if (tool === 'pencil') expect(engine.draft.points.at(-1)).toEqual({ x: 180, y: 160 });
+    if (tool === 'pencil') expect(engine.draft.points.at(-1)).toMatchObject({ x: 180, y: 160 });
     else if (tool === 'line' || tool === 'arrow') expect(engine.draft).toMatchObject({ endX: 180, endY: 160 });
     else expect(engine.draft).toMatchObject({ width: 80, height: 60 });
     listeners.pointerup(point(180, 160));
@@ -1527,9 +1527,10 @@ test('fast Pencil strokes preserve coalesced samples and append without copying 
   listeners.pointerdown(point(100, 100)); const points = engine.draft.points;
   listeners.pointermove({ ...point(160, 140), getCoalescedEvents: () => [point(120, 110), point(140, 150), point(160, 140)] });
   expect(engine.draft.points).toBe(points);
-  expect(points).toEqual([{ x: 100, y: 100 }, { x: 120, y: 110 }, { x: 140, y: 150 }, { x: 160, y: 140 }]);
+  expect(points.map(({ x, y }) => ({ x, y }))).toEqual([{ x: 100, y: 100 }, { x: 120, y: 110 }, { x: 140, y: 150 }, { x: 160, y: 140 }]);
+  expect(points.every(point => typeof point.pressure === 'number' && point.pressure > 0 && point.pressure <= 1)).toBe(true);
   listeners.pointerup(point(180, 170));
-  expect(engine.getElements()[0].points.at(-1)).toEqual({ x: 180, y: 170 });
+  expect(engine.getElements()[0].points.at(-1)).toMatchObject({ x: 180, y: 170 });
   engine.undo(); expect(engine.getElements()).toHaveLength(0); engine.redo(); expect(engine.getElements()[0].points).toHaveLength(5); engine.destroy();
 });
 
@@ -1544,6 +1545,29 @@ test('many immediate strokes remain separate and coalesced-event failures do not
   expect(engine.getTool()).toBe('pencil');
   expect(engine.getElements().every(el => el.points.length === 3)).toBe(true); engine.destroy();
 });
+
+test('pen pressure and the chosen ink style persist through drawing, duplication and undo', () => {
+  const { engine, listeners, point } = setup([]); engine.setTool('pencil');
+  engine.currentStyle = { ...engine.currentStyle, inkStyle: 'brush', strokeWidth: 2 };
+  const pen = (x, y, pressure) => ({ ...point(x, y), pointerType: 'pen', pressure });
+  listeners.pointerdown(pen(100, 100, 0.3));
+  listeners.pointermove(pen(130, 110, 0.92));
+  listeners.pointermove(pen(160, 120, 0.88));
+  listeners.pointermove(pen(190, 130, 0.95));
+  listeners.pointerup(pen(220, 140, 0.4));
+  const stroke = engine.getElements()[0];
+  expect(stroke).toMatchObject({ type: 'pencil', inkStyle: 'brush' });
+  expect(stroke.points.length).toBeGreaterThanOrEqual(4);
+  expect(stroke.points.every(sample => typeof sample.pressure === 'number' && sample.pressure > 0 && sample.pressure <= 1)).toBe(true);
+  expect(Math.max(...stroke.points.map(sample => sample.pressure))).toBeGreaterThan(0.6);
+  expect(stroke.points.map(({ x, y }) => ({ x, y }))).toEqual([{ x: 100, y: 100 }, { x: 130, y: 110 }, { x: 160, y: 120 }, { x: 190, y: 130 }, { x: 220, y: 140 }]);
+  engine.selectAll(); engine.duplicateSelected();
+  const copy = engine.getElements()[1];
+  expect(copy.inkStyle).toBe('brush');
+  expect(copy.points.map(sample => sample.pressure)).toEqual(stroke.points.map(sample => sample.pressure));
+  engine.undo(); expect(engine.getElements()).toHaveLength(1); engine.undo(); expect(engine.getElements()).toHaveLength(0); engine.destroy();
+});
+
 
 
 for (const tool of ['circle', 'arrow', 'rectangle', 'diamond', 'frame', 'line']) {
