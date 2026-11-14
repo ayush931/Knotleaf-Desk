@@ -92,7 +92,7 @@ import { PresentationMode } from "./PresentationMode";
 import { NotesThemeContext } from "@/lib/notesThemeContext";
 import { Reminders } from "./Reminders";
 import { WorkspaceThemes } from "./WorkspaceThemes";
-import { WORKSPACE_THEMES, applyWorkspaceTheme, isWhiteboardSkin, whiteboardGridTint, workspacePalette, workspaceThemeStyle } from "@/lib/workspaceThemes";
+import { WORKSPACE_THEMES, applyWorkspaceTheme, workspacePalette, workspaceThemeStyle } from "@/lib/workspaceThemes";
 import { SelectionTools } from "./SelectionTools";
 import { SelectionActionBar } from "./SelectionActionBar";
 import { ShortcutsModal } from "./ShortcutsModal";
@@ -358,9 +358,8 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
     const root=document.documentElement,values=workspaceThemeStyle(workspaceThemes.canvas,theme,false,logoStyle);
     const previous=new Map(Object.keys(values).filter(key=>key.startsWith('--')).map(key=>[key,root.style.getPropertyValue(key)]));
     const attribute=root.getAttribute('data-workspace-ui');root.setAttribute('data-workspace-ui','true');
-    const skin=root.getAttribute('data-board-skin');if(isWhiteboardSkin(workspaceThemes.canvas))root.setAttribute('data-board-skin','whiteboard');else root.removeAttribute('data-board-skin');
     for(const [key,value]of Object.entries(values))if(key.startsWith('--'))root.style.setProperty(key,String(value));
-    return()=>{for(const [key,value]of previous)if(value)root.style.setProperty(key,value);else root.style.removeProperty(key);if(attribute===null)root.removeAttribute('data-workspace-ui');else root.setAttribute('data-workspace-ui',attribute);if(skin===null)root.removeAttribute('data-board-skin');else root.setAttribute('data-board-skin',skin);};
+    return()=>{for(const [key,value]of previous)if(value)root.style.setProperty(key,value);else root.style.removeProperty(key);if(attribute===null)root.removeAttribute('data-workspace-ui');else root.setAttribute('data-workspace-ui',attribute);};
   },[workspaceThemes.canvas,theme,logoStyle]);
 
   // Retire caches from the previous installable version without touching boards.
@@ -534,9 +533,6 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
   }, [selectedTool]);
 
   useEffect(() => { engineRef.current?.setBackground(canvasBackground(board.background,theme,workspaceThemes.canvas)); }, [board.background,theme,workspaceThemes.canvas]);
-  // The Whiteboard prints its blue grid only on its own board surface, not on custom fills.
-  const whiteboardSurface = isWhiteboardSkin(workspaceThemes.canvas) && displayBackground.fill.toLowerCase() === workspacePalette(workspaceThemes.canvas, theme).background;
-  useEffect(() => { engineRef.current?.setGridTint(whiteboardSurface ? whiteboardGridTint(theme) : null); }, [whiteboardSurface, theme]);
 
   useEffect(() => {
     engineRef.current?.setTheme(theme);
@@ -1168,7 +1164,6 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
         >
             {dragFiles&&<div aria-hidden="true" className="pointer-events-none absolute inset-2 z-40 flex items-center justify-center rounded-xl border-2 border-dashed border-neutral-400 bg-neutral-500/10 text-sm text-neutral-200">Drop images or files onto this board</div>}
             <canvas ref={canvasRef} tabIndex={0} aria-label="Drawing canvas" data-theme={theme} data-background={displayBackground.fill} className="block touch-none select-none" style={{ backgroundColor: displayBackground.fill, backgroundImage: lightCanvas ? "conic-gradient(#e4e4e7 25%, transparent 0 50%, #e4e4e7 0 75%, transparent 0)" : "conic-gradient(#27272a 25%, transparent 0 50%, #27272a 0 75%, transparent 0)", backgroundSize: "16px 16px" }} />
-            {whiteboardSurface && <div aria-hidden="true" data-testid="whiteboard-glass" className="whiteboard-glass pointer-events-none absolute inset-0" />}
 
             {showWelcome && <CanvasWelcome
               theme={theme}

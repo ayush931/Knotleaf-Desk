@@ -544,14 +544,12 @@ export function drawGrid(
   pan: Point,
   zoom: number,
   gridType: GridType,
-  light = false,
-  tint?: { dotColor: string; lineColor: string } | null
+  light = false
 ) {
   if (gridType === "none") return;
 
   // Keep the on-screen spacing readable when zoomed far out.
-  const { spacing, radius, ...defaults } = gridAppearance(zoom, light);
-  const { dotColor, lineColor } = tint ?? defaults;
+  const { spacing, radius, dotColor, lineColor } = gridAppearance(zoom, light);
   const startX = ((pan.x % spacing) + spacing) % spacing;
   const startY = ((pan.y % spacing) + spacing) % spacing;
 
