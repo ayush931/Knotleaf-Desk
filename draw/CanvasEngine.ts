@@ -1,5 +1,5 @@
 import { layoutCodeText } from './codeText';
-import { cardCornerRadius } from "./renderer";
+import { cardCornerRadius, selectionCornerRadius } from "./renderer";
 import { clearRangeOverrides, editRanges } from "./textRanges";
 import { arrangementDeltas, type Arrangement } from "./arrangement";
 import { canvasBackground, setCanvasUiPalette, type CanvasUiPalette } from "./canvasAppearance";
@@ -1314,7 +1314,7 @@ export class CanvasEngine {
     }
 
     if (selected.length > 1) {
-      for (const el of selected) drawBoundsOutline(ctx, getElementBounds(el, this.elements), this.zoom, getSelectionPadding(el, this.zoom), true, lightUi, cardCornerRadius(el));
+      for (const el of selected) drawBoundsOutline(ctx, getElementBounds(el, this.elements), this.zoom, getSelectionPadding(el, this.zoom), true, lightUi, selectionCornerRadius(el, this.zoom));
       const group = unionBounds(selected.map(el => getElementBounds(el, this.elements)));
       if (group) drawBoundsOutline(ctx, group, this.zoom, SELECTION_PADDING / this.zoom, true, lightUi);
     }

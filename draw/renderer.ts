@@ -219,11 +219,17 @@ export function cardCornerRadius(el: CanvasElement): number {
   if(el.type === "text" && (el.isDocCard||el.isCodeCard||el.attachment||el.fill&&el.fill!=="transparent"))return el.isCodeCard||el.attachment?10:12;
   return 0;
 }
+/** Corner radius of the selection outline: the painted corner plus the margin, so the outline stays concentric. */
+export function selectionCornerRadius(el: CanvasElement, zoom: number): number {
+  const radius = cardCornerRadius(el);
+  return radius ? radius + getSelectionPadding(el, zoom) : 0;
+}
+/** Every element gets the same small screen-space margin between its content and its outline. */
 export function getSelectionPadding(el: CanvasElement, zoom: number) {
-  if(el.type==="sticky" || el.type==="text" && (el.isDocCard||el.isCodeCard||el.fill!=="transparent"&&el.fillStyle!=="none"))return 0;
   const pad = SELECTION_PADDING / (zoom || 1);
-  // Text ports have a fixed content offset; keep the outline inside those ports at low zoom.
-  return el.type === "text" ? Math.min(pad, TEXT_PORT_PADDING / 2) : pad;
+  // Plain text ports have a fixed content offset; keep its outline inside those ports at low zoom.
+  const plainText = el.type === "text" && !el.isDocCard && !el.isCodeCard && (el.fill === "transparent" || el.fillStyle === "none");
+  return plainText ? Math.min(pad, TEXT_PORT_PADDING / 2) : pad;
 }
 
 export function getElementAnchors(el: CanvasElement): { anchor: AnchorPosition; x: number; y: number }[] {
@@ -1871,7 +1877,7 @@ export function drawSelection(ctx: CanvasRenderingContext2D, el: CanvasElement, 
   } else {
     const b = getElementBounds(el);
     const pad = getSelectionPadding(el, z);
-    drawBoundsOutline(ctx, b, z, pad, false, lightCanvas, cardCornerRadius(el));
+    drawBoundsOutline(ctx, b, z, pad, false, lightCanvas, selectionCornerRadius(el, z));
     drawResizeHandles(ctx, b, z, hasSideResizeHandles(el), pad, lightCanvas);
   }
   ctx.restore();
