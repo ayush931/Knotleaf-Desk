@@ -206,13 +206,15 @@ test('template picker searches, clears, filters and recovers from insertion erro
   let calls = 0, closeCount = 0, release;
   await act(async () => root.render(React.createElement(TemplatesModal, { isOpen: true, theme: 'dark', onClose: () => closeCount++, onSelectTemplate: async () => { calls++; await new Promise(resolve => { release = resolve; }); throw new Error('Test insertion failure'); } })));
   expect(document.activeElement).toBe(named('Search templates'));
-  expect(document.querySelectorAll('article')).toHaveLength(12);
+  expect(document.querySelectorAll('article')).toHaveLength(15);
   const setter = Object.getOwnPropertyDescriptor(browser.HTMLInputElement.prototype, 'value').set;
   await act(async () => { setter.call(named('Search templates'), 'no matching diagram'); named('Search templates').dispatchEvent(new browser.Event('input', { bubbles: true })); });
   expect(document.querySelectorAll('article')).toHaveLength(0); expect(document.body.textContent).toContain('No matching templates');
-  await clickNamed('Clear template search'); expect(document.querySelectorAll('article')).toHaveLength(12);
+  await clickNamed('Clear template search'); expect(document.querySelectorAll('article')).toHaveLength(15);
   await act(async () => [...document.querySelectorAll('button')].find(button => button.textContent === 'Planning').click());
   expect(document.querySelectorAll('article')).toHaveLength(5);
+  await act(async () => [...document.querySelectorAll('button')].find(button => button.textContent === 'Strategy').click());
+  expect(document.querySelectorAll('article')).toHaveLength(3);
   const add = document.querySelector('article button');
   await act(async () => { add.click(); add.click(); }); expect(calls).toBe(1); expect(named('Close templates').disabled).toBe(true);
   await act(async () => document.querySelector('dialog').dispatchEvent(new browser.Event('cancel', { cancelable: true })));
@@ -244,6 +246,18 @@ for (const mode of ['canvas', 'notes', 'split']) {
     expect(board.markdownNotes).toContain('# Cloud web application'); expect(board.markdownNotes).toContain('# Mind map');
   });
 }
+test('strategy templates insert an editable planning board with starter notes', async () => {
+  const id = await renderBoard();
+  await clickNamed('Browse diagram templates');
+  await act(async () => [...document.querySelectorAll('button')].find(button => button.textContent === 'Strategy').click());
+  expect(document.querySelectorAll('article')).toHaveLength(3);
+  await clickNamed('Add template: Lean canvas');
+  const board = getBoard(id);
+  expect(board.elements.filter(el => el.type === 'sticky')).toHaveLength(6);
+  expect(board.elements.filter(el => el.type === 'frame')).toHaveLength(3);
+  expect(board.markdownNotes).toContain('# Lean canvas');
+  expect(named('Appearance settings')).toBeNull();
+});
 test('bug reporting prepares a reviewable public issue, excludes private context and supports copy fallback', async () => {
   await act(async () => root.render(React.createElement(BugReportForm)));
   const inputSetter = Object.getOwnPropertyDescriptor(browser.HTMLInputElement.prototype, 'value').set;
@@ -659,6 +673,43 @@ test('arrangement controls expose all eight actions and count attached labels as
 test('multiple selected objects retain Appearance selection actions',async()=>{
  let duplicated=0;await act(async()=>root.render(React.createElement(Inspector,{props:{selectedElement:null,selectionCount:3,onDuplicate(){duplicated++;}}})));
  await clickNamed('Open appearance settings');expect(!!named('Selection actions')).toBe(true);await clickNamed('Duplicate selection');expect(duplicated).toBe(1);expect(!!named('Delete selection')).toBe(true);
+});
+test('Ink Studio offers four inks and updates the selected pencil and future strokes',async()=>{
+ const updates=[],styles=[];
+ const pencil={...DEFAULT_STYLE,id:'ink-pencil',type:'pencil',x:10,y:20,width:120,height:40,strokeWidth:2,inkStyle:undefined,points:[{x:10,y:20},{x:40,y:30}]};
+ const props={...inspectorProps,isOpen:true,onOpenChange(){},selectedElement:pencil,onUpdateElement:value=>updates.push(value),onUpdateStyle:value=>styles.push(value)};
+ await act(async()=>root.render(React.createElement(PropertiesPanel,props)));
+ const group=document.querySelector('[role="group"][aria-label="Ink styles"]');
+ expect(!!group).toBe(true);expect(group.querySelectorAll('button')).toHaveLength(4);
+ expect(named('Marker').getAttribute('aria-pressed')).toBe('true');
+ await clickNamed('Brush');
+ expect(updates.at(-1)).toEqual({inkStyle:'brush'});expect(styles.at(-1)).toEqual({inkStyle:'brush'});
+ await act(async()=>root.render(React.createElement(PropertiesPanel,{...props,selectedElement:{...pencil,inkStyle:'brush'}})));
+ expect(named('Brush').getAttribute('aria-pressed')).toBe('true');
+ await clickNamed('Ink weight 4');expect(updates.at(-1)).toEqual({strokeWidth:4});expect(styles.at(-1)).toEqual({strokeWidth:4});
+ await act(async()=>root.render(React.createElement(PropertiesPanel,{...props,selectedElement:{...pencil,inkStyle:'technical'}})));
+ expect(named('Technical').getAttribute('aria-pressed')).toBe('true');
+});
+test('selection action bar applies quick colors and exposes duplicate, order, style and delete',async()=>{
+ const {SelectionActionBar}=await import('../components/SelectionActionBar.tsx');
+ const shape={...inspectorShape,id:'bar-shape',stroke:'#111111'};let color,duplicated=0,deleted=0,front=0,back=0,appearance=0;
+ await act(async()=>root.render(React.createElement(SelectionActionBar,{selection:[shape],onColor:value=>{color=value;},onDuplicate(){duplicated++;},onDelete(){deleted++;},onBringToFront(){front++;},onSendToBack(){back++;},onOpenAppearance(){appearance++;}})));
+ expect(!!named('Selection action bar')).toBe(true);expect(named('1 selected')).toBeTruthy();
+ await clickNamed('Selection color Iris');expect(color).toBe('#A78BFA');
+ await clickNamed('Duplicate selected objects');expect(duplicated).toBe(1);
+ await clickNamed('Bring selection to front');expect(front).toBe(1);
+ await clickNamed('Send selection to back');expect(back).toBe(1);
+ await clickNamed('Customize selection');expect(appearance).toBe(1);
+ await clickNamed('Delete selected objects');expect(deleted).toBe(1);
+ await act(async()=>root.render(React.createElement(SelectionActionBar,{selection:[shape,{...shape,id:'second',stroke:'#222222'}],onColor(){},onDuplicate(){},onDelete(){},onBringToFront(){},onSendToBack(){},onOpenAppearance(){}})));
+ expect(named('2 selected')).toBeTruthy();expect(named('Selection color Iris').getAttribute('aria-pressed')).toBe('false');
+});
+test('selection action bar styles and duplicates a freshly drawn shape without opening Appearance',async()=>{
+ const id=await renderBoard();await clickNamed('Rectangle (R)');await boardPointer('pointerdown',100,100);await boardPointer('pointermove',240,200);await boardPointer('pointerup',240,200);
+ expect(!!named('Selection action bar')).toBe(true);expect(named('1 selected')).toBeTruthy();
+ await clickNamed('Selection color Iris');expect(getBoard(id).elements[0].stroke).toBe('#A78BFA');
+ await clickNamed('Duplicate selected objects');expect(getBoard(id).elements).toHaveLength(2);expect(named('Appearance settings')).toBeNull();
+ await clickNamed('Customize selection');expect(!!named('Appearance settings')).toBe(true);
 });
 test('keyboard shortcuts use a themed native modal, Mac labels, Escape and restored focus',async()=>{
  const {ShortcutsModal}=await import('../components/ShortcutsModal.tsx');

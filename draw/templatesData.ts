@@ -12,7 +12,7 @@ export interface TemplateDefinition {
   id: string;
   name: string;
   description: string;
-  category: "architecture" | "flowchart" | "system-design" | "agile";
+  category: "architecture" | "flowchart" | "system-design" | "agile" | "strategy";
   elements: CanvasElement[];
   markdownNotes: string;
 }
@@ -353,6 +353,41 @@ const journey = columns(
   ],
   ["#93C5FD", "#FEF08A", "#86EFAC"],
 );
+const leanCanvas = columns(
+  "lean",
+  "Lean canvas",
+  ["Problem", "Solution", "Value"],
+  [
+    ["Top problem worth solving", "Who feels it most acutely?"],
+    ["Simplest promise that helps", "Smallest test that proves it"],
+    ["Why this is different", "One sentence a customer repeats"],
+  ],
+  ["#F9A8D4", "#93C5FD", "#86EFAC"],
+);
+const okr = columns(
+  "okr",
+  "Quarterly OKRs",
+  ["Objective", "Key results", "Signals"],
+  [
+    ["What meaningful change will we create?", "Why does it matter now?"],
+    ["Measure 1 · baseline → target", "Measure 2 · baseline → target"],
+    ["Leading signal to watch weekly", "Guardrail we must not break"],
+  ],
+  ["#C4B5FD", "#FEF08A", "#93C5FD"],
+);
+const decisionMatrix = new Diagram("decision", "Decision matrix");
+[
+  ["Option A", "Fast to validate", "Low switching cost", "#93C5FD"],
+  ["Option B", "Stronger long-term moat", "Higher build effort", "#FEF08A"],
+  ["Option C", "Best customer fit", "Needs a partner", "#86EFAC"],
+  ["Criteria", "Impact · Confidence · Effort", "Choose after scoring", "#C4B5FD"],
+].forEach(([heading, a, b, color], i) => {
+  const x = (i % 2) * 400,
+    y = 90 + Math.floor(i / 2) * 320;
+  decisionMatrix.frame(`section-${i}`, heading, x, y, 360, 280, color);
+  decisionMatrix.sticky(`a-${i}`, a, x + 24, y + 40, 312, color, 96);
+  decisionMatrix.sticky(`b-${i}`, b, x + 24, y + 160, 312, color, 96);
+});
 
 const swot = new Diagram("swot", "SWOT analysis");
 [
@@ -548,6 +583,27 @@ export const TEMPLATES: TemplateDefinition[] = [
     "A balanced four-quadrant board for strengths, weaknesses, opportunities and threats.",
     "agile",
     "# SWOT analysis\n\n## Synthesis\n- Separate internal capabilities from external conditions.\n- Ground each observation in evidence.\n- [ ] Choose the most useful next action.",
+  ),
+  leanCanvas.finish(
+    "lean-canvas",
+    "Lean canvas",
+    "Pressure-test a new idea across problem, solution and value in three columns.",
+    "strategy",
+    "# Lean canvas\n\n## Working notes\n- Write the problem from the customer's point of view.\n- Keep the solution to the smallest credible promise.\n- State the value in the customer's own words.\n\n## Next step\n- [ ] Interview five people who feel the problem.",
+  ),
+  okr.finish(
+    "quarterly-okrs",
+    "Quarterly OKRs",
+    "Turn one objective into measurable key results and the signals that keep it honest.",
+    "strategy",
+    "# Quarterly OKRs\n\n## Rules\n- One ambitious objective per quarter.\n- Key results are outcomes, not tasks.\n- Name a single owner for each result.\n\n## Review\n- [ ] Set baselines before the quarter starts.\n- [ ] Check progress every two weeks.",
+  ),
+  decisionMatrix.finish(
+    "decision-matrix",
+    "Decision matrix",
+    "Compare three options against shared criteria before committing to a direction.",
+    "strategy",
+    "# Decision matrix\n\n## Scoring\n- Agree on criteria before evaluating options.\n- Score impact, confidence and effort.\n- Record the reasoning, not just the winner.\n\n## Follow-up\n- [ ] Pick the reversible next step.\n- [ ] Set a date to revisit the decision.",
   ),
   mind.finish(
     "mind-map",

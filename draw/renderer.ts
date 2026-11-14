@@ -24,6 +24,7 @@ import { getIconById } from "./iconsData";
 import { getImageResource } from "./imageResource";
 import { getIconImage, readIconInk, type IconInkBounds } from "./iconSvg";
 import { FONT_OPTIONS } from "./fonts";
+import { inkWidths, smoothInkWidths } from "./ink";
 
 export const ACCENT = "#3B82F6";
 export const uiAccent = (light = false) => light ? "#000000" : "#FFFFFF";
@@ -1280,13 +1281,46 @@ function drawPencil(ctx: CanvasRenderingContext2D, el: CanvasElement) {
   if (el.type !== "pencil" || el.points.length < 2) return;
   const pts = el.points;
   ctx.strokeStyle = el.stroke;
-  ctx.lineWidth = el.strokeWidth || 2;
   ctx.setLineDash([]);
-  ctx.beginPath();
-  smoothPath(ctx, pts);
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
   const bounds = getElementBounds(el);
   drawBackgroundFill(ctx, el, () => { smoothPath(ctx, pts); ctx.closePath(); }, { x: bounds.minX, y: bounds.minY, width: bounds.maxX - bounds.minX, height: bounds.maxY - bounds.minY });
-  ctx.beginPath(); smoothPath(ctx, pts); ctx.stroke();
+
+  const style = el.inkStyle;
+  if (!style || style === "marker" || style === "technical") {
+    ctx.beginPath();
+    smoothPath(ctx, pts);
+    ctx.lineWidth = style === "technical" ? Math.max(1, (el.strokeWidth || 2) * 0.62) : style === "marker" ? Math.max(1, (el.strokeWidth || 2) * 1.08) : (el.strokeWidth || 2);
+    ctx.stroke();
+    return;
+  }
+  drawVariableInk(ctx, pts, smoothInkWidths(inkWidths(pts, el.strokeWidth || 2, style)));
+}
+
+/** Draw a smoothed freehand path in short segments so each sample can own its width. */
+function drawVariableInk(ctx: CanvasRenderingContext2D, pts: { x: number; y: number }[], widths: readonly number[]) {
+  if (pts.length < 2) return;
+  if (pts.length === 2) {
+    ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y); ctx.lineTo(pts[1].x, pts[1].y);
+    ctx.lineWidth = widths[1] ?? widths[0] ?? 2; ctx.stroke();
+    return;
+  }
+  let start = { x: pts[0].x, y: pts[0].y };
+  for (let index = 1; index < pts.length; index++) {
+    const point = pts[index];
+    const last = index === pts.length - 1;
+    const end = last
+      ? point
+      : { x: (point.x + pts[index + 1].x) / 2, y: (point.y + pts[index + 1].y) / 2 };
+    ctx.beginPath();
+    ctx.moveTo(start.x, start.y);
+    if (last) ctx.lineTo(end.x, end.y);
+    else ctx.quadraticCurveTo(point.x, point.y, end.x, end.y);
+    ctx.lineWidth = Math.max(0.5, widths[index] ?? widths[widths.length - 1] ?? 2);
+    ctx.stroke();
+    start = end;
+  }
 }
 
 

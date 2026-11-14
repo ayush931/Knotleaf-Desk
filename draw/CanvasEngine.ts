@@ -8,6 +8,7 @@ import { capturePointer, isContextPointer, releasePointer } from "@/lib/pointerI
 import { CODE_CARD_FILL, DOCUMENT_CARD_FILL, MIN_CODE_WIDTH, MIN_CODE_HEIGHT } from "./cardAppearance";
 import { sceneFontFamilies } from "./fonts";
 import { HIGHLIGHTER_LIFETIME, HIGHLIGHTER_LIMIT, liveHighlights, type HighlightPoint } from "./highlighter";
+import { smoothPressure, velocityPressure } from "./ink";
 import { isLocalAsset } from "@/lib/localAssets.mjs";
 import { DEFAULT_BACKGROUND, normalizeBackground, isLightBackground } from "@/lib/background.mjs";
 import { drawCanvasBackground, drawBackgroundFill } from "./backgroundFill";
@@ -161,7 +162,7 @@ function translateElement(snap: CanvasElement, dx: number, dy: number, movedIds:
     return syncLineBox(next);
   }
   if (snap.type === "pencil") {
-    const points = snap.points.map((p) => ({ x: p.x + dx, y: p.y + dy }));
+    const points = snap.points.map((p) => ({ ...p, x: p.x + dx, y: p.y + dy }));
     return { ...snap, points, x: snap.x + dx, y: snap.y + dy };
   }
   return { ...snap, x: snap.x + dx, y: snap.y + dy };
@@ -334,6 +335,8 @@ export class CanvasEngine {
   private lastTap: { time: number; clientX: number; clientY: number; pointerType: string } | null = null;
   private lastDoubleActivation = 0;
   private draft: CanvasElement | null = null;
+  /** Last freehand sample used to infer pressure from pointer speed. */
+  private inkTip: { x: number; y: number; time: number; pressure: number } | null = null;
   private marqueeRect: Bounds | null = null;
   private hoveredAnchors: Anchor[] = [];
   private snapTarget: { anchor: AnchorPosition } | null = null;
@@ -407,6 +410,7 @@ export class CanvasEngine {
   public setTool(tool: Tool) {
     if (this.gesture) this.cancelGesture();
     this.tool = tool;
+    this.inkTip = null;
     if (tool !== "select") {
       this.selectedIds.clear();
       this.emitSelection();
@@ -988,7 +992,7 @@ export class CanvasEngine {
         return syncLineBox(copy);
       }
       if (copy.type === "pencil") {
-        copy.points = copy.points.map((p) => ({ x: p.x + offset, y: p.y + offset }));
+        copy.points = copy.points.map((p) => ({ ...p, x: p.x + offset, y: p.y + offset }));
       }
       if (copy.type === "text" && copy.containerId) {
         if (idMap.has(copy.containerId)) copy.containerId = idMap.get(copy.containerId)!;
@@ -1948,7 +1952,7 @@ export class CanvasEngine {
     }
 
     this.gesture = { kind: "draft", origin: this.snapPoint(pt), downClient: { x: e.clientX, y: e.clientY } };
-    this.draft = this.createDraft(pt);
+    this.draft = this.createDraft(pt, this.tool, this.tool === "pencil" ? this.beginInk(e, pt) : undefined);
     if (this.draft.type === "arrow" || this.draft.type === "line") {
       const snap = this.findNearestAnchor(pt);
       const shape = snap ? null : this.bindableShapeAt(pt);
@@ -1964,6 +1968,35 @@ export class CanvasEngine {
     }
     this.requestRender();
   };
+
+  private inkTime() {
+    return typeof performance !== "undefined" ? performance.now() : Date.now();
+  }
+
+  /** Start a stroke with a sensible pressure seed before the pointer has moved. */
+  private beginInk(e: PointerEvent, pt: Point): number {
+    this.inkTip = null;
+    const pressure = e.pointerType === "pen" && typeof e.pressure === "number" && e.pressure > 0
+      ? Math.max(0.08, Math.min(1, e.pressure))
+      : 0.58;
+    this.inkTip = { x: pt.x, y: pt.y, time: this.inkTime(), pressure };
+    return pressure;
+  }
+
+  /** Pen pressure when available; otherwise a soft speed-to-pressure estimate. */
+  private pressureForPointer(e: PointerEvent, pt: Point): number {
+    const now = this.inkTime();
+    const previous = this.inkTip;
+    const reported = e.pointerType === "pen" && typeof e.pressure === "number" && e.pressure > 0
+      ? Math.max(0.08, Math.min(1, e.pressure))
+      : undefined;
+    const next = reported ?? (previous
+      ? velocityPressure(Math.hypot(pt.x - previous.x, pt.y - previous.y), now - previous.time)
+      : 0.58);
+    const pressure = previous ? smoothPressure(previous.pressure, next) : next;
+    this.inkTip = { x: pt.x, y: pt.y, time: now, pressure };
+    return pressure;
+  }
 
   private onPointerLeave = () => { this.eraserPointer=null;this.requestRender(); };
 
@@ -2022,10 +2055,11 @@ export class CanvasEngine {
           try { samples = e.getCoalescedEvents(); } catch { /* Use the dispatched event below. */ }
           for (const sample of samples) {
             // Reuse this event's canvas offset; avoid an extra layout read for every sample.
-            this.updateDraft(this.screenToCanvas(sp.x + sample.clientX - e.clientX, sp.y + sample.clientY - e.clientY));
+            const samplePoint = this.screenToCanvas(sp.x + sample.clientX - e.clientX, sp.y + sample.clientY - e.clientY);
+            this.updateDraft(samplePoint, this.pressureForPointer(sample, samplePoint));
           }
         }
-        this.updateDraft(pt);
+        this.updateDraft(pt, this.draft?.type === "pencil" ? this.pressureForPointer(e, pt) : undefined);
         break;
     }
     this.requestRender();
@@ -2047,6 +2081,7 @@ export class CanvasEngine {
     }
     this.gesture = null;
     this.draft = null;
+    this.inkTip = null;
     this.marqueeRect = null;
     this.guides = [];
     this.hoveredAnchors = [];
@@ -2261,7 +2296,7 @@ export class CanvasEngine {
 
   // --- Gesture helpers -----------------------------------------------------------------
 
-  private createDraft(pt: Point, tool: Tool = this.tool): CanvasElement {
+  private createDraft(pt: Point, tool: Tool = this.tool, pressure?: number): CanvasElement {
     const id = newId();
     const style = this.currentStyle;
     const base = {
@@ -2317,11 +2352,16 @@ export class CanvasEngine {
         } as LineElement;
       case "pencil":
       default:
-        return { ...base, type: "pencil", points: [pt] };
+        return {
+          ...base,
+          type: "pencil",
+          points: [{ ...pt, ...(pressure === undefined ? {} : { pressure }) }],
+          inkStyle: style.inkStyle || "fountain",
+        };
     }
   }
 
-  private updateDraft(pt: Point) {
+  private updateDraft(pt: Point, pressure?: number) {
     const d = this.draft;
     if (!d) return;
     const origin = d.type === "arrow" || d.type === "line"
@@ -2333,7 +2373,12 @@ export class CanvasEngine {
       // Draft points are transient and unshared until pointerup commits this stroke.
       // Append in place so a long fast stroke does not copy its entire path on every move.
       const last = d.points[d.points.length - 1];
-      if (!last || last.x !== pt.x || last.y !== pt.y) d.points.push(pt);
+      const distance = last ? Math.hypot(pt.x - last.x, pt.y - last.y) : 0;
+      // Sub-pixel samples add weight without improving the visible line.
+      if (!last || distance >= 0.35) {
+        const nextPressure = pressure ?? last?.pressure;
+        d.points.push({ x: pt.x, y: pt.y, ...(nextPressure === undefined ? {} : { pressure: nextPressure }) });
+      }
       return;
     }
 
@@ -2415,6 +2460,7 @@ export class CanvasEngine {
   private finishDraft() {
     const d = this.draft;
     this.draft = null;
+    this.inkTip = null;
     if (!d) return;
 
     let keep: boolean;
@@ -2509,7 +2555,7 @@ export class CanvasEngine {
       if (el.id !== id) return el;
       if (dx === 0 && dy === 0) return snapshot;
       const rect = { x: x0, y: y0, width: x1 - x0, height: y1 - y0 };
-      if (snapshot.type === "pencil") return { ...snapshot, ...rect, points: snapshot.points.map(p => ({ x: x0 + (p.x - r.x) * rect.width / Math.max(r.w, 1), y: y0 + (p.y - r.y) * rect.height / Math.max(r.h, 1) })) };
+      if (snapshot.type === "pencil") return { ...snapshot, ...rect, points: snapshot.points.map(p => ({ ...p, x: x0 + (p.x - r.x) * rect.width / Math.max(r.w, 1), y: y0 + (p.y - r.y) * rect.height / Math.max(r.h, 1) })) };
       if (snapshot.type === "text") {
         if (snapshot.isCodeCard) {
           const width = Math.max(MIN_CODE_WIDTH, rect.width), height = Math.max(MIN_CODE_HEIGHT, rect.height);

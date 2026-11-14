@@ -30,6 +30,8 @@ export type BulletVariant =
 export type StrokeStyle = "solid" | "dashed" | "dotted" | "rough";
 export type FillStyle = "solid" | "semi" | "none" | "hachure" | "crosshatch" | "dots";
 export type Roundness = "sharp" | "rounded";
+/** How a freehand stroke turns pen pressure into ink width. */
+export type InkStyle = "fountain" | "brush" | "marker" | "technical";
 import type { FontFamily } from "./fonts";
 export type { FontFamily } from "./fonts";
 export type TextAlign = "left" | "center" | "right";
@@ -76,6 +78,11 @@ export interface InlineTextState extends TextFormatting {
 export interface Point {
   x: number;
   y: number;
+}
+
+/** A freehand sample with optional pen pressure, where 0 is light and 1 is firm. */
+export interface InkPoint extends Point {
+  pressure?: number;
 }
 
 export interface BaseElement {
@@ -153,7 +160,9 @@ export interface LineElement extends BaseElement {
 
 export interface PencilElement extends BaseElement {
   type: "pencil";
-  points: Point[];
+  points: InkPoint[];
+  /** Missing on older boards, which keep their original constant-width ink. */
+  inkStyle?: InkStyle;
 }
 
 export interface AttachmentData { name: string; mimeType: string; size: number; source: string }
@@ -275,6 +284,8 @@ export interface ElementStyleProps extends TextFormatting {
   arrowHeadStart?: ArrowHead;
   arrowHeadEnd?: ArrowHead;
   arrowAnimated?: boolean;
+  /** Freehand ink character for new pencil strokes. */
+  inkStyle?: InkStyle;
 }
 
 /** Default style applied to new elements and shown when nothing is selected. */
@@ -295,4 +306,5 @@ export const DEFAULT_STYLE: ElementStyleProps = {
   arrowHeadStart: "none",
   arrowHeadEnd: "arrow",
   arrowAnimated: false,
+  inkStyle: "fountain",
 };
