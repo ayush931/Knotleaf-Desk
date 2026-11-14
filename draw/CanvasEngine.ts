@@ -245,6 +245,9 @@ function pruneBindings(list: CanvasElement[]): CanvasElement[] {
   });
 }
 
+
+/** Freehand tools where double taps are ink, not commands. */
+const WRITING_TOOLS: ReadonlySet<string> = new Set(["pencil", "highlighter", "eraser"]);
 export class CanvasEngine {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
@@ -2107,7 +2110,9 @@ export class CanvasEngine {
   }
 
   private onDoubleClick = (e: MouseEvent) => {
-    if (this.tool === "highlighter") return;
+    // Writing tools stay in writing mode: a quick pen double tap (dotting an
+    // "i", a colon, a period) must never select content or switch tools.
+    if (WRITING_TOOLS.has(this.tool)) return;
     if (this.readOnly || this.spaceDown || e.button !== 0 || isContextPointer(e)) return;
     e.preventDefault();
     this.cancelGesture();

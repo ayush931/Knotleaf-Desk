@@ -704,7 +704,7 @@ test('document title cannot overlap the first line and list text resets inherite
 });
 
 
-for (const tool of ['select', 'hand', 'rectangle', 'diamond', 'circle', 'arrow', 'line', 'pencil', 'frame']) {
+for (const tool of ['select', 'hand', 'rectangle', 'diamond', 'circle', 'arrow', 'line', 'frame']) {
   test(`double-click on a border selects existing content with ${tool} active`, () => {
     const { engine, listeners, point } = setup([source]);
     let editor; engine.onStartInlineText = state => { editor = state; };
@@ -725,7 +725,7 @@ test('line midpoint bending follows the pointer, hits the curve, and supports un
   let bent = engine.getElements()[0]; expect(bent.bendOffset).toBe(120);
   expect(computeLinePath(bent).midPt).toEqual({ x: 200, y: 160 });
   expect(getElementBounds(bent).maxY).toBeGreaterThanOrEqual(160);
-  engine.setTool('pencil'); listeners.dblclick(point(200, 160));
+  engine.setTool('select'); listeners.dblclick(point(200, 160));
   expect(engine.getSelectedElements()[0].id).toBe('line');
   drag(200, 160, 200, 60); expect(engine.getElements()[0].bendOffset).toBe(-80);
   engine.undo(); expect(engine.getElements()[0].bendOffset).toBe(120);
@@ -812,10 +812,17 @@ for (const [type, extra, x, y] of [
   ['arrow', { startX: 100, startY: 100, endX: 220, endY: 180, routing: 'straight' }, 160, 140],
   ['icon', { iconName: 'cloud' }, 130, 120],
 ]) {
-  test(`double-click selects ${type} elements from Pencil`, () => {
+  test(`fast pen double tap on ${type} keeps writing with Draw, Highlighter and Eraser`, () => {
     const el = { ...source, ...extra, type };
-    const { engine, listeners, point } = setup([el]); engine.setTool('pencil'); listeners.dblclick(point(x, y));
-    expect(engine.getSelectedElements().map(el => el.id)).toEqual([source.id]); expect(engine.getTool()).toBe('select'); engine.destroy();
+    for (const tool of ['pencil', 'highlighter', 'eraser']) {
+      const { engine, listeners, point } = setup([el]); engine.setTool(tool);
+      let editor; engine.onStartInlineText = state => { editor = state; };
+      const pen = { ...point(x, y), pointerType: 'pen' };
+      for (let i = 0; i < 2; i++) { listeners.pointerdown(pen); listeners.pointerup(pen); }
+      listeners.dblclick(pen);
+      expect(engine.getTool()).toBe(tool); expect(engine.getSelectedElements()).toEqual([]); expect(editor).toBeUndefined();
+      engine.destroy();
+    }
   });
 }
 
@@ -897,20 +904,20 @@ test('Pencil stays active between strokes, pointer departure, cancellation and u
   expect(engine.getElements()).toHaveLength(2); expect(engine.getTool()).toBe('pencil');
   engine.undo(); expect(engine.getElements()).toHaveLength(1); engine.redo(); expect(engine.getElements()).toHaveLength(2);
   expect(engine.getSelectedElements()).toEqual([]); expect(engine.getTool()).toBe('pencil');
-  listeners.dblclick(point(140, 130)); expect(engine.getTool()).toBe('select'); expect(engine.getSelectedElements()[0].type).toBe('pencil');
+  listeners.dblclick(point(140, 130)); expect(engine.getTool()).toBe('pencil'); expect(engine.getSelectedElements()).toEqual([]);
   engine.destroy();
 });
 
 for (const type of ['rectangle', 'diamond', 'circle']) {
   test(`double-click inside ${type} opens attached text, while its border only selects`, () => {
     const shape = { ...source, type }; const { engine, listeners, point } = setup([shape]); let editor;
-    engine.onStartInlineText = value => { editor = value; }; engine.setTool('pencil');
+    engine.onStartInlineText = value => { editor = value; }; engine.setTool('rectangle');
     listeners.dblclick(point(160, 140)); expect(editor).toMatchObject({ kind: 'new-text', containerId: 'source', canvasX: 160, canvasY: 140 });
     engine.commitInlineText({ ...editor, text: 'Inside shape' });
     const text = engine.getElements().find(el => el.type === 'text'); expect(text.containerId).toBe('source');
     editor = undefined; engine.setTool('select'); listeners.dblclick(point(160, 100));
     expect(editor).toBeUndefined(); expect(engine.getSelectedElements()[0].id).toBe('source');
-    engine.setTool('pencil'); listeners.dblclick(point(text.x + 2, text.y + 2)); expect(editor).toMatchObject({ kind: 'text', elementId: text.id, text: 'Inside shape' });
+    engine.setTool('line'); listeners.dblclick(point(text.x + 2, text.y + 2)); expect(editor).toMatchObject({ kind: 'text', elementId: text.id, text: 'Inside shape' });
     engine.destroy();
   });
 }
