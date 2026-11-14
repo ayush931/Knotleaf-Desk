@@ -1106,17 +1106,21 @@ test('a new code card clears the prior source selection before applying a whole-
  expect(getBoard(id).elements[1].fontFamily).toBe('serif');expect(getBoard(id).elements[1].textRanges?.length||0).toBe(0);expect(getBoard(id).elements[0].fontFamily).toBe(DEFAULT_STYLE.fontFamily);
 });
 
-test('first launch opens a light Whiteboard with its frame, printed grid and skin, and other themes drop the skin', async () => {
+test('first launch opens a light Whiteboard that shares the exact chrome structure of every other theme', async () => {
   await renderBoard('canvas', { preferences: null });
   const html = document.documentElement, canvas = document.querySelector('canvas[aria-label="Drawing canvas"]');
+  const structure = () => ({
+    rootAttributes: [...html.attributes].map(a => a.name).filter(n => n.startsWith('data-')).sort(),
+    canvasSiblings: [...canvas.parentElement.children].map(el => el.tagName + '.' + [...el.classList].sort().join('.')),
+    toolbar: document.querySelector('[role="toolbar"][aria-label="Drawing tools"]').className,
+    header: document.querySelector('.workspace-header').className,
+  });
   expect(html.classList.contains('light')).toBe(true);
-  expect(html.dataset.boardSkin).toBe('whiteboard');
   expect(canvas.dataset.background).toBe('#fbfcfd');
-  expect(document.querySelector('[data-testid="whiteboard-glass"]')).not.toBeNull();
+  const whiteboard = structure();
+  expect(whiteboard.rootAttributes).not.toContain('data-board-skin');
   await clickNamed('Canvas and notes themes'); await clickNamed('Theme: Studio');
   await act(async () => [...document.querySelectorAll('button')].find(b => b.textContent === 'Apply theme').click());
-  expect(html.dataset.boardSkin).toBeUndefined();
-  expect(document.querySelector('[data-testid="whiteboard-glass"]')).toBeNull();
-  await act(async () => root.unmount()); root = createRoot(document.getElementById('root'));
-  expect(html.dataset.boardSkin).toBeUndefined();
+  expect(canvas.dataset.background).not.toBe('#fbfcfd');
+  expect(structure()).toEqual(whiteboard);
 });

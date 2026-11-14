@@ -1,7 +1,7 @@
 import type { CSSProperties } from 'react';
 import type { Theme } from '@/draw/types';
 export const WORKSPACE_THEMES = [
- {id:'board',name:'Whiteboard',description:'Glossy marker board in an aluminium frame, with blue, red and green marker caps.'},
+ {id:'board',name:'Whiteboard',description:'Clean board white with marker blue, green and red accents.'},
  {id:'black',name:'Studio',description:'Clear white or ink black, cobalt tools, mint and coral details.'},
  {id:'mono',name:'Tide',description:'Sea-glass surfaces with teal, sky and soft apricot.'},
  {id:'paper',name:'Parchment',description:'Ivory paper, terracotta, olive and warm graphite.'},
@@ -50,7 +50,3 @@ export function workspaceControlPalette(mode:Theme,preset:WorkspaceTheme='black'
   border:mixHex(p.panel,p.ink,mode==='dark'?.19:.16),outline:mixHex(p.panel,p.accent,mode==='dark'?.45:.35),focus:p.accent};
 }
 
-/** The Whiteboard preset renders a physical-board skin (frame, tray, marker caps). */
-export const isWhiteboardSkin=(preset:WorkspaceTheme)=>preset==='board';
-/** Printed board grid: faint blue on white, chalky on the dark glass board. */
-export function whiteboardGridTint(mode:Theme){return mode==='light'?{dotColor:'rgba(36, 92, 176, 0.24)',lineColor:'rgba(36, 92, 176, 0.09)'}:{dotColor:'rgba(196, 222, 255, 0.20)',lineColor:'rgba(196, 222, 255, 0.075)'};}

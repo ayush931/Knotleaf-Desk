@@ -189,8 +189,8 @@ for(const {id}of WORKSPACE_THEMES)for(const mode of ['light','dark'])test(`${id}
  expect(convert.colorToHex(style(add).color)).toBe(control['active-ink']);readable(add,add);
 });
 
-test('premium destructive and whiteboard chrome stay token-driven',()=>{
+test('premium destructive chrome stays token-driven and no theme gets its own layout skin',()=>{
  expect(css).toMatch(/\.selection-delete[^{]*:hover\s*\{[^}]*var\(--ui-tertiary\)/);
  expect(css).not.toMatch(/\.selection-delete[^{]*:hover\s*\{[^}]*(?:#fb7185|#be123c)/i);
- expect(css).toMatch(/data-board-skin="whiteboard"[^{]*\.selection-action-bar\s*\{/);
+ expect(css).not.toMatch(/data-board-skin|whiteboard-glass|--wb-/);
 });
