@@ -68,8 +68,8 @@ export function WritingWorkspace({ boardId, title, theme, initialStrokes, onChan
     try {
       drawing = new CanvasEngine(sheet, initial.strokes, "light", "dot", canvasBackground(undefined, "light"));
     } catch {
-      setError("This browser could not open the drawing surface.");
-      return;
+      const notice = requestAnimationFrame(() => setError("This browser could not open the drawing surface."));
+      return () => cancelAnimationFrame(notice);
     }
     engine.current = drawing;
     drawing.setKeyboardEnabled(false);
@@ -79,9 +79,11 @@ export function WritingWorkspace({ boardId, title, theme, initialStrokes, onChan
     drawing.onZoomChange = value => setZoom(Math.round(value * 100));
     const visibility = () => drawing.setRenderingActive(document.visibilityState !== "hidden");
     document.addEventListener("visibilitychange", visibility);
-    const observer = new ResizeObserver(() => drawing.resize(sheet.clientWidth, sheet.clientHeight));
+    const observer = new ResizeObserver(() => {
+      drawing.resize(sheet.clientWidth, sheet.clientHeight);
+      setReady(true);
+    });
     observer.observe(sheet);
-    setReady(true);
     return () => {
       engine.current = null;
       observer.disconnect();
