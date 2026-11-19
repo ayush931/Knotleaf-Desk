@@ -23,6 +23,7 @@ function stripReveal<T>(token: T): T {
 }
 export async function renderSlide(
   slide: Pick<Slide, "source">,
+  thumbnail = false,
 ): Promise<string> {
   const marked = new Marked({ breaks: false, gfm: true });
   let fragment = 0;
@@ -140,7 +141,7 @@ export async function renderSlide(
     let html = DOMPurify.sanitize(await marked.parse(part), {
       USE_PROFILES: { html: true },
       ADD_TAGS: ["iframe"],
-      FORBID_TAGS: ["style", "input", "form", "button"],
+      FORBID_TAGS: ["style", "input", "form", "button", ...(thumbnail ? ["iframe", "video", "audio"] : [])],
       FORBID_ATTR: [
         "style",
         "srcset",
@@ -154,6 +155,13 @@ export async function renderSlide(
     const template = document.createElement("template");
     template.innerHTML = html;
     template.content.querySelectorAll("a").forEach((link) => {
+      if (thumbnail) {
+        const label = document.createElement("span");
+        label.className = "kl-preview-link";
+        label.append(...link.childNodes);
+        link.replaceWith(label);
+        return;
+      }
       link.target = "_blank";
       link.rel = "noopener noreferrer";
     });

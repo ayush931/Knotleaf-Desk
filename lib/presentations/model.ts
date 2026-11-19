@@ -305,7 +305,7 @@ export function revealCount(source: string) {
     }
     if (
       !fence &&
-      (/^\s*<!--\s*step\s*-->\s*$/.test(line) || /\{reveal\}\s*$/.test(line))
+      (/^\s*<!--\s*step\s*-->\s*$/.test(line) || /(?<!\\)\{reveal\}\s*$/.test(line))
     )
       count++;
   }

@@ -14,6 +14,7 @@ export const COMPOSITIONS = [
   "minimal",
   "editorial",
   "spotlight",
+  "briefing",
 ] as const;
 export const TRANSITIONS = ["slide", "fade", "zoom", "lift", "none"] as const;
 export type Backdrop = (typeof BACKDROPS)[number];

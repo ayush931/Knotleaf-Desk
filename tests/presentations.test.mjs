@@ -174,6 +174,13 @@ test("embeds are isolated and active Markdown attributes are removed", async () 
   expect(html).not.toContain("onerror=");
   expect(html).not.toContain("autoplay");
 });
+test("slide thumbnails keep link labels without mounting interactive media", async () => {
+  const html = await renderSlide({
+    source: '[Example link](https://example.com)\n\n<iframe src="https://example.com"></iframe>\n<video src="https://example.com/demo.mp4"></video>',
+  }, true);
+  expect(html).toContain('class="kl-preview-link">Example link');
+  expect(html).not.toMatch(/<(?:a|iframe|video)\b/);
+});
 test("presentation library creates, duplicates and deletes without resurrecting a removed document", async () => {
   const { newDeck, duplicateDeck, listDecks, deleteDeck, writeDeck } =
     await import("../lib/presentations/library.ts");
@@ -185,6 +192,8 @@ test("presentation library creates, duplicates and deletes without resurrecting 
     "Same title copy",
   );
   const deck = readDeck(localStorage.getItem(deckKey(id)));
+  const draftCopy = duplicateDeck(id, { ...deck, source: "# Unsaved edit", template: "briefing" });
+  expect(loadDeck(draftCopy, "")).toMatchObject({ source: "# Unsaved edit", template: "briefing" });
   deleteDeck(id);
   writeDeck(id, deck);
   expect(localStorage.getItem(deckKey(id))).toBeNull();
@@ -324,6 +333,21 @@ test("story starters provide editable multi-slide structures without private dat
     expect(slides.length).toBeGreaterThanOrEqual(4);
     expect(slides.every((slide) => slide.title && !slide.notes)).toBe(true);
   }
+});
+
+test("slide insertion preserves neighboring source and fills an empty deck", async () => {
+  const { insertSlides } = await import("../lib/presentations/authoring.ts");
+  const source = "# First\n\n<!-- notes: Keep me -->\n\n---\n\n# Last\n";
+  const addition = "# New\n\n```md\n---\n```\n\n---\n\n# Another";
+  const result = insertSlides(source, addition, 0);
+  expect(result.index).toBe(1);
+  const slides = parseSlides(result.source);
+  expect(slides.map((slide) => slide.title)).toEqual(["First", "New", "Another", "Last"]);
+  expect(slides[0].notes).toBe("Keep me");
+  expect(slides[1].source).toContain("```md\n---\n```");
+  expect(insertSlides("\n", addition, 0)).toEqual({ source: addition, index: 0 });
+  expect(insertSlides(source, addition, Infinity).index).toBe(2);
+  expect(insertSlides(source, "    indented code", 0).source).toContain("\n    indented code\n");
 });
 
 test('theme gallery previews the current slide, filters themes, and preserves overrides', async () => {

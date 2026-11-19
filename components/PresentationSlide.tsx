@@ -1,11 +1,15 @@
 "use client";
 import { PresentationAnnotations } from "./PresentationAnnotations";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { Deck, Slide } from "@/lib/presentations/model";
 import { themeBackdrop, themeTypography } from "@/lib/presentations/design";
 import { renderSlide } from "@/lib/presentations/render";
 import { SLIDE_CSS } from "@/lib/presentations/styles";
 import { themeVariables, decorateSlide } from "@/lib/presentations/export";
+export function SlideStyles() {
+  return <style>{SLIDE_CSS}</style>;
+}
+
 export function SlideSurface({
   slide,
   deck,
@@ -16,6 +20,7 @@ export function SlideSurface({
   animationKey,
   direction = 1,
   lazy = false,
+  sharedStyles = false,
 }: {
   slide: Slide;
   deck: Deck;
@@ -26,11 +31,12 @@ export function SlideSurface({
   animationKey?: string;
   direction?: number;
   lazy?: boolean;
+  sharedStyles?: boolean;
 }) {
   const host = useRef<HTMLDivElement>(null),
     surface = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(0),
-    [result, setResult] = useState({ source: "", html: "", error: "" }),
+    [result, setResult] = useState<{ source: string; html: string; error: string } | null>(null),
     [overflow, setOverflow] = useState(false);
   const [visible, setVisible] = useState(!lazy);
   useEffect(() => {
@@ -48,8 +54,12 @@ export function SlideSurface({
     return () => observer.disconnect();
   }, [lazy]);
   const source = slide.source,
-    html = result.html,
-    error = result.source === source ? result.error : "";
+    html = result?.html ?? "",
+    error = result?.source === source ? result.error : "";
+  const backgroundImage = deck.backgroundImage;
+  const markup = useMemo(() => ({
+    __html: decorateSlide(html, { backgroundImage }),
+  }), [backgroundImage, html]);
   const [pointer, setPointer] = useState<{ x: number; y: number } | null>(null);
   useEffect(() => {
     const element = host.current;
@@ -69,7 +79,7 @@ export function SlideSurface({
     if (!visible) return;
     let cancelled = false;
     const timer = setTimeout(() => {
-      renderSlide({ source })
+      renderSlide({ source }, lazy)
         .then((value) => {
           if (!cancelled) setResult({ source, html: value, error: "" });
         })
@@ -89,8 +99,8 @@ export function SlideSurface({
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [source, visible]);
-  useEffect(() => {
+  }, [source, visible, lazy]);
+  useLayoutEffect(() => {
     const element = surface.current;
     if (!element) return;
     element
@@ -99,25 +109,32 @@ export function SlideSurface({
         (part) =>
           (part.dataset.hidden = String(Number(part.dataset.step) > step)),
       );
+  }, [markup, result, step]);
+  useEffect(() => {
+    const element = surface.current;
+    if (!element || lazy || animate) return;
     const check = () =>
       setOverflow(element.scrollHeight > 724 || element.scrollWidth > 1284);
     check();
+    document.fonts?.addEventListener("loadingdone", check);
     element
       .querySelectorAll("img")
       .forEach((image) => image.addEventListener("load", check));
-    return () =>
+    return () => {
+      document.fonts?.removeEventListener("loadingdone", check);
       element
         .querySelectorAll("img")
         .forEach((image) => image.removeEventListener("load", check));
-  }, [html, step]);
+    };
+  }, [result, markup, lazy, animate, slide.theme, slide.layout, deck.theme, deck.layout, deck.template, deck.bodySize, deck.headingFont, deck.bodyFont]);
   const lastAnimation = useRef<string | undefined>(undefined);
   useEffect(() => {
     const element = surface.current,
-      key = animationKey || result.source;
+      key = animationKey || result?.source;
     if (
       !element ||
       !animate ||
-      result.source !== source ||
+      !result || result.error || result.source !== source ||
       lastAnimation.current === key
     )
       return;
@@ -170,7 +187,7 @@ export function SlideSurface({
     return () => animations.forEach((animation) => animation.cancel());
   }, [
     html,
-    result.source,
+    result,
     source,
     animationKey,
     animate,
@@ -204,9 +221,10 @@ export function SlideSurface({
       }}
       onPointerLeave={() => setPointer(null)}
     >
-      <style>{SLIDE_CSS}</style>
-      {html ? (
+      {!sharedStyles && <SlideStyles />}
+      {result && !result.error ? (
         <div
+          className="slide-frame"
           style={{ width: 1280 * scale, height: 720 * scale, flexShrink: 0 }}
         >
           <div
@@ -227,10 +245,10 @@ export function SlideSurface({
               transform: `scale(${scale})`,
               transformOrigin: "top left",
             }}
-            dangerouslySetInnerHTML={{ __html: decorateSlide(html, deck) }}
+            dangerouslySetInnerHTML={markup}
           />
         </div>
-      ) : (
+      ) : !lazy && (
         <p role="status" className="p-4 text-center text-sm text-neutral-400">
           {error || "Preparing slide…"}
         </p>
@@ -243,7 +261,7 @@ export function SlideSurface({
           revision={html}
         />
       )}
-      {overflow && !lazy && !animate && (
+      {overflow && result && !result.error && !lazy && !animate && (
         <span className="absolute left-2 top-2 rounded bg-neutral-950 px-2 py-1 text-xs text-neutral-200">
           Content overflows. Split this slide or shorten the text.
         </span>

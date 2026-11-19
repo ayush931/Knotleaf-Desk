@@ -63,10 +63,7 @@ export const PresentationSource = forwardRef<
           onKeyDown?.(event);
           if (event.defaultPrevented || event.nativeEvent.isComposing) return;
           const field = event.currentTarget;
-          if (event.key === "Tab" && !event.ctrlKey && !event.metaKey) {
-            event.preventDefault();
-            document.execCommand("insertText", false, "  ");
-          } else if (
+          if (
             kind === "markdown" &&
             event.key === "Enter" &&
             field.selectionStart === field.selectionEnd &&
@@ -84,7 +81,7 @@ export const PresentationSource = forwardRef<
                 field.selectionStart - line.length,
                 field.selectionStart,
               );
-              document.execCommand("insertText", false, "\n");
+              document.execCommand("insertText", false, "");
             } else {
               const item = /^\d/.test(match[2])
                 ? String(parseInt(match[2], 10) + 1) + match[2].slice(-1)

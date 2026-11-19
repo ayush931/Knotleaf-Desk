@@ -46,7 +46,7 @@ export function themeStyle(deck: Deck) {
     .map(([key, value]) => `${key}:${value}`)
     .join(";");
 }
-export function decorateSlide(html: string, deck: Deck) {
+export function decorateSlide(html: string, deck: Pick<Deck, "backgroundImage">) {
   return (
     (deck.backgroundImage
       ? '<div class="kl-background-image" aria-hidden="true"></div>'

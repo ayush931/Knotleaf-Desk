@@ -233,6 +233,7 @@ export function PresentationPresenter({
               />
             ) : (
               <SlideSurface
+                key={active}
                 slide={slides[active]}
                 deck={deck}
                 step={step}

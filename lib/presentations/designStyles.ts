@@ -10,6 +10,16 @@ export const DESIGN_CSS = `
 .kl-slide[data-background=mesh]::before{background:radial-gradient(ellipse at 20% 20%,var(--deck-accent),transparent 48%),radial-gradient(ellipse at 90% 90%,var(--deck-accent),transparent 45%);opacity:.15}
 .kl-slide[data-background=aurora]::before{background:linear-gradient(120deg,transparent 15%,var(--deck-accent) 35%,transparent 45%,var(--deck-accent) 65%,transparent 85%);filter:blur(45px);opacity:.2}
 .kl-slide[data-live=true][data-motion=true]::before{animation:kl-drift 24s ease-in-out infinite alternate}
+.kl-slide[data-template=briefing]{padding:88px 98px 70px;border-top:8px solid var(--deck-accent)}
+.kl-slide[data-template=briefing]::after{content:"";position:absolute;left:48px;top:88px;bottom:70px;width:1px;background:var(--deck-accent);opacity:.45;pointer-events:none}
+.kl-slide[data-template=briefing] h1,.kl-slide[data-template=briefing] h2{margin-bottom:24px;padding:0;border:0;line-height:1.04;letter-spacing:-.045em;text-transform:none;color:var(--deck-ink)}
+.kl-slide[data-template=briefing] h1{font-size:96px}.kl-slide[data-template=briefing] h2{font-size:68px}
+.kl-slide[data-template=briefing] h1+p,.kl-slide[data-template=briefing] h2+p{max-width:29em;color:var(--deck-muted);font-size:34px;line-height:1.38}
+.kl-slide[data-template=briefing] blockquote{padding:12px 24px;border-left:4px solid var(--deck-accent);font-size:34px;line-height:1.38}
+.kl-slide[data-template=briefing] th{border-bottom:2px solid var(--deck-accent)}
+.kl-slide[data-template=spotlight][data-layout=split]{display:block;text-align:left}
+.kl-slide[data-layout=center] :is(h1,h2,p),.kl-slide[data-template=spotlight]:not([data-layout=split]) :is(h1,h2,p){margin-inline:auto}
+.kl-slide .kl-preview-link{color:var(--deck-accent);text-decoration:underline}
 @keyframes kl-drift{from{transform:translate3d(-1%,0,0)}to{transform:translate3d(2%,2%,0)}}@keyframes kl-block{from{opacity:0;translate:0 10px}to{opacity:1;translate:0 0}}
 @media(prefers-reduced-motion:reduce){.kl-slide::before,.kl-slide *{animation:none!important;transition:none!important}}@media print{.kl-slide::before,.kl-slide *{animation:none!important;transition:none!important}}
 `;
