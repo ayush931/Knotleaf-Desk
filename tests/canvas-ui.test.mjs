@@ -941,6 +941,51 @@ test('minimap maps thin strokes and supports keyboard navigation without a drag'
  await act(async()=>map.dispatchEvent(new browser.KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true})));expect(point.x).toBeCloseTo(200);expect(point.y).toBeCloseTo(100.5);
 });
 
+test('minimap draws routed lines and frames, points to an off-map view, and navigates at reduced width', async () => {
+ const frame = {...DEFAULT_STYLE, id:'map-frame', type:'frame', title:'Release plan', x:0, y:0, width:200, height:100};
+ const line = {...DEFAULT_STYLE,id:'map-line',type:'line', x:20, y:20, width:140, height:0, startX:20, startY:20, endX:160, endY:20, routing:'curved', bendOffset:20};
+ const points = [];
+ await act(async () => root.render(React.createElement(Minimap, {
+   elements:[frame,line], viewport:{zoom:2,pan:{x:2000,y:2000}}, width:320, height:420,
+   open:true, theme:'light', onToggle:()=>{}, onNavigate:point=>points.push(point),
+ })));
+ expect(document.querySelector('.minimap-locator')).not.toBeNull();
+ expect(document.querySelector('path[d*="Q"]')).not.toBeNull();
+ const picker = named('Jump to frame');
+ await act(async () => { picker.value = frame.id; picker.dispatchEvent(new browser.Event('change',{bubbles:true})); });
+ expect(points.pop()).toEqual({x:100,y:50});
+ const map = named('Navigate board map');
+ map.getBoundingClientRect = () => ({left:10, top:20, width:126, height:74});
+ await act(async () => {
+   map.dispatchEvent(new browser.PointerEvent('pointerdown',{clientX:73,clientY:57,pointerId:9,isPrimary:true,button:0,bubbles:true,cancelable:true}));
+   window.dispatchEvent(new browser.PointerEvent('pointerup',{clientX:73,clientY:57,pointerId:9,isPrimary:true,button:0,bubbles:true,cancelable:true}));
+ });
+ expect(points.at(-1).x).toBeCloseTo(100);
+ expect(points.at(-1).y).toBeCloseTo(50);
+});
+
+test('minimap drags the viewport without snapping its grabbed edge to the center', async () => {
+ const frame = {...DEFAULT_STYLE, id:'drag-map-frame', type:'frame', title:'Canvas', x:0, y:0, width:200, height:100};
+ const layout = minimapLayout([frame]);
+ const points = [];
+ await act(async () => root.render(React.createElement(Minimap, {
+   elements:[frame], viewport:{zoom:4,pan:{x:0,y:0}}, width:320, height:420,
+   open:true, theme:'dark', onToggle:()=>{}, onNavigate:point=>points.push(point),
+ })));
+ const map = named('Navigate board map');
+ map.getBoundingClientRect = () => ({left:0, top:0, width:252, height:148});
+ const clientX = layout.originX + 50 * layout.scale;
+ const clientY = layout.originY + 52.5 * layout.scale;
+ await act(async () => {
+   map.dispatchEvent(new browser.PointerEvent('pointerdown',{clientX,clientY,pointerId:8,isPrimary:true,button:0,bubbles:true,cancelable:true}));
+   window.dispatchEvent(new browser.PointerEvent('pointerup',{
+     clientX:clientX + 60 * layout.scale, clientY, pointerId:8, button:0,bubbles:true,cancelable:true,
+   }));
+ });
+ expect(points.at(-1).x).toBeCloseTo(100);
+ expect(points.at(-1).y).toBeCloseTo(52.5);
+});
+
 test('Appearance reports mixed formatting and a single toggle applies to the full selected passage',async()=>{
  await renderBoard();const editor=await startText();await typeText(editor,'hello world');editor.setSelectionRange(6,11);await act(async()=>editor.dispatchEvent(new browser.MouseEvent('mouseup',{bubbles:true})));await clickNamed('Open appearance settings');await clickNamed('Bold');
  editor.setSelectionRange(0,11);await act(async()=>editor.dispatchEvent(new browser.MouseEvent('mouseup',{bubbles:true})));

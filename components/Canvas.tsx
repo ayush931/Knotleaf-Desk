@@ -1410,12 +1410,14 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
 
             {!isPresentationOpen && !focusMode && (viewMode === "canvas" || viewMode === "split") && <Minimap
               elements={board.elements}
+              selected={selectedElements}
               viewport={viewport}
               width={stageSize.width}
               height={stageSize.height}
               open={minimapOpen}
               onToggle={() => setMinimapOpen(open => { const next = !open; savePreferences({ minimapOpen: next }); return next; })}
               onNavigate={point => engineRef.current?.centerOn(point)}
+              onFit={() => engineRef.current?.fitToContent()}
               theme={theme}
             />}
 
