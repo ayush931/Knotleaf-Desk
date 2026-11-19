@@ -10,7 +10,7 @@ export function ConfirmDialog({
   open: boolean;
   onClose: () => void;
   onConfirm: () => void;
-  variant?: "clear-board" | "remove-participant" | "replace-presentation" | "delete-presentation";
+  variant?: "clear-board" | "remove-participant" | "replace-presentation" | "delete-presentation" | "clear-writing";
   name?: string;
 }) {
   const titleId = useId();
@@ -32,14 +32,14 @@ export function ConfirmDialog({
           ? `Open “${name}” here?`
           : variant === "remove-participant"
             ? `Remove ${name} from this call?`
-            : "Clear this board?"}
+            : variant === "clear-writing" ? "Clear the writing sheet?" : "Clear this board?"}
       </h2>
       <p className="mt-2 text-sm text-neutral-400">
         {variant === "delete-presentation" ? "This permanently removes the presentation from this device. Download a presentation backup first if you want to keep a copy." : variant === "replace-presentation"
           ? "This replaces the presentation saved for this board on this device. Export a presentation backup first if you want to keep the current version."
           : variant === "remove-participant"
             ? "Disconnect their microphone, camera and screen sharing. They can rejoin with the invite link."
-            : "Remove all shapes and notes. You can undo the canvas change with Ctrl+Z."}
+            : variant === "clear-writing" ? "Erase every stroke on this sheet. You can undo this change with Undo stroke." : "Remove all shapes and notes. You can undo the canvas change with Ctrl+Z."}
       </p>
       <div className="mt-5 flex justify-end gap-2">
         <button data-ui-tone="neutral"
@@ -61,7 +61,7 @@ export function ConfirmDialog({
             ? "Open presentation"
             : variant === "remove-participant"
               ? "Remove from call"
-              : "Clear board"}
+              : variant === "clear-writing" ? "Clear sheet" : "Clear board"}
         </button>
       </div>
     </dialog>

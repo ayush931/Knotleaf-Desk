@@ -71,6 +71,11 @@ interface BoardHeaderProps {
   onOpenCommandPalette?: () => void;
 }
 
+const boardViews: readonly [ViewMode, string][] = [
+  ["canvas", "Canvas"], ["split", "Split"], ["notes", "Notes"], ["slides", "Presentation"],
+  ["tasks", "Tasks"], ["writing", "Writing"],
+];
+
 export function BoardHeader({
   theme,
   onToggleTheme,
@@ -231,9 +236,11 @@ export function BoardHeader({
 
       </div>
 
-      <select aria-label="Board view" value={viewMode} onChange={event=>onChangeViewMode(event.target.value as ViewMode)} className="workspace-view-select min-[900px]:hidden w-24 shrink-0 rounded-md border border-neutral-700 px-2 py-1.5 text-xs">{(["canvas","split","notes","slides"] as ViewMode[]).map(mode=><option key={mode} value={mode}>{mode==="slides"?"Presentation":mode.charAt(0).toUpperCase()+mode.slice(1)}</option>)}</select>
-      <nav aria-label="Board view" className="workspace-view-switch hidden min-[900px]:flex shrink-0 items-center gap-1">
-        {(["canvas", "split", "notes", "slides"] as ViewMode[]).map(mode => <button key={mode} aria-pressed={viewMode === mode} onClick={() => onChangeViewMode(mode)} className="workspace-view-button text-xs font-medium capitalize transition">{mode === "slides" ? "Presentation" : mode}</button>)}
+      <select aria-label="Board view" value={viewMode} onChange={event => onChangeViewMode(event.target.value as ViewMode)} className="workspace-view-select min-[1050px]:hidden w-24 shrink-0 rounded-md border border-neutral-700 px-2 py-1.5 text-xs">
+        {boardViews.map(([mode, label]) => <option key={mode} value={mode}>{label}</option>)}
+      </select>
+      <nav aria-label="Board view" className="workspace-view-switch hidden min-[1050px]:flex shrink-0 items-center gap-1">
+        {boardViews.map(([mode, label]) => <button key={mode} aria-pressed={viewMode === mode} onClick={() => onChangeViewMode(mode)} className="workspace-view-button text-xs font-medium transition">{label}</button>)}
       </nav>
       <div className="workspace-header-controls">
       {onOpenCommandPalette && <button type="button" onClick={onOpenCommandPalette} aria-label="Quick actions" title="Quick actions · Cmd/Ctrl+K" aria-keyshortcuts="Meta+k Control+k" className="header-command hidden h-8 shrink-0 items-center gap-1.5 rounded-lg border px-2 text-[11px] font-medium min-[1180px]:inline-flex"><Command aria-hidden="true" className="h-3.5 w-3.5" /><span className="sr-only">Quick actions</span></button>}
@@ -262,7 +269,7 @@ export function BoardHeader({
                 <label className="block space-y-1.5"><span>File format</span><select aria-label="Export format" value={format} disabled={exporting} onChange={e => { const next = e.target.value; setFormat(next); setExportError(""); if (["png", "jpeg", "webp", "svg", "drawio"].includes(next)) setScope("canvas"); if (next === "markdown") setScope("notes"); if (next === "json") setScope("project"); }} className="w-full rounded-lg border border-neutral-700 bg-neutral-900 p-2">
                   <option value="project">Knotleaf project · editable</option><option value="pdf">PDF document</option><option value="png">PNG image</option><option value="jpeg">JPG image</option><option value="webp">WebP image</option><option value="svg">SVG vector</option><option value="markdown">Markdown notes</option><option value="drawio">draw.io diagram</option><option value="json">Legacy JSON backup</option>
                 </select></label>
-                <label className="block space-y-1.5"><span>Include</span><select aria-label="Export content" value={scope} disabled={exporting || !["project", "pdf"].includes(format)} onChange={e => setScope(e.target.value as ExportScope)} className="w-full rounded-lg border border-neutral-700 bg-neutral-900 p-2 disabled:opacity-60"><option value="project">Canvas & notes</option><option value="canvas">Canvas only</option><option value="notes">Notes only</option></select></label>
+                <label className="block space-y-1.5"><span>Include</span><select aria-label="Export content" value={scope} disabled={exporting || !["project", "pdf"].includes(format)} onChange={e => setScope(e.target.value as ExportScope)} className="w-full rounded-lg border border-neutral-700 bg-neutral-900 p-2 disabled:opacity-60"><option value="project">{format === "pdf" ? "Canvas & notes" : "Complete board"}</option><option value="canvas">Canvas only</option><option value="notes">Notes only</option></select></label>
                 {["png", "jpeg", "webp", "svg", "drawio"].includes(format) && <label className="flex items-center gap-2"><input type="checkbox" checked={exportSelection && selectionCount > 0} disabled={!selectionCount || exporting} onChange={e => setExportSelection(e.target.checked)} />Selected elements only ({selectionCount})</label>}
                 {["png", "webp", "svg"].includes(format) && <label className="flex items-center gap-2"><input type="checkbox" checked={transparent} onChange={e => setTransparent(e.target.checked)} />Transparent background (omit canvas color and grid)</label>}
                 {["png", "jpeg", "webp"].includes(format) && <label className="flex items-center justify-between gap-2">Quality<select aria-label={`${format.toUpperCase()} quality`} value={exportScale} onChange={e => setExportScale(Number(e.target.value))} className="rounded border border-neutral-700 bg-neutral-900 p-1.5"><option value={1}>1x</option><option value={2}>2x</option><option value={3}>3x</option></select></label>}

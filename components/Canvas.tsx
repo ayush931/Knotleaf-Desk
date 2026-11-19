@@ -72,6 +72,8 @@ import { exportToRaster, type RasterFormat, copyPngToClipboard, exportToJson, ex
 import { TEMPLATES, type TemplateDefinition } from "@/draw/templatesData";
 import { COLOR_MOODS, PREMIUM_STROKES } from "@/lib/premiumPalette";
 import { BoardHeader } from "./BoardHeader";
+const TaskWorkspace = React.lazy(() => import("./TaskWorkspace").then(module => ({ default: module.TaskWorkspace })));
+const WritingWorkspace = React.lazy(() => import("./WritingWorkspace").then(module => ({ default: module.WritingWorkspace })));
 const PresentationWorkspace = React.lazy(() => import("./PresentationWorkspace").then(module => ({ default: module.PresentationWorkspace })));
 const LargeMarkdownNotes = React.lazy(() => import("./LargeMarkdownNotes").then(module => ({ default: module.LargeMarkdownNotes })));
 const DocEditor = React.lazy(() => import("./DocEditor").then(module => ({ default: module.DocEditor })));
@@ -149,6 +151,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
   const [workspaces, setWorkspaces] = useState(getWorkspaces);
   const [workspaceId, setWorkspaceId] = useState(board.workspaceId || "personal");
   const viewMode = board.viewMode || "canvas";
+  const drawingView = viewMode === "canvas" || viewMode === "split";
   const [notesWidth, setNotesWidth] = useState(preferences.notesWidth);
   const [notesHeight, setNotesHeight] = useState(preferences.notesHeight);
   const [splitBounds, setSplitBounds] = useState({ width: 900, height: 700 });
@@ -287,6 +290,12 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
     setBoard(next);
     sessionRef.current?.update(next);
   }, [setBoard, setHistoryError]);
+
+  const updateLocalWorkspace = (patch: Pick<Board, "tasks" | "writing">) => {
+    const next = { ...boardRef.current, ...patch };
+    boardRef.current = next;
+    setBoard(next);
+  };
 
   const rememberColor = useCallback((color: string) => {
     const normalized = color.toUpperCase();
@@ -681,7 +690,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
       if (!engine || engineRef.current!==engine || boardRef.current.id!==boardId) throw new Error("The board changed. Upload these files again on the current board.");
       commitInline();engine.finishCode();setCodeId(null);
       const current=boardRef.current;
-      boardRef.current={...current,viewMode:(current.viewMode==="notes"||current.viewMode==="slides")?"canvas":current.viewMode};
+      boardRef.current={...current,viewMode:current.viewMode === "split" ? "split" : "canvas"};
       let ids:string[];
       try { ids=engine.addAssets(assets,point?engine.screenToCanvas(point.x,point.y):undefined,elements=>{if(!saveBoard({...boardRef.current,elements}))throw new Error("Your browser’s local storage is full or unavailable. Free space or use another board, then upload again. No files were added.");}); }
       catch(error){boardRef.current=current;throw error;}
@@ -704,7 +713,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
     const starterNotes = template.markdownNotes.trim();
     const markdownNotes = [current.markdownNotes?.trimEnd(), starterNotes].filter(Boolean).join("\n\n");
     // Template notes belong in Notes, not in an overlapping canvas document card.
-    boardRef.current = { ...current, markdownNotes, viewMode: (current.viewMode === "notes" || current.viewMode === "slides") ? "canvas" : current.viewMode };
+    boardRef.current = { ...current, markdownNotes, viewMode: current.viewMode === "split" ? "split" : "canvas" };
     let ids: string[];
     try { ids = engine.insertTemplate(template.elements, replace); }
     catch (error) { boardRef.current = current; throw error; }
@@ -1070,6 +1079,8 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
       { id: "view-canvas", label: "Canvas view", group: "Canvas", icon: Square, tone: "iris", run: () => changeBoardView("canvas") },
       { id: "view-split", label: "Split canvas & notes", group: "Canvas", icon: Columns2, tone: "jade", run: () => changeBoardView("split") },
       { id: "view-notes", label: "Notes view", group: "Canvas", icon: FileText, tone: "amber", run: () => changeBoardView("notes") },
+      { id: "view-tasks", label: "Tasks view", group: "Go", icon: NotebookPen, tone: "jade", run: () => changeBoardView("tasks") },
+      { id: "view-writing", label: "Writing view", group: "Go", icon: NotebookPen, tone: "iris", run: () => changeBoardView("writing") },
       { id: "present", label: "Present frames", group: "Canvas", icon: Play, tone: "coral", run: beginPresentation },
       { id: "theme-mode", label: theme === "dark" ? "Switch to light mode" : "Switch to dark mode", group: "Theme", icon: theme === "dark" ? Sun : Moon, tone: "amber", run: () => setTheme(value => value === "dark" ? "light" : "dark") },
       { id: "workspaces", label: "Open workspaces", group: "Go", icon: LayoutTemplate, tone: "blue", run: () => setIsSidebarOpen(true) },
@@ -1147,6 +1158,18 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
       )}
 
       <main inert={!roomReady} ref={splitRef} className={`relative flex max-sm:flex-col min-h-0 flex-1 w-full overflow-hidden ${!isPresentationOpen && !focusMode ? "workspace-main-offset" : ""}`} >
+        {viewMode === "tasks" && !isPresentationOpen && !focusMode && (
+          <React.Suspense fallback={<div role="status" className="flex-1 p-5 text-sm text-neutral-400">Opening tasks…</div>}>
+            <TaskWorkspace key={board.id} boardId={board.id} title={board.title} initialTasks={board.tasks ?? []}
+              onChange={tasks => updateLocalWorkspace({ tasks })} />
+          </React.Suspense>
+        )}
+        {viewMode === "writing" && !isPresentationOpen && !focusMode && (
+          <React.Suspense fallback={<div role="status" className="flex-1 p-5 text-sm text-neutral-400">Opening writing…</div>}>
+            <WritingWorkspace key={board.id} boardId={board.id} title={board.title} theme={theme} initialStrokes={board.writing ?? []}
+              onChange={writing => updateLocalWorkspace({ writing })} />
+          </React.Suspense>
+        )}
         {viewMode === "slides" && !isPresentationOpen && !focusMode && <React.Suspense fallback={<div role="status" className="flex-1 p-5 text-sm text-neutral-400">Opening presentation…</div>}><PresentationWorkspace key={board.id} boardId={board.id} title={board.title} notes={board.markdownNotes || ""} onReportBug={() => { setBoardToolsSection("report"); setBoardToolsOpen(true); }} onCanvasSnapshot={async () => {
           const snapshot = structuredClone(boardRef.current);
           const frames = snapshot.elements.filter(el => el.type === "frame").sort((a,b) => a.y-b.y || a.x-b.x);
@@ -1169,7 +1192,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
           onDragOver={event=>{if(event.dataTransfer.types.includes("Files")){event.preventDefault();event.dataTransfer.dropEffect="copy";setDragFiles(true);}}}
           onDragLeave={event=>{if(!event.currentTarget.contains(event.relatedTarget as Node|null))setDragFiles(false);}}
           onDrop={event=>{if(!event.dataTransfer.files.length)return;event.preventDefault();setDragFiles(false);const r=canvasRef.current?.getBoundingClientRect();void uploadAssets(Array.from(event.dataTransfer.files),r?{x:event.clientX-r.left,y:event.clientY-r.top}:undefined);}}
-          className={`relative min-h-0 min-w-0 flex-1 h-full overflow-hidden bg-white dark:bg-black ${(viewMode === "notes" || viewMode === "slides") && !isPresentationOpen && !focusMode ? "hidden" : ""}`}
+          className={`relative min-h-0 min-w-0 flex-1 h-full overflow-hidden bg-white dark:bg-black ${!drawingView && !isPresentationOpen && !focusMode ? "hidden" : ""}`}
         >
             {dragFiles&&<div aria-hidden="true" className="pointer-events-none absolute inset-2 z-40 flex items-center justify-center rounded-xl border-2 border-dashed border-neutral-400 bg-neutral-500/10 text-sm text-neutral-200">Drop images or files onto this board</div>}
             <canvas ref={canvasRef} tabIndex={0} aria-label="Drawing canvas" data-theme={theme} data-background={displayBackground.fill} className="block touch-none select-none" style={{ backgroundColor: displayBackground.fill, backgroundImage: lightCanvas ? "conic-gradient(#e4e4e7 25%, transparent 0 50%, #e4e4e7 0 75%, transparent 0)" : "conic-gradient(#27272a 25%, transparent 0 50%, #27272a 0 75%, transparent 0)", backgroundSize: "16px 16px" }} />
@@ -1387,12 +1410,14 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
 
             {!isPresentationOpen && !focusMode && (viewMode === "canvas" || viewMode === "split") && <Minimap
               elements={board.elements}
+              selected={selectedElements}
               viewport={viewport}
               width={stageSize.width}
               height={stageSize.height}
               open={minimapOpen}
               onToggle={() => setMinimapOpen(open => { const next = !open; savePreferences({ minimapOpen: next }); return next; })}
               onNavigate={point => engineRef.current?.centerOn(point)}
+              onFit={() => engineRef.current?.fitToContent()}
               theme={theme}
             />}
 
@@ -1417,14 +1442,14 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
       {!isPresentationOpen&&!focusMode&&(assetBusy||assetError||assetNotice)&&<div role={assetError?"alert":"status"} className="absolute right-3 top-24 z-50 max-w-[min(360px,calc(100vw-24px))] rounded-xl border border-neutral-700 bg-neutral-900 p-3 text-xs text-neutral-300 shadow-sm"><div className="flex items-start gap-3"><p className={assetError?"text-neutral-300":""}>{assetBusy?"Uploading files…":assetError||assetNotice}</p>{!assetBusy&&<button data-ui-tone="neutral" type="button" aria-label="Dismiss upload message" className="note-tool shrink-0" onClick={()=>{setAssetError("");setAssetNotice("");}}><X className="h-3.5 w-3.5"/></button>}</div><p className="mt-2 text-[11px] text-neutral-500">Files stay on this device. Available space depends on your browser.</p></div>}
       {!isPresentationOpen&&!focusMode&&(viewMode==="canvas"||viewMode==="split")&&selectedElement?.type==="text"&&selectedElement.attachment&&<div className="absolute bottom-16 left-1/2 z-30 flex max-w-[calc(100%-1rem)] -translate-x-1/2 items-center gap-2 rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-xs"><span className="max-w-48 truncate" title={selectedElement.attachment.name}>{selectedElement.attachment.name}</span><button data-ui-tone="info" type="button" aria-label="Download attachment" onClick={downloadSelectedAttachment} className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-neutral-300 hover:bg-neutral-800"><Download className="h-3.5 w-3.5"/>Download</button></div>}
       <PresentationMode isActive={isPresentationOpen} onExit={endPresentation} title={board.title} theme={theme} frames={frames} index={presentationIndex} onIndex={setPresentationIndex} />
-      {!isPresentationOpen && !focusMode && viewMode !== "slides" && <button type="button" aria-label="Report bug" title="Report a bug" onClick={() => { setBoardToolsSection("report"); setBoardToolsOpen(true); }} className="absolute bottom-3 left-2 z-30 inline-flex h-8 items-center gap-1 rounded-lg border border-neutral-700 bg-neutral-900/95 px-1.5 text-[11px] text-neutral-400 hover:bg-neutral-800 hover:text-white focus-visible:outline-2 focus-visible:outline-black dark:focus-visible:outline-white"><Bug aria-hidden="true" className="h-3 w-3"/>Report bug</button>}
+      {!isPresentationOpen && !focusMode && (drawingView || viewMode === "notes") && <button type="button" aria-label="Report bug" title="Report a bug" onClick={() => { setBoardToolsSection("report"); setBoardToolsOpen(true); }} className="absolute bottom-3 left-2 z-30 inline-flex h-8 items-center gap-1 rounded-lg border border-neutral-700 bg-neutral-900/95 px-1.5 text-[11px] text-neutral-400 hover:bg-neutral-800 hover:text-white focus-visible:outline-2 focus-visible:outline-black dark:focus-visible:outline-white"><Bug aria-hidden="true" className="h-3 w-3"/>Report bug</button>}
       <FileImportController ref={importCoordinator} onImport={handleImportFile}/>
       {uploadedFilesOpen&&<MarkdownFileLibrary open={uploadedFilesOpen} onClose={()=>setUploadedFilesOpen(false)} activeId={board.importedMarkdownId} onOpen={openUploadedFile} onDeleted={refreshAfterFileDelete}/>}
       <BoardTools initialSection={boardToolsSection} open={boardToolsOpen} onClose={() => setBoardToolsOpen(false)} board={board} selection={librarySelection} historyError={historyError} onHistorySaved={() => setHistoryError("")} onOpenCopy={(source, title) => { const copy = importBoardFile(JSON.stringify({ ...source, title })); if (!copy) throw new Error("Could not create a board. Check available browser storage."); copy.title = title; if (!saveBoard(copy)) throw new Error("Could not save the new board."); moveBoardToWorkspace(copy.id, workspaceId); handleSelectBoard(copy.id); }} onFind={(id, index, length) => {
         if (index !== undefined) {
           persist({ ...boardRef.current, viewMode: "notes" });
           setNoteFocus(previous => ({ start: index, end: index + (length || 0), token: (previous?.token || 0) + 1 }));
-        } else { if (board.viewMode === "notes" || board.viewMode === "slides") persist({ ...boardRef.current, viewMode: "canvas" }); requestAnimationFrame(() => { const element = containerRef.current; if (element) engineRef.current?.resize(element.clientWidth, element.clientHeight); engineRef.current?.focusElements([id]); }); }
+        } else { if (!drawingView) persist({ ...boardRef.current, viewMode: "canvas" }); requestAnimationFrame(() => { const element = containerRef.current; if (element) engineRef.current?.resize(element.clientWidth, element.clientHeight); engineRef.current?.focusElements([id]); }); }
       }} />
 
       <IconPickerModal

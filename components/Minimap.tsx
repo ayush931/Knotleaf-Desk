@@ -1,25 +1,28 @@
 "use client";
 
-import React, { useMemo } from "react";
-import { ChevronDown, ChevronUp, Map } from "lucide-react";
-import type { CanvasElement, Theme } from "@/draw/types";
-import { getElementBounds } from "@/draw/renderer";
+import { useId, useMemo, useRef, type PointerEvent as ReactPointerEvent } from "react";
+import { ChevronDown, LocateFixed, Map } from "lucide-react";
+import type { CanvasElement, Point, Theme } from "@/draw/types";
+import { computeArrowPath, computeLinePath, getElementBounds } from "@/draw/renderer";
 import { elementAccent } from "@/lib/premiumPalette";
+import { usePointerDrag } from "@/lib/usePointerDrag";
+import { isContextPointer } from "@/lib/pointerInput";
 
 interface MinimapProps {
   elements: CanvasElement[];
-  viewport: { zoom: number; pan: { x: number; y: number } };
+  selected?: CanvasElement[];
+  viewport: { zoom: number; pan: Point };
   width: number;
   height: number;
   open: boolean;
   onToggle: () => void;
-  onNavigate: (point: { x: number; y: number }) => void;
+  onNavigate: (point: Point) => void;
+  onFit?: () => void;
   theme: Theme;
 }
 
-const MAP_WIDTH = 210;
-const MAP_HEIGHT = 140;
-
+const MAP_WIDTH = 252;
+const MAP_HEIGHT = 148;
 type Bounds = { minX: number; minY: number; maxX: number; maxY: number };
 interface MinimapLayout {
   items: { element: CanvasElement; bounds: Bounds }[];
@@ -28,23 +31,23 @@ interface MinimapLayout {
   originY: number;
 }
 
-/** Fit every element's bounds into the fixed map box, keeping the drawing centred. */
 export function minimapLayout(elements: CanvasElement[]): MinimapLayout | null {
   const items: MinimapLayout["items"] = [];
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
   for (const element of elements) {
     let bounds: Bounds;
     try { bounds = getElementBounds(element, elements); }
-    catch { continue; /* An element without geometry is simply not mapped. */ }
+    catch { continue; }
     if (![bounds.minX, bounds.minY, bounds.maxX, bounds.maxY].every(Number.isFinite)) continue;
     bounds = { ...bounds, maxX: Math.max(bounds.minX + 1, bounds.maxX), maxY: Math.max(bounds.minY + 1, bounds.maxY) };
     minX = Math.min(minX, bounds.minX); minY = Math.min(minY, bounds.minY);
     maxX = Math.max(maxX, bounds.maxX); maxY = Math.max(maxY, bounds.maxY);
     items.push({ element, bounds });
   }
-  if (!items.length || !Number.isFinite(minX)) return null;
-  const contentWidth = Math.max(1, maxX - minX), contentHeight = Math.max(1, maxY - minY);
-  const scale = Math.min((MAP_WIDTH - 24) / contentWidth, (MAP_HEIGHT - 24) / contentHeight, 0.45);
+  if (!items.length) return null;
+  const contentWidth = maxX - minX, contentHeight = maxY - minY;
+  const scale = Math.min((MAP_WIDTH - 30) / contentWidth, (MAP_HEIGHT - 30) / contentHeight, 0.45);
+  if (!Number.isFinite(scale) || scale <= 0) return null;
   return {
     items,
     scale,
@@ -53,91 +56,177 @@ export function minimapLayout(elements: CanvasElement[]): MinimapLayout | null {
   };
 }
 
-export function Minimap({ elements, viewport, width, height, open, onToggle, onNavigate, theme }: MinimapProps) {
-  const light = theme === "light";
-  const map = useMemo(() => (elements.length && width > 0 && height > 0 ? minimapLayout(elements) : null), [elements, width, height]);
+function mapPoint(x: number, y: number, map: MinimapLayout): Point {
+  return { x: (x - map.originX) / map.scale, y: (y - map.originY) / map.scale };
+}
 
-  if (!elements.length || width < 480 || height < 320) return null;
+function toMapPosition(element: HTMLElement, clientX: number, clientY: number): Point {
+  const rect = element.getBoundingClientRect();
+  return {
+    x: (clientX - rect.left) / Math.max(1, rect.width) * MAP_WIDTH,
+    y: (clientY - rect.top) / Math.max(1, rect.height) * MAP_HEIGHT,
+  };
+}
 
-  if (!open) {
-    return <button
-      type="button"
-      onClick={onToggle}
-      aria-label="Open minimap"
-      title="Open board minimap"
-      className="workspace-minimap-toggle absolute bottom-[68px] right-3 z-30 flex h-9 items-center gap-1.5 rounded-xl border drawing-panel px-2.5 text-[11px] font-medium text-neutral-500 shadow-sm transition hover:text-neutral-900 dark:hover:text-white max-[520px]:hidden"
-    >
-      <Map aria-hidden="true" className="h-3.5 w-3.5" /> Map
-    </button>;
+function pathFor(element: CanvasElement, scene: CanvasElement[]) {
+  if (element.type === "line" || element.type === "arrow") {
+    const route = element.type === "line" ? computeLinePath(element, scene) : computeArrowPath(element, scene);
+    if (route.cpx !== undefined && route.cpy !== undefined) {
+      const [start, end] = route.points;
+      return `M${start.x} ${start.y}Q${route.cpx} ${route.cpy} ${end.x} ${end.y}`;
+    }
+    return route.points.map((point, index) => `${index ? "L" : "M"}${point.x} ${point.y}`).join("");
+  }
+  if (element.type !== "pencil" || element.points.length < 2) return "";
+  const step = Math.ceil(element.points.length / 120);
+  const points = element.points.filter((_, index) => index % step === 0 || index === element.points.length - 1);
+  return points.map((point, index) => `${index ? "L" : "M"}${point.x} ${point.y}`).join("");
+}
+
+function drawMapItem({ element, bounds }: MinimapLayout["items"][number], scene: CanvasElement[], scale: number, light: boolean, selected: boolean) {
+  const { minX: x, minY: y } = bounds;
+  const width = Math.max(1.8 / scale, bounds.maxX - x);
+  const height = Math.max(1.8 / scale, bounds.maxY - y);
+  const accent = selected ? "var(--ui-accent)" : /^#[\da-f]{3,8}$/i.test(element.stroke) && element.type !== "frame" &&
+    !/^(#fff(?:fff)?|#000(?:000)?|#f4f4f5)$/i.test(element.stroke)
+    ? element.stroke : elementAccent(element.type, light);
+  const fill = element.type === "sticky" && /^#[\da-f]{6}$/i.test(element.fill) ? element.fill : accent;
+  const path = pathFor(element, scene);
+  const line = { stroke: accent, strokeWidth: selected ? 2 : 1.2, vectorEffect: "non-scaling-stroke", strokeLinejoin: "round" as const, strokeLinecap: "round" as const };
+  let shape;
+  if (path) shape = <path d={path} fill="none" {...line} />;
+  else if (element.type === "circle") shape = <ellipse cx={x + width / 2} cy={y + height / 2} rx={width / 2} ry={height / 2} fill={fill} fillOpacity=".5" {...line} />;
+  else if (element.type === "diamond") shape = <polygon points={`${x + width / 2},${y} ${x + width},${y + height / 2} ${x + width / 2},${y + height} ${x},${y + height / 2}`} fill={fill} fillOpacity=".5" {...line} />;
+  else if (element.type === "frame") shape = <rect x={x} y={y} width={width} height={height} rx={2 / scale} fill={accent} fillOpacity=".08" strokeDasharray="3 3" {...line} />;
+  else shape = <rect x={x} y={y} width={width} height={height} rx={Math.min(2 / scale, height / 5)} fill={fill}
+    fillOpacity={element.type === "sticky" || element.type === "text" ? ".85" : ".55"} {...(selected ? line : {})} />;
+  return <g key={element.id} opacity={Math.max(.2, element.opacity ?? 1)}>{shape}</g>;
+}
+
+export function Minimap({ elements, selected = [], viewport, width, height, open, onToggle, onNavigate, onFit, theme }: MinimapProps) {
+  const surface = useRef<HTMLButtonElement>(null);
+  const toggle = useRef<HTMLButtonElement>(null);
+  const panelId = useId();
+  const gesture = useRef<{ start: Point; offset: Point; dragged: boolean } | null>(null);
+  const visible = elements.length > 0 && width >= 240 && height >= 275;
+  const map = useMemo(() => open && visible ? minimapLayout(elements) : null, [elements, open, visible]);
+  const artwork = useMemo(() => {
+    if (!map) return null;
+    const ids = new Set(selected.map(element => element.id));
+    // Frames provide context behind the artwork even when their z-index is higher.
+    return [...map.items].sort((a, b) => Number(b.element.type === "frame") - Number(a.element.type === "frame"))
+      .map(item => drawMapItem(item, elements, map.scale, theme === "light", ids.has(item.element.id)));
+  }, [elements, map, selected, theme]);
+  const zoom = Math.max(.01, viewport.zoom);
+  const worldWidth = width / zoom, worldHeight = height / zoom;
+  const center = { x: -viewport.pan.x / zoom + worldWidth / 2, y: -viewport.pan.y / zoom + worldHeight / 2 };
+  const view = map ? {
+    x: center.x * map.scale + map.originX, y: center.y * map.scale + map.originY,
+    width: Math.max(5, worldWidth * map.scale), height: Math.max(5, worldHeight * map.scale),
+  } : null;
+  const offMap = view && (view.x + view.width / 2 < 0 || view.x - view.width / 2 > MAP_WIDTH ||
+    view.y + view.height / 2 < 0 || view.y - view.height / 2 > MAP_HEIGHT);
+  const frames = map?.items.filter(item => item.element.type === "frame") ?? [];
+  const startDrag = usePointerDrag(event => {
+    if (!gesture.current || !surface.current || !map) return;
+    const current = toMapPosition(surface.current, event.clientX, event.clientY);
+    const active = gesture.current;
+    if (Math.hypot(event.clientX - active.start.x, event.clientY - active.start.y) >= 3) active.dragged = true;
+    const ended = event.type === "pointerup";
+    if (active.dragged || ended) {
+      const offset = active.dragged ? active.offset : { x: 0, y: 0 };
+      onNavigate(mapPoint(
+        Math.max(0, Math.min(MAP_WIDTH, current.x)) + offset.x,
+        Math.max(0, Math.min(MAP_HEIGHT, current.y)) + offset.y,
+        map,
+      ));
+    }
+    if (ended) gesture.current = null;
+  });
+
+  function onPointerDown(event: ReactPointerEvent<HTMLButtonElement>) {
+    if (!map || !view || event.button !== 0 || event.isPrimary === false || isContextPointer(event)) return;
+    const point = toMapPosition(event.currentTarget, event.clientX, event.clientY);
+    const offset = { x: view.x - point.x, y: view.y - point.y };
+    gesture.current = {
+      start: { x: event.clientX, y: event.clientY },
+      offset: Math.abs(offset.x) <= view.width / 2 && Math.abs(offset.y) <= view.height / 2 && !offMap ? offset : { x: 0, y: 0 },
+      dragged: false,
+    };
+    startDrag(event);
   }
 
-  const viewWorldWidth = width / Math.max(0.01, viewport.zoom), viewWorldHeight = height / Math.max(0.01, viewport.zoom);
-  const viewWorldX = -viewport.pan.x / Math.max(0.01, viewport.zoom), viewWorldY = -viewport.pan.y / Math.max(0.01, viewport.zoom);
+  function centerArtwork() {
+    if (map) onNavigate(mapPoint(MAP_WIDTH / 2, MAP_HEIGHT / 2, map));
+  }
+  function changeExpanded() {
+    onToggle();
+    requestAnimationFrame(() => toggle.current?.focus({ preventScroll: true }));
+  }
 
-  return <section aria-label="Board minimap" className="workspace-minimap absolute bottom-[68px] right-3 z-30 w-[210px] overflow-hidden rounded-xl border drawing-panel shadow-lg max-[520px]:hidden">
-    <header className="flex h-8 items-center justify-between border-b border-neutral-200/70 px-2.5 dark:border-neutral-800">
-      <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-neutral-500"><Map aria-hidden="true" className="h-3 w-3" /> Board map</span>
-      <button type="button" onClick={onToggle} aria-label="Collapse minimap" title="Collapse board minimap" className="flex h-6 w-6 items-center justify-center rounded-md text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900 dark:hover:bg-neutral-800 dark:hover:text-white">
-        <ChevronDown aria-hidden="true" className="h-3.5 w-3.5" />
+  if (!visible) return null;
+  if (!open) return (
+    <button type="button" ref={toggle} onClick={changeExpanded} aria-expanded={false}
+      aria-label="Open minimap" title="Open board map" className="workspace-minimap-toggle">
+      <Map aria-hidden="true" size={15} /> Map
+    </button>
+  );
+
+  return (
+    <section id={panelId} aria-label="Board minimap" className="workspace-minimap">
+      <header>
+        <span><Map aria-hidden="true" size={14} /> Board map</span>
+        <div>
+          <button type="button" aria-label="Fit board from minimap" title="Fit board to view" disabled={!map}
+            onClick={onFit ?? centerArtwork}><LocateFixed aria-hidden="true" size={15} /></button>
+          <button type="button" ref={toggle} onClick={changeExpanded} aria-expanded={true}
+            aria-controls={panelId} aria-label="Collapse minimap" title="Collapse board map"><ChevronDown aria-hidden="true" size={16} /></button>
+        </div>
+      </header>
+      <button ref={surface} type="button" aria-label="Navigate board map" disabled={!map}
+        title="Click or drag to pan. Use arrow keys to pan or Enter to center the artwork."
+        className="minimap-surface"
+        onPointerDown={onPointerDown}
+        onClick={event => {
+          if (event.detail === 0) centerArtwork();
+        }}
+        onKeyDown={event => {
+          if (!map) return;
+          if (event.key === "Enter" || event.key === " " || event.key === "Home") {
+            event.preventDefault(); event.stopPropagation(); centerArtwork();
+          } else if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) {
+            event.preventDefault(); event.stopPropagation();
+            onNavigate({
+              x: center.x + (event.key === "ArrowLeft" ? -1 : event.key === "ArrowRight" ? 1 : 0) * worldWidth / 4,
+              y: center.y + (event.key === "ArrowUp" ? -1 : event.key === "ArrowDown" ? 1 : 0) * worldHeight / 4,
+            });
+          }
+        }}>
+        <svg viewBox={`0 0 ${MAP_WIDTH} ${MAP_HEIGHT}`} aria-hidden="true" className="minimap-art">
+          {map && <g transform={`translate(${map.originX} ${map.originY}) scale(${map.scale})`}>{artwork}</g>}
+          {view && (offMap ? (
+            <g className="minimap-locator" transform={`translate(${Math.max(11, Math.min(MAP_WIDTH - 11, view.x))} ${Math.max(11, Math.min(MAP_HEIGHT - 11, view.y))}) rotate(${Math.atan2(view.y - MAP_HEIGHT / 2, view.x - MAP_WIDTH / 2) * 180 / Math.PI})`}>
+              <circle r="8" /><path d="M-2 -3L3 0L-2 3Z" />
+            </g>
+          ) : (
+            <rect className="minimap-viewport" x={view.x - view.width / 2} y={view.y - view.height / 2}
+              width={view.width} height={view.height} rx="3" />
+          ))}
+        </svg>
+        {!map && <span className="minimap-empty">No artwork to map</span>}
       </button>
-    </header>
-    <div
-      role="button"
-      tabIndex={0}
-      aria-label="Navigate board map"
-      title="Click to navigate · arrow keys to pan · Enter to centre artwork"
-      className="minimap-surface relative overflow-hidden"
-      style={{ height: MAP_HEIGHT }}
-      onClick={event => {
-        if (!map) return;
-        const rect = event.currentTarget.getBoundingClientRect();
-        onNavigate({ x: (event.clientX - rect.left - map.originX) / map.scale, y: (event.clientY - rect.top - map.originY) / map.scale });
-      }}
-      onKeyDown={event => {
-        if (!map) return;
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          onNavigate({ x: (MAP_WIDTH / 2 - map.originX) / map.scale, y: (MAP_HEIGHT / 2 - map.originY) / map.scale });
-        } else if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) {
-          event.preventDefault(); event.stopPropagation();
-          onNavigate({ x: viewWorldX + viewWorldWidth / 2 + (event.key === "ArrowLeft" ? -1 : event.key === "ArrowRight" ? 1 : 0) * viewWorldWidth / 4, y: viewWorldY + viewWorldHeight / 2 + (event.key === "ArrowUp" ? -1 : event.key === "ArrowDown" ? 1 : 0) * viewWorldHeight / 4 });
-        }
-      }}
-    >
-      {map && <>
-        {map.items.map(({ element, bounds }) => {
-          const local = (element.type === "sticky" && "fill" in element && /^#[\da-f]{6}$/i.test(String(element.fill))) ? String(element.fill) : elementAccent(element.type, light);
-          const isContainer = element.type === "frame";
-          return <span
-            key={element.id}
-            aria-hidden="true"
-            className={`minimap-item absolute ${isContainer ? "minimap-frame" : ""}`}
-            style={{
-              left: bounds.minX * map.scale + map.originX,
-              top: bounds.minY * map.scale + map.originY,
-              width: Math.max(isContainer ? 4 : 2, (bounds.maxX - bounds.minX) * map.scale),
-              height: Math.max(isContainer ? 4 : 2, (bounds.maxY - bounds.minY) * map.scale),
-              ...(isContainer ? { borderColor: local } : { backgroundColor: local }),
-              opacity: element.opacity ?? 1,
-            }}
-          />;
-        })}
-        <span
-          aria-hidden="true"
-          className="minimap-viewport absolute rounded-[3px]"
-          style={{
-            left: viewWorldX * map.scale + map.originX,
-            top: viewWorldY * map.scale + map.originY,
-            width: Math.max(8, viewWorldWidth * map.scale),
-            height: Math.max(6, viewWorldHeight * map.scale),
-          }}
-        />
-      </>}
-      {!map && <p className="absolute inset-0 flex items-center justify-center text-[10px] text-neutral-500">Nothing to map yet</p>}
-    </div>
-    <footer className="flex items-center justify-between px-2.5 py-1.5 text-[9px] text-neutral-500">
-      <span>{elements.length} object{elements.length === 1 ? "" : "s"}</span>
-      <span className="flex items-center gap-1"><ChevronUp aria-hidden="true" className="h-2.5 w-2.5" /> click to navigate</span>
-    </footer>
-  </section>;
+      <footer>
+        {frames.length > 0 ? (
+          <select aria-label="Jump to frame" value="" onChange={event => {
+            const frame = frames.find(item => item.element.id === event.target.value);
+            if (frame) onNavigate({ x: (frame.bounds.minX + frame.bounds.maxX) / 2, y: (frame.bounds.minY + frame.bounds.maxY) / 2 });
+          }}>
+            <option value="">Jump to frame</option>
+            {frames.map(({ element }, index) => <option key={element.id} value={element.id}>{element.type === "frame" && element.title.trim() || `Frame ${index + 1}`}</option>)}
+          </select>
+        ) : <span>{offMap ? "View outside map" : `${map?.items.length ?? 0} objects`}</span>}
+        <span>{Math.round(zoom * 100)}%</span>
+      </footer>
+    </section>
+  );
 }
