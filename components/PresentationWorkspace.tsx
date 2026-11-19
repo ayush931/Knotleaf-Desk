@@ -1,12 +1,13 @@
 "use client";
 import "katex/dist/katex.min.css";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { FontSelect } from "./FontSelect";
 import { themeTypography } from "@/lib/presentations/design";
 import { PresentationPlanner, type SlideAction } from "./PresentationPlanner";
 import {
   moveSlide,
   duplicateSlide,
+  insertSlides,
   writeSpeakerNotes,
 } from "@/lib/presentations/authoring";
 import { PresentationGuide } from "./PresentationGuide";
@@ -25,6 +26,14 @@ import {
   CircleHelp,
   Trash2,
   Undo2,
+  PanelsTopLeft,
+  Grid2X2,
+  MonitorPlay,
+  FileCode2,
+  NotebookPen,
+  Layers,
+  RotateCcw,
+  Bug,
 } from "lucide-react";
 import {
   parseSlides,
@@ -35,6 +44,7 @@ import {
   deckKey,
   THEMES,
   removeSlide,
+  revealCount,
   type Deck,
 } from "@/lib/presentations/model";
 import { PRESENTATION_SNIPPETS } from "@/lib/presentations/snippets";
@@ -54,7 +64,7 @@ import {
 } from "@/lib/presentations/library";
 import { lintPresentation } from "@/lib/presentations/lint.mjs";
 import { PresentationPresenter } from "./PresentationPresenter";
-import { SlideSurface } from "./PresentationSlide";
+import { SlideSurface, SlideStyles } from "./PresentationSlide";
 import { PresentationDesign } from "./PresentationDesign";
 
 import { exportDeck } from "@/lib/presentations/export";
@@ -68,6 +78,7 @@ type WorkspaceProps = {
   title: string;
   notes: string;
   onCanvasSnapshot: () => Promise<string[]>;
+  onReportBug: () => void;
 };
 export function PresentationWorkspace(props: WorkspaceProps) {
   const [id, setId] = useState(() => {
@@ -166,7 +177,7 @@ export function PresentationWorkspace(props: WorkspaceProps) {
           onCreate={create}
           onDuplicate={(value) => {
             try {
-              select(duplicateDeck(value));
+              select(duplicateDeck(value, unsavedDecks.get(value)));
             } catch (reason) {
               setError(
                 reason instanceof Error
@@ -202,6 +213,7 @@ function PresentationEditor({
   title,
   notes,
   onCanvasSnapshot,
+  onReportBug,
   onLibrary,
   onNew,
   libraryCount,
@@ -225,9 +237,10 @@ function PresentationEditor({
   });
   const [deck, setDeck] = useState<Deck | null>(initial.deck),
     [error, setError] = useState(initial.error),
-    [saved, setSaved] = useState(false),
+    [saveStatus, setSaveStatus] = useState<"saving" | "saved" | "failed">("saving"),
     [index, setIndex] = useState(0),
     [showSource, setShowSource] = useState(true),
+    [narrowPane, setNarrowPane] = useState<"source" | "preview">("preview"),
     [help, setHelp] = useState(false),
     [themeGallery, setThemeGallery] = useState(false),
     [designOpen, setDesignOpen] = useState(false),
@@ -235,6 +248,7 @@ function PresentationEditor({
     [planner, setPlanner] = useState<"organize" | "starters" | null>(null),
     [commandsOpen, setCommandsOpen] = useState(false),
     [grid, setGrid] = useState(false),
+    [rehearsal, setRehearsal] = useState<{ slide: number; step: number } | null>(null),
     [lintOpen, setLintOpen] = useState(false),
     [editorWidth, setEditorWidth] = useState(40),
     [exportFormat, setExportFormat] = useState<"pdf" | "html" | "md" | "json">(
@@ -246,12 +260,19 @@ function PresentationEditor({
     imageRef = useRef<HTMLInputElement>(null),
     presentButton = useRef<HTMLButtonElement>(null),
     guideButton = useRef<HTMLButtonElement>(null),
-    pending = useRef<Deck | null>(null);
+    pending = useRef<Deck | null>(null),
+    draft = useRef(initial.deck),
+    filmstrip = useRef<HTMLElement>(null),
+    mounted = useRef(false),
+    busyRef = useRef(false);
   const slides = React.useMemo(
     () => parseSlides(deck?.source || ""),
     [deck?.source],
   );
   const active = Math.min(index, slides.length - 1);
+  const reveals = deck?.kind === "html" ? 0 : revealCount(slides[active].source);
+  const rehearsing = rehearsal?.slide === active;
+  const previewStep = rehearsing ? Math.min(rehearsal.step, reveals) : Infinity;
   const projector = usePresenterSession(boardId, deck, setIndex);
   const issues = React.useMemo(
     () => (deck?.kind === "html" ? [] : lintPresentation(deck?.source || "")),
@@ -264,68 +285,104 @@ function PresentationEditor({
     slideIds?: string[];
   } | null>(null);
   const [imported, setImported] = useState<Deck | null>(null);
+  const save = useCallback((value: Deck) => {
+    writeDeck(boardId, value);
+    if (unsavedDecks.get(boardId) === value) unsavedDecks.delete(boardId);
+    if (pending.current === value) pending.current = null;
+  }, [boardId]);
+  const saveAndReport = useCallback((value: Deck) => {
+    try {
+      save(value);
+      setSaveStatus("saved");
+    } catch {
+      setSaveStatus("failed");
+    }
+  }, [save]);
   useEffect(() => {
     if (!deck) return;
-    pending.current = deck;
-    unsavedDecks.set(boardId, deck);
+    if (!pending.current && draft.current === deck) {
+      pending.current = deck;
+      unsavedDecks.set(boardId, deck);
+    }
     const timer = setTimeout(() => {
-      try {
-        writeDeck(boardId, deck);
-        if (unsavedDecks.get(boardId) === deck) unsavedDecks.delete(boardId);
-        setSaved(true);
-      } catch {
-        setError(
-          "Presentation not saved: browser storage is full or unavailable. Download a presentation backup before leaving.",
-        );
-      }
+      if (draft.current === deck) saveAndReport(deck);
     }, 400);
     return () => clearTimeout(timer);
-  }, [deck, boardId]);
+  }, [deck, boardId, saveAndReport]);
   useEffect(() => {
+    mounted.current = true;
     const flush = () => {
       if (pending.current)
         try {
-          writeDeck(boardId, pending.current);
-          if (unsavedDecks.get(boardId) === pending.current)
-            unsavedDecks.delete(boardId);
+          save(pending.current);
         } catch {
           /* Keep existing saved data intact when storage fails. */
         }
     };
     window.addEventListener("pagehide", flush);
     return () => {
+      mounted.current = false;
       flush();
       window.removeEventListener("pagehide", flush);
     };
-  }, [boardId]);
-  const update = (next: Partial<Deck>) => {
-    setDeck((value) => {
-      if (!value) return value;
-      const merged = { ...value, ...next };
+  }, [save]);
+  const update = (next: Partial<Deck>, replacement?: Deck) => {
+    const value = draft.current;
+    if (!value || !mounted.current) return;
+    const merged = replacement ?? { ...value, ...next };
       if (
-        next.source !== undefined &&
+        !replacement && next.source !== undefined &&
         value.slideIds &&
         next.slideIds === undefined
       )
         merged.slideIds = parseSlides(next.source).map(
           (_, i) => value.slideIds?.[i] || crypto.randomUUID(),
         );
-      return merged;
-    });
-    setSaved(false);
+    draft.current = merged;
+    pending.current = merged;
+    unsavedDecks.set(boardId, merged);
+    setDeck(merged);
+    setSaveStatus("saving");
     setError("");
     if (next.source !== undefined) {
       setUndoDelete(null);
       projector.stopFollowing();
     }
   };
+  const goToSlide = (position: number, focusSource = false, sourceSlides = slides) => {
+    const next = Math.max(0, Math.min(position, sourceSlides.length - 1));
+    projector.stopFollowing();
+    setRehearsal(null);
+    setIndex(next);
+    if (focusSource) {
+      setShowSource(true);
+      setNarrowPane("source");
+    }
+    const moveCaret = () => {
+      const editor = sourceRef.current;
+      if (focusSource) editor?.focus({ preventScroll: true });
+      editor?.setSelectionRange(sourceSlides[next].start, sourceSlides[next].start);
+      if (editor && sourceSlides[next].start === 0) editor.scrollTop = 0;
+    };
+    if (!focusSource && sourceRef.current?.value === draft.current?.source) moveCaret();
+    else requestAnimationFrame(moveCaret);
+  };
+  useEffect(() => {
+    const strip = filmstrip.current;
+    const current = strip?.querySelector<HTMLElement>('[aria-current="step"]');
+    if (!strip || !current) return;
+    const frame = strip.getBoundingClientRect();
+    const card = current.getBoundingClientRect();
+    if (card.left < frame.left) strip.scrollLeft += card.left - frame.left - 8;
+    else if (card.right > frame.right) strip.scrollLeft += card.right - frame.right + 8;
+  }, [active, slides.length]);
   const undoStructure = () => {
     if (!undoDelete) return;
     update({
       source: undoDelete.source,
       slideIds: undoDelete.slideIds || slides.map((_, i) => String(i)),
     });
-    setIndex(undoDelete.index);
+    goToSlide(undoDelete.index, false, parseSlides(undoDelete.source));
     setUndoDelete(null);
   };
   const changeSlide = (action: SlideAction, position: number) => {
@@ -362,39 +419,44 @@ function PresentationEditor({
       index: active,
       label: action === "delete" ? "Undo delete" : "Undo change",
     });
-    setIndex(next);
+    goToSlide(next, false, parseSlides(source));
   };
-  const addStarter = (source: string) => {
-    if (!deck) return;
-    const end = slides[active].end;
-    const inserted =
-      deck.source.slice(0, end).trimEnd() +
-      (deck.source.trim() ? "\n\n---\n\n" : "") +
-      source.trim() +
-      "\n\n" +
-      deck.source.slice(end);
-    const ids = slides.map((_, i) => deck.slideIds?.[i] || String(i));
-    const newIds = parseSlides(source).map(() => crypto.randomUUID());
-    if (deck.source.trim()) ids.splice(active + 1, 0, ...newIds);
-    else ids.splice(0, ids.length, ...newIds);
+  const addSlides = (addition: string, after: number, label: string, edit = false) => {
+    const current = draft.current;
+    if (!current || !addition.trim()) return;
+    const before = parseSlides(current.source);
+    const { source: inserted, index: next } = insertSlides(current.source, addition, after);
+    const result = parseSlides(inserted);
+    const ids = before.map((_, i) => current.slideIds?.[i] || String(i));
+    const previousIds = [...ids];
+    const newIds = parseSlides(addition).map(() => crypto.randomUUID());
+    if (result.length !== (current.source.trim() ? before.length : 0) + newIds.length) {
+      setError("Close any unfinished code or math blocks before inserting slides.");
+      return;
+    }
+    ids.splice(next, current.source.trim() ? 0 : ids.length, ...newIds);
     update({ source: inserted, slideIds: ids });
     setUndoDelete({
-      source: deck.source,
-      slideIds: deck.slideIds || slides.map((_, i) => String(i)),
+      source: current.source,
+      slideIds: previousIds,
       index: active,
-      label: "Undo starter",
+      label,
     });
-    setIndex(deck.source.trim() ? active + 1 : 0);
+    goToSlide(next, edit, result);
   };
   const insert = (value: string) => {
-    if (!deck) return;
+    const current = draft.current;
+    if (!current || !value) return;
     const editor = sourceRef.current;
-    const start = editor?.selectionStart ?? deck.source.length,
+    const start = editor?.selectionStart ?? (current.kind === "html"
+      ? current.source.length
+      : parseSlides(current.source)[active]?.end ?? current.source.length),
       end = editor?.selectionEnd ?? start;
-    update({
-      source: deck.source.slice(0, start) + value + deck.source.slice(end),
-    });
+    const source = current.source.slice(0, start) + value + current.source.slice(end);
+    update({ source });
+    if (current.kind !== "html") setIndex(slideAt(parseSlides(source), start + value.length));
     setShowSource(true);
+    setNarrowPane("source");
     setTimeout(() => {
       sourceRef.current?.focus();
       sourceRef.current?.setSelectionRange(
@@ -404,6 +466,8 @@ function PresentationEditor({
     }, 0);
   };
   const run = async (task: () => Promise<void>) => {
+    if (busyRef.current) return;
+    busyRef.current = true;
     setError("");
     setBusy("Preparing…");
     try {
@@ -415,6 +479,7 @@ function PresentationEditor({
           : "This action could not be completed. Your presentation is unchanged.",
       );
     } finally {
+      busyRef.current = false;
       setBusy("");
     }
   };
@@ -481,22 +546,11 @@ function PresentationEditor({
         } else if (
           deck.kind !== "html" &&
           event.altKey &&
+          !(event.target as HTMLElement).closest("select") &&
           ["arrowleft", "arrowup", "arrowright", "arrowdown"].includes(key)
         ) {
           event.preventDefault();
-          const next = Math.max(
-            0,
-            Math.min(
-              active + (key === "arrowleft" || key === "arrowup" ? -1 : 1),
-              slides.length - 1,
-            ),
-          );
-          setIndex(next);
-          sourceRef.current?.focus();
-          sourceRef.current?.setSelectionRange(
-            slides[next].start,
-            slides[next].start,
-          );
+          goToSlide(active + (key === "arrowleft" || key === "arrowup" ? -1 : 1), true);
         } else if (
           deck.kind !== "html" &&
           mod &&
@@ -507,7 +561,7 @@ function PresentationEditor({
           setThemeGallery(true);
         } else if (deck.kind !== "html" && mod && key === "d") {
           event.preventDefault();
-          insert("\n\n---\n\n## New slide\n\n");
+          addSlides("## New slide", active, "Undo new slide", true);
         } else if (
           deck.kind !== "html" &&
           mod &&
@@ -525,32 +579,53 @@ function PresentationEditor({
         }
       }}
       aria-label="Presentation workspace"
-      className="presentation-studio flex min-h-0 min-w-0 flex-1 flex-col bg-[#151517] text-neutral-200 select-text"
+      className="presentation-studio flex min-h-0 min-w-0 flex-1 flex-col select-text"
     >
-      <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-neutral-800 px-3 py-2">
-        <input
-          aria-label="Presentation title"
-          value={deck.title}
-          onChange={(event) => update({ title: event.target.value })}
-          className="min-w-0 w-36 rounded border border-transparent bg-transparent px-1 py-1 text-sm font-semibold focus:border-neutral-500 focus:outline-none"
-        />
-        <button className={button} onClick={onLibrary}>
-          Library <span className="text-neutral-500">{libraryCount}</span>
-        </button>
-        <button
-          className={button}
-          onClick={() => setCommandsOpen(true)}
-          title="Presentation commands · Ctrl/Cmd+K"
-        >
+      <SlideStyles />
+      <div className="presentation-masthead">
+        <div className="presentation-identity">
+          <span className="presentation-mark" aria-hidden="true">
+            <PanelsTopLeft size={19} strokeWidth={1.7} />
+          </span>
+          <div className="min-w-0">
+            <input
+              aria-label="Presentation title"
+              value={deck.title}
+              onChange={(event) => update({ title: event.target.value })}
+              className="min-w-0 max-w-full rounded border border-transparent bg-transparent"
+            />
+            <span role="status" className="presentation-save">
+              {{ saved: "Saved on this device", failed: "Not saved", saving: "Saving…" }[saveStatus]}
+            </span>
+          </div>
+        </div>
+        <div className="presentation-delivery">
+          <button className={button} onClick={onLibrary}>
+            Library <span className="text-neutral-500">{libraryCount}</span>
+          </button>
+          <button
+            className={button}
+            onClick={() => {
+              saveAndReport(deck);
+              if (!projector.open(active)) {
+                setError("The audience window was blocked. Use Present or allow pop-ups for this site.");
+              }
+            }}
+          >
+            <MonitorPlay size={14} />
+            <span>Audience window</span>
+          </button>
+          <button ref={presentButton} className={`${button} ui-primary presentation-present`} onClick={() => setPresenting(true)}>
+            <Play size={14} />
+            Present
+          </button>
+        </div>
+      </div>
+      <div className="presentation-toolbar">
+        <button className={button} onClick={() => setCommandsOpen(true)} title="Presentation commands · Ctrl/Cmd+K">
+          <Plus size={14} />
           Insert
         </button>
-        <span role="status" className="mr-auto text-[10px] text-neutral-400">
-          {saved
-            ? "Saved on this device"
-            : error.startsWith("Presentation not saved")
-              ? "Not saved"
-              : "Saving…"}
-        </span>
         {deck.kind !== "html" && (
           <>
             <button
@@ -580,6 +655,7 @@ function PresentationEditor({
             <PresentationDesign
               open={designOpen}
               deck={deck}
+              slide={slides[active]}
               onChange={update}
               onClose={() => setDesignOpen(false)}
             />
@@ -609,77 +685,7 @@ function PresentationEditor({
             </button>
           </>
         )}
-        <button
-          className={button}
-          onClick={() => {
-            try {
-              writeDeck(boardId, deck);
-            } catch {
-              /* The live channel can still send the unsaved draft. */
-            }
-            if (!projector.open(active)) {
-              setError(
-                "The audience window was blocked. Use Present for the expanded view, or allow pop-ups for this site.",
-              );
-            }
-          }}
-        >
-          Audience window
-        </button>
-        <button
-          ref={presentButton}
-          className={`${button} ui-primary`}
-          onClick={() => {
-            setPresenting(true);
-          }}
-        >
-          <Play size={13} />
-          Present
-        </button>
-      </div>
-      <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-neutral-800 px-3 py-2">
-        {deck.kind !== "html" && (
-          <>
-            <button
-              className={button}
-              onClick={() => {
-                const source = deck.source + "\n\n---\n\n## New slide\n\n";
-                update({ source });
-                setIndex(parseSlides(source).length - 1);
-                setTimeout(() => {
-                  sourceRef.current?.focus();
-                  sourceRef.current?.setSelectionRange(
-                    source.length,
-                    source.length,
-                  );
-                }, 0);
-              }}
-            >
-              <Plus size={13} />
-              Slide
-            </button>
-            <button className={button} onClick={() => setPlanner("starters")}>
-              Starters
-            </button>
-            <button className={button} onClick={() => setPlanner("organize")}>
-              Organize
-            </button>
-            <button data-ui-tone="danger"
-              className={button}
-              aria-label="Delete current slide"
-              onClick={() => changeSlide("delete", active)}
-            >
-              <Trash2 size={13} />
-              <span className="hidden sm:inline">Delete slide</span>
-            </button>
-            {undoDelete && (
-              <button className={button} onClick={undoStructure}>
-                <Undo2 size={13} />
-                {undoDelete.label || "Undo delete"}
-              </button>
-            )}
-          </>
-        )}
+        <div className="presentation-tools-divider" aria-hidden="true" />
         {deck.kind !== "html" && (
           <div
             role="group"
@@ -729,7 +735,7 @@ function PresentationEditor({
           </div>
         )}
         <button
-          className={button}
+          className={`${button} presentation-source-toggle`}
           aria-pressed={showSource}
           onClick={() => setShowSource((value) => !value)}
         >
@@ -739,6 +745,14 @@ function PresentationEditor({
               ? "Edit HTML"
               : "Edit Markdown"}
         </button>
+        <div className="presentation-pane-switch" role="group" aria-label="Presentation pane">
+          <button className={button} aria-pressed={narrowPane === "source"} onClick={() => { setShowSource(true); setNarrowPane("source"); }}>
+            Source
+          </button>
+          <button className={button} aria-pressed={narrowPane === "preview"} onClick={() => setNarrowPane("preview")}>
+            Preview
+          </button>
+        </div>
         <button
           className={button}
           onClick={() => fileRef.current?.click()}
@@ -766,7 +780,7 @@ function PresentationEditor({
                 className="w-full rounded p-2 text-left text-xs hover:bg-neutral-800 disabled:opacity-40"
                 disabled={!notes.trim() || !!busy}
                 onClick={(event) => {
-                  insert("\n\n---\n\n" + notesToDeck(notes));
+                  addSlides(notesToDeck(notes), Infinity, "Undo notes import");
                   event.currentTarget
                     .closest("details")
                     ?.removeAttribute("open");
@@ -783,17 +797,20 @@ function PresentationEditor({
                     ?.removeAttribute("open");
                   void run(async () => {
                     const images = await onCanvasSnapshot();
+                    if (!mounted.current) return;
                     if (!images.length)
                       throw new Error(
                         "Add elements or frames to the canvas first.",
                       );
-                    insert(
+                    addSlides(
                       images
                         .map(
                           (source, i) =>
-                            `\n\n---\n\n## ${images.length > 1 ? `Frame ${i + 1}` : "Canvas"}\n\n![Canvas snapshot](${source})\n`,
+                            `## ${images.length > 1 ? `Frame ${i + 1}` : "Canvas"}\n\n![Canvas snapshot](${source})`,
                         )
-                        .join(""),
+                        .join("\n\n---\n\n"),
+                      Infinity,
+                      "Undo canvas import",
                     );
                   });
                 }}
@@ -925,14 +942,17 @@ function PresentationEditor({
         name={imported?.title}
         onClose={() => setImported(null)}
         onConfirm={() => {
-          if (imported) update(imported);
-          setIndex(0);
+          if (imported) {
+            update(imported, imported);
+            setGrid(false);
+            goToSlide(0, false, parseSlides(imported.source));
+          }
         }}
       />
       <input
         ref={fileRef}
         type="file"
-        accept=".md,.markdown,.json,text/markdown,application/json"
+        accept={deck.kind === "html" ? ".html,.htm,.json,text/html,application/json" : ".md,.markdown,.json,text/markdown,application/json"}
         className="hidden"
         aria-label="Import presentation"
         onChange={(event) => {
@@ -941,10 +961,17 @@ function PresentationEditor({
           if (!file) return;
           void run(async () => {
             const text = await file.text();
+            if (!mounted.current) return;
             if (/\.json$/i.test(file.name)) {
               setImported(readDeck(text));
-            } else update({ source: deck.source + "\n\n---\n\n" + text });
-            setIndex(0);
+            } else if (draft.current?.kind === "html") {
+              if (!/\.html?$/i.test(file.name)) throw new Error("Choose an HTML document or a presentation backup.");
+              setImported({ ...draft.current, source: text, allowScripts: false });
+            } else {
+              if (!/\.(?:md|markdown)$/i.test(file.name)) throw new Error("Choose a Markdown file or a presentation backup.");
+              if (!text.trim()) throw new Error("This Markdown file is empty.");
+              addSlides(text, Infinity, "Undo Markdown import");
+            }
           });
         }}
       />
@@ -958,6 +985,7 @@ function PresentationEditor({
         onChange={(event) => {
           const files = Array.from(event.target.files || []);
           event.target.value = "";
+          if (!files.length) return;
           void run(async () => {
             const values = await Promise.all(
               files.map(
@@ -976,7 +1004,7 @@ function PresentationEditor({
                   }),
               ),
             );
-            insert(values.join(""));
+            if (mounted.current) insert(values.join(""));
           });
         }}
       />
@@ -999,6 +1027,12 @@ function PresentationEditor({
             else setPresenting(true);
           }}
         />
+      )}
+      {saveStatus === "failed" && (
+        <div role="alert" className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-neutral-800 px-3 py-2 text-xs">
+          <span>Browser storage is full or unavailable. Export a presentation backup to keep this draft.</span>
+          <button className={button} onClick={() => saveAndReport(deck)}>Retry saving</button>
+        </div>
       )}
       {error && (
         <div
@@ -1051,11 +1085,9 @@ function PresentationEditor({
               className="block w-full rounded px-2 py-2 text-left hover:bg-neutral-800"
               onClick={() => {
                 setShowSource(true);
+                setNarrowPane("source");
                 setIndex(issue.slide - 1);
-                const offset = deck.source
-                  .split("\n")
-                  .slice(0, issue.line - 1)
-                  .join("\n").length;
+                const offset = deck.source.split(/(?<=\n)/).slice(0, issue.line - 1).join("").length;
                 setTimeout(() => {
                   sourceRef.current?.focus();
                   sourceRef.current?.setSelectionRange(offset, offset);
@@ -1074,21 +1106,20 @@ function PresentationEditor({
           ))}
         </aside>
       )}
-      <div className="flex min-h-0 flex-1 max-md:flex-col">
+      <div className="presentation-body flex min-h-0 flex-1 max-md:flex-col" data-narrow-pane={narrowPane}>
         {showSource && (
           <div
             style={
               { "--editor-width": `${editorWidth}%` } as React.CSSProperties
             }
-            className="flex min-h-0 w-[var(--editor-width)] min-w-0 flex-col border-r border-neutral-800 max-md:h-[40%] max-md:w-full max-md:border-b"
+            className="presentation-editor flex min-h-0 w-[var(--editor-width)] min-w-0 flex-col max-md:flex-1 max-md:w-full"
           >
             <label
               htmlFor={`deck-source-${boardId}`}
-              className="px-3 py-2 text-[10px] uppercase tracking-wider text-neutral-500"
+              className="presentation-pane-label"
             >
-              {deck.kind === "html"
-                ? "HTML document · own styling"
-                : `Markdown · ${slides.length} slides`}
+              <FileCode2 size={14} />
+              {deck.kind === "html" ? "HTML source" : "Markdown source"}
             </label>
             <PresentationSource
               kind={deck.kind}
@@ -1164,8 +1195,27 @@ function PresentationEditor({
             className="hidden w-1 shrink-0 cursor-col-resize bg-neutral-800 hover:bg-neutral-500 focus-visible:bg-neutral-500 md:block"
           />
         )}
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-          <div className="min-h-0 flex-1 p-3">
+        <div className="presentation-preview flex min-h-0 min-w-0 flex-1 flex-col">
+          <div className="presentation-preview-bar">
+            <div className="min-w-0">
+              <span className="presentation-caption">{deck.kind === "html" ? "Document preview" : grid ? "Slide overview" : `Slide ${active + 1} of ${slides.length}`}</span>
+              {deck.kind !== "html" && !grid && <p className="truncate text-sm font-semibold">{slides[active].title}</p>}
+            </div>
+            {deck.kind !== "html" && (
+              <div className="presentation-preview-actions">
+                <button className={button} aria-label="Previous preview slide" disabled={active === 0} onClick={() => goToSlide(active - 1)}>
+                  <ChevronLeft size={15} />
+                </button>
+                <button className={button} aria-label="Next preview slide" disabled={active === slides.length - 1} onClick={() => goToSlide(active + 1)}>
+                  <ChevronRight size={15} />
+                </button>
+                <button className={button} aria-label="Slide overview" title="Slide overview" aria-pressed={grid} onClick={() => setGrid(!grid)}>
+                  <Grid2X2 size={15} />
+                </button>
+              </div>
+            )}
+          </div>
+          <div className="presentation-stage-wrap min-h-0 flex-1">
             {deck.kind === "html" ? (
               <PresentationHtml
                 source={deck.source}
@@ -1173,151 +1223,152 @@ function PresentationEditor({
                 annotationKey={`${boardId}:html`}
               />
             ) : grid ? (
-              <div
-                aria-label="Slide preview grid"
-                className="grid h-full grid-cols-2 content-start gap-3 overflow-auto"
-              >
+              <div aria-label="Slide preview grid" className="presentation-overview">
                 {slides.map((slide, i) => (
                   <button
-                    key={`${i}:${slide.start}`}
-                    className={`overflow-hidden rounded border ${i === active ? "border-neutral-500" : "border-neutral-700"}`}
-                    onClick={() => {
-                      setIndex(i);
-                      setGrid(false);
-                    }}
+                    key={deck.slideIds?.[i] || i}
+                    className="presentation-thumbnail"
+                    aria-label={`Open slide ${i + 1}: ${slide.title}`}
+                    aria-current={i === active ? "step" : undefined}
+                    onClick={() => { goToSlide(i); setGrid(false); }}
                   >
-                    <div className="pointer-events-none aspect-video">
-                      <SlideSurface slide={slide} deck={deck} lazy />
+                    <div className="presentation-thumb-image" aria-hidden="true">
+                      <SlideSurface slide={slide} deck={deck} lazy sharedStyles />
                     </div>
-                    <span className="block truncate p-1.5 text-left text-[10px] text-neutral-400">
-                      {i + 1} · {slide.title}
-                    </span>
+                    <span className="presentation-thumb-label"><b>{i + 1}</b><span>{slide.title}</span></span>
                   </button>
                 ))}
               </div>
             ) : (
               <SlideSurface
+                key={deck.slideIds?.[active] || active}
                 slide={slides[active]}
                 deck={deck}
+                step={previewStep}
+                sharedStyles
                 annotationKey={`${boardId}:${deck.slideIds?.[active] || active}`}
               />
             )}
           </div>
           {deck.kind !== "html" && (
-            <>
-              <div className="flex shrink-0 items-center justify-between gap-2 px-3 pb-2">
-                <button data-ui-tone="info"
-                  className={button}
-                  aria-label="Previous preview slide"
-                  disabled={active === 0}
-                  onClick={() => setIndex(Math.max(0, active - 1))}
-                >
-                  <ChevronLeft size={14} />
-                </button>
-                <span className="truncate text-xs text-neutral-400">
-                  {active + 1} / {slides.length} · {slides[active].title}
-                </span>
-                <button data-ui-tone="info"
-                  className={button}
-                  aria-label="Next preview slide"
-                  disabled={active === slides.length - 1}
-                  onClick={() =>
-                    setIndex(Math.min(slides.length - 1, active + 1))
-                  }
-                >
-                  <ChevronRight size={14} />
-                </button>
-              </div>
-              <details
-                open={projector.following || undefined}
-                className="mx-3 mb-2 rounded border border-neutral-800 px-3 py-2 text-xs"
-              >
-                <summary className="cursor-pointer text-neutral-400">
-                  Speaker notes · private{" "}
-                  {projector.following ? "· following audience" : ""}
+            <div className="presentation-preview-footer">
+              <details open={projector.following || undefined} className="presentation-speaker-notes">
+                <summary>
+                  <NotebookPen size={14} aria-hidden="true" />
+                  Speaker notes
+                  <span className="presentation-caption">Private</span>
                 </summary>
-                <label className="mt-2 block text-[10px] text-neutral-500">
-                  Only you can see these notes. They are excluded from audience
-                  HTML and PDF.
-                  <textarea
-                    aria-label="Private speaker notes"
-                    value={slides[active].notes}
-                    onChange={(event) =>
-                      update({
-                        source: writeSpeakerNotes(
-                          deck.source,
-                          active,
-                          event.target.value,
-                        ),
-                      })
-                    }
-                    placeholder="What do you want to say on this slide?"
-                    rows={3}
-                    className="mt-2 block w-full resize-none rounded border border-neutral-700 bg-neutral-950 p-2 text-xs leading-5 text-neutral-200 outline-none focus:border-neutral-500"
-                  />
-                </label>
+                <div className="presentation-notes-content">
+                  <label className="block text-xs text-neutral-400">
+                    Excluded from audience HTML and PDF.
+                    <textarea
+                      aria-label="Private speaker notes"
+                      value={slides[active].notes}
+                      onChange={(event) => update({ source: writeSpeakerNotes(deck.source, active, event.target.value) })}
+                      placeholder="What do you want to say on this slide?"
+                      rows={3}
+                      className="mt-2 block w-full resize-none rounded border border-neutral-700 bg-neutral-950 p-2 text-xs leading-5 text-neutral-200 outline-none focus:border-neutral-500"
+                    />
+                  </label>
+                </div>
               </details>
-            </>
+              {!grid && reveals > 0 && (
+                <div className="presentation-reveal" role="group" aria-label="Rehearse reveals">
+                  <Layers size={14} aria-hidden="true" />
+                  {rehearsing && (
+                    <>
+                      <span role="status">Reveal {previewStep} / {reveals}</span>
+                      <button className={button} aria-label="Previous reveal" disabled={previewStep === 0} onClick={() => setRehearsal({slide: active, step: previewStep - 1})}>
+                        <ChevronLeft size={14} />
+                      </button>
+                      <button className={button} aria-label="Next reveal" disabled={previewStep === reveals} onClick={() => setRehearsal({slide: active, step: previewStep + 1})}>
+                        <ChevronRight size={14} />
+                      </button>
+                    </>
+                  )}
+                  <button
+                    className={button}
+                    onClick={() => setRehearsal(rehearsing ? null : { slide: active, step: 0 })}
+                  >
+                    {rehearsing && <RotateCcw size={13} />}
+                    {rehearsing ? "Show all reveals" : "Rehearse reveals"}
+                  </button>
+                </div>
+              )}
+            </div>
           )}
         </div>
       </div>
-      {deck.kind === "html" && (
-        <label className="flex shrink-0 items-center gap-2 border-t border-neutral-800 px-3 py-2 text-xs text-neutral-400">
-          <input
-            type="checkbox"
-            checked={!!deck.allowScripts}
-            onChange={(event) => update({ allowScripts: event.target.checked })}
-            className="accent-black dark:accent-white"
-          />
-          Run embedded scripts in an isolated preview{" "}
-          <span className="text-neutral-500">
-            · Documents cannot access your boards or library.
-          </span>
-        </label>
-      )}
-      <div
-        className={`flex shrink-0 items-center justify-end gap-2 border-t border-neutral-800 py-1 text-[10px] text-neutral-500 ${deck.kind === "html" ? "h-12 pl-28 pr-3" : "px-3"}`}
-      >
-        {deck.kind !== "html" && (
-          <>
+      {deck.kind === "html" ? (
+        <div className="presentation-sequence-header border-t border-neutral-800">
+          <label className="flex items-center gap-2 py-2 text-xs text-neutral-400">
+            <input
+              type="checkbox"
+              checked={!!deck.allowScripts}
+              onChange={(event) => update({ allowScripts: event.target.checked })}
+              className="accent-black dark:accent-white"
+            />
+            Run embedded scripts in an isolated preview
+          </label>
+          <button type="button" className={`${button} ml-auto`} aria-label="Report bug" title="Report a bug" onClick={onReportBug}>
+            <Bug size={13} />
+          </button>
+        </div>
+      ) : (
+        <div className="presentation-sequence">
+          <div className="presentation-sequence-header">
+            <span className="mr-1">Slides <strong>{slides.length}</strong></span>
             <button
-              onClick={() => setGrid((value) => !value)}
-              className="rounded px-2 py-1 hover:bg-neutral-800"
+              className={button}
+              onClick={() => addSlides("## New slide", active, "Undo new slide", true)}
             >
-              {grid ? "Single slide" : "Grid preview"}
+              <Plus size={13} />
+              New slide
             </button>
-            <button
-              onClick={() => setLintOpen((value) => !value)}
-              className="rounded px-2 py-1 hover:bg-neutral-800"
+            <button className={button} onClick={() => setPlanner("starters")}>
+              Starters
+            </button>
+            <button className={button} onClick={() => setPlanner("organize")}>
+              Organize
+            </button>
+            <button data-ui-tone="danger"
+              className={button}
+              aria-label="Delete current slide"
+              onClick={() => changeSlide("delete", active)}
             >
-              {issues.length ? `${issues.length} checks` : "Slides checked"}
+              <Trash2 size={13} />
+              <span className="hidden sm:inline">Delete slide</span>
             </button>
-          </>
-        )}
-        <span>
-          {deck.kind === "html"
-            ? `${deck.source.length.toLocaleString()} characters`
-            : `${deck.source.trim() ? deck.source.trim().split(/\s+/).length : 0} words`}
-        </span>
-      </div>
-      {deck.kind !== "html" && (
-        <nav
-          aria-label="Presentation slides"
-          className="flex h-16 shrink-0 items-center gap-2 overflow-x-auto border-t border-neutral-800 pl-28 pr-3 py-2"
-        >
-          {slides.map((slide, i) => (
-            <button
-              key={`${i}:${slide.start}`}
-              aria-label={`Slide ${i + 1}: ${slide.title}`}
-              aria-current={i === active ? "step" : undefined}
-              onClick={() => setIndex(i)}
-              className={`h-full w-36 shrink-0 truncate rounded border px-3 text-left text-xs ${active === i ? "border-neutral-500 bg-neutral-500/10 text-neutral-200" : "border-neutral-700 bg-neutral-900 text-neutral-400 hover:bg-neutral-800"}`}
-            >
-              <span className="mr-2 text-neutral-500">{i + 1}</span>
-              {slide.title}
+            {undoDelete && (
+              <button className={button} onClick={undoStructure}>
+                <Undo2 size={13} />
+                {undoDelete.label || "Undo delete"}
+              </button>
+            )}
+            <button type="button" className={`${button} ml-auto`} aria-expanded={lintOpen} onClick={() => setLintOpen(!lintOpen)}>
+              {issues.length ? `Check slides · ${issues.length}` : "Check slides"}
             </button>
-          ))}
-        </nav>
+            <button type="button" className={button} aria-label="Report bug" title="Report a bug" onClick={onReportBug}>
+              <Bug size={13} />
+            </button>
+          </div>
+          <nav ref={filmstrip} aria-label="Presentation slides" className="presentation-filmstrip">
+            {slides.map((slide, i) => (
+              <button
+                key={deck.slideIds?.[i] || i}
+                aria-label={`Slide ${i + 1}: ${slide.title}`}
+                aria-current={i === active ? "step" : undefined}
+                className="presentation-thumbnail"
+                onClick={() => goToSlide(i)}
+              >
+                <div className="presentation-thumb-image" aria-hidden="true">
+                  <SlideSurface slide={slide} deck={deck} lazy sharedStyles />
+                </div>
+                <span className="presentation-thumb-label"><b>{i + 1}</b><span>{slide.title}</span></span>
+              </button>
+            ))}
+          </nav>
+        </div>
       )}
       {planner && deck.kind !== "html" && (
         <PresentationPlanner
@@ -1326,12 +1377,9 @@ function PresentationEditor({
           slides={slides}
           active={active}
           onClose={() => setPlanner(null)}
-          onSelect={(position) => {
-            projector.stopFollowing();
-            setIndex(position);
-          }}
+          onSelect={(position) => goToSlide(position)}
           onAction={changeSlide}
-          onStarter={addStarter}
+          onStarter={(source) => addSlides(source, active, "Undo starter")}
           onUndo={undoDelete ? undoStructure : undefined}
         />
       )}

@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useRef, useId, useState } from "react";
 import { X } from "lucide-react";
-import { THEMES, type Deck } from "@/lib/presentations/model";
+import { THEMES, type Deck, type Slide } from "@/lib/presentations/model";
+import { SlideSurface } from "./PresentationSlide";
 import {
   BACKDROPS,
   COMPOSITIONS,
@@ -10,11 +11,13 @@ import {
 export function PresentationDesign({
   open,
   deck,
+  slide,
   onChange,
   onClose,
 }: {
   open: boolean;
   deck: Deck;
+  slide: Slide;
   onChange: (value: Partial<Deck>) => void;
   onClose: () => void;
 }) {
@@ -42,7 +45,7 @@ export function PresentationDesign({
             Presentation design
           </h2>
           <p className="mt-1 text-xs text-neutral-400">
-            Composition, typography, and movement. Your Markdown stays intact.
+            Preview compositions with the current slide.
           </p>
         </div>
         <button data-ui-tone="neutral"
@@ -56,26 +59,19 @@ export function PresentationDesign({
       </header>
       <fieldset>
         <legend className="mb-2 text-xs text-neutral-400">Composition</legend>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           {COMPOSITIONS.map((name) => (
             <button
               key={name}
+              aria-label={`Use ${name} composition`}
               aria-pressed={(deck.template || "classic") === name}
               onClick={() => onChange({ template: name })}
-              className={`rounded-lg border p-3 text-left capitalize ${(deck.template || "classic") === name ? "border-neutral-500 bg-neutral-500/10 text-neutral-200" : "border-neutral-700 hover:border-neutral-500"}`}
+              className="presentation-thumbnail capitalize"
             >
-              <div
-                className={`mb-3 h-14 rounded bg-neutral-950 p-2 ${name === "spotlight" ? "flex flex-col items-center justify-center" : ""} ${name === "editorial" ? "border-t-2 border-neutral-300" : ""}`}
-              >
-                <span
-                  className={`mb-1 block h-1.5 w-8 rounded bg-neutral-200 ${name === "spotlight" ? "w-12!" : ""}`}
-                />
-                <span className="mb-1 block h-1 w-12 rounded bg-neutral-600" />
-                {name !== "minimal" && (
-                  <span className="block h-1 w-9 rounded bg-neutral-700" />
-                )}
-              </div>
-              <span className="text-xs">{name}</span>
+              {open && <div className="presentation-thumb-image" aria-hidden="true">
+                <SlideSurface slide={slide} deck={{ ...deck, template: name }} lazy sharedStyles />
+              </div>}
+              <span className="presentation-thumb-label">{name}</span>
             </button>
           ))}
         </div>

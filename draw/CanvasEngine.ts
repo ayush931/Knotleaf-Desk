@@ -1,5 +1,5 @@
 import { layoutCodeText } from './codeText';
-import { cardCornerRadius, selectionCornerRadius } from "./renderer";
+import { selectionCornerRadius } from "./renderer";
 import { clearRangeOverrides, editRanges } from "./textRanges";
 import { arrangementDeltas, type Arrangement } from "./arrangement";
 import { canvasBackground, setCanvasUiPalette, type CanvasUiPalette } from "./canvasAppearance";

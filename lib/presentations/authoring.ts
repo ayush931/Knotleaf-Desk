@@ -4,6 +4,21 @@ function parts(source: string) {
     source.slice(slide.start, slide.end).trim(),
   );
 }
+function withBlankLine(source: string) {
+  if (source.endsWith("\n\n")) return source;
+  return source + (source.endsWith("\n") ? "\n" : "\n\n");
+}
+export function insertSlides(source: string, addition: string, after: number) {
+  if (!source.trim()) return { source: addition, index: 0 };
+  const slides = parseSlides(source);
+  const position = Math.max(0, Math.min(after, slides.length - 1));
+  const end = slides[position].end;
+  return {
+    source: withBlankLine(source.slice(0, end)) + "---\n\n" +
+      withBlankLine(addition) + source.slice(end),
+    index: position + 1,
+  };
+}
 export function moveSlide(source: string, from: number, to: number) {
   const chunks = parts(source);
   if (
