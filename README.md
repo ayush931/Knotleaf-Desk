@@ -75,6 +75,12 @@ Personal data lives in localStorage (`excali_eraser_*` keys). It stays on your d
 
 Canvas undo/redo covers diagram edits. Notes use normal textarea editing history; the Markdown formatting helpers perform source edits. Clearing a board removes its canvas and notes; only the canvas change is in the canvas undo history. Deleting a board is permanent after confirmation. Another tab can reload the active board from browser storage; simultaneous multi-tab editing does not provide conflict merging, so edit a board in one tab at a time.
 
+## Tasks and Writing
+
+Open **Tasks** on a board to plan work in a kanban board or a searchable list. Add owners, priorities, due dates, labels, descriptions, and checklists. Move work between To do, In progress, In review, and Done. Daily, weekly, and monthly tasks create their next occurrence on completion. Use the list to complete, archive, or restore multiple tasks, and export the current results to CSV.
+
+Open **Writing** for a dedicated freehand sheet with Fountain, Brush, Marker, and Technical pens. Choose a preset or custom ink color and adjust the width. The sheet has its own eraser, pan, zoom, undo/redo, and PNG export. Both views save per board in this browser. A complete project backup includes the tasks and writing sheet. Room invitations share the diagram and notes, and each device manages its own tasks and writing.
+
 ## Collaboration rooms
 
 Use **Share → Create room from this board** to create a shared copy, then copy the invite link. Other people open the link to join the same canvas and notes. Set your display name in the room panel. Presence and cursors are ephemeral. Yjs merges concurrent Markdown and code edits and changes to different shapes; simultaneous edits to the same shape resolve to one shared element value. Room undo uses Yjs and targets your own changes. Use **Leave room** in the header or collaboration panel to disconnect and return to your last personal board. Other participants keep their session, and the room’s local backup remains saved. Concurrent additions do not cancel an unfinished eraser deletion; stale snapshots do not recreate deleted shapes.
@@ -163,7 +169,7 @@ Core libraries: [Next.js](https://nextjs.org/), [React](https://react.dev/), [Lu
 
 ## Portable file format and PDF details
 
-A `.knotleaf` file is UTF-8 JSON with `format: "knotleaf.project"`, `version: 1`, an export `scope`, and the board data. A full project retains the canvas and Markdown source, element IDs and connector bindings, embedded SVG icons, formatting and settings. Canvas-only and notes-only files include only that selected content. Room presence and server history are not part of the file. Files open as independent personal boards, not as room invitations. Unknown format versions and duplicate element IDs are rejected. Project/JSON backups have a 50 MB import limit. Markdown uploads use separate browser file storage and are not subject to that limit; available device/browser space still applies.
+A `.knotleaf` file is UTF-8 JSON with `format: "knotleaf.project"`, `version: 1`, an export `scope`, and the board data. A full project retains the canvas, Markdown source, tasks and writing strokes, element IDs and connector bindings, embedded SVG icons, formatting and settings. Canvas-only and notes-only files include only that selected content. Room presence and server history are not part of the file. Files open as independent personal boards, not as room invitations. Unknown format versions and duplicate element IDs are rejected. Project/JSON backups have a 50 MB import limit. Markdown uploads use separate browser file storage and are not subject to that limit; available device/browser space still applies.
 
 PDF is generated locally in the browser. The whole drawing is fitted onto a landscape or portrait page; notes follow on portrait pages, with text-line-aware page breaks and Unicode rendered using browser fonts. PDF pages are rasterized for consistent SVG/icon/Markdown rendering and are not searchable text. External Markdown images are represented by their alt text; the original image links remain in the editable backup. Notes are limited to 500 PDF pages per export. Export a `.knotleaf` project to preserve editable work even when PDF or image generation fails.
 

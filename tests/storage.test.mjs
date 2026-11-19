@@ -123,3 +123,44 @@ test('unknown portable versions and duplicate element IDs cannot create or overw
   expect(importBoardFromJson(JSON.stringify({ ...board, elements: [el, el] }))).toBeNull();
   expect(getAllBoards()).toHaveLength(1); expect(getBoard(board.id).markdownNotes).toBe('Keep me');
 });
+
+test("task and writing data stay isolated across canvas changes, boards, and scoped backups", async () => {
+  const { updateBoardContent } = await import("../lib/storage.ts");
+  const { serializeProject } = await import("../lib/projectFile.ts");
+  const { blankTask, saveTask } = await import("../lib/tasks.ts");
+  const board = createBoard("Work plan");
+  const stale = getBoard(board.id);
+  const tasks = updateBoardContent(board.id, "tasks", current => saveTask(current, { ...blankTask(), title: "Review brief" }));
+  const strokes = [{ id: "s1", type: "pencil", x: 5, y: 5, width: 10, height: 10, points: [{ x: 5, y: 5, pressure: 0.5 }], zIndex: 0,
+    stroke: "#ff0000", strokeWidth: 3, strokeStyle: "solid", fill: "transparent", fillStyle: "none", roundness: "rounded", opacity: 1, inkStyle: "brush" }];
+  updateBoardContent(board.id, "writing", () => strokes);
+  saveBoard({ ...stale, markdownNotes: "Notes updated elsewhere", viewMode: "writing" });
+  const current = getBoard(board.id);
+  expect(current).toMatchObject({ tasks, writing: strokes, markdownNotes: "Notes updated elsewhere" });
+  const duplicate = duplicateBoard(board.id);
+  const portable = importBoardFromJson(serializeProject(current));
+  expect(duplicate).toMatchObject({ tasks, writing: strokes });
+  expect(portable).toMatchObject({ tasks, writing: strokes, viewMode: "writing" });
+  expect(createBoard("Another board").tasks).toBeUndefined();
+  for (const scope of ["canvas", "notes"]) {
+    const exported = JSON.parse(serializeProject(current, scope)).board;
+    expect(exported.tasks).toBeUndefined();
+    expect(exported.writing).toBeUndefined();
+  }
+  expect(importBoardFromJson(JSON.stringify({ ...current, tasks: [tasks[0], tasks[0]] }))).toBeNull();
+  expect(importBoardFromJson(JSON.stringify({ ...current, writing: [{ ...strokes[0], type: "rectangle" }] }))).toBeNull();
+});
+
+test("failed task writes cannot discard existing board data", async () => {
+  const { updateBoardContent } = await import("../lib/storage.ts");
+  const { blankTask, saveTask } = await import("../lib/tasks.ts");
+  const board = createBoard("Keep existing data");
+  const task = { ...blankTask(), title: "Pending" };
+  updateBoardContent(board.id, "tasks", current => saveTask(current, task));
+  const original = localStorage.setItem;
+  localStorage.setItem = () => { throw new Error("Quota exceeded"); };
+  try {
+    expect(() => updateBoardContent(board.id, "tasks", () => [])).toThrow("could not save");
+    expect(getBoard(board.id).tasks[0].title).toBe("Pending");
+  } finally { localStorage.setItem = original; }
+});

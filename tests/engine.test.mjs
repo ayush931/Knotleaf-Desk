@@ -1519,6 +1519,22 @@ test('pen pressure and the chosen ink style persist through drawing, duplication
   engine.undo(); expect(engine.getElements()).toHaveLength(1); engine.undo(); expect(engine.getElements()).toHaveLength(0); engine.destroy();
 });
 
+test('Writing can preserve pen taps and undo them as individual dots', () => {
+  const { engine, listeners, point } = setup([]);
+  engine.setTool('pencil');
+  const tap = point(140, 120);
+  listeners.pointerdown(tap); listeners.pointerup(tap);
+  expect(engine.getElements()).toHaveLength(0);
+  engine.setPencilDotsEnabled(true);
+  listeners.pointerdown(tap); listeners.pointerup(tap);
+  expect(engine.getElements()[0].points).toMatchObject([{ x: 140, y: 120 }]);
+  engine.undo();
+  expect(engine.getElements()).toHaveLength(0);
+  engine.redo();
+  expect(engine.getElements()).toHaveLength(1);
+  engine.destroy();
+});
+
 
 
 for (const tool of ['circle', 'arrow', 'rectangle', 'diamond', 'frame', 'line']) {

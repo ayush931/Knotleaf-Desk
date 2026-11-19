@@ -7,6 +7,7 @@ export function serializeProject(board: Board, scope: ExportScope = 'project'): 
   const copy: Board = structuredClone(board);
   delete copy.importedMarkdownId; delete copy.largeMarkdown;
   delete copy.workspaceId; // Imports choose a workspace on the receiving device.
+  if (scope !== 'project') { delete copy.tasks; delete copy.writing; }
   if (scope === 'canvas') { copy.markdownNotes = ''; copy.viewMode = 'canvas'; }
   if (scope === 'notes') { copy.elements = []; copy.viewMode = 'notes'; }
   return JSON.stringify({ format: PROJECT_FORMAT, version: PROJECT_VERSION, scope, board: copy }, null, 2);

@@ -1,5 +1,6 @@
 import { isValidElement } from "./elementValidation.mjs";
 export { isValidElement } from "./elementValidation.mjs";
+import { readTasks } from "./tasks";
 import { readProjectPayload } from "./projectFile";
 import { normalizeBackground } from "./background.mjs";
 import { Board, BoardSummary, CanvasElement, Workspace } from "@/draw/types";
@@ -80,9 +81,17 @@ export function saveBoard(board: Board): boolean {
   if (typeof window === "undefined") return false;
   try {
     if (expiredRoom(board)) { removeRoomCache(board.id); return false; }
+    const key = `${STORAGE_KEYS.BOARD_PREFIX}${board.id}`;
+    const raw = localStorage.getItem(key);
+    if (raw) {
+      // Canvas/room updates can have an older copy of the local-only workspaces.
+      const stored = JSON.parse(raw) as Board;
+      board.tasks = stored.tasks;
+      board.writing = stored.writing;
+    }
     board.updatedAt = Date.now();
     localStorage.setItem(
-      `${STORAGE_KEYS.BOARD_PREFIX}${board.id}`,
+      key,
       JSON.stringify(board)
     );
 
@@ -110,6 +119,29 @@ export function saveBoard(board: Board): boolean {
     console.error("Failed to save board to localStorage", err);
     return false;
   }
+}
+
+export function boardStorageKey(id: string) {
+  return STORAGE_KEYS.BOARD_PREFIX + id;
+}
+
+// Update the selected workspace in one write while preserving current canvas and notes.
+export function updateBoardContent<K extends "tasks" | "writing">(
+  id: string,
+  field: K,
+  update: (value: NonNullable<Board[K]>) => NonNullable<Board[K]>,
+) {
+  const key = boardStorageKey(id);
+  const raw = localStorage.getItem(key);
+  const board = raw ? JSON.parse(raw) as Board : null;
+  if (!board || expiredRoom(board)) throw new Error("This board is no longer available.");
+  const next = update((board[field] ?? []) as NonNullable<Board[K]>);
+  try {
+    localStorage.setItem(key, JSON.stringify({ ...board, [field]: next }));
+  } catch {
+    throw new Error("This device could not save the change. Free browser storage and try again.");
+  }
+  return next;
 }
 
 export function createBoard(title?: string, templateId?: string, workspaceId = "personal", id = Math.random().toString(36).substring(2, 10)): Board {
@@ -228,7 +260,13 @@ export function importBoardFromJson(jsonStr: string): Board | null {
     parsed.markdownNotes = typeof parsed.markdownNotes === "string" ? parsed.markdownNotes : "";
     parsed.background = normalizeBackground(parsed.background);
     parsed.theme = typeof window !== "undefined" ? loadPreferences().theme : "dark";
-    parsed.viewMode = ["canvas", "split", "notes", "slides"].includes(parsed.viewMode) ? parsed.viewMode : "canvas";
+    if (parsed.tasks !== undefined) parsed.tasks = readTasks(parsed.tasks);
+    if (parsed.writing !== undefined && (!Array.isArray(parsed.writing) || parsed.writing.length > 10000 ||
+      !parsed.writing.every(element => isValidElement(element) && element.type === "pencil") ||
+      new Set(parsed.writing.map(element => element.id)).size !== parsed.writing.length)) {
+      throw new Error("Invalid writing sheet.");
+    }
+    parsed.viewMode = ["canvas", "split", "notes", "slides", "tasks", "writing"].includes(parsed.viewMode) ? parsed.viewMode : "canvas";
     parsed.gridType = ["dot", "grid", "none"].includes(parsed.gridType) ? parsed.gridType : "dot";
     // Give unique ID on import to avoid collisions
     parsed.id = `import-${crypto.randomUUID()}`;

@@ -1275,8 +1275,16 @@ function drawPill(ctx: CanvasRenderingContext2D, text: string, at: Point, theme:
 // --- Freehand & text ---------------------------------------------------------
 
 function drawPencil(ctx: CanvasRenderingContext2D, el: CanvasElement) {
-  if (el.type !== "pencil" || el.points.length < 2) return;
+  if (el.type !== "pencil" || !el.points.length) return;
   const pts = el.points;
+  if (pts.length === 1) {
+    const radius = inkWidths(pts, el.strokeWidth || 2, el.inkStyle)[0] / 2;
+    ctx.fillStyle = el.stroke;
+    ctx.beginPath();
+    ctx.arc(pts[0].x, pts[0].y, radius, 0, Math.PI * 2);
+    ctx.fill();
+    return;
+  }
   ctx.strokeStyle = el.stroke;
   ctx.setLineDash([]);
   ctx.lineCap = "round";

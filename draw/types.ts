@@ -1,3 +1,5 @@
+import type { Task } from "@/lib/tasks";
+
 export type Tool =
   | "select"
   | "hand"
@@ -35,7 +37,7 @@ export type InkStyle = "fountain" | "brush" | "marker" | "technical";
 import type { FontFamily } from "./fonts";
 export type { FontFamily } from "./fonts";
 export type TextAlign = "left" | "center" | "right";
-export type ViewMode = "canvas" | "split" | "notes" | "slides";
+export type ViewMode = "canvas" | "split" | "notes" | "slides" | "tasks" | "writing";
 export type GridType = "dot" | "grid" | "none";
 export type Theme = "dark" | "light";
 
@@ -248,6 +250,8 @@ export interface Board {
   title: string;
   elements: CanvasElement[];
   markdownNotes: string;
+  tasks?: Task[];
+  writing?: PencilElement[];
   createdAt: number;
   updatedAt: number;
   theme: Theme;

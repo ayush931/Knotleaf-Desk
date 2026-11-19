@@ -259,6 +259,8 @@ export class CanvasEngine {
   private readOnly = false;
   private keyboardEnabled = true;
   public setKeyboardEnabled(value: boolean) { this.keyboardEnabled = value; }
+  private pencilDotsEnabled = false;
+  public setPencilDotsEnabled(value: boolean) { this.pencilDotsEnabled = value; }
   private presentationFrameId: string | null = null;
 
   private elements: CanvasElement[] = [];
@@ -2398,7 +2400,7 @@ export class CanvasEngine {
     let keep: boolean;
     let finalEl: CanvasElement = d;
     if (d.type === "pencil") {
-      keep = d.points.length >= 2;
+      keep = d.points.length >= (this.pencilDotsEnabled ? 1 : 2);
       const b = getElementBounds(d);
       finalEl = { ...d, x: b.minX, y: b.minY, width: b.maxX - b.minX, height: b.maxY - b.minY };
     } else if (d.type === "arrow" || d.type === "line") {
