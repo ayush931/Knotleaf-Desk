@@ -13,7 +13,7 @@ import { TemplatesModal } from '../components/TemplatesModal.tsx';
 import { BugReportForm } from '../components/BugReportForm.tsx';
 import { ColorControl } from '../components/ColorControl.tsx';
 import { Minimap, minimapLayout } from '../components/Minimap.tsx';
-const saved = new Map(), contexts = new WeakMap(), captures = new WeakMap(), exports = [];
+const saved = new Map(), contexts = new WeakMap(), firstFills = new WeakMap(), captures = new WeakMap(), exports = [];
 let browser, root, createRoot;
 function context(canvas) {
   let entry = contexts.get(canvas);
@@ -21,7 +21,8 @@ function context(canvas) {
   const ctx = { data: new Uint8ClampedArray(canvas.width * canvas.height * 4), globalAlpha: 1,
     createImageData(w, h) { return { width: w, height: h, data: new Uint8ClampedArray(w * h * 4) }; },
     getImageData(x, y, w, h) { const out = this.createImageData(w, h); for (let row = 0; row < h; row++) out.data.set(this.data.subarray(((row + y) * canvas.width + x) * 4, ((row + y) * canvas.width + x + w) * 4), row * w * 4); return out; },
-    putImageData(image) { this.data.set(image.data); }, clearRect() { this.data.fill(0); },
+    putImageData(image) { this.data.set(image.data); }, clearRect() { this.data.fill(0); firstFills.delete(canvas); },
+    fill() { if (!firstFills.has(canvas)) firstFills.set(canvas, this.fillStyle); },
     drawImage(source) { const src = contexts.get(source); if (src && source.width === canvas.width && source.height === canvas.height) for (let i = 0; i < this.data.length; i += 4) { const alpha = src.data[i + 3] / 255 * this.globalAlpha; if (!alpha) continue; for (let c = 0; c < 3; c++) this.data[i + c] = src.data[i + c] * alpha + this.data[i + c] * (1 - alpha); this.data[i + 3] = 255 * alpha + this.data[i + 3] * (1 - alpha); } },
     measureText(text) { return { width: text.length * 8 }; }
   };
@@ -762,6 +763,44 @@ test('theme storage failure is visible while the session appearance stays usable
  await renderBoard('split');await clickNamed('Canvas and notes themes');const select=document.getElementById('theme-scope');await act(async()=>{select.value='notes';select.dispatchEvent(new browser.Event('change',{bubbles:true}));});await clickNamed('Theme: Meadow');
  const original=Object.getOwnPropertyDescriptor(globalThis,'localStorage'),storage=globalThis.localStorage;Object.defineProperty(globalThis,'localStorage',{configurable:true,writable:true,value:{getItem:key=>storage.getItem(key),setItem(){throw Error('Quota');}}});
  try{await act(async()=>[...document.querySelectorAll('button')].find(b=>b.textContent==='Apply theme').click());expect([...document.querySelectorAll('[role="alert"]')].some(e=>e.textContent.includes('Could not save'))).toBe(true);expect(named('Board notes').dataset.notesTheme).toBe('forest');}finally{Object.defineProperty(globalThis,'localStorage',original);}
+});
+
+test('the writing sheet follows the Canvas palette and mode without resetting strokes or undo', async () => {
+  await import('../components/WritingWorkspace.tsx');
+  const preferences = JSON.stringify({ ...JSON.parse(LEGACY_DESK), workspaceThemes: { canvas: 'forest', notes: 'black' } });
+  const id = await renderBoard('writing', { preferences });
+  const sheet = named('Freehand writing surface');
+  const paintedBackground = async () => {
+    await act(async () => new Promise(resolve => window.requestAnimationFrame(resolve)));
+    return firstFills.get(sheet);
+  };
+  expect(await paintedBackground()).toBe('#14211b');
+  await boardPointer('pointerdown', 100, 100);
+  await boardPointer('pointerup', 100, 100);
+  const writing = getBoard(id).writing;
+  expect(writing).toHaveLength(1);
+
+  await clickNamed('Canvas and notes themes');
+  const scope = document.getElementById('theme-scope');
+  const apply = async (value, preset) => {
+    await act(async () => {
+      scope.value = value;
+      scope.dispatchEvent(new browser.Event('change', { bubbles: true }));
+    });
+    await clickNamed(`Theme: ${preset}`);
+    await act(async () => [...document.querySelectorAll('button')].find(button => button.textContent === 'Apply theme').click());
+  };
+  await apply('notes', 'Tide');
+  expect(await paintedBackground()).toBe('#14211b');
+  await apply('canvas', 'Blossom');
+  await clickNamed('Close themes');
+  expect(await paintedBackground()).toBe('#1f0f18');
+  await clickNamed('Switch to light mode');
+  expect(await paintedBackground()).toBe('#fff6f9');
+  expect(named('Freehand writing surface')).toBe(sheet);
+  expect(getBoard(id).writing).toEqual(writing);
+  await clickNamed('Undo stroke');
+  expect(getBoard(id).writing).toEqual([]);
 });
 
 

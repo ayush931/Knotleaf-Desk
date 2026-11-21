@@ -1166,7 +1166,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
         )}
         {viewMode === "writing" && !isPresentationOpen && !focusMode && (
           <React.Suspense fallback={<div role="status" className="flex-1 p-5 text-sm text-neutral-400">Opening writing…</div>}>
-            <WritingWorkspace key={board.id} boardId={board.id} title={board.title} theme={theme} initialStrokes={board.writing ?? []}
+            <WritingWorkspace key={board.id} boardId={board.id} title={board.title} theme={theme} preset={workspaceThemes.canvas} initialStrokes={board.writing ?? []}
               onChange={writing => updateLocalWorkspace({ writing })} />
           </React.Suspense>
         )}

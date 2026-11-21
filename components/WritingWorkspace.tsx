@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Download, Ellipsis, Eraser, Hand, Maximize2, Minus, PenLine, Plus, Redo2, Trash2, Undo2 } from "lucide-react";
 import { CanvasEngine } from "@/draw/CanvasEngine";
 import { canvasBackground } from "@/draw/canvasAppearance";
@@ -8,6 +8,7 @@ import { INK_STYLES, DEFAULT_INK_STYLE } from "@/draw/ink";
 import type { InkStyle, PencilElement, Theme } from "@/draw/types";
 import { PREMIUM_STROKES } from "@/lib/premiumPalette";
 import { getBoard, updateBoardContent } from "@/lib/storage";
+import type { WorkspaceTheme } from "@/lib/workspaceThemes";
 import { ConfirmDialog } from "./ConfirmDialog";
 
 type WritingTool = "pencil" | "eraser" | "hand";
@@ -32,14 +33,17 @@ function readInk(): InkOptions {
   } catch { return defaults; }
 }
 
-export function WritingWorkspace({ boardId, title, theme, initialStrokes, onChange }: {
+export function WritingWorkspace({ boardId, title, theme, preset, initialStrokes, onChange }: {
   boardId: string;
   title: string;
   theme: Theme;
+  preset: WorkspaceTheme;
   initialStrokes: PencilElement[];
   onChange: (strokes: PencilElement[]) => void;
 }) {
   const [initial] = useState(() => drafts.get(boardId) ?? { strokes: initialStrokes, base: JSON.stringify(initialStrokes), error: "" });
+  const background = useMemo(() => canvasBackground(undefined, theme, preset), [theme, preset]);
+  const initialAppearance = useRef({ theme, background });
   const canvas = useRef<HTMLCanvasElement>(null);
   const engine = useRef<CanvasEngine | null>(null);
   const callback = useRef(onChange);
@@ -66,7 +70,7 @@ export function WritingWorkspace({ boardId, title, theme, initialStrokes, onChan
     if (!sheet) return;
     let drawing: CanvasEngine;
     try {
-      drawing = new CanvasEngine(sheet, initial.strokes, "light", "dot", canvasBackground(undefined, "light"));
+      drawing = new CanvasEngine(sheet, initial.strokes, initialAppearance.current.theme, "dot", initialAppearance.current.background);
     } catch {
       const notice = requestAnimationFrame(() => setError("This browser could not open the drawing surface."));
       return () => cancelAnimationFrame(notice);
@@ -128,8 +132,8 @@ export function WritingWorkspace({ boardId, title, theme, initialStrokes, onChan
 
   useEffect(() => {
     engine.current?.setTheme(theme);
-    engine.current?.setBackground(canvasBackground(undefined, theme));
-  }, [theme]);
+    engine.current?.setBackground(background);
+  }, [theme, background]);
 
   useEffect(() => {
     const drawing = engine.current;
@@ -154,7 +158,7 @@ export function WritingWorkspace({ boardId, title, theme, initialStrokes, onChan
     setError("");
     try {
       const { exportToPng } = await import("@/draw/export");
-      await exportToPng(latest, theme, false, 2, latest, canvasBackground(undefined, theme), "none");
+      await exportToPng(latest, theme, false, 2, latest, background, "none");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Could not export this sheet.");
     } finally { setExporting(false); }
