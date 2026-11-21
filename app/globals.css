@@ -1262,7 +1262,7 @@ html[data-workspace-ui] .writing-workspace button.writing-swatch[aria-pressed=tr
 .writing-width { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--ui-muted); }
 .writing-width input { width: 75px; }
 .writing-width output { width: 29px; font-variant-numeric: tabular-nums; }
-.writing-sheet { flex: 1; position: relative; min-height: 245px; overflow: hidden; background: var(--ui-surface); }
+.writing-sheet { flex: 1; position: relative; min-height: 245px; overflow: hidden; background: var(--ui-background); }
 .writing-sheet canvas { position: absolute; inset: 0; display: block; width: 100%; height: 100%; touch-action: none; }
 .writing-sheet canvas:focus-visible { outline-offset: -3px; }
 .writing-empty { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 5px; pointer-events: none; color: var(--ui-muted); font-size: 12px; }
