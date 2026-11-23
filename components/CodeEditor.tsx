@@ -14,21 +14,8 @@ import type { TextElement } from '@/draw/types';
 import type { RangeStyle } from '@/draw/textRanges';
 import { X, Copy } from 'lucide-react';
 import { highlightCode } from '@/lib/code';
+import { editableCaretBounds } from '@/lib/editableText';
 
-function codeCaretBounds(editor: HTMLTextAreaElement, value: string) {
-  const selection = window.getSelection();
-  if (!selection?.focusNode || !editor.contains(selection.focusNode)) return;
-  const trailingLine = (!value || value.endsWith('\n')) && editor.selectionEnd === value.length;
-  if (trailingLine) {
-    const lastLine = editor.querySelector('[data-editor-caret]')?.getBoundingClientRect();
-    if (lastLine?.height) return lastLine;
-  }
-  const range = document.createRange();
-  range.setStart(selection.focusNode, selection.focusOffset);
-  range.collapse(true);
-  const caret = range.getBoundingClientRect();
-  if (caret.height) return caret;
-}
 export function HighlightedCode({ code, language = 'auto', light = false }: { code: string; language?: string; light?: boolean }) {
   const result = useMemo(() => highlightCode(code, language), [code, language]);
   const html = useMemo(() => result.html.replace(/<span class="([^"]*)">/g, (tag, classes: string) => {
@@ -57,7 +44,7 @@ export function CodeEditor({ value, language, onChange, onClose, x, y, width, he
   const reveal = useCallback((followCaret: boolean) => {
     const editor = input.current;
     if (!editor || !card.current || !onReveal) return;
-    let caret = document.activeElement === editor ? codeCaretBounds(editor, value) : undefined;
+    let caret = document.activeElement === editor ? editableCaretBounds(editor, value) : undefined;
     if (caret) {
       const bounds = editor.getBoundingClientRect();
       const right = bounds.left + editor.clientWidth * zoom;
@@ -65,7 +52,7 @@ export function CodeEditor({ value, language, onChange, onClose, x, y, width, he
       if (followCaret) {
         editor.scrollLeft += (Math.min(0, caret.left - bounds.left) + Math.max(0, caret.right - right)) / zoom;
         editor.scrollTop += (Math.min(0, caret.top - bounds.top) + Math.max(0, caret.bottom - bottom)) / zoom;
-        caret = codeCaretBounds(editor, value);
+        caret = editableCaretBounds(editor, value);
       }
       if (caret && (caret.right < bounds.left || caret.left > right || caret.bottom < bounds.top || caret.top > bottom)) caret = undefined;
     }

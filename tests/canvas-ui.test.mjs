@@ -624,7 +624,10 @@ test('canvas code editor has no language UI and shares its syntax colors with th
  }
 });
 
-test('a growing code card pans into view without moving its saved anchor or losing focus', async () => {
+test.each([
+  ['code card', 'Code card (C)', 'Inline code editor', 'Code source'],
+  ['plain text', 'Text & Bullets (T)', 'Edit text', 'Edit text'],
+])('a growing %s pans into view without moving its saved anchor or losing focus', async (kind, tool, surface, source) => {
   const originalObserver = globalThis.ResizeObserver;
   const originalBounds = browser.HTMLElement.prototype.getBoundingClientRect;
   globalThis.ResizeObserver = class extends originalObserver {
@@ -636,20 +639,23 @@ test('a growing code card pans into view without moving its saved anchor or losi
     }
   };
   browser.HTMLElement.prototype.getBoundingClientRect = function () {
-    if (this.getAttribute('aria-label') === 'Inline code editor') {
-      return new browser.DOMRect(parseFloat(this.style.left), parseFloat(this.style.top), parseFloat(this.style.width), parseFloat(this.style.minHeight));
+    if (this.getAttribute('aria-label') === surface) {
+      return new browser.DOMRect(parseFloat(this.style.left), parseFloat(this.style.top), parseFloat(this.style.width), parseFloat(this.style.height || this.style.minHeight));
     }
     return originalBounds.call(this);
   };
   try {
     const id = await renderBoard();
-    await clickNamed('Code card (C)');
+    await clickNamed(tool);
     await boardPointer('pointerdown', 860, 570);
     await boardPointer('pointerup', 860, 570);
-    const card = named('Inline code editor');
-    const input = named('Code source');
+    const card = named(surface);
+    const input = named(source);
+    if (kind === 'plain text') {
+      Object.defineProperty(input, 'scrollHeight', { get: () => input.value.split('\n').length * 24 });
+      await act(async () => new Promise(resolve => window.requestAnimationFrame(resolve)));
+    }
     const initial = card.getBoundingClientRect();
-    const anchor = getBoard(id).elements[0];
     expect(initial.right).toBeLessThan(900);
     expect(initial.bottom).toBeLessThan(650);
     const code = Array.from({ length: 10 }, (_, i) => `const edge${i} = 'a longer line of code';`).join('\n');
@@ -660,7 +666,10 @@ test('a growing code card pans into view without moving its saved anchor or losi
     expect(grown.right).toBeLessThan(900);
     expect(grown.bottom).toBeLessThan(650);
     expect(document.activeElement).toBe(input);
-    expect(getBoard(id).elements[0]).toMatchObject({ x: anchor.x, y: anchor.y, text: code });
+    if (kind === 'plain text') {
+      await act(async () => input.dispatchEvent(new browser.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
+    }
+    expect(getBoard(id).elements[0]).toMatchObject({ x: 860, y: 570, text: code });
   } finally {
     globalThis.ResizeObserver = originalObserver;
     browser.HTMLElement.prototype.getBoundingClientRect = originalBounds;

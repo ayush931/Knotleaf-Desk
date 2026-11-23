@@ -1,3 +1,17 @@
+export function editableCaretBounds(editor: HTMLTextAreaElement, value: string) {
+  const selection = window.getSelection();
+  if (!selection?.focusNode || !editor.contains(selection.focusNode)) return;
+  const trailingLine = (!value || value.endsWith('\n')) && editor.selectionEnd === value.length;
+  if (trailingLine) {
+    const lastLine = editor.querySelector('[data-editor-caret]')?.getBoundingClientRect();
+    if (lastLine?.height) return lastLine;
+  }
+  const range = document.createRange();
+  range.setStart(selection.focusNode, selection.focusOffset);
+  range.collapse(true);
+  const caret = range.getBoundingClientRect();
+  if (caret.height) return caret;
+}
 /** Read contenteditable text without losing browser-created block and BR line breaks. */
 export function editableText(root: Node, prefix = false): string {
  const children = Array.from(root.childNodes).filter(node => !(node.nodeType === 1 && (node as Element).hasAttribute('data-editor-caret')));
