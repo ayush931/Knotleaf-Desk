@@ -479,6 +479,11 @@ export class CanvasEngine {
   }
 
   public getViewport() { return { zoom: this.zoom, pan: { ...this.pan } }; }
+  public panByScreen(dx: number, dy: number) {
+    if (!dx && !dy) return;
+    this.pan = { x: this.pan.x + dx, y: this.pan.y + dy };
+    this.requestRender();
+  }
   /** Centre the viewport on a canvas-space point, used by the minimap and quick navigation. */
   public centerOn(point: Point) {
     this.pan = { x: this.cssWidth / 2 - point.x * this.zoom, y: this.cssHeight / 2 - point.y * this.zoom };

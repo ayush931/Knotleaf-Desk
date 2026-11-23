@@ -1017,6 +1017,26 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
     const engine = engineRef.current; if (engine) engine.setTool(engine.getTool());
   }, [commitInline, setAppearanceOpen, setCodeId]);
   const { active: focusMode, toggle: toggleFocus, exit: exitFocus } = useCanvasFocus(prepareFocusChange, isPresentationOpen);
+  const codeViewportTop = focusMode ? 8 : toolbarHeight + 8;
+  const codeViewportBottom = focusMode ? 8 : 56;
+  const revealCodeEditor = useCallback((card: DOMRect, caret?: DOMRect) => {
+    const pane = containerRef.current?.getBoundingClientRect();
+    if (!pane || !stageSize.width || !stageSize.height || !card.width || !card.height) return;
+    const offset = (start: number, end: number, min: number, max: number, caretStart?: number, caretEnd?: number) => {
+      const available = max - min;
+      if (available <= 0) return 0;
+      if (end - start > available) {
+        start = caretStart ?? Math.max(start, Math.min(end - 1, min));
+        end = caretEnd ?? start + 1;
+      }
+      if (start < min) return min - start;
+      return Math.min(0, max - end);
+    };
+    engineRef.current?.panByScreen(
+      offset(card.left, card.right, pane.left + 8, pane.left + stageSize.width - 8, caret?.left, caret?.right),
+      offset(card.top, card.bottom, pane.top + codeViewportTop, pane.top + stageSize.height - codeViewportBottom, caret?.top, caret?.bottom),
+    );
+  }, [codeViewportBottom, codeViewportTop, stageSize.height, stageSize.width]);
   const previousFocusMode = useRef(false);
   useLayoutEffect(() => {
     if (focusMode || previousFocusMode.current) {
@@ -1197,7 +1217,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
           onDragOver={event=>{if(event.dataTransfer.types.includes("Files")){event.preventDefault();event.dataTransfer.dropEffect="copy";setDragFiles(true);}}}
           onDragLeave={event=>{if(!event.currentTarget.contains(event.relatedTarget as Node|null))setDragFiles(false);}}
           onDrop={event=>{if(!event.dataTransfer.files.length)return;event.preventDefault();setDragFiles(false);const r=canvasRef.current?.getBoundingClientRect();void uploadAssets(Array.from(event.dataTransfer.files),r?{x:event.clientX-r.left,y:event.clientY-r.top}:undefined);}}
-          className={`relative min-h-0 min-w-0 flex-1 overflow-hidden bg-white dark:bg-black ${!drawingView && !isPresentationOpen && !focusMode ? "hidden" : ""}`}
+          className={`relative min-h-0 min-w-0 flex-1 overflow-clip bg-white dark:bg-black ${!drawingView && !isPresentationOpen && !focusMode ? "hidden" : ""}`}
         >
             {dragFiles&&<div aria-hidden="true" className="pointer-events-none absolute inset-2 z-40 flex items-center justify-center rounded-xl border-2 border-dashed border-neutral-400 bg-neutral-500/10 text-sm text-neutral-200">Drop images or files onto this board</div>}
             <canvas ref={canvasRef} tabIndex={0} aria-label="Drawing canvas" data-theme={theme} data-background={displayBackground.fill} className="absolute inset-0 block h-full w-full touch-none select-none" style={{ backgroundColor: displayBackground.fill, backgroundImage: lightCanvas ? "conic-gradient(#e4e4e7 25%, transparent 0 50%, #e4e4e7 0 75%, transparent 0)" : "conic-gradient(#27272a 25%, transparent 0 50%, #27272a 0 75%, transparent 0)", backgroundSize: "16px 16px" }} />
@@ -1213,7 +1233,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
               onDismiss={() => setWelcomeDismissedFor(board.id)}
             />}
 
-            {codeElement?.type === "text" && <CodeEditor initialView={codeInitialView} onViewChange={view=>{setCodeSelection(previous=>previous.start===view.selectionStart&&previous.end===view.selectionEnd?previous:{start:view.selectionStart,end:view.selectionEnd});codeViews.current.set(codeElement.id,view);if(codeViews.current.size>256)codeViews.current.delete(codeViews.current.keys().next().value!);engineRef.current?.setCodeScroll(codeElement.id,{x:view.scrollLeft,y:view.scrollTop});}} background={canvasElementAppearance(codeElement, lightCanvas, board.elements)} key={codeElement.id} formatting={codeElement} onResizeText={resizeCodeText} onHistory={redo=>{if(redo)engineRef.current?.redo();else engineRef.current?.undo();}} onFormat={patch=>{const key=Object.keys(patch)[0] as 'bold'|'italic'|'underline'|'strikethrough';const state=rangeFormattingState(codeElement.text,codeElement.textRanges,codeElement,codeSelection.start,codeSelection.end);applyCodeAppearance({[key]:state[key]!==true});}} value={codeElement.text} language={codeElement.codeLanguage || "auto"} fontSize={codeElement.fontSize} zoom={codeViewport.zoom} x={(codeElement.x - 16) * codeViewport.zoom + codeViewport.pan.x} y={(codeElement.y - 16) * codeViewport.zoom + codeViewport.pan.y} width={codeElement.width} height={codeElement.height} onChange={(text, language) => engineRef.current?.updateCode(codeElement.id, text, language)} onClose={() => { engineRef.current?.finishCode(); setCodeId(null); }} />}
+            {codeElement?.type === "text" && <CodeEditor onReveal={revealCodeEditor} viewport={{ ...stageSize, top: codeViewportTop }} initialView={codeInitialView} onViewChange={view=>{setCodeSelection(previous=>previous.start===view.selectionStart&&previous.end===view.selectionEnd?previous:{start:view.selectionStart,end:view.selectionEnd});codeViews.current.set(codeElement.id,view);if(codeViews.current.size>256)codeViews.current.delete(codeViews.current.keys().next().value!);engineRef.current?.setCodeScroll(codeElement.id,{x:view.scrollLeft,y:view.scrollTop});}} background={canvasElementAppearance(codeElement, lightCanvas, board.elements)} key={codeElement.id} formatting={codeElement} onResizeText={resizeCodeText} onHistory={redo=>{if(redo)engineRef.current?.redo();else engineRef.current?.undo();}} onFormat={patch=>{const key=Object.keys(patch)[0] as 'bold'|'italic'|'underline'|'strikethrough';const state=rangeFormattingState(codeElement.text,codeElement.textRanges,codeElement,codeSelection.start,codeSelection.end);applyCodeAppearance({[key]:state[key]!==true});}} value={codeElement.text} language={codeElement.codeLanguage || "auto"} fontSize={codeElement.fontSize} zoom={codeViewport.zoom} x={(codeElement.x - 16) * codeViewport.zoom + codeViewport.pan.x} y={(codeElement.y - 16) * codeViewport.zoom + codeViewport.pan.y} width={codeElement.width} height={codeElement.height} onChange={(text, language) => engineRef.current?.updateCode(codeElement.id, text, language)} onClose={() => { engineRef.current?.finishCode(); setCodeId(null); }} />}
             {inlineText && (
               <>
                 {/* Document-specific list tools; ordinary canvas text stays unobstructed. */}

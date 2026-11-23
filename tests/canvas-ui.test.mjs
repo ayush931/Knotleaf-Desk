@@ -624,6 +624,49 @@ test('canvas code editor has no language UI and shares its syntax colors with th
  }
 });
 
+test('a growing code card pans into view without moving its saved anchor or losing focus', async () => {
+  const originalObserver = globalThis.ResizeObserver;
+  const originalBounds = browser.HTMLElement.prototype.getBoundingClientRect;
+  globalThis.ResizeObserver = class extends originalObserver {
+    observe(element) {
+      if (element.querySelector(':scope > [aria-label="Drawing canvas"]')) {
+        Object.defineProperties(element, { clientWidth: { value: 900 }, clientHeight: { value: 650 } });
+      }
+      super.observe(element);
+    }
+  };
+  browser.HTMLElement.prototype.getBoundingClientRect = function () {
+    if (this.getAttribute('aria-label') === 'Inline code editor') {
+      return new browser.DOMRect(parseFloat(this.style.left), parseFloat(this.style.top), parseFloat(this.style.width), parseFloat(this.style.minHeight));
+    }
+    return originalBounds.call(this);
+  };
+  try {
+    const id = await renderBoard();
+    await clickNamed('Code card (C)');
+    await boardPointer('pointerdown', 860, 570);
+    await boardPointer('pointerup', 860, 570);
+    const card = named('Inline code editor');
+    const input = named('Code source');
+    const initial = card.getBoundingClientRect();
+    const anchor = getBoard(id).elements[0];
+    expect(initial.right).toBeLessThan(900);
+    expect(initial.bottom).toBeLessThan(650);
+    const code = Array.from({ length: 10 }, (_, i) => `const edge${i} = 'a longer line of code';`).join('\n');
+    await typeText(input, code);
+    const grown = card.getBoundingClientRect();
+    expect(grown.width).toBeGreaterThan(initial.width);
+    expect(grown.height).toBeGreaterThan(initial.height);
+    expect(grown.right).toBeLessThan(900);
+    expect(grown.bottom).toBeLessThan(650);
+    expect(document.activeElement).toBe(input);
+    expect(getBoard(id).elements[0]).toMatchObject({ x: anchor.x, y: anchor.y, text: code });
+  } finally {
+    globalThis.ResizeObserver = originalObserver;
+    browser.HTMLElement.prototype.getBoundingClientRect = originalBounds;
+  }
+});
+
 test('Appearance lets code cards shrink, fit and choose explicit black backgrounds',async()=>{
  const changes=[];const card={...DEFAULT_STYLE,id:'sized-code',type:'text',isCodeCard:true,text:'const x=1;',fontSize:14,fontFamily:'mono',textAlign:'left',x:100,y:100,width:200,height:80,fill:'#18181b',fillStyle:'solid'};
  await act(async()=>root.render(React.createElement(PropertiesPanel,{...inspectorProps,isOpen:true,onOpenChange(){},selectedElement:card,onUpdateElement:change=>changes.push(change)})));
