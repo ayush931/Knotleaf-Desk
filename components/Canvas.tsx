@@ -941,7 +941,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
   const textOptionsVisible = selectedTool === "text" || isInlineTextual || selectedElements.length > 0 && selectedElements.every(el=>el.type === "text" || el.type === "sticky");
   const inlineScreenX = inlineText ? (inlineText.canvasX + (inlineText.kind === "sticky" || inlineText.kind === "frame-title" ? 12 : 0)) * viewport.zoom + viewport.pan.x : 0;
   const inlineScreenY = inlineText ? (inlineText.canvasY + (inlineText.kind === "sticky" ? 12 : inlineText.kind === "frame-title" ? -11 : 0)) * viewport.zoom + viewport.pan.y : 0;
-  const inlinePlaceholder = inlineText?.kind === "sticky" ? "Write a sticky note…" : selectedElement?.type === "text" && selectedElement.isDocCard ? "Write your document notes…" : inlineText?.kind === "frame-title" ? "Name this frame…" : inlineText?.kind === "label" ? "Add a label…" : "Start typing…";
+  const inlinePlaceholder = inlineText?.kind === "sticky" ? "Write a sticky note…" : selectedElement?.type === "text" && selectedElement.isDocCard ? "Write your document notes…" : inlineText?.kind === "frame-title" ? "Name this frame…" : inlineText?.kind === "label" ? "Add a label…" : "";
   useLayoutEffect(() => {
     const editor = inlineTextareaRef.current;
     if (!editor || !inlineText) return;
@@ -1301,7 +1301,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
                       return;
                     }
                   }}
-                  placeholder={inlinePlaceholder}
+                  placeholder={inlinePlaceholder || undefined}
                   wrap={!inlineText.boxWidth && (inlineText.kind === "new-text" || inlineText.kind === "text" && selectedElement?.type === "text" && !selectedElement.isDocCard && !selectedElement.isCodeCard) ? "off" : "soft"}
                   spellCheck={false}
                   style={{

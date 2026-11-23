@@ -146,7 +146,7 @@ async function typeText(editor, text) {
 }
 test('canvas text focuses, keeps editing through Appearance formatting, saves multiline text and reopens', async () => {
   const id = await renderBoard(); const editor = await startText();
-  expect(editor.dataset.placeholder).toBe('Start typing…'); expect(document.activeElement).toBe(editor);
+  expect(editor.hasAttribute('data-placeholder')).toBe(false); expect(document.activeElement).toBe(editor);
   await typeText(editor, 'Hello\nworld'); await clickNamed('Open appearance settings');
   expect(named('Edit text')).toBe(editor); expect(document.activeElement).toBe(editor); expect(editor.value).toBe('Hello\nworld');
   await clickNamed('Bold'); await chooseCanvasFont('serif');

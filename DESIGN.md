@@ -108,7 +108,7 @@ Appearance starts hidden on every fresh visit and never opens automatically. A c
 
 Canvas space takes priority: standard drawing controls use compact 32px buttons in one scrollable row, with shortcut labels in tooltips. Focus view removes app chrome and the notes split, leaving only a 32px restore-control button. The saved layout returns when leaving focus view. Appearance is represented by a high-contrast 32px palette button (36px on narrow screens) until explicitly opened.
 
-Text editing uses a concise “Start typing…” hint, with contextual hints for cards, labels and frame names. Formatting focus can move between the editor and Appearance without committing the draft. Edits update the commit snapshot synchronously; card text wraps, and oversized free text scrolls horizontally. Below desktop width, header actions use an explicit overflow menu to preserve canvas space without overlapping the view switcher.
+Free-text editing opens with a caret. Cards, labels and frame names have contextual hints. Formatting focus can move between the editor and Appearance without committing the draft. Edits update the commit snapshot synchronously; card text wraps, and oversized free text scrolls horizontally. Below desktop width, header actions use an explicit overflow menu to preserve canvas space without overlapping the view switcher.
 
 Each stroke and background color section has an explicit More colors disclosure. ColorPalette owns independent expansion state, 50 predefined drawing shades and 50 distinct muted background shades. Expanded palettes use an eight-column grid inside the inspector scroll area; basic swatches stay compact. Selected swatches expose pressed semantics and hex names.
 
