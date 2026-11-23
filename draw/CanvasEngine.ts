@@ -460,8 +460,6 @@ export class CanvasEngine {
     this.cssHeight = Math.max(1, Math.floor(height));
     this.canvas.width = Math.round(this.cssWidth * this.dpr);
     this.canvas.height = Math.round(this.cssHeight * this.dpr);
-    this.canvas.style.width = `${this.cssWidth}px`;
-    this.canvas.style.height = `${this.cssHeight}px`;
     this.render();
   }
 
