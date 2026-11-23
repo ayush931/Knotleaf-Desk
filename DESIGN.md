@@ -55,6 +55,8 @@ Inter for controls, Fira Code for Markdown source and coordinates, Knotleaf Sket
 Canvas editor placeholders inherit the chosen font and have explicit full-opacity muted text (#a1a1aa), with slate (#475569) on yellow sticky surfaces. Empty editors measure the complete hint, wrap it when constrained, and stay inside the canvas viewport. Font-load completion and viewport/split changes remeasure the editor. `app/globals.css` owns placeholder colors; `draw/inlineEditorLayout.ts` owns editor bounds.
 48px fixed header, drawing tools flush with the top of the canvas below it. Inspector is relative to the canvas, below the tools; it scrolls internally only when necessary. Notes split starts at 360px, is draggable and keyboard resizable; below 640px it becomes a vertically stacked split. Notes contain their own vertical scroll; long prose and code wrap instead of forcing horizontal scrolling. Document toolbars keep bounded rows and overflow controls on narrow viewports. The canvas itself pans, never document-scrolls.
 
+The canvas surface fills its pane as the window or notes divider changes. The engine paints the same background and grid across the full pane, with a bounded backing bitmap on large displays. Holding an active drawing or object drag at a pane edge pans into more board space at the current zoom.
+
 ## Elevation & Depth
 Hairline borders and flat opaque surfaces establish hierarchy. Floating panels use only a small shadow; drawing controls have 4–6px corners and no frosted-glass treatment. Modal backdrops darken the workspace. Avoid shadows on document content.
 
