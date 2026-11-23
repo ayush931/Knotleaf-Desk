@@ -398,6 +398,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
     resizeStage();
     const observer = new ResizeObserver(resizeStage);
     observer.observe(container);
+    window.addEventListener("resize", resizeStage);
 
     engine.onChange = (elements) => {
       persist({ ...boardRef.current, elements });
@@ -438,6 +439,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
 
     return () => {
       observer.disconnect();
+      window.removeEventListener("resize", resizeStage);
       engine.destroy();
       engineRef.current = null;
     };
@@ -1139,7 +1141,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
   return (
     <div
       style={workspaceThemeStyle(workspaceThemes.canvas,theme,false,logoStyle)}
-      className="relative w-screen h-dvh overflow-hidden flex flex-col font-sans select-none bg-white dark:bg-black text-white"
+      className="relative w-full h-dvh overflow-clip flex flex-col font-sans select-none bg-white dark:bg-black text-white"
     >
       {!isPresentationOpen && (
         <div hidden={focusMode}><BoardHeader
@@ -1182,7 +1184,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
         /></div>
       )}
 
-      <main inert={!roomReady} ref={splitRef} className={`relative flex max-sm:flex-col min-h-0 flex-1 w-full overflow-hidden ${!isPresentationOpen && !focusMode ? "workspace-main-offset" : ""}`} >
+      <main inert={!roomReady} ref={splitRef} className={`relative flex min-h-0 flex-1 w-full overflow-clip ${narrowSplit ? "flex-col" : ""} ${!isPresentationOpen && !focusMode ? "workspace-main-offset" : ""}`} >
         {viewMode === "tasks" && !isPresentationOpen && !focusMode && (
           <React.Suspense fallback={<div role="status" className="flex-1 p-5 text-sm text-neutral-400">Opening tasks…</div>}>
             <TaskWorkspace key={board.id} boardId={board.id} title={board.title} initialTasks={board.tasks ?? []}

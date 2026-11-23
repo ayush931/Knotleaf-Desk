@@ -31,8 +31,63 @@ function setup(elements = [source, target, arrow]) {
   const engine = new CanvasEngine(canvas, elements);
   const point = (x, y, shiftKey = false) => ({ clientX: x, clientY: y, button: 0, pointerId: 1, shiftKey, preventDefault() {} });
   const drag = (x, y, nx, ny) => { listeners.pointerdown(point(x, y)); listeners.pointermove(point(nx, ny)); listeners.pointerup(point(nx, ny)); };
-  return { engine, listeners, point, drag, captures };
+  return { engine, canvas, listeners, point, drag, captures };
 }
+test('holding a drawing gesture at the edge reveals more board and stops on release', () => {
+  const originalRequest = globalThis.requestAnimationFrame;
+  const originalCancel = globalThis.cancelAnimationFrame;
+  const frames = new Map();
+  let frameId = 0;
+  globalThis.requestAnimationFrame = callback => { frames.set(++frameId, callback); return frameId; };
+  globalThis.cancelAnimationFrame = id => frames.delete(id);
+  const advance = time => {
+    for (const [id, callback] of [...frames]) {
+      if (frames.delete(id)) callback(time);
+    }
+  };
+  const { engine, listeners, point } = setup([]);
+  try {
+    engine.setTool('rectangle');
+    listeners.pointerdown(point(850, 550));
+    listeners.pointermove(point(999, 699));
+    for (let time = 0; time <= 160; time += 16) advance(time);
+    const view = engine.getViewport();
+    expect(view.pan.x).toBeLessThan(-50);
+    expect(view.pan.y).toBeLessThan(-50);
+    expect(view.zoom).toBe(1);
+    listeners.pointerup(point(999, 699));
+    advance(176);
+    expect(engine.getViewport()).toEqual(view);
+    expect(engine.getElements()[0]).toMatchObject({ x: 850, y: 550 });
+    expect(engine.getElements()[0].width).toBeGreaterThan(200);
+    expect(engine.getElements()[0].height).toBeGreaterThan(200);
+    engine.undo();
+    expect(engine.getElements()).toHaveLength(0);
+  } finally {
+    engine.destroy();
+    globalThis.requestAnimationFrame = originalRequest;
+    globalThis.cancelAnimationFrame = originalCancel;
+  }
+});
+
+test('large high-density viewports keep their full drawing coordinates within a bounded backing bitmap', () => {
+  const originalDensity = window.devicePixelRatio;
+  const { engine, canvas } = setup([]);
+  try {
+    window.devicePixelRatio = 3;
+    engine.resize(5000, 2800);
+    expect(canvas.width).toBe(4096);
+    expect(canvas.height).toBe(2294);
+    expect(engine.screenToCanvas(4999, 2799)).toEqual({ x: 4999, y: 2799 });
+    engine.resize(1000, 700);
+    expect(canvas.width).toBe(3000);
+    expect(canvas.height).toBe(2100);
+  } finally {
+    window.devicePixelRatio = originalDensity;
+    engine.destroy();
+  }
+});
+
 test('all font families render, remain editable, and survive undo/redo', () => {
   for (const font of FONT_OPTIONS) {
     const { engine, listeners, point } = setup([]); let editor;

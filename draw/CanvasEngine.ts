@@ -79,6 +79,9 @@ type Handle =
 const SNAP_GRID = 20;
 const MIN_SIZE = 4;
 const HISTORY_LIMIT = 100;
+const MAX_VIEWPORT_BITMAP_SIDE = 4096;
+const EDGE_PAN_INSET = 24;
+const EDGE_PAN_SPEED = 520;
 
 const HANDLE_CURSOR: Record<Handle, string> = {
   nw: "nwse-resize",
@@ -252,9 +255,9 @@ const WRITING_TOOLS: ReadonlySet<string> = new Set(["pencil", "highlighter", "er
 export class CanvasEngine {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
-  private dpr = 1;
   private cssWidth = 0;
   private cssHeight = 0;
+  private pixelRatioQuery?: MediaQueryList;
   private destroyed = false;
   private readOnly = false;
   private keyboardEnabled = true;
@@ -334,6 +337,9 @@ export class CanvasEngine {
   private activePointerId: number | null = null;
   private pinchScale: number | null = null;
   private lastPointerClient: Point | null = null;
+  private edgePanFrame: number | null = null;
+  private edgePanPointer: PointerEvent | null = null;
+  private edgePanTime: number | null = null;
   private lastPointerPt: Point | null = null;
   private draft: CanvasElement | null = null;
   /** Last freehand sample used to infer pressure from pointer speed. */
@@ -402,6 +408,7 @@ export class CanvasEngine {
 
     this.attachEventListeners();
     this.resize(canvas.clientWidth, canvas.clientHeight);
+    this.watchPixelRatio();
 
     this.prepareFonts();
   }
@@ -425,6 +432,7 @@ export class CanvasEngine {
 
   public setRenderingActive(active: boolean) {
     this.renderingActive = active;
+    if (!active) this.stopEdgePan();
     if (!active && this.animFrameId !== null) { cancelAnimationFrame(this.animFrameId); this.animFrameId = null; }
     if (active) this.requestRender();
   }
@@ -455,13 +463,29 @@ export class CanvasEngine {
 
   /** Sizes the canvas to its CSS box, backed by device pixels so it stays sharp on HiDPI screens. */
   public resize(width: number, height: number) {
-    this.dpr = (typeof window !== "undefined" && window.devicePixelRatio) || 1;
     this.cssWidth = Math.max(1, Math.floor(width));
     this.cssHeight = Math.max(1, Math.floor(height));
-    this.canvas.width = Math.round(this.cssWidth * this.dpr);
-    this.canvas.height = Math.round(this.cssHeight * this.dpr);
     this.render();
   }
+
+  private syncViewportBitmap() {
+    // Keep the visible CSS area intact on displays that would exceed the bitmap budget.
+    const density = Math.min(window.devicePixelRatio || 1, MAX_VIEWPORT_BITMAP_SIDE / Math.max(this.cssWidth, this.cssHeight));
+    const bitmapWidth = Math.max(1, Math.round(this.cssWidth * density));
+    const bitmapHeight = Math.max(1, Math.round(this.cssHeight * density));
+    if (this.canvas.width !== bitmapWidth) this.canvas.width = bitmapWidth;
+    if (this.canvas.height !== bitmapHeight) this.canvas.height = bitmapHeight;
+  }
+
+  private watchPixelRatio() {
+    this.pixelRatioQuery = window.matchMedia?.(`(resolution: ${window.devicePixelRatio || 1}dppx)`);
+    this.pixelRatioQuery?.addEventListener?.("change", this.onPixelRatioChange, { once: true });
+  }
+
+  private onPixelRatioChange = () => {
+    this.render();
+    this.watchPixelRatio();
+  };
 
   // --- Viewport -----------------------------------------------------------------
 
@@ -1269,12 +1293,13 @@ export class CanvasEngine {
 
   private draw() {
     if (this.destroyed || !this.renderingActive) return;
+    this.syncViewportBitmap();
     this.prepareFonts();
     const ctx = this.ctx;
     const w = this.cssWidth;
     const h = this.cssHeight;
 
-    ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    ctx.setTransform(this.canvas.width / w, 0, 0, this.canvas.height / h, 0, 0);
     ctx.clearRect(0, 0, w, h);
     const background = canvasBackground(this.background, this.theme);
     const lightUi = isLightBackground(background);
@@ -1759,7 +1784,7 @@ export class CanvasEngine {
       if (this.tool === "eyedropper") {
         let color = hit.type === "icon" ? hit.iconColor || hit.stroke : hit.fillStyle !== "none" && hit.fill !== "transparent" ? hit.fill : hit.stroke;
         if (hit.type === "image") {
-          try { const pixel = this.ctx.getImageData(Math.floor(sp.x * this.dpr), Math.floor(sp.y * this.dpr), 1, 1).data; color = `#${[...pixel.slice(0, 3)].map(n => n.toString(16).padStart(2, "0")).join("")}`; } catch { return; }
+          try { const pixel = this.ctx.getImageData(Math.floor(sp.x * this.canvas.width / this.cssWidth), Math.floor(sp.y * this.canvas.height / this.cssHeight), 1, 1).data; color = `#${[...pixel.slice(0, 3)].map(n => n.toString(16).padStart(2, "0")).join("")}`; } catch { return; }
         }
         this.currentStyle = { ...this.currentStyle, stroke: color }; this.onPickColor?.(color); this.setTool("select"); return;
       }
@@ -1953,6 +1978,59 @@ export class CanvasEngine {
 
   private onPointerLeave = () => { this.eraserPointer=null;this.requestRender(); };
 
+  private edgePanVelocity({ x, y }: Point): Point {
+    const axis = (at: number, length: number) => {
+      const inset = Math.min(EDGE_PAN_INSET, length / 2);
+      const factor = at < inset ? (inset - at) / inset : (length - inset - at) / inset;
+      return (at >= inset && at <= length - inset ? 0 : Math.max(-1, Math.min(1, factor))) * EDGE_PAN_SPEED;
+    };
+    return { x: axis(x, this.cssWidth), y: axis(y, this.cssHeight) };
+  }
+
+  private updateEdgePan(e: PointerEvent, sp: Point) {
+    const g = this.gesture;
+    const dragging = g?.kind === "draft" ? g.dragged && !g.clickMode
+      : g?.kind === "text-box" ? Math.hypot(g.current.x - g.origin.x, g.current.y - g.origin.y) * this.zoom > 4
+      : (g?.kind === "move" || g?.kind === "resize" || g?.kind === "endpoint") && g.moved;
+    const velocity = this.edgePanVelocity(sp);
+    if (!dragging || this.activePointerId === null || !this.renderingActive || (!velocity.x && !velocity.y)) {
+      this.stopEdgePan();
+      return;
+    }
+    this.edgePanPointer = e;
+    this.edgePanFrame ??= requestAnimationFrame(this.tickEdgePan);
+  }
+
+  private tickEdgePan = (now: number) => {
+    this.edgePanFrame = null;
+    const e = this.edgePanPointer;
+    if (!e || !this.gesture || this.activePointerId !== e.pointerId || !this.renderingActive) {
+      this.stopEdgePan();
+      return;
+    }
+    const sp = this.screenPoint(e);
+    const velocity = this.edgePanVelocity(sp);
+    if (!velocity.x && !velocity.y) {
+      this.stopEdgePan();
+      return;
+    }
+    const elapsed = Math.min(32, now - (this.edgePanTime ?? now)) / 1000;
+    this.edgePanTime = now;
+    if (elapsed > 0) {
+      this.pan.x += velocity.x * elapsed;
+      this.pan.y += velocity.y * elapsed;
+      this.applyPointerMove(e, sp, false);
+    }
+    this.edgePanFrame = requestAnimationFrame(this.tickEdgePan);
+  };
+
+  private stopEdgePan() {
+    if (this.edgePanFrame !== null) cancelAnimationFrame(this.edgePanFrame);
+    this.edgePanFrame = null;
+    this.edgePanPointer = null;
+    this.edgePanTime = null;
+  }
+
   private onPointerMove = (e: PointerEvent) => {
     // A mouse returning with no buttons missed its release. While capture is held the real
     // pointerup still arrives, and some Mac trackpad drags report buttons 0 mid-drag.
@@ -1962,6 +2040,11 @@ export class CanvasEngine {
     this.shiftDown = e.shiftKey;
     this.altDown = !!e.altKey;
     const sp = this.screenPoint(e);
+    this.applyPointerMove(e, sp, true);
+    if (e.type !== "pointerup") this.updateEdgePan(e, sp);
+  };
+
+  private applyPointerMove(e: PointerEvent, sp: Point, includeSamples: boolean) {
     this.eraserPointer=sp;
     const pt = this.screenToCanvas(sp.x, sp.y);
     this.lastPointerPt = pt;
@@ -2003,7 +2086,7 @@ export class CanvasEngine {
         break;
       case "draft":
         if (g.downClient && Math.hypot(e.clientX - g.downClient.x, e.clientY - g.downClient.y) >= 4) g.dragged = true;
-        if (this.draft?.type === "pencil" && typeof e.getCoalescedEvents === "function") {
+        if (includeSamples && this.draft?.type === "pencil" && typeof e.getCoalescedEvents === "function") {
           let samples: PointerEvent[] = [];
           try { samples = e.getCoalescedEvents(); } catch { /* Use the dispatched event below. */ }
           for (const sample of samples) {
@@ -2016,9 +2099,10 @@ export class CanvasEngine {
         break;
     }
     this.requestRender();
-  };
+  }
 
   private releasePointer() {
+    this.stopEdgePan();
     const id = this.activePointerId;
     this.activePointerId = null;
     this.lastPointerClient = null;
@@ -3013,6 +3097,7 @@ export class CanvasEngine {
 
   public destroy() {
     this.destroyed = true;
+    this.pixelRatioQuery?.removeEventListener?.("change", this.onPixelRatioChange);
     clearTimeout(this.highlightTimer); this.highlights = []; this.remoteHighlights.clear(); this.onHighlightChange = undefined;
     this.gesture = null;
     this.releasePointer();
