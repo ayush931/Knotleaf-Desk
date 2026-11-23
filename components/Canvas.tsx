@@ -1,6 +1,6 @@
 "use client";
 import { RangeTextEditor } from "./RangeTextEditor";
-import type { TextChange } from "@/lib/editableText";
+import { editableCaretBounds, type TextChange } from "@/lib/editableText";
 import { clearRangeOverrides, editRanges, formatRange, rangeStyleAt, rangeFormattingState, FORMAT_KEYS, type FormattingState } from "@/draw/textRanges";
 import { canvasBackground, canvasElementAppearance, neutralInk } from "@/draw/canvasAppearance";
 import { stepCanvasFontSize, textSizeShortcut } from "@/lib/textShortcuts";
@@ -877,6 +877,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
       editor.focus({ preventScroll: true });
       if (inlineText.caret !== undefined) editor.setSelectionRange(inlineText.caret, inlineText.caret);
       else if (inlineText.text) editor.select();
+      setTextSelection({ start: editor.selectionStart, end: editor.selectionEnd });
     });
     return () => cancelAnimationFrame(frame);
   }, [inlineText?.elementId, inlineText?.kind, inlineText?.canvasX, inlineText?.canvasY]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -938,6 +939,8 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
       return [key, values.length ? values.every(value => value === values[0]) ? values[0] : "mixed" : !!currentStyle[key]];
     })) as FormattingState;
   const textOptionsVisible = selectedTool === "text" || isInlineTextual || selectedElements.length > 0 && selectedElements.every(el=>el.type === "text" || el.type === "sticky");
+  const inlineScreenX = inlineText ? (inlineText.canvasX + (inlineText.kind === "sticky" || inlineText.kind === "frame-title" ? 12 : 0)) * viewport.zoom + viewport.pan.x : 0;
+  const inlineScreenY = inlineText ? (inlineText.canvasY + (inlineText.kind === "sticky" ? 12 : inlineText.kind === "frame-title" ? -11 : 0)) * viewport.zoom + viewport.pan.y : 0;
   const inlinePlaceholder = inlineText?.kind === "sticky" ? "Write a sticky note…" : selectedElement?.type === "text" && selectedElement.isDocCard ? "Write your document notes…" : inlineText?.kind === "frame-title" ? "Name this frame…" : inlineText?.kind === "label" ? "Add a label…" : "Start typing…";
   useLayoutEffect(() => {
     const editor = inlineTextareaRef.current;
@@ -959,7 +962,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
       const freeText = !inlineText.boxWidth && (inlineText.kind === "new-text" || inlineText.kind === "text" && selectedElement?.type === "text" && !selectedElement.isDocCard && !selectedElement.isCodeCard);
       const unchangedText = selectedElement?.type === "text" && inlineText.text === selectedElement.text && inlineText.fontSize === selectedElement.fontSize && inlineText.fontFamily === selectedElement.fontFamily && inlineText.align === (selectedElement.textAlign || "left") && !!inlineText.bold === !!selectedElement.bold && !!inlineText.italic === !!selectedElement.italic;
       const contentWidth = freeText ? (unchangedText ? selectedElement.width : measureTextBlock(context, inlineText.text, inlineText.fontSize, inlineText.fontFamily, inlineText).width) * zoom : undefined;
-      const layout = inlineEditorLayout({ ...inlineText, preservePosition: true, contentWidth, placeholder: inlinePlaceholder, measure: text => context.measureText(text).width, zoom,
+      const layout = inlineEditorLayout({ ...inlineText, screenX: inlineScreenX, screenY: inlineScreenY, preservePosition: true, contentWidth, placeholder: inlinePlaceholder, measure: text => context.measureText(text).width, zoom,
         preferredWidth: inlineText.boxWidth ? inlineText.boxWidth*zoom : inlineText.kind === "sticky" || selectedElement?.type === "text" && selectedElement.isDocCard ? inlineText.screenWidth : undefined,
         viewportWidth: containerRef.current?.clientWidth || 900, viewportHeight: containerRef.current?.clientHeight || 600 });
       context.restore();
@@ -978,7 +981,7 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
     resizeEditor();
     document.fonts?.addEventListener("loadingdone", resizeEditor);
     return () => document.fonts?.removeEventListener("loadingdone", resizeEditor);
-  }, [inlineText, inlinePlaceholder, selectedElement, zoom, splitBounds.width, splitBounds.height, notesWidth, notesHeight, viewMode, viewport, lightCanvas]);
+  }, [inlineText, inlinePlaceholder, selectedElement, zoom, splitBounds.width, splitBounds.height, notesWidth, notesHeight, viewMode, viewport, lightCanvas, inlineScreenX, inlineScreenY]);
 
   const inlineTextAlign = inlineText?.align ?? "left";
   const createSharedRoom = (openClassroom = false): Promise<void> => {
@@ -1019,15 +1022,20 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
     const engine = engineRef.current; if (engine) engine.setTool(engine.getTool());
   }, [commitInline, setAppearanceOpen, setCodeId]);
   const { active: focusMode, toggle: toggleFocus, exit: exitFocus } = useCanvasFocus(prepareFocusChange, isPresentationOpen);
-  const codeViewportTop = focusMode ? 8 : toolbarHeight + 8;
-  const codeViewportBottom = focusMode ? 8 : 56;
-  const revealCodeEditor = useCallback((card: DOMRect, caret?: DOMRect) => {
+  const editorViewportTop = focusMode ? 8 : toolbarHeight + 8;
+  const editorViewportBottom = focusMode ? 8 : 56;
+  const revealCanvasEditor = useCallback((card: DOMRect, caret?: DOMRect) => {
     const pane = containerRef.current?.getBoundingClientRect();
     if (!pane || !stageSize.width || !stageSize.height || !card.width || !card.height) return;
     const offset = (start: number, end: number, min: number, max: number, caretStart?: number, caretEnd?: number) => {
       const available = max - min;
       if (available <= 0) return 0;
-      if (end - start > available) {
+      const withCaretStart = Math.min(start, caretStart ?? start);
+      const withCaretEnd = Math.max(end, caretEnd ?? end);
+      if (withCaretEnd - withCaretStart <= available) {
+        start = withCaretStart;
+        end = withCaretEnd;
+      } else {
         start = caretStart ?? Math.max(start, Math.min(end - 1, min));
         end = caretEnd ?? start + 1;
       }
@@ -1036,9 +1044,15 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
     };
     engineRef.current?.panByScreen(
       offset(card.left, card.right, pane.left + 8, pane.left + stageSize.width - 8, caret?.left, caret?.right),
-      offset(card.top, card.bottom, pane.top + codeViewportTop, pane.top + stageSize.height - codeViewportBottom, caret?.top, caret?.bottom),
+      offset(card.top, card.bottom, pane.top + editorViewportTop, pane.top + stageSize.height - editorViewportBottom, caret?.top, caret?.bottom),
     );
-  }, [codeViewportBottom, codeViewportTop, stageSize.height, stageSize.width]);
+  }, [editorViewportBottom, editorViewportTop, stageSize.height, stageSize.width]);
+  useLayoutEffect(() => {
+    const editor = inlineTextareaRef.current;
+    if (!editor || !inlineText) return;
+    const caret = document.activeElement === editor ? editableCaretBounds(editor, inlineText.text) : undefined;
+    revealCanvasEditor(editor.getBoundingClientRect(), caret);
+  }, [inlineText, revealCanvasEditor, textSelection, viewport.zoom]);
   const previousFocusMode = useRef(false);
   useLayoutEffect(() => {
     if (focusMode || previousFocusMode.current) {
@@ -1235,14 +1249,14 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
               onDismiss={() => setWelcomeDismissedFor(board.id)}
             />}
 
-            {codeElement?.type === "text" && <CodeEditor onReveal={revealCodeEditor} viewport={{ ...stageSize, top: codeViewportTop }} initialView={codeInitialView} onViewChange={view=>{setCodeSelection(previous=>previous.start===view.selectionStart&&previous.end===view.selectionEnd?previous:{start:view.selectionStart,end:view.selectionEnd});codeViews.current.set(codeElement.id,view);if(codeViews.current.size>256)codeViews.current.delete(codeViews.current.keys().next().value!);engineRef.current?.setCodeScroll(codeElement.id,{x:view.scrollLeft,y:view.scrollTop});}} background={canvasElementAppearance(codeElement, lightCanvas, board.elements)} key={codeElement.id} formatting={codeElement} onResizeText={resizeCodeText} onHistory={redo=>{if(redo)engineRef.current?.redo();else engineRef.current?.undo();}} onFormat={patch=>{const key=Object.keys(patch)[0] as 'bold'|'italic'|'underline'|'strikethrough';const state=rangeFormattingState(codeElement.text,codeElement.textRanges,codeElement,codeSelection.start,codeSelection.end);applyCodeAppearance({[key]:state[key]!==true});}} value={codeElement.text} language={codeElement.codeLanguage || "auto"} fontSize={codeElement.fontSize} zoom={codeViewport.zoom} x={(codeElement.x - 16) * codeViewport.zoom + codeViewport.pan.x} y={(codeElement.y - 16) * codeViewport.zoom + codeViewport.pan.y} width={codeElement.width} height={codeElement.height} onChange={(text, language) => engineRef.current?.updateCode(codeElement.id, text, language)} onClose={() => { engineRef.current?.finishCode(); setCodeId(null); }} />}
+            {codeElement?.type === "text" && <CodeEditor onReveal={revealCanvasEditor} viewport={{ ...stageSize, top: editorViewportTop }} initialView={codeInitialView} onViewChange={view=>{setCodeSelection(previous=>previous.start===view.selectionStart&&previous.end===view.selectionEnd?previous:{start:view.selectionStart,end:view.selectionEnd});codeViews.current.set(codeElement.id,view);if(codeViews.current.size>256)codeViews.current.delete(codeViews.current.keys().next().value!);engineRef.current?.setCodeScroll(codeElement.id,{x:view.scrollLeft,y:view.scrollTop});}} background={canvasElementAppearance(codeElement, lightCanvas, board.elements)} key={codeElement.id} formatting={codeElement} onResizeText={resizeCodeText} onHistory={redo=>{if(redo)engineRef.current?.redo();else engineRef.current?.undo();}} onFormat={patch=>{const key=Object.keys(patch)[0] as 'bold'|'italic'|'underline'|'strikethrough';const state=rangeFormattingState(codeElement.text,codeElement.textRanges,codeElement,codeSelection.start,codeSelection.end);applyCodeAppearance({[key]:state[key]!==true});}} value={codeElement.text} language={codeElement.codeLanguage || "auto"} fontSize={codeElement.fontSize} zoom={codeViewport.zoom} x={(codeElement.x - 16) * codeViewport.zoom + codeViewport.pan.x} y={(codeElement.y - 16) * codeViewport.zoom + codeViewport.pan.y} width={codeElement.width} height={codeElement.height} onChange={(text, language) => engineRef.current?.updateCode(codeElement.id, text, language)} onClose={() => { engineRef.current?.finishCode(); setCodeId(null); }} />}
             {inlineText && (
               <>
                 {/* Document-specific list tools; ordinary canvas text stays unobstructed. */}
                 {selectedElement?.type === "text" && selectedElement.isDocCard && <div
                   role="toolbar" aria-label="Document formatting"
                   onMouseDown={e=>e.preventDefault()}
-                  style={{position:"absolute",left:`clamp(8px, ${inlineText.screenX}px, calc(100% - 184px))`,top:Math.max(8,inlineText.screenY-40),zIndex:40}}
+                  style={{position:"absolute",left:`clamp(8px, ${inlineScreenX}px, calc(100% - 184px))`,top:Math.max(8,inlineScreenY-40),zIndex:40}}
                   className="flex items-center gap-1 rounded-lg border border-neutral-700 bg-neutral-900 px-1 py-1 text-xs shadow-lg">
                   {[{label:"Heading",icon:Heading1,prefix:"#"},{label:"Bullet list",icon:List,prefix:"•"},{label:"Checklist",icon:CheckSquare,prefix:"[ ]"},{label:"Quote",icon:Quote,prefix:">"}].map(tool=><button type="button" key={tool.label} aria-label={tool.label} title={tool.label} className="note-tool" onClick={()=>handleInsertPrefix(tool.prefix)}><tool.icon className="h-4 w-4"/></button>)}
                   <button type="button" aria-label="Finish document editing" title="Finish · Ctrl/Cmd+Enter" className="note-tool text-neutral-400" onClick={commitInline}><Check className="h-4 w-4"/></button>
@@ -1292,8 +1306,8 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
                   spellCheck={false}
                   style={{
                     position: "absolute",
-                    left: `${inlineText.screenX}px`,
-                    top: `${inlineText.screenY}px`,
+                    left: `${inlineScreenX}px`,
+                    top: `${inlineScreenY}px`,
                     width: `${inlineText.screenWidth ?? Math.max(160, Math.max(...inlineText.text.split("\n").map((l) => l.length), 6) * inlineText.fontSize * zoom * 0.62 + 32)}px`,
                     minHeight: inlineText.screenHeight ? `${inlineText.screenHeight}px` : `${inlineText.fontSize * zoom * 1.5 + 16}px`,
                     fontSize: `${inlineText.fontSize * zoom}px`,
