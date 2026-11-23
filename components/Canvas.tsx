@@ -383,15 +383,20 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
     if ("caches" in window) caches.keys().then(keys => Promise.all(keys.filter(key => /^whiteboard-v\d+$/.test(key)).map(key => caches.delete(key)))).catch(() => undefined);
   }, []);
 
-  // Create the engine once, and keep the canvas sized to its container (layout and DPR changes).
+  // Match the drawing buffer to the pane after layout changes.
   useEffect(() => {
     if (!canvasRef.current || !containerRef.current) return;
     const container = containerRef.current;
     const engine = new CanvasEngine(canvasRef.current, boardRef.current.elements, themeRef.current, boardRef.current.gridType, canvasBackground(boardRef.current.background,themeRef.current,preferences.workspaceThemes.canvas));
-    engine.resize(container.clientWidth, container.clientHeight);
-    setStageSize({ width: container.clientWidth, height: container.clientHeight });
     engineRef.current = engine;
-    const observer = new ResizeObserver(() => { if (container.clientWidth && container.clientHeight) { engine.resize(container.clientWidth, container.clientHeight); setStageSize({ width: container.clientWidth, height: container.clientHeight }); } });
+    const resizeStage = () => {
+      const { clientWidth: width, clientHeight: height } = container;
+      if (!width || !height) return;
+      engine.resize(width, height);
+      setStageSize(size => size.width === width && size.height === height ? size : { width, height });
+    };
+    resizeStage();
+    const observer = new ResizeObserver(resizeStage);
     observer.observe(container);
 
     engine.onChange = (elements) => {
@@ -1192,10 +1197,10 @@ export function Canvas({ initialRoomId }: { initialRoomId?: string }) {
           onDragOver={event=>{if(event.dataTransfer.types.includes("Files")){event.preventDefault();event.dataTransfer.dropEffect="copy";setDragFiles(true);}}}
           onDragLeave={event=>{if(!event.currentTarget.contains(event.relatedTarget as Node|null))setDragFiles(false);}}
           onDrop={event=>{if(!event.dataTransfer.files.length)return;event.preventDefault();setDragFiles(false);const r=canvasRef.current?.getBoundingClientRect();void uploadAssets(Array.from(event.dataTransfer.files),r?{x:event.clientX-r.left,y:event.clientY-r.top}:undefined);}}
-          className={`relative min-h-0 min-w-0 flex-1 h-full overflow-hidden bg-white dark:bg-black ${!drawingView && !isPresentationOpen && !focusMode ? "hidden" : ""}`}
+          className={`relative min-h-0 min-w-0 flex-1 overflow-hidden bg-white dark:bg-black ${!drawingView && !isPresentationOpen && !focusMode ? "hidden" : ""}`}
         >
             {dragFiles&&<div aria-hidden="true" className="pointer-events-none absolute inset-2 z-40 flex items-center justify-center rounded-xl border-2 border-dashed border-neutral-400 bg-neutral-500/10 text-sm text-neutral-200">Drop images or files onto this board</div>}
-            <canvas ref={canvasRef} tabIndex={0} aria-label="Drawing canvas" data-theme={theme} data-background={displayBackground.fill} className="block touch-none select-none" style={{ backgroundColor: displayBackground.fill, backgroundImage: lightCanvas ? "conic-gradient(#e4e4e7 25%, transparent 0 50%, #e4e4e7 0 75%, transparent 0)" : "conic-gradient(#27272a 25%, transparent 0 50%, #27272a 0 75%, transparent 0)", backgroundSize: "16px 16px" }} />
+            <canvas ref={canvasRef} tabIndex={0} aria-label="Drawing canvas" data-theme={theme} data-background={displayBackground.fill} className="absolute inset-0 block h-full w-full touch-none select-none" style={{ backgroundColor: displayBackground.fill, backgroundImage: lightCanvas ? "conic-gradient(#e4e4e7 25%, transparent 0 50%, #e4e4e7 0 75%, transparent 0)" : "conic-gradient(#27272a 25%, transparent 0 50%, #27272a 0 75%, transparent 0)", backgroundSize: "16px 16px" }} />
 
             {showWelcome && <CanvasWelcome
               theme={theme}

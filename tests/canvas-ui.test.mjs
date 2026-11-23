@@ -98,6 +98,43 @@ const named = label => document.querySelector(`[aria-label="${label}"]`);
 async function clickNamed(label) { await act(async () => named(label).click()); }
 async function chooseCanvasFont(font) { await act(async()=>{const picker=named('Canvas font library');picker.focus();picker.value=font;picker.dispatchEvent(new browser.Event('change',{bubbles:true}));}); }
 async function boardPointer(type, x, y) { await act(async () => document.querySelector('main canvas').dispatchEvent(new browser.PointerEvent(type, { bubbles: true, clientX: x, clientY: y, button: 0, pointerId: 1, isPrimary: true }))); }
+test('resizing the drawing pane updates the bitmap without locking the canvas CSS size or moving artwork', async () => {
+  const originalObserver = globalThis.ResizeObserver;
+  const observers = new Map();
+  globalThis.ResizeObserver = class extends originalObserver {
+    observe(element) { observers.set(element, this.callback); super.observe(element); }
+  };
+  try {
+    const id = await renderBoard();
+    const canvas = named('Drawing canvas');
+    const pane = canvas.parentElement;
+    const resize = async (width, height) => {
+      Object.defineProperties(pane, {
+        clientWidth: { configurable: true, value: width },
+        clientHeight: { configurable: true, value: height },
+      });
+      await act(async () => observers.get(pane)());
+      expect(canvas.width).toBe(Math.round(width * browser.devicePixelRatio));
+      expect(canvas.height).toBe(Math.round(height * browser.devicePixelRatio));
+      expect(canvas.style.width).toBe('');
+      expect(canvas.style.height).toBe('');
+    };
+    await resize(900, 600);
+    await clickNamed('Rectangle (R)');
+    await boardPointer('pointerdown', 100, 100);
+    await boardPointer('pointermove', 240, 180);
+    await boardPointer('pointerup', 240, 180);
+    const elements = getBoard(id).elements;
+    expect(elements).toHaveLength(1);
+
+    await resize(1400, 850);
+    await resize(420, 320);
+    expect(named('Drawing canvas')).toBe(canvas);
+    expect(getBoard(id).elements).toEqual(elements);
+  } finally {
+    globalThis.ResizeObserver = originalObserver;
+  }
+});
 async function startText(tool = 'Text & Bullets (T)') {
   await clickNamed(tool); await boardPointer('pointerdown', 100, 100); await boardPointer('pointerup', 100, 100);
   await act(async () => new Promise(resolve => window.requestAnimationFrame(resolve)));
